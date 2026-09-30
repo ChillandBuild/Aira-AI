@@ -106,3 +106,20 @@ export function useBrainCount(enabled: boolean): number | null {
   const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   return enabled ? badgeCount(current) : null;
 }
+
+/**
+ * How many conflicts the Aira Brain hub is listing (consistency_count), or null
+ * when there is nothing to show: gate closed, before the first success, after a
+ * 403/404, or a count of 0. Shares the badge's store and timer.
+ */
+export function useConsistencyCount(enabled: boolean): number | null {
+  useEffect(() => {
+    if (!enabled) return;
+    return retain();
+  }, [enabled]);
+
+  const current = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  if (!enabled) return null;
+  const count = current.value?.consistency_count ?? 0;
+  return count > 0 ? count : null;
+}

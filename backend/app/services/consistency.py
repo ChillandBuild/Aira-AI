@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 
 from app.config_dynamic import get_setting, invalidate_cache, save_setting
 from app.services import deal_engine
+from app.services import business_profile
 from app.services.business_profile import get_handover_line
 from app.services.description_diff import lines_of, normalize
 from app.services.knowledge_sections import unverified_tokens
@@ -333,6 +334,38 @@ async def _model_issues(src: dict, flagged: list[dict], tenant_id: str) -> tuple
     return validate_model_issues(data.get("issues"), src), True
 
 
+# ─── Description sections ─────────────────────────────────────────────────────
+
+def section_of(description: str, quote: str) -> tuple[str | None, str | None]:
+    """(key, label) of the parsed Description section that holds the quoted sentence.
+    (None, None) when it sits in the free-text "other" area or cannot be found."""
+    target = normalize(quote)
+    if not target:
+        return None, None
+    parsed = business_profile.parse(description)
+    for section in business_profile.SECTIONS:
+        if target in normalize(parsed.sections.get(section.key)):
+            return section.key, section.label
+    return None, None
+
+
+def with_sections(issues: list[dict], description: str) -> list[dict]:
+    """Copies of the issues with section and section_label set. Only a Description issue
+    can have a section; a knowledge file issue gets nulls so every issue has the same shape."""
+    out = []
+    for issue in issues:
+        key, label = section_of(description, issue["quote"]) if issue.get("where") == "description" else (None, None)
+        out.append({**issue, "section": key, "section_label": label})
+    return out
+
+
+def _fill_missing_sections(issues: list[dict], description: str) -> list[dict]:
+    """A report saved before the section field existed: compute it on read (no model call)."""
+    if all("section" in issue for issue in issues):
+        return issues
+    return [issue if "section" in issue else with_sections([issue], description)[0] for issue in issues]
+
+
 # ─── Report ───────────────────────────────────────────────────────────────────
 
 def issue_key(issue: dict) -> str:
@@ -382,7 +415,7 @@ async def run_check(db, tenant_id: str) -> dict:
     src = gather(db, tenant_id)
     found = deterministic_issues(src)
     model, ran = await _model_issues(src, found, tenant_id)
-    issues = merge(found, model)
+    issues = with_sections(merge(found, model), src["description"])
     previous = load_report(tenant_id)
     report = {
         "issues": issues,
@@ -396,7 +429,7 @@ async def run_check(db, tenant_id: str) -> dict:
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
     _save_report(tenant_id, report)
-    return visible(report)
+    return {**visible(report), "dismissed_issues": dismissed_issues(report)}
 
 
 async def run_check_safely(tenant_id: str) -> None:
@@ -409,17 +442,32 @@ async def run_check_safely(tenant_id: str) -> None:
         logger.exception("consistency: background check failed for tenant %s", tenant_id)
 
 
+def dismissed_issues(report: dict) -> list[dict]:
+    """The hidden issues, in the short shape the "Dismissed (N)" list needs."""
+    dismissed = set(report.get("dismissed") or [])
+    return [
+        {"id": i["id"], "topic": i.get("topic"), "quote": i.get("quote"), "where": i.get("where"),
+         "document_name": i.get("document_name"), "section": i.get("section"),
+         "section_label": i.get("section_label")}
+        for i in report.get("issues") or [] if i["id"] in dismissed
+    ]
+
+
 def current_report(db, tenant_id: str) -> dict:
-    report = visible(load_report(tenant_id))
+    raw = load_report(tenant_id)
+    report = visible(raw)
     if not report.get("fingerprint"):
-        return {"issues": [], "checked_at": None, "stale": True}
+        return {"issues": [], "checked_at": None, "stale": True, "dismissed_issues": []}
     complete = report.get("suggestions_complete")
     if complete is None:  # a report saved before this flag existed
         complete = all(i.get("proposed") is not None for i in report["issues"] if i.get("editable", True))
-    stale = report["fingerprint"] != fingerprint(gather(db, tenant_id)) or not complete
+    src = gather(db, tenant_id)
+    stale = report["fingerprint"] != fingerprint(src) or not complete
+    description = src.get("description") or ""
+    hidden = dismissed_issues({**raw, "issues": _fill_missing_sections(raw.get("issues") or [], description)})
     return {
-        "issues": report["issues"], "checked_at": report.get("checked_at"), "stale": stale,
-        "suggestions_complete": complete,
+        "issues": _fill_missing_sections(report["issues"], description), "checked_at": report.get("checked_at"),
+        "stale": stale, "suggestions_complete": complete, "dismissed_issues": hidden,
     }
 
 
@@ -494,3 +542,187 @@ def apply_fix(db, tenant_id: str, issue_id: str, *, user_id: str | None, is_owne
     _save_report(tenant_id, {**report, "issues": remaining})
     return {"applied": issue_id, **result}
 
+
+
+# ─── Bulk actions ─────────────────────────────────────────────────────────────
+# One request, in order: the report is read, changed and saved whole, so two parallel calls
+# would overwrite each other. The per-item checks mirror apply_fix (kept inline there, so they
+# are repeated here; test_consistency_bulk.py's parity test guards drift).
+
+STALE_MESSAGE = "Issues changed, reload"
+
+
+class _Outcome(Exception):
+    """One issue that a batch fix did not apply. kind is "skipped" (not tried) or "failed"."""
+
+    def __init__(self, kind: str, code: str, reason: str):
+        super().__init__(reason)
+        self.kind, self.code, self.reason = kind, code, reason
+
+
+def _entry(issue_id: str, code: str, reason: str) -> dict:
+    return {"id": issue_id, "reason": reason, "code": code}
+
+
+def _load_matching_report(tenant_id: str, checked_at: str) -> dict:
+    report = load_report(tenant_id)
+    if report.get("checked_at") != checked_at:
+        raise FixError(STALE_MESSAGE, 409)
+    return report
+
+
+class _FixBatch:
+    """The in-memory state of one batch fix: Description and file texts chained edit by edit,
+    and which issue ids each pending save covers."""
+
+    def __init__(self, db, tenant_id: str, is_owner: bool):
+        self.db, self.tenant_id, self.is_owner = db, tenant_id, is_owner
+        self.description: str | None = None
+        self.description_ids: list[str] = []
+        self.file_texts: dict[str, str] = {}
+        self.file_ids: dict[str, list[str]] = {}
+        self._truth: str | None = None
+        self._docs: dict[str, dict] | None = None
+
+    def truth(self) -> str:
+        if self._truth is None:
+            self._truth = services_summary(gather(self.db, self.tenant_id))
+        return self._truth
+
+    def docs(self) -> dict[str, dict]:
+        if self._docs is None:
+            self._docs = {d["id"]: d for d in _documents(self.db, self.tenant_id)}
+        return self._docs
+
+    def plan(self, issue: dict) -> None:
+        """Chain this issue's edit in memory, or raise _Outcome saying why not."""
+        proposed = issue.get("proposed")
+        if proposed is None:
+            raise _Outcome("skipped", "no_proposal",
+                           "There is no suggested wording for this one. Type your own, or edit the source.")
+        proposed = proposed.strip()
+        if proposed and unverified_tokens(proposed, issue["quote"], self.truth()):
+            raise _Outcome("failed", "unverified_tokens",
+                           "The new wording has a price, number or link that isn't on your Services page.")
+        if issue["where"] == "description":
+            self._plan_description(issue, proposed)
+        else:
+            self._plan_file(issue, proposed)
+
+    def _plan_description(self, issue: dict, proposed: str) -> None:
+        from app.services import knowledge_versions as kv
+
+        if not self.is_owner:
+            raise _Outcome("skipped", "owner_only", "Only an account owner can change the Description.")
+        current = self.description if self.description is not None else kv.current_description(self.tenant_id)
+        self.description = _chained_replace(current, issue["quote"], proposed)
+        self.description_ids.append(issue["id"])
+
+    def _plan_file(self, issue: dict, proposed: str) -> None:
+        if not issue.get("editable"):
+            raise _Outcome("skipped", "not_editable",
+                           "This file was uploaded before auto-sort. Re-sort it on the Knowledge page, then fix it there.")
+        doc = self.docs().get(issue.get("document_id"))
+        if not doc:
+            raise _Outcome("failed", "file_gone", "That file is gone. Check again.")
+        current = self.file_texts.get(doc["id"], doc["text"])
+        self.file_texts[doc["id"]] = _chained_replace(current, issue["quote"], proposed)
+        self.file_ids.setdefault(doc["id"], []).append(issue["id"])
+
+    def commit(self, user_id: str | None) -> tuple[list[dict], list[dict]]:
+        """Save once per target. Returns (index jobs for the files written, failed entries
+        for the issues whose save did not go through)."""
+        from app.services import knowledge_sort as ks
+        from app.services import knowledge_versions as kv
+
+        jobs: list[dict] = []
+        failed: list[dict] = []
+        if self.description_ids:
+            error = _try_save(lambda: kv.save_description(self.db, self.tenant_id, self.description, "edit", user_id))
+            failed += [_entry(i, "save_failed", error) for i in self.description_ids if error]
+        for doc_id, text in self.file_texts.items():
+            holder: dict = {}
+            error = _try_save(lambda: holder.update(ks.update_facts(self.db, self.tenant_id, doc_id, text, user_id)))
+            if error:
+                failed += [_entry(i, "save_failed", error) for i in self.file_ids[doc_id]]
+            else:
+                jobs.append({"document_id": doc_id, "facts": holder["facts"],
+                             "campaign_tag_id": holder.get("campaign_tag_id")})
+        return jobs, failed
+
+
+def _chained_replace(text: str, quote: str, proposed: str) -> str:
+    try:
+        return _replace_line(text, quote, proposed)
+    except FixError as e:
+        raise _Outcome("failed", "text_changed", str(e)) from e
+
+
+def _try_save(write) -> str | None:
+    """Run one save; the error message to show, or None when it went through."""
+    try:
+        write()
+    except Exception as e:  # a failed save must be reported per issue, never swallowed
+        logger.exception("consistency: batch save failed")
+        return str(e) or "Could not save the change."
+    return None
+
+
+def apply_fixes(db, tenant_id: str, issue_ids: list[str], checked_at: str, *, user_id: str | None, is_owner: bool) -> dict:
+    """Fix many issues with their proposed wording, in order, in one request. Description and
+    file edits are chained in memory and saved once per target; the report is saved once.
+    Raises FixError(409) when checked_at is not the stored report's.
+
+    Returns {applied, skipped, failed, index_jobs, recheck}: the first three are the response;
+    index_jobs (one per file written) and recheck are for the route's background work."""
+    report = _load_matching_report(tenant_id, checked_at)
+    issues = {i["id"]: i for i in report.get("issues") or []}
+    batch = _FixBatch(db, tenant_id, is_owner)
+    planned: list[str] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+    for issue_id in dict.fromkeys(issue_ids):
+        issue = issues.get(issue_id)
+        if not issue:
+            failed.append(_entry(issue_id, "not_found", "Aira no longer sees this problem. Check again."))
+            continue
+        try:
+            batch.plan(issue)
+        except _Outcome as o:
+            (skipped if o.kind == "skipped" else failed).append(_entry(issue_id, o.code, o.reason))
+        else:
+            planned.append(issue_id)
+    index_jobs, save_failed = batch.commit(user_id) if planned else ([], [])
+    failed += save_failed
+    lost = {f["id"] for f in save_failed}
+    applied = [i for i in planned if i not in lost]
+    if applied:
+        remaining = [i for i in report.get("issues") or [] if i["id"] not in set(applied)]
+        _save_report(tenant_id, {**report, "issues": remaining})
+    return {"applied": applied, "skipped": skipped, "failed": failed, "index_jobs": index_jobs,
+            "recheck": bool(applied)}
+
+
+def dismiss_many(tenant_id: str, issue_ids: list[str], checked_at: str) -> dict:
+    """Hide many issues at once. An id the report does not hold is reported, not stored."""
+    report = _load_matching_report(tenant_id, checked_at)
+    known = {i["id"] for i in report.get("issues") or []}
+    wanted = list(dict.fromkeys(issue_ids))
+    done = [i for i in wanted if i in known]
+    skipped = [_entry(i, "not_found", "Aira no longer sees this problem.") for i in wanted if i not in known]
+    if done:
+        dismissed = list(dict.fromkeys([*(report.get("dismissed") or []), *done]))
+        _save_report(tenant_id, {**report, "dismissed": dismissed})
+    return {"dismissed": done, "skipped": skipped}
+
+
+def restore(tenant_id: str, issue_ids: list[str]) -> dict:
+    """Bring dismissed issues back. They were only hidden, so the report still holds them."""
+    report = load_report(tenant_id)
+    dismissed = list(report.get("dismissed") or [])
+    wanted = list(dict.fromkeys(issue_ids))
+    done = [i for i in wanted if i in dismissed]
+    skipped = [_entry(i, "not_dismissed", "This one is not dismissed.") for i in wanted if i not in dismissed]
+    if done:
+        _save_report(tenant_id, {**report, "dismissed": [i for i in dismissed if i not in set(done)]})
+    return {"restored": done, "skipped": skipped}

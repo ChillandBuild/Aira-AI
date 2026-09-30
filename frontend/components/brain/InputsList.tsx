@@ -66,7 +66,7 @@ function EditControl({ input, reasonId }: { input: BrainInput; reasonId: string 
   );
 }
 
-function InputRow({ input }: { input: BrainInput }) {
+function InputRow({ input, readOnly }: { input: BrainInput; readOnly: boolean }) {
   const reasonId = useId();
   return (
     <li className="min-w-0 rounded-xl border border-border-subtle bg-surface-low px-3 py-2.5">
@@ -79,12 +79,12 @@ function InputRow({ input }: { input: BrainInput }) {
           <span className={cn("rounded-full px-2 py-0.5 font-label text-[10px] font-bold", STATE_CLASS[input.state])}>
             {STATE_LABEL[input.state]}
           </span>
-          <EditControl input={input} reasonId={reasonId} />
+          {!readOnly && <EditControl input={input} reasonId={reasonId} />}
         </div>
       </div>
       {input.sections && input.sections.length > 0 && <SectionDots sections={input.sections} />}
       {input.flag && <p className="mt-1 break-words font-body text-[11px] text-warning">{input.flag}</p>}
-      {!input.can_edit && (
+      {!readOnly && !input.can_edit && (
         <p id={reasonId} className="mt-1 font-body text-[11px] text-ink-secondary">
           {input.reason ?? FALLBACK_REASON}
         </p>
@@ -93,7 +93,8 @@ function InputRow({ input }: { input: BrainInput }) {
   );
 }
 
-export function InputsList({ inputs }: { inputs: BrainInput[] }) {
+/** readOnly (operator console): no Edit control and no reason line, the rows only report state. */
+export function InputsList({ inputs, readOnly = false }: { inputs: BrainInput[]; readOnly?: boolean }) {
   return (
     <SectionCard title="What you told Aira" subtitle="The five things Aira reads before it answers.">
       {inputs.length === 0 ? (
@@ -101,7 +102,7 @@ export function InputsList({ inputs }: { inputs: BrainInput[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {inputs.map((input) => (
-            <InputRow key={input.key} input={input} />
+            <InputRow key={input.key} input={input} readOnly={readOnly} />
           ))}
         </ul>
       )}

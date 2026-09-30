@@ -130,6 +130,11 @@ export function headlineSentence(h: BrainHeadline): string {
   return `${lead}: ${handled} ${reached}`;
 }
 
+/** "1 thing disagrees with Aira's setup, " / "3 things disagree with Aira's setup, ", followed by the link text. */
+export function conflictsLinkText(count: number): string {
+  return `${count} ${plural(count, "thing disagrees", "things disagree")} with Aira's setup —`;
+}
+
 export function topLineText(waitingCount: number): string {
   if (waitingCount <= 0) return "Aira is ready";
   return `${waitingCount} ${plural(waitingCount, "thing needs", "things need")} you`;

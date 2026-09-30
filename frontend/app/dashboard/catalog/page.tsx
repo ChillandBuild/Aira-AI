@@ -3,6 +3,7 @@
 import { BarChart3, Image as ImageIcon, Package, Sparkles } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ConflictsLink } from "@/components/brain/ConflictsLink";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { ItemsTab } from "./ItemsTab";
 import { MediaTab } from "./MediaTab";
@@ -70,6 +71,7 @@ export default function CatalogPage() {
         </div>
       </div>
 
+      {tab === "items" && <ConflictsLink />}
       {tab === "items" && <ItemsTab canManage={canManageCatalog} />}
       {tab === "media" && <MediaTab canManage={canManageCatalog} />}
       {tab === "ai-rules" && <AiRulesTab canManage={canManageCatalog} />}

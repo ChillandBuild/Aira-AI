@@ -19,7 +19,8 @@ import { usePolling } from "@/hooks/usePolling";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SwitchPill } from "@/components/ui/controls";
-import { ConsistencyPanel } from "@/components/ConsistencyPanel";
+import { ConflictsLink } from "@/components/brain/ConflictsLink";
+import { announceApprovalsChanged } from "@/components/brain/approvalsEvent";
 import KnowledgeReviewModal from "./KnowledgeReviewModal";
 import KnowledgeHistoryModal from "./KnowledgeHistoryModal";
 import DeleteDocumentModal from "./DeleteDocumentModal";
@@ -287,6 +288,9 @@ function formatDate(dateStr: string): string {
   }
 }
 
+// Values of the status filter that ?status= may preset.
+const PRESETTABLE_STATUSES = ["all", "live", "unsorted", "review", "sorting", "failed"];
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function KnowledgePage() {
@@ -321,6 +325,12 @@ export default function KnowledgePage() {
   const tab = (rawTab === "description" || rawTab === "ai-tune"
     ? "description"
     : "documents") as "documents" | "description";
+
+  // The hub links here with ?status=review to land on the files waiting for review.
+  const presetStatus = searchParams.get("status");
+  useEffect(() => {
+    if (presetStatus && PRESETTABLE_STATUSES.includes(presetStatus)) setStatusFilter(presetStatus);
+  }, [presetStatus]);
 
   // Document Upload
   const [uploading, setUploading] = useState(false);
@@ -624,6 +634,7 @@ export default function KnowledgePage() {
     try {
       await api.knowledge.resort(docId);
       toast.success("Sorting this file. It'll be ready to review in a minute.");
+      announceApprovalsChanged();
       await loadDocuments();
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "Could not start sorting this file.");
@@ -860,9 +871,7 @@ export default function KnowledgePage() {
     // the top of the screen with the app header showing through it. Verified in Chrome:
     // the overlay's rect was y=24 h=776 in an 800px viewport.
     <div className="max-w-7xl mx-auto">
-      <div className="mb-6">
-        <ConsistencyPanel />
-      </div>
+      <ConflictsLink className="mb-6" />
 
       {tab === "documents" ? (
         <div className="space-y-6">
@@ -1930,6 +1939,7 @@ export default function KnowledgePage() {
           onDeleted={(descriptionChanged) => {
             setDeletingDoc(null);
             loadDocuments();
+            announceApprovalsChanged();
             if (descriptionChanged) refreshAfterDescriptionChange();
           }}
         />
@@ -1945,11 +1955,13 @@ export default function KnowledgePage() {
           onFinished={({ descriptionChanged }) => {
             setReviewingDocId(null);
             loadDocuments();
+            announceApprovalsChanged();
             if (descriptionChanged) refreshAfterDescriptionChange();
           }}
           onResorted={() => {
             setReviewingDocId(null);
             loadDocuments();
+            announceApprovalsChanged();
           }}
         />
       )}

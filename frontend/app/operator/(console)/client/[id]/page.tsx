@@ -12,6 +12,7 @@ import { TeamView } from "./views/team";
 import { RolesView } from "./views/roles";
 import { TelecallingView } from "./views/telecalling";
 import { ConfigView } from "./views/config";
+import { BrainView } from "./views/brain";
 import { HealthView } from "./views/health";
 import { ManagementView } from "./views/management";
 import { DataOpsView } from "./views/data-ops";
@@ -26,7 +27,7 @@ const VALID_SECTIONS: SectionType[] = [
   "overview", "conversations", "segments", "inbound", "outbound",
   "templates", "numbers", "knowledge", "analytics", "team", "roles",
   "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
-  "config", "entitlements", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
+  "brain", "config", "entitlements", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
 ];
 
 export default function ClientDetailPage() {
@@ -141,6 +142,7 @@ export default function ClientDetailPage() {
     "tc-dialer": { title: "Telecalling / Dialer", desc: "Call logs and connect rates." },
     "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
+    brain: { title: "Aira Brain", desc: "What Aira knows, what is waiting on the client, and how customers are handled (read-only)." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
     entitlements: { title: "Entitlements & Usage", desc: "Current purchased items, subscription status, and usage this cycle (read-only)." },
     "token-usage": { title: "Token Consumption", desc: "AI provider token usage and estimated cost, on this client's own API keys." },
@@ -197,16 +199,17 @@ export default function ClientDetailPage() {
 
         {/* Main content */}
         <div className="px-7 py-6">
-          <SectionContent section={section} tenantId={tenantId} overview={overview} onReload={loadOverview} setError={setError} />
+          <SectionContent section={section} tenantId={tenantId} overview={overview} onReload={loadOverview} setError={setError} onOpenSection={setSection} />
         </div>
       </div>
     </>
   );
 }
 
-function SectionContent({ section, tenantId, overview, onReload, setError }: {
+function SectionContent({ section, tenantId, overview, onReload, setError, onOpenSection }: {
   section: SectionType; tenantId: string; overview: OverviewData | null;
   onReload: () => void; setError: (e: string | null) => void;
+  onOpenSection: (section: SectionType) => void;
 }) {
   switch (section) {
     case "overview":
@@ -239,6 +242,8 @@ function SectionContent({ section, tenantId, overview, onReload, setError }: {
       return <TelecallingView tenantId={tenantId} subSection="scheduled" />;
     case "tc-notes":
       return <TelecallingView tenantId={tenantId} subSection="notes" />;
+    case "brain":
+      return <BrainView tenantId={tenantId} onOpenSection={onOpenSection} />;
     case "config":
       return <ConfigView tenantId={tenantId} />;
     case "entitlements":

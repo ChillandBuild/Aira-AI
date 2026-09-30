@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SwitchPill } from "@/components/ui/controls";
-import { ConsistencyPanel } from "@/components/ConsistencyPanel";
+import { ConflictsLink } from "@/components/brain/ConflictsLink";
 import { useSettingsForm } from "../settings/SettingsFormContext";
 import { SaveButton, SaveStatus } from "../settings/SettingsSection";
 import { slugify } from "../settings/slugify";
@@ -130,7 +130,7 @@ export default function ServicesPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-28">
-      <ConsistencyPanel />
+      <ConflictsLink />
 
       <section aria-labelledby="sell-heading" className="mt-6 flex flex-wrap items-start justify-between gap-x-8 gap-y-4 rounded-2xl bg-surface px-5 py-5 shadow-[0_1px_0_rgba(28,25,23,0.04)] ring-1 ring-surface-mid sm:px-6">
         <div className="min-w-0 max-w-2xl space-y-1.5">

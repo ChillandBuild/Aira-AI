@@ -52,7 +52,7 @@ function ConnectionRow({ connection }: { connection: BrainConnection }) {
     <StatusRow label="WhatsApp connection">
       <Pill tone={CONNECTION_TONE[connection.state]}>{CONNECTION_LABEL[connection.state]}</Pill>
       {connection.state === "token_problem" && (
-        <Link href="/dashboard/channels" className={ROW_LINK_CLASS}>
+        <Link href="/dashboard/settings/connect-channels" className={ROW_LINK_CLASS}>
           Fix
         </Link>
       )}

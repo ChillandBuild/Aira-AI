@@ -23,6 +23,7 @@ from app.routes.marketplace_intake import public_router as marketplace_public_ro
 from app.routes import marketplace_intake
 from app.routes import deals, business_details
 from app.routes import brain
+from app.routes import operator_brain
 from app.routes import lead_details_share
 
 # Configure logging
@@ -57,6 +58,7 @@ _heartbeats = {
     "intake-staleness-sweep": None,
     "crm-cutoff-sweep": None,
     "call-alert-summary": None,
+    "brain-weekly-digest": None,
 }
 
 
@@ -344,6 +346,16 @@ async def _send_call_alert_summaries() -> None:
         logger.error(f"Call alert summary error: {e}")
 
 
+async def _send_brain_weekly_digest() -> None:
+    _heartbeats["brain-weekly-digest"] = datetime.now(timezone.utc)
+    try:
+        from app.db.supabase import get_supabase
+        from app.services.brain_digest import send_weekly_digests
+        send_weekly_digests(get_supabase())
+    except Exception as e:
+        logger.error(f"Brain weekly digest error: {e}")
+
+
 _scheduler = AsyncIOScheduler()
 
 
@@ -477,6 +489,8 @@ async def lifespan(app: FastAPI):
                        replace_existing=True, max_instances=1, coalesce=True)
     _scheduler.add_job(_send_call_alert_summaries, trigger="cron", hour=MORNING_SUMMARY_HOUR_IST, minute=0,
                        timezone="Asia/Kolkata", id="call-alert-summary", replace_existing=True)
+    _scheduler.add_job(_send_brain_weekly_digest, trigger="cron", day_of_week="mon", hour=9, minute=0,
+                       timezone="Asia/Kolkata", id="brain-weekly-digest", replace_existing=True)
     _scheduler.add_listener(
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
@@ -686,6 +700,7 @@ app.include_router(media.router, prefix="/api/v1/leads", tags=["media"], depende
 app.include_router(todos.router, prefix="/api/v1/todos", tags=["todos"], dependencies=_auth)
 app.include_router(conversations.router, prefix="/api/v1/conversations", tags=["conversations"], dependencies=_auth)
 app.include_router(operator.router, prefix="/api/v1/operator", tags=["operator"])
+app.include_router(operator_brain.router, prefix="/api/v1/operator", tags=["operator"])
 app.include_router(chat_handovers.router, prefix="/api/v1/chat-handovers", tags=["chat-handovers"], dependencies=_auth)
 app.include_router(tags.router, prefix="/api/v1/broadcast-tags", tags=["broadcast-tags"], dependencies=_auth)
 app.include_router(inbound_leads.router, prefix="/api/v1/inbound-leads", tags=["inbound-leads"], dependencies=_auth)

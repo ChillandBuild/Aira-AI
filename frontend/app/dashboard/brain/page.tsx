@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import KnowledgeReviewModal from "@/app/dashboard/knowledge/KnowledgeReviewModal";
 import { announceApprovalsChanged } from "@/components/brain/approvalsEvent";
-import { canAutoCheckPanel, pickMainAction } from "@/components/brain/brainLogic";
+import { pickMainAction } from "@/components/brain/brainLogic";
 import { CanReply } from "@/components/brain/CanReply";
 import { HandoverFeed } from "@/components/brain/HandoverFeed";
 import { HeadlineStrip } from "@/components/brain/HeadlineStrip";
@@ -91,8 +91,9 @@ export default function AiraBrainPage() {
             <WaitingOnYou
               waiting={data.waiting}
               canManage={canManage}
-              canAutoCheck={canAutoCheckPanel(role, permissions)}
+              isOwner={isOwner}
               panelKey={panelKey}
+              onConflictsChanged={announceApprovalsChanged}
               onOpenReview={openReview}
             />
             <HandoverFeed handovers={data.handovers} />

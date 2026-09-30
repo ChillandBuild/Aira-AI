@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, X } from "lucide-react";
+import { Plus, RefreshCw, PowerOff, Power, List, LayoutGrid, Copy, Check, Eye, EyeOff, X, AlertTriangle } from "lucide-react";
 import { operatorFetch } from "@/lib/operator";
+import { fleetWaitingByTenant, waitingColumnText, type FleetWaitingResponse } from "@/components/brain/operatorBrain";
 import { OnboardingWizard } from "./components/onboarding-wizard";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import { CheckTick } from "@/components/ui/controls";
@@ -13,6 +14,8 @@ type Client = {
   status: string;
   created_at: string;
 };
+
+const FLEET_REFRESH_MS = 5 * 60_000;
 
 export default function OperatorPage() {
   const router = useRouter();
@@ -28,6 +31,10 @@ export default function OperatorPage() {
   const [statusTarget, setStatusTarget] = useState<Client | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [fleet, setFleet] = useState<FleetWaitingResponse | null>(null);
+  const [fleetFailed, setFleetFailed] = useState(false);
+  const waitingByTenant = fleetWaitingByTenant(fleet?.data ?? []);
+  const waitingText = (id: string) => (fleet ? waitingColumnText(waitingByTenant.get(id)) : fleetFailed ? "Unavailable" : "…");
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAction, setBulkAction] = useState<"active" | "suspended" | null>(null);
@@ -59,6 +66,23 @@ export default function OperatorPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Waiting approvals per client plus the stuck-approval alerts. Bulk queries on the
+  // server, so it refreshes more slowly than the client list itself.
+  const loadFleet = useCallback(async () => {
+    try {
+      setFleet(await operatorFetch<FleetWaitingResponse>("/api/v1/operator/brain/waiting"));
+      setFleetFailed(false);
+    } catch {
+      setFleetFailed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFleet();
+    const id = setInterval(loadFleet, FLEET_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [loadFleet]);
 
   // Auto-refresh the client list every 60s.
   useEffect(() => {
@@ -341,6 +365,27 @@ export default function OperatorPage() {
         <OnboardingWizard open={showCreate} onClose={() => setShowCreate(false)} onComplete={load} />
       )}
 
+      {/* Stuck approvals: sorted files a client has left unapproved for over a week */}
+      {fleet && fleet.alerts.length > 0 && (
+        <div role="alert" className="mb-4 rounded-xl border border-warning/30 bg-warning/10 p-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-warning">
+            <AlertTriangle size={14} /> {fleet.alerts.length} client{fleet.alerts.length === 1 ? " has" : "s have"} approvals stuck for over {fleet.stuck_after_days} days
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {fleet.alerts.map(alert => (
+              <li key={alert.id} className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs text-ink">
+                <span>{alert.detail}</span>
+                {alert.href && (
+                  <button type="button" onClick={() => router.push(alert.href as string)} className="font-semibold text-primary underline">
+                    Open Aira Brain
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {/* Content */}
       {loading && clients.length === 0 ? (
         <div className="p-8 text-center text-sm text-ink-muted">Loading…</div>
@@ -392,7 +437,8 @@ export default function OperatorPage() {
                   {client.status}
                 </span>
               </div>
-              <p className="text-xs text-ink-muted mb-3">Created {new Date(client.created_at).toLocaleDateString("en-IN")}</p>
+              <p className="text-xs text-ink-muted mb-1">Created {new Date(client.created_at).toLocaleDateString("en-IN")}</p>
+              <p className="text-xs text-ink-muted mb-3">Waiting approvals: {waitingText(client.id)}</p>
               <div className="border-t border-border-subtle pt-3">
                 <ActionButtons client={client} />
               </div>
@@ -414,7 +460,7 @@ export default function OperatorPage() {
                     size="sm"
                   />
                 </th>
-                {["Company", "Status", "Created", "Actions"].map(h => (
+                {["Company", "Status", "Waiting approvals", "Created", "Actions"].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wider bg-surface-mid">{h}</th>
                 ))}
               </tr>
@@ -459,6 +505,7 @@ export default function OperatorPage() {
                       {client.status}
                     </span>
                   </td>
+                  <td className="px-5 py-4 text-xs text-ink-muted">{waitingText(client.id)}</td>
                   <td className="px-5 py-4 text-xs text-ink-muted">
                     {new Date(client.created_at).toLocaleDateString("en-IN")}
                   </td>

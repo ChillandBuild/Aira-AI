@@ -12,10 +12,11 @@ import type { BrainWaiting } from "./types";
 interface WaitingOnYouProps {
   waiting: BrainWaiting;
   canManage: boolean;
-  /** Managers only: the conflicts panel checks itself on load, which needs knowledge.manage. */
-  canAutoCheck: boolean;
-  /** Remounts the conflicts panel so it re-reads after an approval. */
+  isOwner: boolean;
+  /** Bumped after an approval; the conflicts panel re-reads when it changes. */
   panelKey: number;
+  /** The conflicts panel changed something (fix, dismiss, restore): announce it so the count and the hub reload. */
+  onConflictsChanged: () => void;
   onOpenReview: (reviewId: string) => void;
 }
 
@@ -27,27 +28,7 @@ function GroupLabel({ id, children }: { id?: string; children: string }) {
   );
 }
 
-function ConflictsBlock({ waiting, canAutoCheck, panelKey }: Pick<WaitingOnYouProps, "waiting" | "canAutoCheck" | "panelKey">) {
-  if (canAutoCheck) {
-    return (
-      <div id={ANCHOR_CONFLICTS} className="scroll-mt-20">
-        <ConsistencyPanel key={panelKey} />
-      </div>
-    );
-  }
-  if (waiting.consistency_count === 0) return null;
-  const n = waiting.consistency_count;
-  return (
-    <div id={ANCHOR_CONFLICTS} className="scroll-mt-20 rounded-xl border border-amber-200 bg-amber-50/60 px-3.5 py-2.5">
-      <p className="font-body text-xs text-ink">
-        {n} {n === 1 ? "thing disagrees" : "things disagree"} with your Services page.
-      </p>
-      <p className="font-body text-[11px] text-ink-secondary">Someone with manage access can fix this.</p>
-    </div>
-  );
-}
-
-export function WaitingOnYou({ waiting, canManage, canAutoCheck, panelKey, onOpenReview }: WaitingOnYouProps) {
+export function WaitingOnYou({ waiting, canManage, isOwner, panelKey, onConflictsChanged, onOpenReview }: WaitingOnYouProps) {
   const rejected = waiting.rejected_templates;
   return (
     <SectionCard title="Waiting on you" subtitle="Things Aira can't finish without you.">
@@ -71,7 +52,15 @@ export function WaitingOnYou({ waiting, canManage, canAutoCheck, panelKey, onOpe
           </div>
         )}
 
-        <ConflictsBlock waiting={waiting} canAutoCheck={canAutoCheck} panelKey={panelKey} />
+        <div id={ANCHOR_CONFLICTS} className="scroll-mt-20">
+          <ConsistencyPanel
+            embedded
+            canManage={canManage}
+            isOwner={isOwner}
+            reloadSignal={panelKey}
+            onChanged={onConflictsChanged}
+          />
+        </div>
 
         {waiting.failed_files.length > 0 && (
           <div>

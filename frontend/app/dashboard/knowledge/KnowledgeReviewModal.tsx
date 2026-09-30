@@ -177,8 +177,10 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const [showLeftOut, setShowLeftOut] = useState(false);
   const [busy, setBusy] = useState<"apply" | "discard" | "resort" | null>(null);
   const [handoverDismissed, setHandoverDismissed] = useState(false);
-  const [handoverSaving, setHandoverSaving] = useState(false);
-  const [handoverSaved, setHandoverSaved] = useState(false);
+  // "Use this line" only records the choice. Saving it before Apply would change the
+  // Description under the review and make Apply fail as stale (409), so the write
+  // happens after Apply (or Discard) has succeeded.
+  const [handoverChosen, setHandoverChosen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,7 +253,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
             ? "Applied. Aira looks up this file's facts, but still has no Description."
             : "Applied. Aira now looks up this file's facts.",
       );
-      onFinished({ applied: true, descriptionChanged: res.description_changed });
+      const handoverWritten = await saveChosenHandover();
+      onFinished({ applied: true, descriptionChanged: res.description_changed || handoverWritten });
     } catch (e) {
       const err = e as ApiError;
       if (err.status === 409) setStale(true);
@@ -266,7 +269,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
     try {
       await api.knowledge.discardReview(documentId);
       toast.success(review?.origin === "upload" ? "File discarded. Nothing was changed." : "Changes discarded. The file keeps working as before.");
-      onFinished({ applied: false, descriptionChanged: false });
+      const handoverWritten = await saveChosenHandover();
+      onFinished({ applied: false, descriptionChanged: handoverWritten });
     } catch (e) {
       toast.error((e as ApiError).message || "Could not discard this review.");
     } finally {
@@ -276,11 +280,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
 
   // Owner-only: the handover wording lives in the "handover" section of the Description,
   // and PUT /ai-tune/profile is the only write path. Read the current sections, replace
-  // that one, write them all back so nothing else changes.
-  async function useHandoverLine() {
-    const line = review?.suggested_handover.trim();
-    if (!line || !isOwner) return;
-    setHandoverSaving(true);
+  // that one, write them all back so nothing else changes. Returns true when it saved.
+  async function writeHandoverLine(line: string): Promise<boolean> {
     try {
       const auth = await getAuthHeaders();
       const getRes = await fetch(`${API_URL}/api/v1/ai-tune/profile`, { headers: auth });
@@ -293,17 +294,23 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
         body: JSON.stringify({ sections: { ...sections, [HANDOVER_SECTION_KEY]: line }, other: profile.other }),
       });
       if (putRes.status === 422) {
-        toast.error("That line would push your profile over its word limit. Shorten another section first.");
-        return;
+        toast.error("The contact line was not saved: it would push your profile over its word limit. Shorten another section, then add it.");
+        return false;
       }
       if (!putRes.ok) throw new Error("Save failed");
-      setHandoverSaved(true);
-      toast.success("Saved in your profile, under ‘What Aira says when it brings in your team’.");
+      toast.success("Contact line saved under \u2018What Aira says when it brings in your team\u2019.");
+      return true;
     } catch {
-      toast.error("Could not save this line. Please try again.");
-    } finally {
-      setHandoverSaving(false);
+      toast.error("The contact line was not saved. Add it from your Description.");
+      return false;
     }
+  }
+
+  // Runs after Apply or Discard has already succeeded, so it never makes the review stale.
+  async function saveChosenHandover(): Promise<boolean> {
+    const line = review?.suggested_handover.trim();
+    if (!handoverChosen || !line || !isOwner) return false;
+    return writeHandoverLine(line);
   }
 
   async function resort() {
@@ -441,8 +448,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                       <h4 className="font-display text-sm font-bold text-on-surface">Contact line found in this file</h4>
                       <p className="mt-1 font-body text-xs leading-relaxed text-amber-900">
                         This tells customers how to reach a person. Use it as your &ldquo;What Aira says when it
-                        brings in your team&rdquo; section? It replaces what is in that section now, and you can
-                        undo it from the profile history.
+                        brings in your team&rdquo; section? It replaces what is in that section now. It is saved when
+                        you apply this review, and you can undo it from the profile history.
                       </p>
                       <p className="mt-2 rounded-lg border border-amber-200 bg-white px-3 py-2 font-mono text-[11.5px] leading-relaxed text-on-surface">
                         {review.suggested_handover}
@@ -450,19 +457,16 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                       {canManage && (
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button
-                            onClick={useHandoverLine}
-                            disabled={handoverSaving || handoverSaved || !isOwner}
+                            onClick={() => setHandoverChosen((chosen) => !chosen)}
+                            disabled={busy !== null || !isOwner}
+                            aria-pressed={handoverChosen}
                             aria-describedby={!isOwner ? "handover-owner-reason" : undefined}
                             className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 font-label text-xs font-semibold text-white transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            {handoverSaving ? (
-                              <Loader2 size={12} className="animate-spin" />
-                            ) : handoverSaved ? (
-                              <Check size={12} strokeWidth={3} />
-                            ) : null}
-                            {handoverSaved ? "Saved" : "Use this line"}
+                            {handoverChosen && <Check size={12} strokeWidth={3} />}
+                            {handoverChosen ? "Chosen. Saves when you apply. Undo" : "Use this line"}
                           </button>
-                          {!handoverSaved && (
+                          {!handoverChosen && (
                             <button
                               onClick={() => setHandoverDismissed(true)}
                               className="rounded-lg border border-amber-200 bg-white px-3 py-1.5 font-label text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-50"

@@ -17,7 +17,7 @@ function chatHref(leadId: string): string {
   return `/dashboard/conversations?lead=${encodeURIComponent(leadId)}`;
 }
 
-function HandoverRow({ handover }: { handover: BrainHandover }) {
+function HandoverRow({ handover, readOnly }: { handover: BrainHandover; readOnly: boolean }) {
   const isGap = handover.kind === "knowledge_gap";
   return (
     <li className="min-w-0 rounded-xl border border-border-subtle bg-surface-low px-3 py-2.5">
@@ -36,22 +36,25 @@ function HandoverRow({ handover }: { handover: BrainHandover }) {
           <span className="text-ink-muted">not available for this one</span>
         )}
       </p>
-      <div className="mt-2">
-        {isGap ? (
-          <Link href={ADD_ANSWER_HREF} className={ROW_BUTTON_CLASS}>
-            Add an answer
-          </Link>
-        ) : (
-          <Link href={chatHref(handover.lead_id)} className={ROW_LINK_CLASS}>
-            Open the chat
-          </Link>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="mt-2">
+          {isGap ? (
+            <Link href={ADD_ANSWER_HREF} className={ROW_BUTTON_CLASS}>
+              Add an answer
+            </Link>
+          ) : (
+            <Link href={chatHref(handover.lead_id)} className={ROW_LINK_CLASS}>
+              Open the chat
+            </Link>
+          )}
+        </div>
+      )}
     </li>
   );
 }
 
-export function HandoverFeed({ handovers }: { handovers: BrainHandover[] }) {
+/** readOnly (operator console): the client-dashboard action links are left out. */
+export function HandoverFeed({ handovers, readOnly = false }: { handovers: BrainHandover[]; readOnly?: boolean }) {
   return (
     <SectionCard title="Why customers reached a human" subtitle="Recent chats Aira passed to your team.">
       {handovers.length === 0 ? (
@@ -59,7 +62,7 @@ export function HandoverFeed({ handovers }: { handovers: BrainHandover[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {handovers.map((handover) => (
-            <HandoverRow key={handover.handover_id} handover={handover} />
+            <HandoverRow key={handover.handover_id} handover={handover} readOnly={readOnly} />
           ))}
         </ul>
       )}

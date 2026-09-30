@@ -21,7 +21,7 @@ export interface BrainData {
   error: string | null;
   isLoading: boolean;
   isRetrying: boolean;
-  /** Changes on every approval-driven reload; use as a React key to remount the conflicts panel. */
+  /** Changes on every approval-driven reload; passed to the conflicts panel as reloadSignal so it re-reads (without remounting, which would drop its result message). */
   panelKey: number;
   retry: () => void;
 }
