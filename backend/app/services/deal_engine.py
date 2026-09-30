@@ -425,7 +425,9 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "If DEAL STATE shows a choice already in progress and the customer comes back (a greeting, "
         "'hi', a new day), welcome them back in a few words and continue from exactly where it "
         "stopped: ask for the next missing detail, or offer the link. Do not start over.",
-        "Show tappable options with show_options only when they really need to choose. Never "
+        "Whenever your message lays out two or more offerings for them to pick from, call "
+        "show_options in that same turn so they can tap one; the system adds the buttons under "
+        "your words. Never "
         "show or list the same options twice in a row (not as buttons and not as a typed list); if "
         "they hesitate or reply vaguely, ask which one in words or recommend one.",
         "When they choose, call select_offering. If that offering has add-ons, ask about them "

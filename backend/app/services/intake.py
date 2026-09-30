@@ -1700,7 +1700,13 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
         from app.db.supabase import get_supabase
         db = get_supabase()
 
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=_STALE_SESSION_HOURS)).isoformat()
+    now = datetime.now(timezone.utc)
+    cutoff = (now - timedelta(hours=_STALE_SESSION_HOURS)).isoformat()
+    # A link regenerated late in the session (the lead came back on day 2) can outlive the 48h
+    # created_at cutoff -- never cancel a deal while its link can still be paid.
+    link_dead = (
+        f"payment_link_expires_at.is.null,payment_link_expires_at.lte.{now.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+    )
     cancelled = 0
     resolved = 0
 
@@ -1710,6 +1716,7 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
             .select("id")
             .eq("status", "awaiting_payment")
             .lt("created_at", cutoff)
+            .or_(link_dead)
             .limit(200)
             .execute()
         )
@@ -1720,6 +1727,7 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
                     .update({"status": "cancelled"})
                     .eq("id", row["id"])
                     .eq("status", "awaiting_payment")
+                    .or_(link_dead)
                     .execute()
                 )
                 if result.data:

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Loader2, RotateCcw, Send } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,12 @@ interface TestAiraProps {
   canUse: boolean;
   /** Shown as the inline reason when canUse is false. */
   disabledReason?: string;
+  /** Pre-fills the composer when opening Test Aira from another surface. */
+  initialQuestion?: string;
+  /** Offers the latest unmatched customer question to a knowledge editor. */
+  onAddAnswer?: (question: string) => void;
+  /** Adds the card title and border when this is not already inside a titled panel. */
+  standalone?: boolean;
 }
 
 class SandboxRequestError extends Error {
@@ -57,25 +63,52 @@ async function askAira(endpoint: string, state: SandboxState): Promise<SandboxRe
 const BUBBLE_BASE = "max-w-[85%] min-w-0 break-words whitespace-pre-wrap rounded-2xl px-3 py-2 font-body text-sm";
 const ICON_BUTTON_CLASS =
   "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl px-4 font-label text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50";
+const SUGGESTED_QUESTIONS = [
+  "What are your business hours?",
+  "How much does it cost?",
+  "How can I buy it?",
+  "Can I speak to a person?",
+] as const;
 
-export function TestAira({ endpoint, canUse, disabledReason }: TestAiraProps) {
+export function TestAira({
+  endpoint,
+  canUse,
+  disabledReason,
+  initialQuestion = "",
+  onAddAnswer,
+  standalone = false,
+}: TestAiraProps) {
   const [chat, setChat] = useState<SandboxState>(INITIAL_SANDBOX_STATE);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(initialQuestion);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const latest = useRef(chat);
+  const transcriptRef = useRef<HTMLDivElement>(null);
+  const lastInitialQuestion = useRef(initialQuestion);
   const reasonId = useId();
   const noteId = useId();
   const isPending = pendingId !== null;
+
+  useEffect(() => {
+    if (lastInitialQuestion.current !== initialQuestion) {
+      lastInitialQuestion.current = initialQuestion;
+      setDraft(initialQuestion);
+    }
+  }, [initialQuestion]);
+
+  useEffect(() => {
+    const transcript = transcriptRef.current;
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }, [chat.turns, isPending]);
 
   function update(next: SandboxState): void {
     latest.current = next;
     setChat(next);
   }
 
-  async function send(): Promise<void> {
-    if (!canSend(draft, isPending, canUse)) return;
-    const text = draft.trim();
+  async function send(message = draft): Promise<void> {
+    if (!canSend(message, isPending, canUse)) return;
+    const text = message.trim();
     const sent = withUserTurn(latest.current, text);
     update(sent);
     setDraft("");
@@ -101,29 +134,64 @@ export function TestAira({ endpoint, canUse, disabledReason }: TestAiraProps) {
     setPendingId(null);
   }
 
-  return (
-    <SectionCard title="Test Aira" subtitle="Ask a question the way a customer would and see how Aira answers from what you've told it.">
+  const content = (
+    <>
       <p id={noteId} className="rounded-xl bg-surface-low px-3 py-2 font-body text-xs text-ink-secondary">
-        Answers only: nothing is saved or sent to anyone.
+        Answers only. This test cannot take payments, make bookings, contact a person, or send messages. Nothing is saved.
         {isWindowed(chat.turns) && " Aira only remembers the latest 20 messages of this test."}
       </p>
 
-      <div className="mt-3 flex min-h-24 flex-col gap-2" aria-live="polite">
+      <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggested questions">
+        {SUGGESTED_QUESTIONS.map((question) => (
+          <button
+            key={question}
+            type="button"
+            disabled={!canUse}
+            onClick={() => setDraft(question)}
+            className="min-h-10 rounded-full border border-border bg-white px-3 py-1.5 font-label text-xs font-semibold text-ink-secondary transition hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {question}
+          </button>
+        ))}
+      </div>
+
+      <div
+        ref={transcriptRef}
+        className="mt-3 flex min-h-24 max-h-[clamp(6rem,calc(65dvh-20rem),18rem)] flex-col gap-2 overflow-y-auto overscroll-contain rounded-xl border border-border-subtle bg-white p-3"
+        aria-live="polite"
+      >
         {chat.turns.length === 0 && (
           <p className="font-body text-sm text-ink-muted">No messages yet. Try &ldquo;What are your timings?&rdquo;</p>
         )}
-        {chat.turns.map((turn, index) => (
-          <div key={index} className={cn("flex flex-col gap-1", turn.role === "user" ? "items-end" : "items-start")}>
-            <div className={cn(BUBBLE_BASE, turn.role === "user" ? "bg-primary text-white" : "border border-border bg-surface-low text-ink")}>
-              {turn.content}
+        {chat.turns.map((turn, index) => {
+          const unmatchedQuestion =
+            index === chat.turns.length - 1 && turn.role === "assistant" && !turn.knowledgeUsed
+              ? [...chat.turns.slice(0, index)].reverse().find((candidate) => candidate.role === "user")?.content
+              : undefined;
+          return (
+            <div key={index} className={cn("flex flex-col gap-1", turn.role === "user" ? "items-end" : "items-start")}>
+              <div className={cn(BUBBLE_BASE, turn.role === "user" ? "bg-primary text-white" : "border border-border bg-surface-low text-ink")}>
+                {turn.content}
+              </div>
+              {turn.role === "assistant" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-label text-[10px] text-ink-muted">
+                    {turn.knowledgeUsed ? "Answered using your knowledge" : "Nothing in your knowledge matched this question"}
+                  </span>
+                  {unmatchedQuestion && onAddAnswer && (
+                    <button
+                      type="button"
+                      onClick={() => onAddAnswer(unmatchedQuestion)}
+                      className="font-label text-[10px] font-bold text-primary hover:underline"
+                    >
+                      Add an answer
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-            {turn.role === "assistant" && (
-              <span className="font-label text-[10px] text-ink-muted">
-                {turn.knowledgeUsed ? "Answered using your knowledge" : "Nothing in your knowledge matched this question"}
-              </span>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {isPending && (
           <p className="flex items-center gap-1.5 font-body text-xs text-ink-secondary" role="status">
             <Loader2 size={12} className="animate-spin" aria-hidden /> Aira is typing
@@ -164,6 +232,7 @@ export function TestAira({ endpoint, canUse, disabledReason }: TestAiraProps) {
           placeholder="Type a customer message"
           className="w-full resize-none rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:opacity-60"
         />
+        {draft.length > MAX_MESSAGE_CHARS && <p role="status" className="font-body text-xs text-warning">Shorten this question to {MAX_MESSAGE_CHARS} characters before sending ({draft.length} entered).</p>}
         {!canUse && (
           <p id={reasonId} className="font-body text-xs text-ink-secondary">
             {disabledReason}
@@ -188,6 +257,14 @@ export function TestAira({ endpoint, canUse, disabledReason }: TestAiraProps) {
           </button>
         </div>
       </form>
+    </>
+  );
+
+  if (!standalone) return <div className="min-w-0">{content}</div>;
+
+  return (
+    <SectionCard title="Customer conversation" subtitle="Ask a question the way a customer would and see how Aira answers from what you've told it.">
+      {content}
     </SectionCard>
   );
 }

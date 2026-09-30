@@ -2024,6 +2024,10 @@ async def generate_reply(
         escalation_flags.add("B")
         logger.info(f"Trigger B: lead {lead_id} LLM exception - {e}")
 
+    if channel == "whatsapp":
+        from app.services.whatsapp_format import to_whatsapp
+        reply_text = to_whatsapp(reply_text)  # "**bold**" shows its stars on WhatsApp
+
     # Step 3: Dispatch to the correct channel
     outbound_media_type: str | None = None
     outbound_media_mime_type: str | None = None
@@ -2083,11 +2087,11 @@ async def generate_reply(
                     logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
             if deal_outcome and deal_outcome.menu:
                 from app.services import deal_turn
-                sid = await deal_turn.send_menu(
+                sid, tappable = await deal_turn.send_menu(
                     _wa_phone, reply_text, deal_outcome.menu,
                     tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id,
                 )
-                reply_text = deal_turn.menu_log_text(reply_text, deal_outcome.menu)
+                reply_text = deal_turn.menu_record(reply_text, deal_outcome.menu, tappable=tappable)
             else:
                 sid = await send_whatsapp(
                     _wa_phone,

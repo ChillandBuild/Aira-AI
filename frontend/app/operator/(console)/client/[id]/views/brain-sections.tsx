@@ -70,7 +70,7 @@ export function WaitingReadOnly({ waiting }: { waiting: BrainWaiting }) {
 export function StatusDetail({ status }: { status: BrainStatus }) {
   const connection = status.connection;
   return (
-    <SectionCard title="Aira can reply" subtitle="Auto-reply switch and channel connection (a token problem means an incident in the last 48 hours).">
+    <SectionCard title="Reply settings" subtitle="Auto-reply switch and channel connection (a token problem means an incident in the last 48 hours).">
       <ul className="flex flex-col gap-2 font-body text-sm text-ink">
         <li>Auto-reply: <span className="font-semibold">{status.auto_reply === "on" ? "On" : "Off"}</span></li>
         {connection && (

@@ -7,12 +7,13 @@ interface HubTopLineProps {
   waitingCount: number;
   action: MainAction;
   onOpenReview: (reviewId: string) => void;
+  onOpenAnchor?: (anchor: string) => void;
 }
 
 const ACTION_CLASS =
   "inline-flex min-h-10 items-center justify-center rounded-xl bg-primary px-4 font-label text-sm font-bold text-white transition hover:bg-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
-function ActionControl({ action, onOpenReview }: { action: MainAction; onOpenReview: (id: string) => void }) {
+function ActionControl({ action, onOpenReview, onOpenAnchor }: { action: MainAction; onOpenReview: (id: string) => void; onOpenAnchor?: (anchor: string) => void }) {
   if (action.kind === "review") {
     return (
       <button type="button" className={ACTION_CLASS} onClick={() => onOpenReview(action.reviewId)}>
@@ -21,6 +22,7 @@ function ActionControl({ action, onOpenReview }: { action: MainAction; onOpenRev
     );
   }
   if (action.kind === "anchor") {
+    if (onOpenAnchor) return <button type="button" className={ACTION_CLASS} onClick={() => onOpenAnchor(action.anchor)}>{action.label}</button>;
     return (
       <a href={`#${action.anchor}`} className={ACTION_CLASS}>
         {action.label}
@@ -34,7 +36,7 @@ function ActionControl({ action, onOpenReview }: { action: MainAction; onOpenRev
   );
 }
 
-export function HubTopLine({ waitingCount, action, onOpenReview }: HubTopLineProps) {
+export function HubTopLine({ waitingCount, action, onOpenReview, onOpenAnchor }: HubTopLineProps) {
   const isReady = waitingCount <= 0;
   const Icon = isReady ? CheckCircle2 : AlertTriangle;
   return (
@@ -57,7 +59,7 @@ export function HubTopLine({ waitingCount, action, onOpenReview }: HubTopLinePro
           {topLineText(waitingCount)}
         </p>
       </div>
-      <ActionControl action={action} onOpenReview={onOpenReview} />
+      <ActionControl action={action} onOpenReview={onOpenReview} onOpenAnchor={onOpenAnchor} />
     </div>
   );
 }

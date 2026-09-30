@@ -221,7 +221,7 @@ describe("headlineSentence", () => {
 
 describe("topLineText", () => {
   it("says ready when nothing waits", () => {
-    expect(topLineText(0)).toBe("Aira is ready");
+    expect(topLineText(0)).toBe("No pending items");
   });
 
   it("counts things", () => {

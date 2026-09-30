@@ -12,13 +12,17 @@ const KIND_LABEL: Record<HandoverKind, string> = {
   other: "Other",
 };
 
-const ADD_ANSWER_HREF = "/dashboard/knowledge?tab=documents";
+function addAnswerHref(question: string | null): string {
+  const params = new URLSearchParams({ tab: "documents" });
+  if (question?.trim()) params.set("question", question.trim());
+  return `/dashboard/knowledge?${params.toString()}`;
+}
 
 function chatHref(leadId: string): string {
   return `/dashboard/conversations?lead=${encodeURIComponent(leadId)}`;
 }
 
-function HandoverActionView({ action }: { action: HandoverAction }) {
+function HandoverActionView({ action, question }: { action: HandoverAction; question: string | null }) {
   if (action.kind === "none") return null;
   if (action.kind === "no_inbox_access") {
     return <p className="mt-2 font-body text-xs text-ink-muted">Chat details need inbox access</p>;
@@ -26,7 +30,7 @@ function HandoverActionView({ action }: { action: HandoverAction }) {
   return (
     <div className="mt-2">
       {action.kind === "add_answer" ? (
-        <Link href={ADD_ANSWER_HREF} className={ROW_BUTTON_CLASS}>
+        <Link href={addAnswerHref(question)} className={ROW_BUTTON_CLASS}>
           Add an answer
         </Link>
       ) : (
@@ -38,7 +42,9 @@ function HandoverActionView({ action }: { action: HandoverAction }) {
   );
 }
 
-function HandoverRow({ handover, readOnly }: { handover: BrainHandover; readOnly: boolean }) {
+function HandoverRow({ handover, readOnly, canManageKnowledge }: { handover: BrainHandover; readOnly: boolean; canManageKnowledge: boolean }) {
+  const action = handoverAction(handover, readOnly);
+  const permittedAction = action.kind === "add_answer" && !canManageKnowledge ? { kind: "none" as const } : action;
   return (
     <li className="min-w-0 rounded-xl border border-border-subtle bg-surface-low px-3 py-2.5">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -56,13 +62,21 @@ function HandoverRow({ handover, readOnly }: { handover: BrainHandover; readOnly
           <span className="text-ink-muted">not available for this one</span>
         )}
       </p>
-      <HandoverActionView action={handoverAction(handover, readOnly)} />
+      <HandoverActionView action={permittedAction} question={handover.likely_question} />
     </li>
   );
 }
 
 /** readOnly (operator console): the client-dashboard action links are left out. */
-export function HandoverFeed({ handovers, readOnly = false }: { handovers: BrainHandover[]; readOnly?: boolean }) {
+export function HandoverFeed({
+  handovers,
+  readOnly = false,
+  canManageKnowledge = false,
+}: {
+  handovers: BrainHandover[];
+  readOnly?: boolean;
+  canManageKnowledge?: boolean;
+}) {
   return (
     <SectionCard title="Why customers reached a human" subtitle="Recent chats Aira passed to your team.">
       {handovers.length === 0 ? (
@@ -70,7 +84,12 @@ export function HandoverFeed({ handovers, readOnly = false }: { handovers: Brain
       ) : (
         <ul className="flex flex-col gap-2">
           {handovers.map((handover) => (
-            <HandoverRow key={handover.handover_id} handover={handover} readOnly={readOnly} />
+            <HandoverRow
+              key={handover.handover_id}
+              handover={handover}
+              readOnly={readOnly}
+              canManageKnowledge={canManageKnowledge}
+            />
           ))}
         </ul>
       )}

@@ -133,6 +133,57 @@ async def test_sweep_survives_a_failing_cancel_and_continues_to_paid():
     assert out == {"cancelled": 0, "resolved": 1}
 
 
+class _FilterLog:
+    """Records every filter call on the intake_sessions chain so a test can see which
+    rows the sweep asked for, not just what it wrote."""
+
+    def __init__(self, results):
+        self._results = list(results)
+        self.calls = []
+
+    def table(self, name):
+        log = self.calls
+        result = self._results.pop(0)
+
+        class _C:
+            def __getattr__(self, method):
+                def _rec(*args, **kwargs):
+                    log.append((method, args))
+                    return self
+                return _rec
+
+            def execute(self):
+                return result
+
+        return _C()
+
+
+@pytest.mark.asyncio
+async def test_sweep_never_cancels_awaiting_payment_while_its_link_is_live():
+    """Live 2026-09-30: Vivek got a fresh 24h link on day 2 of his session; the 48h
+    created_at rule would cancel the deal 3h before that link expired. Both the
+    stale-row query and the cancel update must skip a session whose link is live."""
+    db = _FilterLog([_res([{"id": SID_AWAITING}]), _res([{"id": SID_AWAITING}]), _res([]), _res([])])
+
+    await sweep_stale_intake_sessions(db=db)
+
+    link_guards = [a[0] for m, a in db.calls if m == "or_" and "payment_link_expires_at" in a[0]]
+    assert len(link_guards) == 2, db.calls  # the select AND the cancel update
+    for g in link_guards:
+        assert "payment_link_expires_at.is.null" in g and "payment_link_expires_at.lte." in g
+
+
+def test_scheduler_tolerates_late_starts():
+    """Live 2026-09-30: APScheduler's default misfire_grace_time is 1s and jobs start
+    1.3-2s late, so 8,514 of 8,520 intake-sweep runs in 30 days were skipped as missed."""
+    import app.main as main
+
+    defaults = main._scheduler._job_defaults
+    assert defaults["misfire_grace_time"] >= 60
+    assert defaults["coalesce"] is True
+    assert defaults["max_instances"] == 1
+
+
 def test_sweep_job_is_registered_in_the_scheduler():
     import inspect
 

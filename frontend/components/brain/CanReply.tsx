@@ -63,7 +63,7 @@ function ConnectionRow({ connection }: { connection: BrainConnection }) {
 export function CanReply({ status }: { status: BrainStatus }) {
   const isOn = status.auto_reply === "on";
   return (
-    <SectionCard title="Aira can reply">
+    <SectionCard title="Reply settings">
       <ul className="flex flex-col gap-2">
         <StatusRow label="Auto-reply">
           <Pill tone={isOn ? "bg-emerald-50 text-success" : "bg-surface-mid text-ink-secondary"}>

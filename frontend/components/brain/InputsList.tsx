@@ -96,7 +96,7 @@ function InputRow({ input, readOnly }: { input: BrainInput; readOnly: boolean })
 /** readOnly (operator console): no Edit control and no reason line, the rows only report state. */
 export function InputsList({ inputs, readOnly = false }: { inputs: BrainInput[]; readOnly?: boolean }) {
   return (
-    <SectionCard title="What you told Aira" subtitle="The five things Aira reads before it answers.">
+    <SectionCard title="Information sources" subtitle="Check each source and open its editor to make a change. Updated knowledge files need approval before their new answers are used.">
       {inputs.length === 0 ? (
         <p className="font-body text-sm text-ink-secondary">Nothing to show yet.</p>
       ) : (
