@@ -8,6 +8,7 @@ import { useSettingsForm } from "../settings/SettingsFormContext";
 import { SaveButton, SaveStatus } from "../settings/SettingsSection";
 import { slugify } from "../settings/slugify";
 import { PackageEditor, type IntakePackage } from "./PackageEditor";
+import { chargePaise, gstPaise, GST_MAX, GST_MIN, parseGstPercent } from "./gst";
 
 type FieldType = "text" | "date" | "choice";
 
@@ -29,6 +30,7 @@ interface SellConfig {
   packages: IntakePackage[];
   fields: IntakeField[];
   service_noun: string;
+  gst_percent: number;
 }
 
 const DEFAULT: SellConfig = {
@@ -36,6 +38,7 @@ const DEFAULT: SellConfig = {
   packages: [],
   fields: [],
   service_noun: "consultation",
+  gst_percent: 0,
 };
 
 export default function ServicesPage() {
@@ -49,6 +52,8 @@ export default function ServicesPage() {
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // The GST box keeps its own text so half-typed values ("1.") and out-of-range entries can show an error.
+  const [gstText, setGstText] = useState("0");
 
   const load = useCallback(async () => {
     try {
@@ -61,7 +66,9 @@ export default function ServicesPage() {
           packages: data.packages ?? [],
           fields: data.fields ?? [],
           service_noun: data.service_noun ?? "consultation",
+          gst_percent: Number(data.gst_percent) || 0,
         };
+        setGstText(gstToText(next.gst_percent));
         setSaved(next);
         setDraft(next);
         setLoaded(true);
@@ -78,8 +85,15 @@ export default function ServicesPage() {
 
   const isDirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
+  const gstError = parseGstPercent(gstText).error;
+
+  function handleGstChange(text: string) {
+    setGstText(text);
+    setDraft({ ...draft, gst_percent: parseGstPercent(text).value });
+  }
+
   async function handleSave() {
-    if (!canManageSettings || !loaded) return;
+    if (!canManageSettings || !loaded || gstError) return;
     setSaveState("saving");
     setSaveError(null);
     try {
@@ -99,7 +113,9 @@ export default function ServicesPage() {
         packages: data.packages ?? [],
         fields: data.fields ?? [],
         service_noun: data.service_noun ?? "consultation",
+        gst_percent: Number(data.gst_percent) || 0,
       };
+      setGstText(gstToText(next.gst_percent));
       setSaved(next);
       setDraft(next);
       setSaveState("saved");
@@ -170,6 +186,20 @@ export default function ServicesPage() {
           packages={draft.packages}
           onChange={(packages) => setDraft({ ...draft, packages })}
           canManage={canManageSettings}
+        />
+      </Row>
+
+      <Row
+        title="GST"
+        help="One rate for everything you sell. It is added on top of the package price."
+      >
+        <GstInput
+          text={gstText}
+          error={gstError}
+          pct={draft.gst_percent}
+          packages={draft.packages}
+          canManage={canManageSettings}
+          onChange={handleGstChange}
         />
       </Row>
 
@@ -276,7 +306,7 @@ export default function ServicesPage() {
           ) : (
             <SaveStatus state={saveState} dirty={isDirty} idleLabel={isDirty ? "Unsaved changes" : "All changes saved"} />
           )}
-          <SaveButton state={saveState} dirty={isDirty} disabled={!canManageSettings || !loaded} onClick={handleSave} />
+          <SaveButton state={saveState} dirty={isDirty} disabled={!canManageSettings || !loaded || !!gstError} onClick={handleSave} />
         </div>
       </div>
     </div>
@@ -309,6 +339,49 @@ function Row({
   );
 }
 
+function gstToText(pct: number): string {
+  return String(pct);
+}
+
+function GstInput({
+  text, error, pct, packages, canManage, onChange,
+}: {
+  text: string; error: string | null; pct: number; packages: IntakePackage[]; canManage: boolean;
+  onChange: (text: string) => void;
+}) {
+  const price = leafPrices(packages)[0];
+  const showPreview = !error && pct > 0 && price !== undefined;
+  return (
+    <div className="space-y-2">
+      <label className="block font-label text-xs font-semibold text-ink" htmlFor="gst-percent">
+        GST added on top (%)
+      </label>
+      <input
+        id="gst-percent"
+        type="number"
+        min={GST_MIN}
+        max={GST_MAX}
+        step={0.5}
+        inputMode="decimal"
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={!canManage}
+        aria-invalid={!!error}
+        className="w-28 rounded-lg border border-surface-mid bg-surface px-3 py-2 font-body text-sm text-ink focus:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/15"
+      />
+      <p className="font-body text-xs text-ink-secondary">
+        Leave at 0 for no GST. Customers pay the package price plus this GST. Example: 18 for services.
+      </p>
+      {error && <p className="font-body text-xs font-semibold text-red-600">{error}</p>}
+      {showPreview && (
+        <p className="font-body text-xs text-ink-muted tabular-nums">
+          {rupees(price)} → customer pays {rupees(chargePaise(price, pct))} ({rupees(gstPaise(price, pct))} GST)
+        </p>
+      )}
+    </div>
+  );
+}
+
 function leafPrices(packages: IntakePackage[]): number[] {
   return packages
     .filter((p) => p.active !== false)
@@ -328,5 +401,6 @@ function sellingSummary(config: SellConfig): string {
       ? rupees(prices[0])
       : `${rupees(Math.min(...prices))} – ${rupees(Math.max(...prices))}`;
   const details = config.fields.length;
-  return `${count} package${count === 1 ? "" : "s"} · ${range} · ${details} detail${details === 1 ? "" : "s"} before payment`;
+  const gst = config.gst_percent > 0 ? ` + ${config.gst_percent}% GST` : "";
+  return `${count} package${count === 1 ? "" : "s"} · ${range}${gst} · ${details} detail${details === 1 ? "" : "s"} before payment`;
 }

@@ -252,6 +252,12 @@ class TestBusinessFactsBlock:
         block = deal_engine.business_facts_block({"legal_name": "Shop", "prices_include_gst": False})
         assert "exclude GST" in block
 
+    def test_gst_on_top_never_says_prices_include_gst(self):
+        # Services-page GST on top is charged at payment, whatever Business Details default says.
+        block = deal_engine.business_facts_block({"legal_name": "Shop", "prices_include_gst": True}, gst_on_top=True)
+        assert "include GST" not in block
+        assert "added on top" in block
+
     def test_empty_when_nothing_is_set(self):
         assert deal_engine.business_facts_block({}) == ""
         assert deal_engine.business_facts_block({"legal_name": "", "gstin": ""}) == ""

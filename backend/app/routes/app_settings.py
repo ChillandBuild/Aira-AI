@@ -136,6 +136,9 @@ class IntakePackageUpdate(BaseModel):
 IntakePackageUpdate.model_rebuild()
 
 
+MAX_GST_PERCENT = 40
+
+
 class IntakeConfigUpdate(BaseModel):
     enabled: bool | None = None
     trigger_description: str | None = None
@@ -144,6 +147,7 @@ class IntakeConfigUpdate(BaseModel):
     packages: list[IntakePackageUpdate] | None = None
     service_noun: str | None = None
     amount_paise: int | None = None
+    gst_percent: float | int | None = None
 
 
 class TelecallingConfigUpdate(BaseModel):
@@ -1994,6 +1998,8 @@ async def patch_intake_config(
     patch = payload.model_dump(exclude_none=True)
     if "amount_paise" in patch and patch["amount_paise"] < 0:
         raise HTTPException(status_code=400, detail="amount_paise must be >= 0")
+    if "gst_percent" in patch and not 0 <= patch["gst_percent"] <= MAX_GST_PERCENT:
+        raise HTTPException(status_code=400, detail=f"gst_percent must be between 0 and {MAX_GST_PERCENT}")
     if "fields" in patch:
         keys = [f["key"] for f in patch["fields"]]
         if len(keys) != len(set(keys)):

@@ -1695,8 +1695,10 @@ def build_reply_system_prompt(
     from app.services import deal_actions, deal_engine
     system_prompt += deal_engine.orders_block(deal_actions.lead_orders(db, tenant_id, lead_id))
     try:
+        from app.services import intake
         from app.services.business_details import get_business_details
-        system_prompt += deal_engine.business_facts_block(get_business_details(tenant_id, db))
+        gst_on_top = bool(deal_engine.gst_percent(intake.get_intake_config(tenant_id, db=db)))
+        system_prompt += deal_engine.business_facts_block(get_business_details(tenant_id, db), gst_on_top=gst_on_top)
     except Exception:
         logger.warning("Business details block failed for tenant %s -- replying without it", tenant_id)
 

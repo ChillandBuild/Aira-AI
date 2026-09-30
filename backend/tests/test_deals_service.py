@@ -221,6 +221,30 @@ def test_intake_session_mirrors_onto_one_deal_through_its_statuses(db):
     assert sorted(i["name"] for i in db.tables["deal_items"]) == ["Horoscope", "Remedy"]
 
 
+def test_intake_session_with_gst_charges_total_plus_gst_and_tags_lines_with_the_rate(db):
+    session = {
+        "id": "s-g", "tenant_id": TENANT, "lead_id": "lead-1", "status": "awaiting_payment",
+        "package_name": "Horoscope", "package_amount_paise": 4900, "total_amount_paise": 4900,
+        "gst_percent": 18, "gst_amount_paise": 882, "amount_paise": 5782, "payment_link": "https://rzp.io/g",
+    }
+    deals.sync_intake_session(session, db=db)
+    deal = db.tables["deals"][0]
+    assert deal["total_paise"] == 5782
+    item = db.tables["deal_items"][0]
+    assert item["unit_price_paise"] == 4900 and item["gst_rate"] == 18.0 and item["line_total_paise"] == 4900
+
+
+def test_intake_session_without_gst_is_unchanged(db):
+    session = {
+        "id": "s-n", "tenant_id": TENANT, "lead_id": "lead-1", "status": "awaiting_payment",
+        "package_name": "Horoscope", "package_amount_paise": 4900, "total_amount_paise": 4900,
+        "gst_percent": 18, "gst_amount_paise": 0, "amount_paise": 4900,
+    }
+    deals.sync_intake_session(session, db=db)
+    assert db.tables["deals"][0]["total_paise"] == 4900
+    assert db.tables["deal_items"][0].get("gst_rate") is None
+
+
 def test_cancelled_intake_session_marks_its_deal_lost(db):
     session = {"id": "s-2", "tenant_id": TENANT, "lead_id": "lead-1", "status": "awaiting_payment",
                "package_name": "Horoscope", "package_amount_paise": 150000}

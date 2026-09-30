@@ -156,3 +156,10 @@ class IntakeSessionsFilterInjectionTests(unittest.TestCase):
         )
 
         self.assertEqual(res.status_code, 200)
+
+
+class IntakeSessionColumnsTests(unittest.TestCase):
+    def test_sessions_list_selects_the_gst_columns(self):
+        from app.routes.intake import SESSION_COLUMNS
+        self.assertIn("gst_percent", SESSION_COLUMNS)
+        self.assertIn("gst_amount_paise", SESSION_COLUMNS)

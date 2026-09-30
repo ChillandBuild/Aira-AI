@@ -158,6 +158,19 @@ class ChangeSessionPackageTests(unittest.TestCase):
         self.assertEqual(update_patch["package_key"], "vip")
         self.assertEqual(update_patch["package_amount_paise"], 500000)
 
+    def test_clears_the_stale_payment_link_and_gst_snapshot(self):
+        db = self._db_with_session("awaiting_payment")
+        with mock_patch("app.services.intake.get_intake_config", return_value={
+            "packages": PACKAGES, "service_noun": "consultation", "gst_percent": 18,
+        }):
+            asyncio.run(change_session_package("s-1", "t-1", "vip", db=db))
+        update_patch = db.table.return_value.update.call_args[0][0]
+        self.assertIsNone(update_patch["payment_link"])
+        self.assertIsNone(update_patch["amount_paise"])
+        self.assertIsNone(update_patch["gst_percent"])
+        self.assertIsNone(update_patch["gst_amount_paise"])
+        self.assertEqual(update_patch["total_amount_paise"], 500000)
+
     def test_finds_a_nested_leaf_by_key(self):
         db = self._db_with_session("awaiting_payment")
         with mock_patch("app.services.intake.get_intake_config", return_value={
@@ -242,6 +255,41 @@ class IntakeConfigRouteTests(unittest.TestCase):
         res = self.client.patch("/api/v1/settings/intake-config", json={"enabled": True})
         self.assertEqual(res.status_code, 200)
         mock_save.assert_called_once()
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_accepts_a_gst_percent_and_keeps_other_keys(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0, "service_noun": "reading"}
+        res = self.client.patch("/api/v1/settings/intake-config", json={"gst_percent": 18})
+        self.assertEqual(res.status_code, 200)
+        saved = mock_save.call_args[0][1]
+        self.assertEqual(saved["gst_percent"], 18)
+        self.assertEqual(saved["service_noun"], "reading")
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_accepts_the_gst_bounds_zero_and_forty(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        for value in (0, 40, 12.5):
+            res = self.client.patch("/api/v1/settings/intake-config", json={"gst_percent": value})
+            self.assertEqual(res.status_code, 200, value)
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_rejects_a_gst_percent_out_of_range(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0}
+        for value in (41, -1):
+            res = self.client.patch("/api/v1/settings/intake-config", json={"gst_percent": value})
+            self.assertEqual(res.status_code, 400, value)
+        mock_save.assert_not_called()
+
+    @mock_patch("app.routes.app_settings.save_intake_config")
+    @mock_patch("app.routes.app_settings.get_intake_config")
+    def test_omitting_gst_percent_keeps_the_stored_one(self, mock_get, mock_save):
+        mock_get.return_value = {"packages": [], "amount_paise": 0, "gst_percent": 18}
+        res = self.client.patch("/api/v1/settings/intake-config", json={"service_noun": "reading"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(mock_save.call_args[0][1]["gst_percent"], 18)
 
     @mock_patch("app.routes.app_settings.save_intake_config")
     @mock_patch("app.routes.app_settings.get_intake_config")

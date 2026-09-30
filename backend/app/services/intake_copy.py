@@ -318,6 +318,24 @@ async def localized_fields(fields: list[dict], language_mode: str, tenant_id: st
     return [{**f, "label": str(data[f["key"]]).strip()} for f in fields]
 
 
+def _rupees(amount_paise: int) -> str:
+    """Whole rupees when exact, two decimals otherwise (same style as intake._rupees,
+    duplicated here to avoid a circular import)."""
+    if amount_paise % 100 == 0:
+        return f"₹{amount_paise // 100}"
+    return f"₹{amount_paise / 100:.2f}"
+
+
+def gst_receipt_line(subtotal_paise: int, gst_paise: int | None, percent: float | None) -> str:
+    """Deterministic, code-written payment breakdown appended to the receipt. The
+    model never writes or sees these amounts. Empty string when the session had no GST."""
+    if not gst_paise or gst_paise <= 0:
+        return ""
+    total = int(subtotal_paise) + int(gst_paise)
+    pct = f" @{percent:g}%" if percent is not None else ""
+    return f"Paid ₹{total / 100:.2f} ({_rupees(int(subtotal_paise))} + {_rupees(int(gst_paise))} GST{pct})."
+
+
 async def compose_payment_receipt(
     lead_id: str, tenant_id: str, customer_name: str | None, service_noun: str
 ) -> str:

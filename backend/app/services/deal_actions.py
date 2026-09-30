@@ -142,6 +142,8 @@ async def _select_offering(ctx: DealContext, args: dict, turn: _Turn) -> str | N
         "status": _ready_status(ctx, session.get("collected_data") or {}, session.get("skipped_fields") or []),
         "payment_link": None,
         "amount_paise": None,
+        "gst_percent": None,
+        "gst_amount_paise": None,
     }
     intake._update_session(session["id"], patch, ctx.db)
     return None
@@ -279,7 +281,9 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     prices = deal_engine.current_prices(ctx.config, session)
     if not prices:
         return "create_payment_link refused: the chosen offering is not available any more or has no price."
-    package_amount, amount = prices
+    package_amount, subtotal = prices
+    gst_fields = intake.gst_session_fields(subtotal, deal_engine.gst_percent(ctx.config))
+    amount = gst_fields["amount_paise"]  # what the link charges: subtotal + GST
 
     if turn.link_failed:
         return "create_payment_link refused: it already failed this turn and a team member was asked to help."
@@ -302,7 +306,9 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
             amount_paise=amount,
             customer_name=name,
             customer_phone=ctx.phone,
-            description=f"{noun} — {name} ({ref})",
+            description=intake.gst_link_description(
+                f"{noun} — {name} ({ref})", subtotal, deal_engine.gst_percent(ctx.config),
+            ),
             tenant_id=ctx.tenant_id,
         )
     except Exception:
@@ -314,9 +320,9 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
         )
     url = link["payment_link_url"]
     intake._update_session(session["id"], {
-        "status": deal_engine.AWAITING_PAYMENT_STATUS, "amount_paise": amount, "payment_link": url,
+        "status": deal_engine.AWAITING_PAYMENT_STATUS, **gst_fields, "payment_link": url,
         "payment_link_expires_at": link.get("payment_link_expires_at"),
-        "package_amount_paise": package_amount, "total_amount_paise": amount,
+        "package_amount_paise": package_amount, "total_amount_paise": subtotal,
     }, ctx.db, unless_status=deal_engine.PAID_STATUS)
     turn.payment_link = url
     return None

@@ -6,11 +6,20 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.routes.intake import _fetch_session_gst as _real_fetch_session_gst
 from app.routes.intake import public_router
 
 app = FastAPI()
 app.include_router(public_router, prefix="/api/v1/expert-handoff")
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _no_gst_lookup_by_default():
+    """The receipt's GST line reads the session row itself; default to 'no GST' so
+    tests never reach a real database."""
+    with patch("app.routes.intake._fetch_session_gst", return_value={}):
+        yield
 
 
 def _payload(session_id="sess-1", event="payment_link.paid"):
@@ -204,3 +213,57 @@ class IntakeWebhookAmountTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+_GST_SESSION = {"total_amount_paise": 4900, "gst_percent": 18, "gst_amount_paise": 882}
+
+
+def _post_paid_webhook(receipt_text="Priya, your consultation is confirmed.", gst=None):
+    with patch("app.routes.intake.get_session_tenant_id", return_value="t-1"), \
+         patch("app.routes.intake.verify_webhook_signature", return_value=True), \
+         patch("app.routes.intake.confirm_intake_payment", return_value=_CONFIRMED), \
+         patch("app.routes.intake.astro_bridge.push_consultation", new=AsyncMock(return_value=None)), \
+         patch("app.routes.intake.get_intake_config", return_value={"service_noun": "consultation"}), \
+         patch("app.routes.intake._fetch_session_gst", return_value=gst or {}), \
+         patch("app.routes.intake.compose_payment_receipt", new=AsyncMock(return_value=receipt_text)) as compose, \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="wamid.1")) as send:
+        client.post("/api/v1/expert-handoff/razorpay-webhook", json=_payload(), headers={"x-razorpay-signature": "ok"})
+    return compose, send
+
+
+def test_receipt_appends_a_code_written_gst_breakdown_when_the_session_has_gst():
+    compose, send = _post_paid_webhook(gst=_GST_SESSION)
+    assert send.call_args[0][1] == "Priya, your consultation is confirmed.\nPaid ₹57.82 (₹49 + ₹8.82 GST @18%)."
+    # the model never sees or writes the amounts
+    assert "57" not in str(compose.await_args)
+
+
+def test_receipt_has_no_amount_line_without_gst():
+    _, send = _post_paid_webhook(gst={"total_amount_paise": 4900, "gst_percent": None, "gst_amount_paise": None})
+    assert send.call_args[0][1] == "Priya, your consultation is confirmed."
+
+
+def test_deal_flow_receipt_gets_the_same_breakdown_for_a_gst_intake_deal():
+    from app.routes.intake import _handle_deal_payment_event
+    won = {"deal": {"lead_id": "lead-1", "intake_session_id": "sess-1"}}
+    lead_query = MagicMock()
+    lead_query.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {"phone": "+91"}
+    with patch("app.services.deals.mark_won", return_value=won), \
+         patch("app.routes.intake.get_supabase", return_value=lead_query), \
+         patch("app.routes.intake._fetch_session_gst", return_value=_GST_SESSION), \
+         patch("app.routes.intake.send_whatsapp", new=AsyncMock(return_value="w")) as send:
+        res = asyncio.run(_handle_deal_payment_event(_payload(event="payment_link.paid"), "payment_link.paid", "d-1", "t-1"))
+    assert res["status"] == "ok"
+    assert send.call_args[0][1].endswith("Paid ₹57.82 (₹49 + ₹8.82 GST @18%).")
+
+
+def test_fetch_session_gst_is_tenant_scoped_and_swallows_errors():
+    db = MagicMock()
+    chain = db.table.return_value.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value
+    chain.execute.return_value.data = _GST_SESSION
+    with patch("app.routes.intake.get_supabase", return_value=db):
+        assert _real_fetch_session_gst("sess-1", "t-1") == _GST_SESSION
+    db.table.return_value.select.return_value.eq.assert_called_with("id", "sess-1")
+    db.table.return_value.select.return_value.eq.return_value.eq.assert_called_with("tenant_id", "t-1")
+    with patch("app.routes.intake.get_supabase", side_effect=RuntimeError("db down")):
+        assert _real_fetch_session_gst("sess-1", "t-1") == {}

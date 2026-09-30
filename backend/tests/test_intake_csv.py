@@ -67,7 +67,24 @@ class BuildCsvRowTests(unittest.TestCase):
         self.assertEqual(result[2], "paid")
         self.assertEqual(result[3], "VIP")
         self.assertEqual(result[4], "5000.00")
+        self.assertEqual(result[5:7], ["5000.00", "0.00"])
         self.assertEqual(result[-2:], ["06.06.2000", ""])
+
+    def test_gst_session_splits_amount_charged_into_subtotal_and_gst(self):
+        row = {
+            "leads": {"name": "Cheran", "phone": "+91"}, "status": "paid", "package_name": "Basic",
+            "amount_paise": 5782, "gst_percent": 18, "gst_amount_paise": 882,
+            "created_at": "", "paid_at": None, "collected_data": {},
+        }
+
+        result = build_csv_row(row, [])
+
+        self.assertEqual(result[4:7], ["57.82", "49.00", "8.82"])
+
+    def test_missing_amount_leaves_amount_and_subtotal_blank_and_gst_zero(self):
+        row = {"leads": {}, "status": "paid", "amount_paise": None, "created_at": "", "paid_at": None, "collected_data": {}}
+
+        self.assertEqual(build_csv_row(row, [])[4:7], ["", "", "0.00"])
 
     def test_lead_name_falls_back_to_collected_data(self):
         row = {
@@ -117,8 +134,8 @@ class IntakeCsvRouteTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertIn("text/csv", res.headers["content-type"])
         body = res.text
-        self.assertIn("Lead,Phone,Status,Package,Amount charged,Submitted,Paid at,Date of Birth", body)
-        self.assertIn("Cheran,+918056110957,paid,Basic,10.00", body)
+        self.assertIn("Lead,Phone,Status,Package,Amount charged,Subtotal,GST,Submitted,Paid at,Date of Birth", body)
+        self.assertIn("Cheran,+918056110957,paid,Basic,10.00,10.00,0.00", body)
 
 
 if __name__ == "__main__":

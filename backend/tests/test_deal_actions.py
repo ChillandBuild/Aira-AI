@@ -377,6 +377,97 @@ class TestLinkFreshness:
         assert out.refusals and out.payment_link is None and len(world.links) == 1
 
 
+GST_CONFIG = {**NO_DETAILS_CONFIG, "gst_percent": 18}
+
+
+class TestGstOnLinks:
+    """gst_percent is added at payment; the session total stays the pre-GST subtotal."""
+
+    def _link(self, world, config=GST_CONFIG, key="one_question", **args):
+        run([call("select_offering", key=key, **args)], config)
+        out = run([call("create_payment_link")], config)
+        return out, next(iter(world.sessions.values()))
+
+    def test_link_charges_subtotal_plus_gst_and_records_the_split(self, world):
+        out, s = self._link(world)
+        assert out.payment_link and world.links[0]["amount_paise"] == 5782
+        assert s["amount_paise"] == 5782 and s["gst_percent"] == 18 and s["gst_amount_paise"] == 882
+        assert s["total_amount_paise"] == 4900 and s["package_amount_paise"] == 4900
+
+    def test_description_shows_the_breakdown(self, world):
+        self._link(world)
+        assert "18% GST" in world.links[0]["description"]
+
+    def test_addons_are_taxed_with_the_package(self, world):
+        self._link(world, key="detailed", addon_keys=["report"])
+        assert world.links[0]["amount_paise"] == round(11900 * 1.18)
+
+    def test_gst_off_charges_the_subtotal_and_records_zero_gst(self, world):
+        _, s = self._link(world, config=NO_DETAILS_CONFIG)
+        assert world.links[0]["amount_paise"] == 4900 and "GST" not in world.links[0]["description"]
+        assert s["amount_paise"] == 4900 and s["gst_amount_paise"] == 0
+
+    def test_live_gst_link_is_reused_not_seen_as_stale(self, world):
+        first, _ = self._link(world)
+        again = run([call("create_payment_link")], GST_CONFIG)
+        assert again.payment_link == first.payment_link and len(world.links) == 1
+
+    def test_changing_the_gst_rate_replaces_the_live_link(self, world):
+        first, s = self._link(world)
+        out = run([call("create_payment_link")], {**GST_CONFIG, "gst_percent": 5})
+        assert out.payment_link != first.payment_link
+        assert world.links[-1]["amount_paise"] == 5145 and s["gst_percent"] == 5
+
+    def test_selecting_another_offering_clears_the_gst_snapshot(self, world):
+        _, s = self._link(world)
+        run([call("select_offering", key="marriage")], GST_CONFIG)
+        assert s["payment_link"] is None and s["amount_paise"] is None
+        assert s["gst_percent"] is None and s["gst_amount_paise"] is None
+
+
+class TestGstInThePrompt:
+    def test_current_charge_adds_gst_to_the_subtotal(self):
+        from app.services import deal_engine
+        session = {"package_key": "one_question"}
+        assert deal_engine.current_prices(GST_CONFIG, session) == (4900, 4900)
+        assert deal_engine.current_charge(GST_CONFIG, session) == 5782
+        assert deal_engine.current_charge(NO_DETAILS_CONFIG, session) == 4900
+
+    def test_gst_inclusive_totals_are_allowed_prices(self):
+        from app.services import deal_engine
+        assert 57.82 in deal_engine.allowed_prices(GST_CONFIG)
+        assert 49.0 in deal_engine.allowed_prices(GST_CONFIG)
+        assert 57.82 not in deal_engine.allowed_prices(NO_DETAILS_CONFIG)
+        assert deal_engine.unknown_prices("Your total is ₹140.42", GST_CONFIG, "") == []  # 119 + 18%
+
+    def test_prompt_says_listed_prices_exclude_gst_only_when_set(self):
+        from app.services import deal_engine
+        on = deal_engine.deal_prompt(GST_CONFIG, None)
+        off = deal_engine.deal_prompt(NO_DETAILS_CONFIG, None)
+        assert "exclude 18% GST" in on and "GST" not in off
+
+    def test_offering_list_keeps_the_listed_price_not_the_gst_total(self):
+        from app.services import deal_engine
+        block = deal_engine.offerings_block(GST_CONFIG)
+        assert "₹49 " in block and "₹57.82" not in block
+
+    def test_link_is_live_compares_against_the_gst_inclusive_charge(self):
+        from app.services import deal_engine
+        session = {"status": "awaiting_payment", "payment_link": "https://x", "amount_paise": 5782,
+                   "payment_link_expires_at": _in(hours=24)}
+        assert deal_engine.link_is_live(session, 5782)
+        assert not deal_engine.link_is_live(session, 4900)
+
+    def test_deal_state_shows_link_live_with_gst_charge(self):
+        from app.services import deal_engine
+        session = {"package_key": "one_question", "package_name": "One Question", "status": "awaiting_payment",
+                   "payment_link": "https://x", "amount_paise": 5782, "total_amount_paise": 4900,
+                   "payment_link_expires_at": _in(hours=24), "collected_data": {}}
+        block = deal_engine.deal_state_block(GST_CONFIG, session)
+        assert "link sent (₹57.82), not paid yet" in block
+        assert "Offering: One Question — ₹49" in block
+
+
 class TestShowOptions:
     def test_top_level_packages_become_buttons(self, world):
         out = run([call("show_options", of="packages")])

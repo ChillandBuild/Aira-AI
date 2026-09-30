@@ -443,19 +443,47 @@ def upsert_quoted_deal(tenant_id: str, lead_id: str, line: dict, db=None) -> Non
         logger.warning(f"upsert_quoted_deal failed for lead {lead_id}: {e}")
 
 
+def _intake_gst(session: dict) -> tuple[float | None, int]:
+    """(gst_percent, gst_amount_paise) for a session; (None, 0) when it has no GST.
+    Columns are read with .get so sessions created before GST existed behave as before."""
+    gst_paise = int(session.get("gst_amount_paise") or 0)
+    if gst_paise <= 0:
+        return None, 0
+    percent = session.get("gst_percent")
+    return (float(percent) if percent is not None else None), gst_paise
+
+
+def _intake_subtotal(session: dict) -> int:
+    """Pre-GST amount: total_amount_paise stays the subtotal; when it is missing,
+    amount_paise is GST-inclusive, so take the GST back out."""
+    _, gst_paise = _intake_gst(session)
+    if session.get("total_amount_paise"):
+        return int(session["total_amount_paise"])
+    return max(int(session.get("amount_paise") or 0) - gst_paise, 0)
+
+
 def _intake_lines(session: dict) -> list[dict]:
+    gst_rate, _ = _intake_gst(session)
+    rate = {"gst_rate": gst_rate} if gst_rate is not None else {}
     lines = []
     package_amount = session.get("package_amount_paise")
     if session.get("package_name") and package_amount is not None:
-        lines.append({"name": session["package_name"], "qty": 1, "unit_price_paise": package_amount})
+        lines.append({"name": session["package_name"], "qty": 1, "unit_price_paise": package_amount, **rate})
     for addon in session.get("selected_addons") or []:
         if addon.get("name") and addon.get("amount_paise") is not None:
-            lines.append({"name": addon["name"], "qty": 1, "unit_price_paise": addon["amount_paise"]})
+            lines.append({"name": addon["name"], "qty": 1, "unit_price_paise": addon["amount_paise"], **rate})
     if not lines:
-        amount = session.get("total_amount_paise") or session.get("amount_paise")
+        amount = _intake_subtotal(session)
         if amount:
-            lines.append({"name": session.get("package_name") or "Consultation", "qty": 1, "unit_price_paise": amount})
+            lines.append({"name": session.get("package_name") or "Consultation", "qty": 1, "unit_price_paise": amount, **rate})
     return lines
+
+
+def _intake_deal_total(session: dict, lines: list[dict]) -> int:
+    """What the customer pays: the pre-GST subtotal plus the GST charged on the link."""
+    _, gst_paise = _intake_gst(session)
+    subtotal = _intake_subtotal(session) or sum(li["line_total_paise"] for li in lines)
+    return subtotal + gst_paise
 
 
 def sync_intake_session(session: dict, db=None) -> None:
@@ -476,7 +504,7 @@ def sync_intake_session(session: dict, db=None) -> None:
             lines = _resolve_lines(tenant_id, _intake_lines(session), db) if _intake_lines(session) else []
             if not lines:
                 return
-            total = session.get("total_amount_paise") or session.get("amount_paise") or sum(li["line_total_paise"] for li in lines)
+            total = _intake_deal_total(session, lines)
             fields = {
                 "stage": "awaiting_payment", "total_paise": total, "payment_link": session.get("payment_link"),
                 "link_expires_at": (datetime.now(timezone.utc) + LINK_TTL).isoformat(),

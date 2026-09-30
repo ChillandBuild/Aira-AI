@@ -24,7 +24,7 @@ from app.services.intake import (
     record_astro_bridge_ids,
     resolve_intake_session,
 )
-from app.services.intake_copy import compose_payment_receipt
+from app.services.intake_copy import compose_payment_receipt, gst_receipt_line
 from app.services.intake_csv import FIXED_HEADERS, build_csv_headers, build_csv_row
 from app.services.payment_razorpay import verify_webhook_signature
 
@@ -39,7 +39,7 @@ VISIBLE_STATUSES = ["awaiting_payment", "paid"]
 SESSION_COLUMNS = (
     "id, lead_id, status, collected_data, field_schema, amount_paise, "
     "amount_mismatch, package_key, package_name, package_amount_paise, "
-    "payment_link, paid_at, created_at, leads(name, phone)"
+    "gst_percent, gst_amount_paise, payment_link, paid_at, created_at, leads(name, phone)"
 )
 
 CSV_MAX_ROWS = 5000
@@ -166,6 +166,7 @@ def intake_stats(ctx: dict = Depends(require_conversations_view)):
 
     consultations = [r for r in rows if r.get("status") in ("paid", "resolved")]
     answered = sum(1 for r in consultations if r.get("astro_last_reply_id") is not None)
+    # amount_paise is what Razorpay charged, so revenue_inr INCLUDES any GST collected.
     revenue_paise = sum(int(r.get("amount_paise") or 0) for r in consultations)
 
     today = datetime.now(timezone.utc).date()
@@ -300,6 +301,7 @@ async def razorpay_webhook(request: Request):
         receipt = await compose_payment_receipt(
             lead_id=lead_id, tenant_id=tenant_id, customer_name=customer_name, service_noun=service_noun,
         )
+        receipt = _with_gst_line(receipt, _fetch_session_gst(session_id, tenant_id))
         try:
             await send_whatsapp(phone, receipt, tenant_id=tenant_id)
         except Exception as e:
@@ -347,6 +349,30 @@ async def astro_reply(request: Request):
     return await deliver_astro_reply(payload, tenant_id)
 
 
+def _fetch_session_gst(session_id: str, tenant_id: str) -> dict:
+    """GST columns of one session, tenant-scoped. confirm_intake_payment's select
+    list doesn't carry them, so the receipt reads them here. Best-effort: {} on any
+    failure means the receipt simply goes out without the amount line."""
+    try:
+        row = (
+            get_supabase().table("intake_sessions")
+            .select("total_amount_paise, gst_percent, gst_amount_paise")
+            .eq("id", session_id).eq("tenant_id", tenant_id)
+            .maybe_single().execute()
+        )
+        return (row.data if row else None) or {}
+    except Exception as e:
+        logger.warning(f"Intake receipt: GST lookup failed for session {session_id}: {e}")
+        return {}
+
+
+def _with_gst_line(receipt: str, gst_row: dict) -> str:
+    line = gst_receipt_line(
+        int(gst_row.get("total_amount_paise") or 0), gst_row.get("gst_amount_paise"), gst_row.get("gst_percent"),
+    )
+    return f"{receipt}\n{line}" if line else receipt
+
+
 async def _handle_deal_payment_event(payload: dict, event: str, deal_id: str, tenant_id: str) -> dict:
     """Payment events for a deal's Razorpay link (services/deals.send_payment_link
     puts notes.deal_id on it). Paid -> won (stock deducts once: mark_won's claim
@@ -370,12 +396,12 @@ async def _handle_deal_payment_event(payload: dict, event: str, deal_id: str, te
     )
     phone = (lead.data or {}).get("phone") if lead else None
     if phone:
+        receipt = "Payment received, thank you! We'll be in touch shortly to arrange the next steps."
+        intake_session_id = result["deal"].get("intake_session_id")
+        if intake_session_id:
+            receipt = _with_gst_line(receipt, _fetch_session_gst(intake_session_id, tenant_id))
         try:
-            await send_whatsapp(
-                phone,
-                "Payment received, thank you! We'll be in touch shortly to arrange the next steps.",
-                tenant_id=tenant_id,
-            )
+            await send_whatsapp(phone, receipt, tenant_id=tenant_id)
         except Exception as e:
             logger.error(f"Deal receipt send failed for {phone}: {e}")
     return {"status": "ok"}

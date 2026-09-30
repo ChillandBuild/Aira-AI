@@ -1,7 +1,7 @@
 """Pure CSV assembly for intake sessions. No I/O so the header-union and
 label-collision rules stay directly unit-testable."""
 
-FIXED_HEADERS = ["Lead", "Phone", "Status", "Package", "Amount charged", "Submitted", "Paid at"]
+FIXED_HEADERS = ["Lead", "Phone", "Status", "Package", "Amount charged", "Subtotal", "GST", "Submitted", "Paid at"]
 
 
 def _prettify(key: str) -> str:
@@ -58,6 +58,8 @@ def build_csv_row(row: dict, field_keys: list[str]) -> list[str]:
     leads = row.get("leads") or {}
     collected = row.get("collected_data") or {}
     amount = row.get("amount_paise")
+    gst = int(row.get("gst_amount_paise") or 0)
+    subtotal = amount - gst if amount and gst > 0 else amount
     return [
         _csv_safe(leads.get("name") or collected.get("name") or ""),
         # Not sanitized: phone is a structured E.164 identifier ("+91...."),
@@ -67,6 +69,8 @@ def build_csv_row(row: dict, field_keys: list[str]) -> list[str]:
         row.get("status") or "",
         _csv_safe(row.get("package_name") or ""),
         f"{amount / 100:.2f}" if amount else "",
+        f"{subtotal / 100:.2f}" if subtotal else "",
+        f"{gst / 100:.2f}" if gst > 0 else "0.00",
         row.get("created_at") or "",
         row.get("paid_at") or "",
         *[_csv_safe(collected.get(key) or "") for key in field_keys],

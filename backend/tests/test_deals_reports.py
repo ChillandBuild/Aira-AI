@@ -117,3 +117,43 @@ def test_register_neutralises_formula_injection_in_customer_names():
     content, _, _ = _register([deal], [], PROFILE, fmt="csv")
     text = content.decode("utf-8-sig")
     assert "'=HYPERLINK(evil)" in text and "'=cmd()" in text
+
+
+# ---------------------------------------------------------------- intake GST (always tax-exclusive lines)
+
+def _intake_gst_deal():
+    deal = _deal(51, "2026-09-03T05:00:00+00:00", [_line("Horoscope", 1, 4900, rate=18)], source="form", method="razorpay")
+    return {**deal, "intake_session_id": "s-1", "total_paise": 5782}
+
+
+@pytest.mark.parametrize("prices_include_gst", [True, False])
+def test_intake_gst_line_reports_taxable_tax_and_gross_whatever_the_tenant_flag(prices_include_gst):
+    profile = {**PROFILE, "gstin": "33ABCDE1234F1Z5", "prices_include_gst": prices_include_gst}
+    content, _, _ = _register([_intake_gst_deal()], [], profile, fmt="csv")
+    text = content.decode("utf-8-sig")
+    # Rate 49, taxable 49, 18%, CGST 4.41, SGST 4.41, IGST 0, gross 57.82
+    assert ",49.0,18,4.41,4.41,0,57.82," in text
+    assert "TOTAL,57.82" in text
+
+
+def test_tax_split_tax_exclusive_flag_overrides_the_tenant_default():
+    split = _tax_split(4900, 18, prices_include_gst=True, tax_exclusive=True)
+    assert (split["taxable"], split["tax"], split["cgst"], split["sgst"], split["gross"]) == (4900, 882, 441, 441, 5782)
+
+
+def test_non_intake_deal_is_still_split_by_the_tenant_flag():
+    profile = {**PROFILE, "gstin": "33ABCDE1234F1Z5", "prices_include_gst": True}
+    won = [_deal(41, "2026-09-03T05:00:00+00:00", [_line("Earbuds", 1, 49900, rate=18)])]
+    text = _register(won, [], profile, fmt="csv")[0].decode("utf-8-sig")
+    assert ",422.88,18,38.06,38.06,0,499.0," in text
+
+
+def test_intake_gst_refund_row_is_negative_gross():
+    profile = {**PROFILE, "gstin": "33ABCDE1234F1Z5"}
+    text = _register([], [_intake_gst_deal()], profile, fmt="csv")[0].decode("utf-8-sig")
+    assert ",-49.0,18,-4.41,-4.41,0,-57.82," in text
+
+
+def test_intake_gst_without_gstin_still_reports_what_was_charged():
+    text = _register([_intake_gst_deal()], [], PROFILE, fmt="csv")[0].decode("utf-8-sig")
+    assert "TOTAL,57.82" in text

@@ -259,6 +259,67 @@ async def test_route_intake_charges_total_amount_including_addons():
     assert create_link.call_args.kwargs["amount_paise"] == 59800
 
 
+def _gst_db(gst_percent, session):
+    """_session_db whose intake_config also carries gst_percent."""
+    db = _session_db(existing_session=session)
+    import json as _json
+    cfg = _json.loads(db.table("app_settings").select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data["value"])
+    cfg["gst_percent"] = gst_percent
+    db.table("app_settings").select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {"value": _json.dumps(cfg)}
+    return db
+
+
+_GST_SESSION = {
+    "id": "sess-1", "tenant_id": "t-1", "lead_id": "lead-1", "status": "awaiting_confirmation",
+    "collected_data": {"name": "Priya"}, "package_amount_paise": 4900, "total_amount_paise": 4900,
+}
+_LINK = {"payment_link_url": "https://rzp.io/x", "razorpay_payment_link_id": "plink_1"}
+
+
+@pytest.mark.asyncio
+async def test_route_intake_adds_gst_on_top_of_the_total():
+    db = _gst_db(18, _GST_SESSION)
+    with patch.object(eh, "create_payment_link", new=AsyncMock(return_value=_LINK)) as create_link, \
+         patch.object(eh, "_send_and_log", new=AsyncMock()):
+        await eh.route_intake("lead-1", "t-1", "+91999", "yes correct", db=db)
+    kwargs = create_link.call_args.kwargs
+    assert kwargs["amount_paise"] == 5782
+    assert "18% GST" in kwargs["description"] and "\u20b949" in kwargs["description"]
+    saved = db.table("intake_sessions").update.call_args_list[-1][0][0]
+    assert saved["amount_paise"] == 5782
+    assert saved["gst_percent"] == 18 and saved["gst_amount_paise"] == 882
+
+
+@pytest.mark.asyncio
+async def test_route_intake_with_no_gst_charges_the_subtotal_unchanged():
+    db = _gst_db(0, _GST_SESSION)
+    with patch.object(eh, "create_payment_link", new=AsyncMock(return_value=_LINK)) as create_link, \
+         patch.object(eh, "_send_and_log", new=AsyncMock()):
+        await eh.route_intake("lead-1", "t-1", "+91999", "yes correct", db=db)
+    kwargs = create_link.call_args.kwargs
+    assert kwargs["amount_paise"] == 4900
+    assert "GST" not in kwargs["description"]
+    saved = db.table("intake_sessions").update.call_args_list[-1][0][0]
+    assert saved["amount_paise"] == 4900 and saved["gst_amount_paise"] == 0
+
+
+def test_default_config_has_gst_off():
+    assert eh._DEFAULT_CONFIG["gst_percent"] == 0
+
+
+@pytest.mark.parametrize("subtotal,percent,gst,charge", [
+    (4900, 18, 882, 5782), (100, 18, 18, 118), (4900, 0, 0, 4900), (4900, None, 0, 4900),
+])
+def test_gst_helpers(subtotal, percent, gst, charge):
+    assert eh.gst_paise(subtotal, percent) == gst
+    assert eh.charge_paise(subtotal, percent) == charge
+
+
+def test_gst_paise_rounds_like_the_deal_total():
+    assert eh.gst_paise(1050, 18) == round(1050 * 18 / 100)
+    assert isinstance(eh.gst_paise(1050, 12.5), int)
+
+
 @pytest.mark.asyncio
 async def test_route_intake_falls_back_gracefully_with_no_package_amount():
     session = {
@@ -788,3 +849,25 @@ async def test_package_choice_cancel_word_cancels_session():
     assert consumed is False
     update_patch = db.table("intake_sessions").update.call_args[0][0]
     assert update_patch["status"] == "cancelled"
+
+
+def test_confirm_payment_equal_to_the_gst_inclusive_charge_is_not_a_mismatch():
+    row = {**_SESSION_ROW, "package_amount_paise": 4900, "total_amount_paise": 4900, "amount_paise": 5782}
+    db = _confirm_db(session_row=row)
+    eh.confirm_intake_payment("sess-1", "pay_abc123", amount_paid_paise=5782, db=db)
+    patch_ = db.table("intake_sessions").update.call_args_list[0][0][0]
+    assert patch_["amount_mismatch"] is False and patch_["amount_paise"] == 5782
+
+
+def test_confirm_payment_of_the_bare_subtotal_when_gst_was_charged_is_flagged():
+    row = {**_SESSION_ROW, "package_amount_paise": 4900, "total_amount_paise": 4900, "amount_paise": 5782}
+    db = _confirm_db(session_row=row)
+    eh.confirm_intake_payment("sess-1", "pay_abc123", amount_paid_paise=4900, db=db)
+    assert db.table("intake_sessions").update.call_args_list[0][0][0]["amount_mismatch"] is True
+
+
+def test_confirm_payment_selects_the_amount_paise_column():
+    db = _confirm_db()
+    eh.confirm_intake_payment("sess-1", "pay_abc123", db=db)
+    columns = db.table("intake_sessions").select.call_args[0][0].split(",")
+    assert "amount_paise" in columns

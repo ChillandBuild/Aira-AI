@@ -206,6 +206,11 @@ export function IntakeTable({
                     ⚠
                   </span>
                 )}
+                {!!row.gst_amount_paise && row.gst_amount_paise > 0 && (
+                  <div className="font-body text-[11px] text-ink-muted">
+                    (incl. ₹{(row.gst_amount_paise / 100).toFixed(2)} GST)
+                  </div>
+                )}
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 {row.payment_link ? <CopyLinkButton link={row.payment_link} /> : <span className="font-body text-sm text-ink-muted">—</span>}

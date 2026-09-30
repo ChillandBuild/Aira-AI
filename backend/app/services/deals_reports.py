@@ -128,12 +128,14 @@ def _low_stock(db, tenant_id: str) -> list[dict]:
 
 # ---------------------------------------------------------------- sales register
 
-def _tax_split(line_total: int, rate: float | None, prices_include_gst: bool) -> dict:
+def _tax_split(line_total: int, rate: float | None, prices_include_gst: bool, tax_exclusive: bool = False) -> dict:
     """Intra-state assumed (customer state isn't collected): CGST = SGST, the
-    odd paisa goes to CGST. IGST stays 0 but the column exists for the auditor."""
+    odd paisa goes to CGST. IGST stays 0 but the column exists for the auditor.
+    tax_exclusive forces the line to be treated as pre-tax whatever the tenant
+    flag says: intake lines are always pre-GST, GST is added on the payment link."""
     if not rate:
         return {"taxable": line_total, "tax": 0, "cgst": 0, "sgst": 0, "gross": line_total}
-    if prices_include_gst:
+    if prices_include_gst and not tax_exclusive:
         taxable = round(line_total * 100 / (100 + rate))
         tax = line_total - taxable
     else:
@@ -143,12 +145,19 @@ def _tax_split(line_total: int, rate: float | None, prices_include_gst: bool) ->
     return {"taxable": taxable, "tax": tax, "cgst": tax - sgst, "sgst": sgst, "gross": taxable + tax}
 
 
+def _is_intake_deal(deal: dict) -> bool:
+    return bool(deal.get("intake_session_id")) or deal.get("source") == "form"
+
+
 def _register_rows(deals: list[dict], sign: int, date_key: str, include_gst: bool, profile: dict) -> list[list]:
     rows = []
     for deal in deals:
         lead = deal.get("leads") or {}
+        intake = _is_intake_deal(deal)
         for line in deal.get("deal_items") or []:
-            split = _tax_split(line["line_total_paise"], line.get("gst_rate"), profile["prices_include_gst"])
+            split = _tax_split(line["line_total_paise"], line.get("gst_rate"), profile["prices_include_gst"], tax_exclusive=intake)
+            # An intake line's GST was charged on top, so the amount kept is the gross.
+            charged = split["gross"] if intake and line.get("gst_rate") else line["line_total_paise"]
             row = [
                 _ist_date(deal[date_key]),
                 format_deal_number(deal["deal_number"]) + (" (refund)" if sign < 0 else ""),
@@ -168,7 +177,7 @@ def _register_rows(deals: list[dict], sign: int, date_key: str, include_gst: boo
                     sign * split["gross"] / 100,
                 ]
             else:
-                row += [sign * line["line_total_paise"] / 100]
+                row += [sign * charged / 100]
             row += [
                 PAYMENT_LABELS.get(deal.get("payment_method") or "", ""),
                 _csv_safe(deal.get("razorpay_payment_id") or ""),

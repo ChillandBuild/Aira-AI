@@ -1362,6 +1362,8 @@ export interface IntakeSession {
   package_key: string | null;
   package_name: string | null;
   package_amount_paise: number | null;
+  gst_percent?: number | null;
+  gst_amount_paise?: number | null;
   payment_link: string | null;
   paid_at: string | null;
   created_at: string;

@@ -96,12 +96,21 @@ def _addon_sums(base: int, addons: list[dict]) -> set[int]:
     return totals
 
 
+def gst_percent(config: dict) -> float:
+    """The tenant's GST added on top of packages at payment (0 = off)."""
+    return config.get("gst_percent") or 0
+
+
 def allowed_prices(config: dict) -> set[float]:
     """Every rupee figure the business actually charges: each offering, alone or with any
-    of its add-ons."""
+    of its add-ons, and each of those totals with GST added when the tenant charges it."""
     allowed: set[float] = set()
+    percent = gst_percent(config)
     for leaf in _leaves(_intake().normalize_packages(config)):
-        allowed |= {t / 100 for t in _addon_sums(leaf["amount_paise"], _active(leaf.get("addons") or []))}
+        totals = _addon_sums(leaf["amount_paise"], _active(leaf.get("addons") or []))
+        allowed |= {t / 100 for t in totals}
+        if percent:
+            allowed |= {_intake().charge_paise(t, percent) / 100 for t in totals}
         allowed |= {a["amount_paise"] / 100 for a in _active(leaf.get("addons") or [])}
     return allowed
 
@@ -152,10 +161,11 @@ def volunteered_details(reply: str, values: dict[str, str], customer_message: st
     return [k for k, v in values.items() if len(v) >= 6 and re.sub(r"\s+", "", v.lower()) in text]
 
 
-def business_facts_block(details: dict) -> str:
+def business_facts_block(details: dict, *, gst_on_top: bool = False) -> str:
     """The business's own identity (Settings > Business details), so a lead asking for the
     GST number, the registered address or an invoice name gets the real answer, not a
-    handover. Only filled fields are shown."""
+    handover. Only filled fields are shown. gst_on_top: the Services page adds GST at
+    payment, which overrides the Business Details include/exclude flag."""
     details = details or {}
     address = ", ".join(p for p in (details.get("address"), details.get("city")) if p)
     region = " ".join(p for p in (details.get("state"), details.get("pincode")) if p)
@@ -170,11 +180,12 @@ def business_facts_block(details: dict) -> str:
     lines = [f"- {label}: {value}" for label, value in facts if value]
     if not lines:
         return ""
-    gst = (
-        "Listed prices include GST."
-        if details.get("prices_include_gst", True)
-        else "Listed prices exclude GST; a quote adds GST on top, so its total can be higher than the listed price."
-    )
+    if gst_on_top:
+        gst = "GST is added on top of the listed package prices at payment, so the payment total is higher than the listed price."
+    elif details.get("prices_include_gst", True):
+        gst = "Listed prices include GST."
+    else:
+        gst = "Listed prices exclude GST; a quote adds GST on top, so its total can be higher than the listed price."
     return (
         "\n\nBUSINESS DETAILS (official and final; they override anything your description or "
         "knowledge says about them):\n" + "\n".join(lines) + f"\n{gst}\n"
@@ -255,12 +266,26 @@ def _offering_lines(nodes: list[dict], indent: str = "") -> list[str]:
     return lines
 
 
+def gst_note(config: dict) -> str:
+    """One sentence for the prompt when GST is added at payment; empty when it is off."""
+    percent = gst_percent(config)
+    if not percent:
+        return ""
+    return (
+        f"Listed package prices exclude {percent:g}% GST; GST is added at payment, so the payment "
+        "total is higher than the listed price. Quote the listed price as the price; give the "
+        "payment total (shown in DEAL STATE) only when they ask what they will pay."
+    )
+
+
 def offerings_block(config: dict) -> str:
     packages = _intake().normalize_packages(config)
     noun = config.get("service_noun") or "consultation"
+    note = gst_note(config)
     return (
         f"OFFERINGS — the only {noun} options you may sell. Prices are fixed; quote them exactly "
         "as written here and never change, round or invent one:\n" + "\n".join(_offering_lines(packages))
+        + (f"\n{note}" if note else "")
     )
 
 
@@ -295,6 +320,13 @@ def current_prices(config: dict, session: dict) -> tuple[int, int] | None:
     if any(k not in live for k in wanted):
         return None
     return leaf["amount_paise"], offering_total(leaf, [live[k] for k in wanted])
+
+
+def current_charge(config: dict, session: dict) -> int | None:
+    """What a payment link for this session charges today: package + add-ons at current
+    prices, plus the tenant's GST. None when the offering is gone or unpriced."""
+    prices = current_prices(config, session)
+    return _intake().charge_paise(prices[1], gst_percent(config)) if prices else None
 
 
 def parse_time(value) -> datetime | None:
@@ -355,7 +387,8 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     skipped = session.get("skipped_fields") or []
     prices = current_prices(config, session)
     total = prices[1] if prices else session.get("total_amount_paise") or session.get("package_amount_paise")
-    link_live = link_is_live(session, prices[1] if prices else None)
+    charge = current_charge(config, session)
+    link_live = link_is_live(session, charge)
     have = "; ".join(f"{k} = {v}" for k, v in collected.items() if v) or "none yet"
     missing = missing_details(fields, collected, skipped)
     labels = {f["key"]: f["label"] for f in fields}
@@ -369,6 +402,8 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     if skipped:
         lines.append(f"- Details the customer could not give: {', '.join(skipped)}")
     lines.append(f"- Payment: {_payment_line(session, link_live)}")
+    if charge and gst_percent(config):
+        lines.append(f"- Payment total with {gst_percent(config):g}% GST: {_rupees(charge)}")
     if prices is None and session.get("status") != PAID_STATUS:
         next_step = ("this offering is not available or not priced any more. Do not send a payment "
                      "link; tell them and help them choose something else.")
@@ -450,8 +485,7 @@ def _resume_note(config: dict, session: dict | None) -> str:
     fields = config.get("fields") or []
     missing = missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
     labels = {f["key"]: f["label"] for f in fields}
-    prices = current_prices(config, session)
-    if link_is_live(session, prices[1] if prices else None):
+    if link_is_live(session, current_charge(config, session)):
         step = f"gently mention their {session.get('package_name')} payment link is ready whenever they are."
     elif missing:
         step = f"ask for their {labels.get(missing[0], missing[0])}."

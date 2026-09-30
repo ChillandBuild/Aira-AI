@@ -300,3 +300,16 @@ async def test_compose_line_sends_flow_facts_to_the_model():
     user_content = captured["messages"][1]["content"]
     assert "FLOW FACTS" in user_content
     assert text == "Payment mudinjadhum astrologer reply pannuvanga. Unga place of birth sollunga."
+
+
+def test_gst_receipt_line_breaks_out_subtotal_and_gst():
+    assert ic.gst_receipt_line(4900, 882, 18) == "Paid ₹57.82 (₹49 + ₹8.82 GST @18%)."
+
+
+def test_gst_receipt_line_keeps_fractional_percent():
+    assert ic.gst_receipt_line(10000, 250, 2.5) == "Paid ₹102.50 (₹100 + ₹2.50 GST @2.5%)."
+
+
+@pytest.mark.parametrize("gst", [None, 0, -5])
+def test_gst_receipt_line_is_empty_without_gst(gst):
+    assert ic.gst_receipt_line(4900, gst, 18) == ""

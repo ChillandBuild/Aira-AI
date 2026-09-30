@@ -31,7 +31,37 @@ _DEFAULT_CONFIG = {
     "packages": [],  # list of {"key": str, "name": str, "amount_paise": int, "description": str}
     "service_noun": "consultation",
     "amount_paise": 0,  # legacy single fee; superseded by packages, kept for auto-migration
+    "gst_percent": 0,  # GST added on top of package + add-ons at payment; 0 = off
 }
+
+
+def gst_paise(subtotal_paise: int, percent) -> int:
+    """GST on a pre-tax subtotal. Rounds like deals._deal_total; 0 when GST is off."""
+    if not percent:
+        return 0
+    return round(subtotal_paise * percent / 100)
+
+
+def charge_paise(subtotal_paise: int, percent) -> int:
+    """What the payment link charges: the pre-GST subtotal plus its GST."""
+    return subtotal_paise + gst_paise(subtotal_paise, percent)
+
+
+def gst_link_description(base: str, subtotal_paise: int, percent) -> str:
+    """The Razorpay link description, with the pre-GST price and rate when GST is on."""
+    if not percent:
+        return base
+    return f"{base} · {_rupees(subtotal_paise)} + {percent:g}% GST"
+
+
+def gst_session_fields(subtotal_paise: int, percent) -> dict:
+    """The intake_sessions columns recorded when a link is made: the amount charged
+    (GST included) and the GST split. total_amount_paise stays the pre-GST subtotal."""
+    return {
+        "amount_paise": charge_paise(subtotal_paise, percent),
+        "gst_percent": percent or 0,
+        "gst_amount_paise": gst_paise(subtotal_paise, percent),
+    }
 
 
 def get_intake_config(tenant_id: str, db=None) -> dict:
@@ -1186,25 +1216,29 @@ async def route_intake(
             # total_amount_paise is package + addons; package_amount_paise alone
             # is the fallback for sessions from before addons existed, where
             # total was never set.
-            amount_paise = session.get("total_amount_paise") or session.get("package_amount_paise")
-            if not amount_paise:
+            subtotal_paise = session.get("total_amount_paise") or session.get("package_amount_paise")
+            if not subtotal_paise:
                 logger.error(f"Intake session {session['id']} reached payment with no package amount")
                 await _say("payment_delay")
                 return True
+            gst_percent = config.get("gst_percent")
+            gst_fields = gst_session_fields(subtotal_paise, gst_percent)
             service_noun = config["service_noun"].capitalize()
             try:
                 link = await create_payment_link(
                     idempotency_key=f"booking:{session['id']}:payment_link",
                     notes={"booking_id": session["id"], "booking_ref": ref},
-                    amount_paise=amount_paise,
+                    amount_paise=gst_fields["amount_paise"],
                     customer_name=customer_name,
                     customer_phone=phone,
-                    description=f"{service_noun} — {customer_name} ({ref})",
+                    description=gst_link_description(
+                        f"{service_noun} — {customer_name} ({ref})", subtotal_paise, gst_percent,
+                    ),
                     tenant_id=tenant_id,
                 )
                 _update_session(session["id"], {
                     "status": "awaiting_payment",
-                    "amount_paise": amount_paise,
+                    **gst_fields,
                     "payment_link": link["payment_link_url"],
                     "payment_link_expires_at": link.get("payment_link_expires_at"),
                 }, db)
@@ -1370,7 +1404,7 @@ def confirm_intake_payment(
     existing = (
         db.table("intake_sessions")
         .select("id,status,lead_id,tenant_id,collected_data,field_schema,"
-                "package_key,package_name,package_amount_paise,total_amount_paise,trigger_reason")
+                "package_key,package_name,package_amount_paise,total_amount_paise,amount_paise,trigger_reason")
         .eq("id", session_id)
         .maybe_single()
         .execute()
@@ -1380,10 +1414,14 @@ def confirm_intake_payment(
 
     session = existing.data
     now_iso = datetime.now(timezone.utc).isoformat()
-    # Mirrors the amount actually used to create the payment link (route_intake's
-    # awaiting_confirmation block): total (package + addons) when set, else the
-    # bare package price for sessions from before addons existed.
-    expected = session.get("total_amount_paise") or session.get("package_amount_paise")
+    # What the payment link actually charged: amount_paise, written at link creation
+    # (GST included). Falls back to total (package + addons), then the bare package
+    # price, for sessions whose link predates that column or was made without one.
+    expected = (
+        session.get("amount_paise")
+        or session.get("total_amount_paise")
+        or session.get("package_amount_paise")
+    )
     charged = amount_paid_paise if amount_paid_paise is not None else expected
     # The status filter is the whole point: it turns the read-then-write above into
     # a single conditional UPDATE, so of two concurrent Razorpay retries exactly one
@@ -1773,6 +1811,7 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
     # than assuming this one. See D16.
     patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {
         "payment_link": None, "amount_paise": None, "payment_link_expires_at": None,
+        "gst_percent": None, "gst_amount_paise": None,
     }
     updated = db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
     _sync_deal(updated, db)
