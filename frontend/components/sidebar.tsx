@@ -176,7 +176,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
   // Track open/collapsed state of nested groups
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    Telecalling: true,
+    Telecalling: false,
     Settings: false,
   });
 
@@ -277,8 +277,7 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
   const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
 
-  // Auto-expand active groups
-  const showTc = expandedGroups.Telecalling || isTcActive;
+  const showTc = Boolean(expandedGroups.Telecalling);
   const canSettings = canAny(["settings.view", "settings.manage"]);
   const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures);
   const canServices = canAny(["settings.view", "settings.manage", "catalog.view", "catalog.manage"]);
