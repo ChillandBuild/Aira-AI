@@ -21,14 +21,17 @@
 
 ## gstack setup (pinned — same version on every machine)
 The sprint below needs gstack **1.91.2.0** installed with the `gstack-` prefix. Install steps + upgrade policy:
-[.agents/context/gstack-setup.md](.agents/context/gstack-setup.md). If a session starts with a "gstack is NOT installed"
-or "pinned to" warning (scripts/rnd/check-gstack.sh), tell the user; never upgrade it yourself.
+[.agents/context/gstack-setup.md](.agents/context/gstack-setup.md). Never upgrade it yourself. The session-start
+check (scripts/rnd/check-gstack.sh) was removed from settings on 2026-09-29, so no warning fires any more.
 
 ## How we work — the gstack sprint (every task, no need to be told)
+
+> /gstack-autoplan is switched off in settings. Still applies: push or deploy only when the user says so,
+> and the pre-commit checks (pytest, typecheck, lint) still run as before.
+
 - Bug, error, "it stopped working" → `/gstack-investigate`. Root cause before any fix;
   a regression test that fails before the fix and passes after.
-- New feature or idea → `/gstack-office-hours` → `/gstack-autoplan` → show the plan and
-  wait for approval → build.
+- New feature or idea → `/gstack-office-hours` → show the plan and wait for approval → build.
 - UI change → `/gstack-plan-design-review` on the plan; after building, `/gstack-qa`
   as the UI test tenant — on the live site, or locally. Local backend ONLY via `make dev-backend`
   (plain uvicorn would run the scheduler and message real leads from the live DB; see

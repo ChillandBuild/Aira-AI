@@ -16,17 +16,6 @@
     ]
   },
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/scripts/rnd/check-gstack.sh\"",
-            "timeout": 5
-          }
-        ]
-      }
-    ],
     "Stop": [
       {
         "hooks": [
@@ -71,7 +60,9 @@
     "design-html": "off",
     "gstack-design-html": "off",
     "landing-report": "off",
-    "gstack-landing-report": "off"
+    "gstack-landing-report": "off",
+    "autoplan": "off",
+    "gstack-autoplan": "off"
   },
   "claudeMdExcludes": [
     "**/.claude/rules/README.md",
