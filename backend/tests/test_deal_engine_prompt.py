@@ -2,6 +2,8 @@
 
 Design: docs/plans/ai-native-conversation.md. Everything here is pure: config in, text out.
 """
+from datetime import datetime, timedelta, timezone
+
 from app.services import deal_engine
 
 CONFIG = {
@@ -88,6 +90,7 @@ class TestDealState:
     def test_link_sent_but_unpaid(self):
         session = {"status": "awaiting_payment", "package_key": "one_question", "package_name": "One Question",
                    "total_amount_paise": 4900, "amount_paise": 4900, "payment_link": "https://rzp.io/l/x",
+                   "payment_link_expires_at": (datetime.now(timezone.utc) + timedelta(hours=5)).isoformat(),
                    "collected_data": {"name": "R", "birth_date": "1"}, "skipped_fields": []}
         state = deal_engine.deal_state_block(CONFIG, session)
         assert "link sent" in state.lower() and "not paid" in state.lower()
@@ -254,6 +257,52 @@ class TestBusinessFactsBlock:
         assert deal_engine.business_facts_block({"legal_name": "", "gstin": ""}) == ""
 
 
+class TestLinkLiveness:
+    """The prompt may claim a link is live only when it really is."""
+
+    BASE = {"status": "awaiting_payment", "package_key": "one_question", "package_name": "One Question",
+            "total_amount_paise": 4900, "amount_paise": 4900, "payment_link": "https://rzp.io/l/x",
+            "collected_data": {"name": "R", "birth_date": "1"}, "skipped_fields": []}
+
+    def _state(self, **kw):
+        return deal_engine.deal_state_block(CONFIG, {**self.BASE, **kw})
+
+    @staticmethod
+    def _in(**delta):
+        return (datetime.now(timezone.utc) + timedelta(**delta)).isoformat()
+
+    def test_live_link_is_reported_as_sent(self):
+        state = self._state(payment_link_expires_at=self._in(hours=5))
+        assert "link sent" in state.lower() and "Next step: the link was already sent" in state
+
+    def test_expired_link_is_not_reported_as_sent(self):
+        state = self._state(payment_link_expires_at=self._in(hours=-1))
+        assert "link sent" not in state.lower() and "Payment: not sent" in state
+        assert "Next step: send the payment link now by calling create_payment_link" in state
+        assert "expired or out of date" in state
+
+    def test_link_without_an_expiry_is_not_reported_as_sent(self):
+        state = self._state(payment_link_expires_at=None)
+        assert "link sent" not in state.lower() and "Payment: not sent" in state
+
+    def test_link_at_a_stale_price_is_not_reported_as_sent(self):
+        repriced = {**CONFIG, "packages": [{**CONFIG["packages"][0], "amount_paise": 100}, *CONFIG["packages"][1:]]}
+        session = {**self.BASE, "payment_link_expires_at": self._in(hours=5)}
+        state = deal_engine.deal_state_block(repriced, session)
+        assert "link sent" not in state.lower() and "Payment: not sent" in state
+        assert "₹1" in state and "₹49" not in state
+
+    def test_link_for_a_removed_package_is_not_reported_as_sent(self):
+        gone = {**CONFIG, "packages": CONFIG["packages"][1:]}
+        session = {**self.BASE, "payment_link_expires_at": self._in(hours=5)}
+        assert "link sent" not in deal_engine.deal_state_block(gone, session).lower()
+
+    def test_removed_package_tells_the_model_not_to_send_a_link(self):
+        gone = {**CONFIG, "packages": CONFIG["packages"][1:]}
+        state = deal_engine.deal_state_block(gone, {**self.BASE, "payment_link_expires_at": self._in(hours=5)})
+        assert "Do not send a payment link" in state and "call create_payment_link" not in state
+
+
 class TestNextStep:
     BASE = {"package_key": "one_question", "package_name": "One Question", "total_amount_paise": 4900,
             "skipped_fields": []}
@@ -274,6 +323,7 @@ class TestNextStep:
 
     def test_link_sent_means_gentle_reminder_only(self):
         state = self._state(status="awaiting_payment", payment_link="x", amount_paise=4900,
+                            payment_link_expires_at=(datetime.now(timezone.utc) + timedelta(hours=5)).isoformat(),
                             collected_data={"name": "R", "birth_date": "1"})
         assert "Next step: the link was already sent" in state
 

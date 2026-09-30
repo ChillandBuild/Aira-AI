@@ -653,8 +653,13 @@ def _create_session(lead_id: str, tenant_id: str, db) -> dict:
     return result.data[0]
 
 
-def _update_session(session_id: str, patch: dict, db) -> None:
-    result = db.table("intake_sessions").update(patch).eq("id", session_id).execute()
+def _update_session(session_id: str, patch: dict, db, unless_status: str | None = None) -> None:
+    """unless_status: skip the write if the session is already in that status, so a slow
+    caller (a Razorpay call in between) cannot undo a webhook that just moved it there."""
+    query = db.table("intake_sessions").update(patch).eq("id", session_id)
+    if unless_status:
+        query = query.neq("status", unless_status)
+    result = query.execute()
     if "status" in patch:
         _sync_deal(result, db)
 
@@ -1201,6 +1206,7 @@ async def route_intake(
                     "status": "awaiting_payment",
                     "amount_paise": amount_paise,
                     "payment_link": link["payment_link_url"],
+                    "payment_link_expires_at": link.get("payment_link_expires_at"),
                 }, db)
                 intro = await compose_line(
                     "payment_intro",
@@ -1461,14 +1467,21 @@ def expire_intake_session(session_id: str, db=None) -> bool:
     retried webhook. No message to the lead -- expiry lands at or past the 24h
     window, so nothing could be sent without burning an approved template, and
     that isn't worth it for an abandoned session."""
+    from datetime import datetime, timezone
+
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
+    # The webhook names the session, not which link expired. A regenerated session
+    # holds a NEWER link, so a late "old link expired" event must not cancel it: only
+    # cancel when the stored link's expiry is unknown (NULL) or already past.
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     result = (
         db.table("intake_sessions")
-        .update({"status": "cancelled", "payment_link": None})
+        .update({"status": "cancelled", "payment_link": None, "payment_link_expires_at": None})
         .eq("id", session_id)
         .eq("status", "awaiting_payment")
+        .or_(f"payment_link_expires_at.is.null,payment_link_expires_at.lte.{now_iso}")
         .execute()
     )
     _sync_deal(result, db)
@@ -1758,7 +1771,9 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
     # The old Razorpay link stays live until Razorpay processes the cancel, so
     # confirm_intake_payment records the amount that actually arrives rather
     # than assuming this one. See D16.
-    patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {"payment_link": None, "amount_paise": None}
+    patch = _package_patch(chosen, path, total_amount_paise=chosen["amount_paise"]) | {
+        "payment_link": None, "amount_paise": None, "payment_link_expires_at": None,
+    }
     updated = db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
     _sync_deal(updated, db)
     return {**session, **patch}

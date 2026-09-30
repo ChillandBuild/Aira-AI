@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -67,9 +68,11 @@ async def create_payment_link(
     Returns dict with keys:
       - payment_link_url: str
       - razorpay_payment_link_id: str
+      - payment_link_expires_at: str (ISO-8601 UTC; when Razorpay stops accepting payment)
     """
     key_id = _get_key_id(tenant_id)
     key_secret = _get_key_secret(tenant_id)
+    expire_by = int(time.time()) + _LINK_EXPIRE_SECONDS
 
     payload = {
         "amount": amount_paise,
@@ -85,7 +88,7 @@ async def create_payment_link(
         # No callback_url: delivery is WhatsApp, not a browser redirect flow --
         # there is nothing to redirect back to, and the payment receipt is
         # already sent from the payment_link.paid webhook handler.
-        "expire_by": int(time.time()) + _LINK_EXPIRE_SECONDS,
+        "expire_by": expire_by,
     }
 
     async with httpx.AsyncClient(auth=(key_id, key_secret), timeout=15.0) as client:
@@ -104,6 +107,11 @@ async def create_payment_link(
     return {
         "payment_link_url": data["short_url"],
         "razorpay_payment_link_id": data["id"],
+        # Razorpay replays the ORIGINAL response for a reused idempotency key, so trust the
+        # expiry it reports over the one we just computed.
+        "payment_link_expires_at": datetime.fromtimestamp(
+            data.get("expire_by") or expire_by, tz=timezone.utc
+        ).isoformat(),
     }
 
 

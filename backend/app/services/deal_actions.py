@@ -129,7 +129,7 @@ async def _select_offering(ctx: DealContext, args: dict, turn: _Turn) -> str | N
     if unknown:
         return f"select_offering refused: unknown add-on {', '.join(unknown)}."
     chosen = [dict(a) for a in addons if a["key"] in wanted]
-    total = leaf["amount_paise"] + sum(a["amount_paise"] for a in chosen)
+    total = deal_engine.offering_total(leaf, chosen)
 
     session = _session(ctx)
     if session and session["status"] == deal_engine.PAID_STATUS:
@@ -276,23 +276,28 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     missing = deal_engine.missing_details(_fields(ctx), collected, session.get("skipped_fields") or [])
     if missing:
         return f"create_payment_link refused: still needed from the customer: {_labels(ctx, missing)}."
-    amount = session.get("total_amount_paise") or session.get("package_amount_paise")
-    if not amount:
-        return "create_payment_link refused: the chosen offering has no price on record."
+    prices = deal_engine.current_prices(ctx.config, session)
+    if not prices:
+        return "create_payment_link refused: the chosen offering is not available any more or has no price."
+    package_amount, amount = prices
 
     if turn.link_failed:
         return "create_payment_link refused: it already failed this turn and a team member was asked to help."
     existing = session.get("payment_link")
-    if session["status"] == deal_engine.AWAITING_PAYMENT_STATUS and existing and session.get("amount_paise") == amount:
+    if deal_engine.link_is_live(session, amount):
         turn.payment_link = existing
         return None
 
     name = intake.resolve_customer_name(collected, _fields(ctx)) or ctx.phone
     noun = (ctx.config.get("service_noun") or "consultation").capitalize()
     ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
+    # Razorpay hands back the SAME link for a repeated key, so a regeneration must change it:
+    # the old link's expiry is unique per link made (0 when there was none).
+    previous = deal_engine.parse_time(session.get("payment_link_expires_at"))
+    previous_epoch = int(previous.timestamp()) if previous else 0
     try:
         link = await intake.create_payment_link(
-            idempotency_key=f"booking:{session['id']}:{session['package_key']}:{amount}:payment_link",
+            idempotency_key=f"booking:{session['id']}:{session['package_key']}:{amount}:{previous_epoch}:payment_link",
             notes={"booking_id": session["id"], "booking_ref": ref},
             amount_paise=amount,
             customer_name=name,
@@ -310,7 +315,9 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     url = link["payment_link_url"]
     intake._update_session(session["id"], {
         "status": deal_engine.AWAITING_PAYMENT_STATUS, "amount_paise": amount, "payment_link": url,
-    }, ctx.db)
+        "payment_link_expires_at": link.get("payment_link_expires_at"),
+        "package_amount_paise": package_amount, "total_amount_paise": amount,
+    }, ctx.db, unless_status=deal_engine.PAID_STATUS)
     turn.payment_link = url
     return None
 

@@ -5,6 +5,7 @@ the point is to prove the GUARDRAILS (what code refuses no matter what the model
 """
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
@@ -30,6 +31,10 @@ CONFIG = {
 NO_DETAILS_CONFIG = {**CONFIG, "fields": []}
 
 
+def _in(**delta) -> str:
+    return (datetime.now(timezone.utc) + timedelta(**delta)).isoformat()
+
+
 class World:
     """In-memory session store + recorded side effects."""
 
@@ -37,6 +42,7 @@ class World:
         self.sessions: dict[str, dict] = {}
         self.links: list[dict] = []
         self.handovers: list[str] = []
+        self.pay_during_link = False  # the customer pays the OLD link while a new one is being made
 
     def install(self, stack_patches):
         w = self
@@ -53,12 +59,20 @@ class World:
             }
             return w.sessions[sid]
 
-        def update(session_id, patch_, db):
+        def update(session_id, patch_, db, unless_status=None):
+            if unless_status and w.sessions[session_id]["status"] == unless_status:
+                return
             w.sessions[session_id].update(patch_)
 
         async def link(**kw):
             w.links.append(kw)
-            return {"payment_link_url": f"https://rzp.io/l/{len(w.links)}"}
+            if w.pay_during_link:
+                for sess in w.sessions.values():
+                    sess["status"] = "paid"
+            return {
+                "payment_link_url": f"https://rzp.io/l/{len(w.links)}",
+                "payment_link_expires_at": _in(hours=24),
+            }
 
         def handover(lead_id, reason, tenant_id, assigned_to, db):
             w.handovers.append(reason)
@@ -271,6 +285,96 @@ class TestCreatePaymentLink:
         run([call("select_offering", key="one_question")], NO_DETAILS_CONFIG)
         run([call("create_payment_link")], NO_DETAILS_CONFIG)
         assert world.links[0]["customer_name"] == PHONE
+
+
+class TestLinkFreshness:
+    """A stored link is resent only while it is live AND still the current price."""
+
+    def _first_link(self, world, config=NO_DETAILS_CONFIG, key="one_question", **args):
+        run([call("select_offering", key=key, **args)], config)
+        out = run([call("create_payment_link")], config)
+        return out, next(iter(world.sessions.values()))
+
+    def test_expired_link_is_replaced_with_a_new_one(self, world):
+        first, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        out = run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert out.payment_link != first.payment_link and len(world.links) == 2
+        assert s["payment_link"] == out.payment_link and s["status"] == "awaiting_payment"
+        assert datetime.fromisoformat(s["payment_link_expires_at"]) > datetime.now(timezone.utc)
+
+    def test_paid_while_regenerating_is_not_reopened(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        world.pay_during_link = True
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert s["status"] == "paid"
+
+    def test_link_about_to_expire_is_replaced(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(seconds=30)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert len(world.links) == 2
+
+    def test_live_link_at_the_same_price_is_resent_without_calling_razorpay(self, world):
+        first, s = self._first_link(world)
+        assert s["payment_link_expires_at"]
+        out = run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert out.payment_link == first.payment_link and len(world.links) == 1
+
+    def test_live_link_at_a_stale_price_is_replaced_and_amounts_refreshed(self, world):
+        first, s = self._first_link(world)
+        cheap = {**NO_DETAILS_CONFIG, "packages": [{**NO_DETAILS_CONFIG["packages"][0], "amount_paise": 100},
+                                                    *NO_DETAILS_CONFIG["packages"][1:]]}
+        out = run([call("create_payment_link")], cheap)
+        assert out.payment_link != first.payment_link and world.links[-1]["amount_paise"] == 100
+        assert s["amount_paise"] == 100 and s["total_amount_paise"] == 100 and s["package_amount_paise"] == 100
+
+    def test_stale_addon_price_is_replaced_too(self, world):
+        _, s = self._first_link(world, key="detailed", addon_keys=["report"])
+        assert s["total_amount_paise"] == 11900
+        pricier = {**NO_DETAILS_CONFIG, "packages": [
+            NO_DETAILS_CONFIG["packages"][0],
+            {**NO_DETAILS_CONFIG["packages"][1], "addons": [{"key": "report", "name": "Written report", "amount_paise": 3000}]},
+            NO_DETAILS_CONFIG["packages"][2],
+        ]}
+        run([call("create_payment_link")], pricier)
+        assert world.links[-1]["amount_paise"] == 12900 and s["total_amount_paise"] == 12900
+        assert s["package_amount_paise"] == 9900
+
+    def test_legacy_row_without_an_expiry_is_regenerated(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = None
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert len(world.links) == 2
+
+    def test_regeneration_uses_a_different_idempotency_key(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        first_key, second_key = (l["idempotency_key"] for l in world.links)
+        assert first_key != second_key and second_key.endswith(":payment_link")
+
+    def test_removed_package_gets_no_link(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        gone = {**NO_DETAILS_CONFIG, "packages": NO_DETAILS_CONFIG["packages"][1:]}
+        out = run([call("create_payment_link")], gone)
+        assert out.refusals and out.payment_link is None and len(world.links) == 1
+
+    def test_deactivated_package_gets_no_link_even_with_a_live_link(self, world):
+        _, s = self._first_link(world)
+        off = {**NO_DETAILS_CONFIG, "packages": [{**NO_DETAILS_CONFIG["packages"][0], "active": False},
+                                                  *NO_DETAILS_CONFIG["packages"][1:]]}
+        out = run([call("create_payment_link")], off)
+        assert out.refusals and out.payment_link is None and len(world.links) == 1
+
+    def test_package_now_free_gets_no_link(self, world):
+        self._first_link(world)
+        free = {**NO_DETAILS_CONFIG, "packages": [{**NO_DETAILS_CONFIG["packages"][0], "amount_paise": 0},
+                                                   *NO_DETAILS_CONFIG["packages"][1:]]}
+        out = run([call("create_payment_link")], free)
+        assert out.refusals and out.payment_link is None and len(world.links) == 1
 
 
 class TestShowOptions:

@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -55,8 +56,10 @@ async def test_create_payment_link_returns_url_and_id():
             description="Consultation — Priya (EH-ABC123)",
             tenant_id="t-1",
         )
-    assert result == {"payment_link_url": "https://rzp.io/abc", "razorpay_payment_link_id": "plink_123"}
     sent_payload = fake_client.post.call_args.kwargs["json"]
+    expires_at = result.pop("payment_link_expires_at")
+    assert result == {"payment_link_url": "https://rzp.io/abc", "razorpay_payment_link_id": "plink_123"}
+    assert datetime.fromisoformat(expires_at) == datetime.fromtimestamp(sent_payload["expire_by"], tz=timezone.utc)
     assert sent_payload["notes"] == {"booking_id": "session-1", "booking_ref": "EH-ABC123"}
     sent_headers = fake_client.post.call_args.kwargs["headers"]
     assert sent_headers["X-Razorpay-Idempotency-Key"] == "booking:session-1:payment_link"

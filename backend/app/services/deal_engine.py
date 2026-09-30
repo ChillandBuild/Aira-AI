@@ -11,11 +11,16 @@ never trusted to the model: prices come from config, the link comes from Razorpa
 link is refused until every required detail is saved or skipped.
 """
 import re
+from datetime import datetime, timedelta, timezone
 
 PAID_STATUS = "paid"
 AWAITING_PAYMENT_STATUS = "awaiting_payment"
 COLLECTING_STATUS = "collecting"
 CONFIRM_STATUS = "awaiting_confirmation"
+
+# A stored link with less than this left is treated as dead: the customer needs time to
+# open it and pay, and Razorpay's clock is not ours.
+LINK_EXPIRY_MARGIN = timedelta(seconds=60)
 
 TOOL_SHOW_OPTIONS = "show_options"
 TOOL_SELECT_OFFERING = "select_offering"
@@ -272,25 +277,69 @@ def required_details_block(fields: list[dict]) -> str:
     )
 
 
-def _payment_line(session: dict) -> str:
-    status = session.get("status")
+def offering_total(leaf: dict, addons: list[dict]) -> int:
+    return leaf["amount_paise"] + sum(a["amount_paise"] for a in addons)
+
+
+def current_prices(config: dict, session: dict) -> tuple[int, int] | None:
+    """(package price, package + add-ons) at the tenant's CURRENT prices, or None when the
+    session's offering or one of its add-ons is gone, inactive or unpriced now. The session's
+    own amounts are a snapshot from when the offering was chosen and may be out of date."""
+    intake = _intake()
+    found = intake._find_leaf(intake.normalize_packages(config), session.get("package_key") or "")
+    if not found or not found[0].get("active", True) or not (found[0].get("amount_paise") or 0) > 0:
+        return None
+    leaf = found[0]
+    live = {a["key"]: a for a in _active(leaf.get("addons") or [])}
+    wanted = [a["key"] for a in session.get("selected_addons") or []]
+    if any(k not in live for k in wanted):
+        return None
+    return leaf["amount_paise"], offering_total(leaf, [live[k] for k in wanted])
+
+
+def parse_time(value) -> datetime | None:
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return None
+    if not isinstance(value, datetime):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def link_is_live(session: dict, current_total: int | None, now: datetime | None = None) -> bool:
+    """True only when the stored payment link can still be paid AND is for today's price.
+    An unknown expiry (NULL, from before it was recorded) counts as expired."""
+    if session.get("status") != AWAITING_PAYMENT_STATUS or not session.get("payment_link"):
+        return False
+    if not current_total or session.get("amount_paise") != current_total:
+        return False
+    expires_at = parse_time(session.get("payment_link_expires_at"))
+    return expires_at is not None and expires_at - (now or datetime.now(timezone.utc)) > LINK_EXPIRY_MARGIN
+
+
+def _payment_line(session: dict, link_live: bool = False) -> str:
     amount = session.get("amount_paise") or session.get("total_amount_paise") or session.get("package_amount_paise")
-    if status == PAID_STATUS:
+    if session.get("status") == PAID_STATUS:
         return "PAID"
-    if status == AWAITING_PAYMENT_STATUS and session.get("payment_link"):
+    if link_live:
         return f"link sent ({_rupees(amount)}), not paid yet"
     return "not sent"
 
 
-def _next_step(session: dict, missing: list[str], labels: dict) -> str:
+def _next_step(session: dict, missing: list[str], labels: dict, link_live: bool = False) -> str:
     status = session.get("status")
     if status == PAID_STATUS:
         return "they have paid. Do not sell or send a link; help with anything else and reassure them."
-    if status == AWAITING_PAYMENT_STATUS and session.get("payment_link"):
+    if link_live:
         return ("the link was already sent. If they want to pay, call create_payment_link to resend "
                 "the same link; otherwise just answer them.")
     if missing:
         return f"ask for {labels.get(missing[0], missing[0])} (only after answering anything they asked)."
+    if status == AWAITING_PAYMENT_STATUS and session.get("payment_link"):
+        return ("send the payment link now by calling create_payment_link (the old link is expired or "
+                "out of date; a fresh one will be made).")
     return "send the payment link now by calling create_payment_link."
 
 
@@ -304,7 +353,9 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     fields = config.get("fields") or []
     collected = session.get("collected_data") or {}
     skipped = session.get("skipped_fields") or []
-    total = session.get("total_amount_paise") or session.get("package_amount_paise")
+    prices = current_prices(config, session)
+    total = prices[1] if prices else session.get("total_amount_paise") or session.get("package_amount_paise")
+    link_live = link_is_live(session, prices[1] if prices else None)
     have = "; ".join(f"{k} = {v}" for k, v in collected.items() if v) or "none yet"
     missing = missing_details(fields, collected, skipped)
     labels = {f["key"]: f["label"] for f in fields}
@@ -317,8 +368,13 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     ]
     if skipped:
         lines.append(f"- Details the customer could not give: {', '.join(skipped)}")
-    lines.append(f"- Payment: {_payment_line(session)}")
-    lines.append(f"- Next step: {_next_step(session, missing, labels)}")
+    lines.append(f"- Payment: {_payment_line(session, link_live)}")
+    if prices is None and session.get("status") != PAID_STATUS:
+        next_step = ("this offering is not available or not priced any more. Do not send a payment "
+                     "link; tell them and help them choose something else.")
+    else:
+        next_step = _next_step(session, missing, labels, link_live)
+    lines.append(f"- Next step: {next_step}")
     return "\n".join(lines)
 
 
@@ -394,7 +450,8 @@ def _resume_note(config: dict, session: dict | None) -> str:
     fields = config.get("fields") or []
     missing = missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
     labels = {f["key"]: f["label"] for f in fields}
-    if session.get("status") == AWAITING_PAYMENT_STATUS and session.get("payment_link"):
+    prices = current_prices(config, session)
+    if link_is_live(session, prices[1] if prices else None):
         step = f"gently mention their {session.get('package_name')} payment link is ready whenever they are."
     elif missing:
         step = f"ask for their {labels.get(missing[0], missing[0])}."
