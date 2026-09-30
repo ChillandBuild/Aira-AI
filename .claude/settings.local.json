@@ -26,9 +26,20 @@
       "Bash(cd backend && python -c*)",
       "Bash(uvicorn app.main:app*)",
       "Bash(curl -s http://127.0.0.1:8000/api/v1/*)",
-      "Write(/Users/prem/Documents/Aira AI/graphify-out/*)"
+      "Write(/Users/prem/Documents/Aira AI/graphify-out/*)",
+      "Bash(nslookup rwxyxqkxzwjjccoznhdu.supabase.co)",
+      "Bash(ping -c 2 -t 3 8.8.8.8)",
+      "Bash(nslookup google.com)",
+      "Bash(scutil --dns)",
+      "Bash(dig @8.8.8.8 rwxyxqkxzwjjccoznhdu.supabase.co +short)",
+      "Bash(curl -s -o /dev/null -w \"HTTP Status: %{http_code}\\\\nTotal time: %{time_total}s\\\\n\" https://rwxyxqkxzwjjccoznhdu.supabase.co/auth/v1/health)",
+      "Bash(curl -s -D - -o /dev/null https://rwxyxqkxzwjjccoznhdu.supabase.co/auth/v1/health -H \"Origin: http://localhost:3000\")",
+      "Read(//Users/ansaribrahim/Developer/AstroTamil/astrobackmatrimony/**)",
+      "Bash(grep -n \"def \\\\|permission\\\\|authentication\\\\|@api_view\\\\|IsAuthenticated\" astrologerwelcome/admin_aira.py)",
+      "Bash(grep -n \"_ensure_astrologer_assignment\\\\|def astrologer_inbox\\\\|def _inbox_type_q\" -A 20 astrologerwelcome/views.py)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "render"
   ],
@@ -62,6 +73,5 @@
         ]
       }
     ]
-  },
-  "enableAllProjectMcpServers": true
+  }
 }

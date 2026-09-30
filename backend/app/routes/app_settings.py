@@ -103,6 +103,7 @@ class ExpertHandoffConfigUpdate(BaseModel):
     offer_message: str | None = None
     fields: list[ExpertHandoffFieldUpdate] | None = None
     amount_paise: int | None = None
+    reply_ready_message: str | None = None
 
 
 class TelecallingConfigUpdate(BaseModel):

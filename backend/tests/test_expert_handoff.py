@@ -6,7 +6,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import hashlib
 import hmac
 import json
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -465,15 +464,11 @@ _ASTRO_PAYLOAD = {
 }
 
 
-def _hours_ago(hours: float) -> str:
-    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-
-
 def _reply_db(session=None, lead=None, claimed=None, meta_number="1111111111"):
     """db double for deliver_astro_reply. `claimed` is what the conditional
     astro_last_reply_id UPDATE returns — [] means this reply_id was already handled."""
     session = {"id": "9c3e0a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b", "lead_id": "lead-1", "tenant_id": "t-1", "astro_last_reply_id": None} if session is None else session
-    lead = {"id": "lead-1", "phone": "+919876543210", "last_inbound_at": _hours_ago(2)} if lead is None else lead
+    lead = {"id": "lead-1", "phone": "+919876543210", "name": "Rajan Kumar"} if lead is None else lead
     claimed = [{"id": "9c3e0a1b-4d5e-4f60-8a7b-1c2d3e4f5a6b"}] if claimed is None else claimed
 
     db = MagicMock()
@@ -509,142 +504,94 @@ def _reply_db(session=None, lead=None, claimed=None, meta_number="1111111111"):
 
 
 @pytest.mark.asyncio
-async def test_deliver_astro_reply_sends_text_then_image_then_voice():
+async def test_deliver_astro_reply_sends_an_app_redirect_template_not_the_raw_content():
     db = _reply_db()
-    order = []
-
-    async def fake_text(*a, **kw):
-        order.append(("text", kw.get("phone_number_id")))
-        return "wamid.text"
-
-    async def fake_media(phone, url, wa_type, tenant_id, phone_number_id):
-        order.append((wa_type, phone_number_id))
-        return f"wamid.{wa_type}"
-
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(side_effect=fake_text)), \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(side_effect=fake_media)):
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(
+        return_value={"messages": [{"id": "wamid.tpl"}]}
+    )) as send, \
+         patch.object(eh, "get_expert_handoff_config", return_value=eh._DEFAULT_CONFIG):
         result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
 
-    assert result == {"ok": True, "delivered": ["text", "image", "voice"], "failed": []}
-    assert [kind for kind, _ in order] == ["text", "image", "audio"]
-    assert {pid for _, pid in order} == {"1111111111"}
+    assert result == {"ok": True, "delivered": ["app_redirect"], "failed": []}
+    assert send.await_args.kwargs["to_number"] == "+919876543210"
+    assert send.await_args.kwargs["phone_number_id"] == "1111111111"
+    # The astrologer's actual text/image/voice must never reach send_template_message's
+    # components — only the admin-configured message plus the hardcoded app link.
+    sent_text = send.await_args.kwargs["components"][0]["parameters"][0]["text"]
+    assert "Jupiter favours you after May." not in sent_text
+    assert eh._DEFAULT_CONFIG["reply_ready_message"] in sent_text
+    assert eh._REPLY_READY_APP_LINK in sent_text
 
 
 @pytest.mark.asyncio
-async def test_deliver_astro_reply_logs_every_part_with_expert_handoff_reply_source():
+async def test_deliver_astro_reply_logs_the_redirect_notification_not_the_answer():
     db = _reply_db()
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.text")), \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(return_value="wamid.media")):
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(
+        return_value={"messages": [{"id": "wamid.tpl"}]}
+    )), \
+         patch.object(eh, "get_expert_handoff_config", return_value=eh._DEFAULT_CONFIG):
         await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
 
     rows = [c[0][0] for c in db.table("messages").insert.call_args_list]
-    assert len(rows) == 3
-    assert {r["reply_source"] for r in rows} == {"expert_handoff"}
-    assert {r["direction"] for r in rows} == {"outbound"}
-    assert {r["lead_id"] for r in rows} == {"lead-1"}
-    assert rows[0]["content"] == "Jupiter favours you after May."
-    assert rows[1]["content"] == _ASTRO_PAYLOAD["reply_image_url"]
-    assert rows[2]["content"] == _ASTRO_PAYLOAD["reply_voice_url"]
+    assert len(rows) == 1
+    assert rows[0]["reply_source"] == "expert_handoff"
+    assert rows[0]["direction"] == "outbound"
+    assert rows[0]["lead_id"] == "lead-1"
+    assert rows[0]["delivery_status"] == "delivered"
+    assert "Jupiter favours you after May." not in rows[0]["content"]
+    assert "astrotamil.co.in/app/questions" in rows[0]["content"]
 
 
 @pytest.mark.asyncio
 async def test_deliver_astro_reply_dedupes_on_reply_id():
     db = _reply_db(claimed=[])
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock()) as send, \
-         patch.object(eh, "_send_astro_media", new=AsyncMock()) as media:
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock()) as send:
         result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
 
     assert result == {"ok": True, "duplicate": True}
     send.assert_not_awaited()
-    media.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_deliver_astro_reply_claims_the_reply_id_before_sending_anything():
     db = _reply_db()
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.text")), \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(return_value="wamid.media")):
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(
+        return_value={"messages": [{"id": "wamid.tpl"}]}
+    )), \
+         patch.object(eh, "get_expert_handoff_config", return_value=eh._DEFAULT_CONFIG):
         await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
 
     sessions = db.table("expert_handoff_sessions")
-    assert sessions.update.call_args[0][0] == {"astro_last_reply_id": 789}
+    assert sessions.update.call_args_list[0][0][0] == {"astro_last_reply_id": 789}
     or_filter = sessions.update.return_value.eq.return_value.eq.return_value.or_.call_args[0][0]
     # .lt (not .neq): a replayed OLDER reply after a newer one must also dedupe.
     assert or_filter == "astro_last_reply_id.is.null,astro_last_reply_id.lt.789"
 
 
 @pytest.mark.asyncio
-async def test_deliver_astro_reply_refuses_to_send_outside_the_24h_window():
+async def test_deliver_astro_reply_rolls_back_claim_and_alerts_staff_when_the_template_send_fails():
     """Failing loudly beats the astrologer seeing 'delivered' while the customer gets nothing."""
-    db = _reply_db(lead={"id": "lead-1", "phone": "+919876543210", "last_inbound_at": _hours_ago(30)})
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock()) as send, \
-         patch.object(eh, "_send_astro_media", new=AsyncMock()) as media, \
+    db = _reply_db()
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(return_value={"messages": []})), \
+         patch.object(eh, "get_expert_handoff_config", return_value=eh._DEFAULT_CONFIG), \
          patch.object(eh, "notify_pool") as notify:
         result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
 
-    assert result == {"ok": True, "delivered": [], "outside_24h_window": True}
-    send.assert_not_awaited()
-    media.assert_not_awaited()
+    assert result == {"ok": True, "delivered": [], "failed": ["app_redirect"], "delivery_failed": True}
+    sessions = db.table("expert_handoff_sessions")
+    rollback_calls = [c for c in sessions.update.call_args_list if c[0][0] == {"astro_last_reply_id": None}]
+    assert rollback_calls, "claim must roll back to the prior reply id"
+    # Even a failed send is logged (with delivery_status=failed) so the lead's
+    # Conversations thread still shows the astrologer replied.
+    logged = [c[0][0] for c in db.table("messages").insert.call_args_list]
+    assert logged and logged[0]["delivery_status"] == "failed"
     notify.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_deliver_astro_reply_treats_a_lead_that_never_messaged_as_outside_the_window():
-    db = _reply_db(lead={"id": "lead-1", "phone": "+919876543210", "last_inbound_at": None})
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock()) as send, \
-         patch.object(eh, "notify_pool"):
-        result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
-
-    assert result["outside_24h_window"] is True
-    send.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_deliver_astro_reply_skips_empty_text_and_absent_media():
-    db = _reply_db()
-    payload = {**_ASTRO_PAYLOAD, "reply_text": "", "reply_image_url": None}
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock()) as send, \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(return_value="wamid.media")) as media:
-        result = await eh.deliver_astro_reply(payload, "t-1", db=db)
-
-    assert result["delivered"] == ["voice"]
-    send.assert_not_awaited()
-    assert media.await_args[0][2] == "audio"
-
-
-@pytest.mark.asyncio
-async def test_deliver_astro_reply_still_sends_voice_when_image_upload_fails():
-    db = _reply_db()
-
-    async def flaky(phone, url, wa_type, tenant_id, phone_number_id):
-        if wa_type == "image":
-            raise RuntimeError("spaces 404")
-        return "wamid.audio"
-
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.text")), \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(side_effect=flaky)):
-        result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
-
-    assert result["delivered"] == ["text", "voice"]
-    assert result["failed"] == ["image"]
-
-
-@pytest.mark.asyncio
-async def test_deliver_astro_reply_marks_text_failed_when_send_returns_no_message_id():
-    db = _reply_db()
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value=None)), \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(return_value="wamid.media")):
-        result = await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
-
-    assert result["failed"] == ["text"]
-    assert result["delivered"] == ["image", "voice"]
-    assert len(db.table("messages").insert.call_args_list) == 2
 
 
 @pytest.mark.asyncio
 async def test_deliver_astro_reply_drops_a_reply_without_a_usable_reply_id():
     db = _reply_db()
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock()) as send:
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock()) as send:
         result = await eh.deliver_astro_reply({**_ASTRO_PAYLOAD, "reply_id": None}, "t-1", db=db)
     assert result["reason"] == "missing_reply_id"
     send.assert_not_awaited()
@@ -653,66 +600,12 @@ async def test_deliver_astro_reply_drops_a_reply_without_a_usable_reply_id():
 @pytest.mark.asyncio
 async def test_deliver_astro_reply_falls_back_to_tenant_default_number_when_pool_is_empty():
     db = _reply_db(meta_number=None)
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.text")) as send, \
-         patch.object(eh, "_send_astro_media", new=AsyncMock(return_value="wamid.media")):
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(
+        return_value={"messages": [{"id": "wamid.tpl"}]}
+    )) as send, \
+         patch.object(eh, "get_expert_handoff_config", return_value=eh._DEFAULT_CONFIG):
         await eh.deliver_astro_reply(_ASTRO_PAYLOAD, "t-1", db=db)
     assert send.await_args.kwargs["phone_number_id"] is None
-
-
-def _fake_http_get(content: bytes = b"BYTES"):
-    resp = MagicMock()
-    resp.content = content
-    resp.raise_for_status = MagicMock()
-    client = MagicMock()
-    client.get = AsyncMock(return_value=resp)
-    ctx = MagicMock()
-    ctx.__aenter__ = AsyncMock(return_value=client)
-    ctx.__aexit__ = AsyncMock(return_value=False)
-    return MagicMock(return_value=ctx), client
-
-
-@pytest.mark.asyncio
-async def test_send_astro_media_downloads_then_uploads_to_meta_and_sends():
-    client_factory, client = _fake_http_get(b"JPEGDATA")
-    with patch("app.services.expert_handoff.httpx.AsyncClient", client_factory), \
-         patch("app.services.meta_cloud.upload_media_to_meta", new=AsyncMock(return_value="media-1")) as upload, \
-         patch("app.services.meta_cloud.send_media_message", new=AsyncMock(return_value={"messages": [{"id": "wamid.img"}]})) as send:
-        mid = await eh._send_astro_media(
-            "+919876543210", "https://x/replies/1/image_ab.jpg", "image", "t-1", "1111111111"
-        )
-
-    assert mid == "wamid.img"
-    client.get.assert_awaited_once()
-    assert upload.await_args.kwargs["file_bytes"] == b"JPEGDATA"
-    assert upload.await_args.kwargs["mime_type"] == "image/jpeg"
-    assert upload.await_args.kwargs["phone_number_id"] == "1111111111"
-    assert send.await_args.kwargs["media_id"] == "media-1"
-    assert send.await_args.kwargs["wa_type"] == "image"
-    assert "caption" not in send.await_args.kwargs
-
-
-@pytest.mark.asyncio
-async def test_send_astro_media_sends_voice_as_audio_with_no_caption_or_filename():
-    client_factory, _ = _fake_http_get(b"MP3DATA")
-    with patch("app.services.expert_handoff.httpx.AsyncClient", client_factory), \
-         patch("app.services.meta_cloud.upload_media_to_meta", new=AsyncMock(return_value="media-2")), \
-         patch("app.services.meta_cloud.send_media_message", new=AsyncMock(return_value={"messages": [{"id": "wamid.aud"}]})) as send:
-        await eh._send_astro_media(
-            "+919876543210", "https://x/replies/1/voice_cd.mp3", "audio", "t-1", None
-        )
-
-    assert send.await_args.kwargs["wa_type"] == "audio"
-    assert "caption" not in send.await_args.kwargs
-    assert "filename" not in send.await_args.kwargs
-
-
-def test_media_mime_maps_django_reply_urls_to_meta_accepted_types():
-    assert eh._media_mime("https://x/replies/1/image_ab.jpg", "image") == ("image/jpeg", "reply.jpg")
-    assert eh._media_mime("https://x/replies/1/image_ab.png", "image") == ("image/png", "reply.png")
-    assert eh._media_mime("https://x/replies/1/image_ab.jpeg?sig=1", "image") == ("image/jpeg", "reply.jpg")
-    assert eh._media_mime("https://x/replies/1/voice_cd.mp3", "audio") == ("audio/mpeg", "reply.mp3")
-    assert eh._media_mime("https://x/replies/1/voice_cd.ogg", "audio") == ("audio/ogg", "reply.ogg")
-    assert eh._media_mime("https://x/replies/1/voice_cd", "audio") == ("audio/mpeg", "reply.mp3")
 
 
 # --- POST /api/v1/expert-handoff/astro-reply ----------------------------------

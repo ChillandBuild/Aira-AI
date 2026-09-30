@@ -18,6 +18,7 @@ interface ExpertHandoffConfig {
   offer_message: string;
   fields: HandoffField[];
   amount_paise: number;
+  reply_ready_message: string;
 }
 
 const DEFAULT: ExpertHandoffConfig = {
@@ -26,7 +27,10 @@ const DEFAULT: ExpertHandoffConfig = {
   offer_message: "",
   fields: [],
   amount_paise: 0,
+  reply_ready_message: "",
 };
+
+const APP_LINK = "https://astrotamil.co.in/app/questions";
 
 function slugify(label: string): string {
   return label.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "field";
@@ -165,6 +169,28 @@ export function ExpertHandoffConfigPanel({ canManage = true }: { canManage?: boo
               rows={2}
               className="w-full px-3 py-2 rounded-xl border border-border text-sm font-body text-ink bg-white"
             />
+          </div>
+
+          <div>
+            <div className="font-label text-sm font-semibold text-ink mb-1">Reply-ready message</div>
+            <div className="font-body text-xs text-ink-muted mb-2">
+              Sent on WhatsApp when the astrologer replies, so the customer opens the app to read the answer.
+              Wording and emoji are yours to edit — the app link below is always appended automatically and can&apos;t be changed here.
+            </div>
+            <textarea
+              value={draft.reply_ready_message}
+              onChange={(e) => setDraft({ ...draft, reply_ready_message: e.target.value })}
+              rows={2}
+              className="w-full px-3 py-2 rounded-xl border border-border text-sm font-body text-ink bg-white"
+            />
+            <div className="mt-2 px-3 py-2 rounded-xl bg-surface-subtle border border-border">
+              <div className="font-label text-[11px] font-semibold text-ink-muted uppercase tracking-wide mb-1">Customer sees</div>
+              <p className="font-body text-sm text-ink whitespace-pre-wrap">
+                {draft.reply_ready_message || DEFAULT.reply_ready_message}
+                {"\n\n"}
+                <span className="text-primary underline">{APP_LINK}</span>
+              </p>
+            </div>
           </div>
 
           <div>

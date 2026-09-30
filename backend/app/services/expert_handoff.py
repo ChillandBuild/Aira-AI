@@ -9,8 +9,6 @@ import logging
 import re
 import uuid
 
-import httpx
-
 from app.services.gemini_client import gemini_chat_completion_json
 from app.services.notify import notify_pool
 from app.services.payment_razorpay import create_payment_link
@@ -23,7 +21,13 @@ _DEFAULT_CONFIG = {
     "offer_message": "",
     "fields": [],  # list of {"key": str, "label": str, "type": "text"|"date"|"choice", "options": list[str]?}
     "amount_paise": 0,
+    "reply_ready_message": "Your astrologer has replied! 🎉 Tap below to view your answer in the AstroTamil app.",
 }
+
+# The app link is intentionally not admin-editable (unlike reply_ready_message
+# above) — it must always point at the real app, so it's a code constant
+# rather than a tenant setting.
+_REPLY_READY_APP_LINK = "https://astrotamil.co.in/app/questions"
 
 
 def get_expert_handoff_config(tenant_id: str, db=None) -> dict:
@@ -549,33 +553,6 @@ def resolve_expert_handoff_session(session_id: str, tenant_id: str, db=None) -> 
     return bool(result.data)
 
 
-_WA_SESSION_WINDOW_HOURS = 24
-
-_AUDIO_MIMES = {
-    "mp3": "audio/mpeg",
-    "m4a": "audio/mp4",
-    "mp4": "audio/mp4",
-    "aac": "audio/aac",
-    "amr": "audio/amr",
-    "ogg": "audio/ogg",
-    "opus": "audio/ogg",
-}
-
-
-def _within_whatsapp_window(last_inbound_at) -> bool:
-    from datetime import datetime, timedelta, timezone
-
-    if not last_inbound_at:
-        return False
-    try:
-        last = datetime.fromisoformat(str(last_inbound_at).replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    if last.tzinfo is None:
-        last = last.replace(tzinfo=timezone.utc)
-    return datetime.now(timezone.utc) - last <= timedelta(hours=_WA_SESSION_WINDOW_HOURS)
-
-
 def _astro_phone_number_id(tenant_id: str, db) -> str | None:
     """The tenant's inbound WhatsApp number, so the astrologer's reply lands in the lead's existing thread."""
     try:
@@ -593,17 +570,7 @@ def _astro_phone_number_id(tenant_id: str, db) -> str | None:
         return None
 
 
-def _media_mime(url: str, wa_type: str) -> tuple[str, str]:
-    import re
-
-    found = re.search(r"\.([a-z0-9]{2,5})(?:\?|$)", str(url or "").lower())
-    ext = found.group(1) if found else ""
-    if wa_type == "image":
-        return ("image/png", "reply.png") if ext == "png" else ("image/jpeg", "reply.jpg")
-    return _AUDIO_MIMES.get(ext, "audio/mpeg"), f"reply.{ext or 'mp3'}"
-
-
-def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str | None) -> None:
+def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str | None, delivery_status: str) -> None:
     db.table("messages").insert({
         "lead_id": lead_id,
         "tenant_id": tenant_id,
@@ -613,40 +580,22 @@ def _log_astro_message(db, lead_id: str, tenant_id: str, content: str, mid: str 
         "is_ai_generated": False,
         "meta_message_id": mid,
         "reply_source": "expert_handoff",
+        "delivery_status": delivery_status,
     }).execute()
 
 
-async def _send_astro_media(phone: str, url: str, wa_type: str, tenant_id: str, phone_number_id: str | None) -> str | None:
-    from app.services.meta_cloud import send_media_message, upload_media_to_meta
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        resp = await client.get(url, follow_redirects=True)
-    resp.raise_for_status()
-
-    mime_type, filename = _media_mime(url, wa_type)
-    media_id = await upload_media_to_meta(
-        file_bytes=resp.content,
-        mime_type=mime_type,
-        filename=filename,
-        tenant_id=tenant_id,
-        phone_number_id=phone_number_id,
-    )
-    data = await send_media_message(
-        to_number=phone,
-        media_id=media_id,
-        wa_type=wa_type,
-        tenant_id=tenant_id,
-        phone_number_id=phone_number_id,
-    )
-    return (data.get("messages") or [{}])[0].get("id")
-
-
 async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
-    """Deliver one astrologer reply from the Django bridge to the lead's WhatsApp thread."""
+    """Notify the lead on WhatsApp that their astrologer has replied. The actual
+    answer (text/image/voice) is never sent over WhatsApp — customers are
+    routed into the AstroTamil app to read it there, so this sends a single
+    template notification with a link to the app. Being a business-initiated
+    template (not free-form text), it can go out regardless of the 24h
+    WhatsApp customer-service window, unlike the old direct-content delivery."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
-    from app.services.ai_reply import send_whatsapp
+    from app.services.meta_cloud import send_template_message
+    from app.config_dynamic import get_setting
 
     external_ref = str(payload.get("external_ref") or "")
     session_id = session_ref_to_id(external_ref)
@@ -693,7 +642,7 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     lead_id = session.get("lead_id")
     lead_row = (
         db.table("leads")
-        .select("id,phone,last_inbound_at")
+        .select("id,phone,name")
         .eq("id", lead_id)
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -705,62 +654,41 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
         logger.error(f"Astro reply {reply_id} for session {external_ref} undeliverable: lead {lead_id} has no phone")
         return {"ok": True, "delivered": [], "reason": "no_phone"}
 
-    if not _within_whatsapp_window(lead.get("last_inbound_at")):
-        logger.error(
-            f"Astro reply {reply_id} for session {external_ref} NOT delivered: the lead's 24h WhatsApp "
-            f"window closed (last_inbound_at={lead.get('last_inbound_at')}). The astrologer believes "
-            f"the customer has been answered — they have not."
-        )
-        try:
-            notify_pool(
-                tenant_id,
-                "expert_handoff_paid",
-                "Astrologer reply could not be delivered",
-                f"The 24h WhatsApp window for this consultation has closed — reach {phone} another way.",
-                db=db,
-            )
-        except Exception as e:
-            logger.warning(f"Astro reply window notify_pool failed for session {external_ref}: {e}")
-        return {"ok": True, "delivered": [], "outside_24h_window": True}
-
     phone_number_id = _astro_phone_number_id(tenant_id, db)
-    delivered: list[str] = []
-    failed: list[str] = []
+    template_name = get_setting("astro_reply_template_name", fallback="astro_reply_ready", tenant_id=tenant_id)
+    # The message wording (with emoji) is admin-editable in Settings; the app
+    # link is not — it's appended here in code so it can never be misconfigured
+    # or pointed somewhere wrong.
+    cfg = get_expert_handoff_config(tenant_id, db)
+    reply_message = str(cfg.get("reply_ready_message") or _DEFAULT_CONFIG["reply_ready_message"]).strip()
+    content = f"{reply_message}\n\n{_REPLY_READY_APP_LINK}"
 
-    text = str(payload.get("reply_text") or "").strip()
-    if text:
-        try:
-            mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=phone_number_id)
-        except Exception as e:
-            logger.error(f"Astro reply {reply_id} text send failed for session {external_ref}: {e}")
-            mid = None
-        if mid:
-            _log_astro_message(db, lead_id, tenant_id, text, mid)
-            delivered.append("text")
-        else:
-            failed.append("text")
+    mid = None
+    try:
+        data = await send_template_message(
+            to_number=phone,
+            template_name=template_name,
+            components=[{"type": "body", "parameters": [{"type": "text", "text": content}]}],
+            tenant_id=tenant_id,
+            phone_number_id=phone_number_id,
+        )
+        mid = (data.get("messages") or [{}])[0].get("id")
+    except Exception as e:
+        logger.error(f"Astro reply {reply_id} app-redirect send failed for session {external_ref}: {e}")
 
-    for part, url, wa_type in (
-        ("image", payload.get("reply_image_url"), "image"),
-        ("voice", payload.get("reply_voice_url"), "audio"),
-    ):
-        if not url:
-            continue
-        try:
-            mid = await _send_astro_media(phone, str(url), wa_type, tenant_id, phone_number_id)
-            _log_astro_message(db, lead_id, tenant_id, str(url), mid)
-            delivered.append(part)
-        except Exception as e:
-            logger.error(f"Astro reply {reply_id} {part} send failed for session {external_ref}: {e}")
-            failed.append(part)
+    # Log what was (attempted to be) sent either way, so the lead's Conversations
+    # thread always reflects that the astrologer replied — a WhatsApp send
+    # failure shouldn't make the reply invisible to staff reading the chat, it
+    # should show as failed (delivery_status) alongside the staff alert below.
+    _log_astro_message(db, lead_id, tenant_id, content, mid, "delivered" if mid else "failed")
 
-    if failed and not delivered:
-        # Total in-window failure: every part the astrologer sent was attempted
-        # and none went out. Returning bare success here would strand the reply
-        # forever — the claim above blocks any retry, Django never retries on
-        # 2xx, and the astrologer's UI already shows it as sent. Roll the claim
-        # back so a re-push can re-drive it, and surface it to staff.
-        logger.error(f"Astro reply {reply_id} for session {external_ref} delivered nothing (failed={failed})")
+    if not mid:
+        # Total failure: the claim above blocks any retry and Django never
+        # retries on 2xx, and the astrologer's UI already shows it as sent, so
+        # returning bare success here would strand the customer forever
+        # thinking nobody answered. Roll the claim back so a re-push can
+        # re-drive it, and surface it to staff.
+        logger.error(f"Astro reply {reply_id} for session {external_ref} could not be delivered")
         try:
             (
                 db.table("expert_handoff_sessions")
@@ -777,12 +705,11 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
                 tenant_id,
                 "expert_handoff_paid",
                 "Astrologer reply could not be delivered",
-                f"WhatsApp delivery to {phone} failed for a paid consultation "
-                f"(parts failed: {', '.join(failed)}) — reach the customer another way.",
+                f"The 'reply ready' WhatsApp notification failed to send to {phone} — reach the customer another way.",
                 db=db,
             )
         except Exception as e:
             logger.warning(f"Astro reply failure notify_pool failed for session {external_ref}: {e}")
-        return {"ok": True, "delivered": [], "failed": failed, "delivery_failed": True}
+        return {"ok": True, "delivered": [], "failed": ["app_redirect"], "delivery_failed": True}
 
-    return {"ok": True, "delivered": delivered, "failed": failed}
+    return {"ok": True, "delivered": ["app_redirect"], "failed": []}

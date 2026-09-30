@@ -6,12 +6,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.services.expert_handoff import (
+    _DEFAULT_CONFIG,
     deliver_astro_reply,
     get_session_tenant_id,
     reconcile_pending_astro_pushes,
@@ -91,17 +91,18 @@ def test_get_session_tenant_id_swallows_db_errors_to_none():
 
 @pytest.mark.asyncio
 async def test_total_send_failure_rolls_back_claim_and_alerts_staff():
-    now_iso = datetime.now(timezone.utc).isoformat()
     db = _SeqDb({
         "expert_handoff_sessions": [
             _res({"id": SID, "lead_id": "L1", "tenant_id": TENANT, "astro_last_reply_id": 7}),
             _res([{"id": SID}]),   # claim succeeds
             _res([{"id": SID}]),   # rollback
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": now_iso})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286", "name": "Rajan"})],
+        "messages": [_res([{"id": "m1"}])],
     })
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value=None)), \
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(return_value={"messages": []})), \
          patch("app.services.expert_handoff._astro_phone_number_id", return_value="pn1"), \
+         patch("app.services.expert_handoff.get_expert_handoff_config", return_value=_DEFAULT_CONFIG), \
          patch("app.services.expert_handoff.notify_pool") as notify:
         out = await deliver_astro_reply(
             {"external_ref": SID, "reply_id": 9, "reply_text": "your chart says..."},
@@ -118,19 +119,20 @@ async def test_total_send_failure_rolls_back_claim_and_alerts_staff():
 
 
 @pytest.mark.asyncio
-async def test_partial_delivery_keeps_the_claim():
-    now_iso = datetime.now(timezone.utc).isoformat()
+async def test_successful_delivery_keeps_the_claim():
     db = _SeqDb({
         "expert_handoff_sessions": [
             _res({"id": SID, "lead_id": "L1", "tenant_id": TENANT, "astro_last_reply_id": None}),
             _res([{"id": SID}]),
         ],
-        "leads": [_res({"id": "L1", "phone": "+919345679286", "last_inbound_at": now_iso})],
+        "leads": [_res({"id": "L1", "phone": "+919345679286", "name": "Rajan"})],
         "messages": [_res([{"id": "m1"}])],
     })
-    with patch("app.services.ai_reply.send_whatsapp", new=AsyncMock(return_value="wamid.1")), \
+    with patch("app.services.meta_cloud.send_template_message", new=AsyncMock(
+        return_value={"messages": [{"id": "wamid.1"}]}
+    )), \
          patch("app.services.expert_handoff._astro_phone_number_id", return_value="pn1"), \
-         patch("app.services.expert_handoff._log_astro_message"), \
+         patch("app.services.expert_handoff.get_expert_handoff_config", return_value=_DEFAULT_CONFIG), \
          patch("app.services.expert_handoff.notify_pool") as notify:
         out = await deliver_astro_reply(
             {"external_ref": SID, "reply_id": 9, "reply_text": "hello"},
@@ -138,7 +140,7 @@ async def test_partial_delivery_keeps_the_claim():
             db=db,
         )
 
-    assert out["delivered"] == ["text"]
+    assert out["delivered"] == ["app_redirect"]
     rollbacks = [p for t, op, p in db.writes if op == "update" and p == {"astro_last_reply_id": None}]
     assert not rollbacks, "successful delivery must keep the claim"
     assert not notify.called

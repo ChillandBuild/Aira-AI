@@ -1,0 +1,8 @@
+BackEnd: cd backend && ./venv/bin/uvicorn app.main:app --port 8001 --reload
+Frontend: cd frontend && npm run dev
+
+
+
+Console	URL	Email	Password
+Client dashboard	http://localhost:3000/aira/login	owner@astrotamil.test	Aira@12345
+Operator console	http://localhost:3000/aira/operator/login	developer@airaai.com	Aira@12345
