@@ -165,7 +165,7 @@ export function TestAira({
         )}
         {chat.turns.map((turn, index) => {
           const unmatchedQuestion =
-            index === chat.turns.length - 1 && turn.role === "assistant" && !turn.knowledgeUsed
+            index === chat.turns.length - 1 && turn.role === "assistant"
               ? [...chat.turns.slice(0, index)].reverse().find((candidate) => candidate.role === "user")?.content
               : undefined;
           return (
@@ -176,7 +176,7 @@ export function TestAira({
               {turn.role === "assistant" && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-label text-[10px] text-ink-muted">
-                    {turn.knowledgeUsed ? "Answered using your knowledge" : "Nothing in your knowledge matched this question"}
+                    {turn.knowledgeUsed ? "Matched uploaded knowledge" : "No uploaded knowledge matched; business settings may still inform this answer"}
                   </span>
                   {unmatchedQuestion && onAddAnswer && (
                     <button
@@ -184,7 +184,7 @@ export function TestAira({
                       onClick={() => onAddAnswer(unmatchedQuestion)}
                       className="font-label text-[10px] font-bold text-primary hover:underline"
                     >
-                      Add an answer
+                      Improve this answer
                     </button>
                   )}
                 </div>

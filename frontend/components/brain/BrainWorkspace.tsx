@@ -10,6 +10,7 @@ export interface BrainSection {
   description: string;
   count?: number;
   content: ReactNode;
+  scrollable?: boolean;
 }
 
 export function BrainWorkspace({ sections, activeId, onSelect }: {
@@ -73,7 +74,7 @@ export function BrainWorkspace({ sections, activeId, onSelect }: {
             role="region"
             aria-label={section.label}
             tabIndex={0}
-            className="max-h-[65dvh] min-w-0 overflow-y-auto overscroll-contain rounded-xl pr-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary lg:max-h-[calc(100dvh-300px)]"
+            className={cn("min-w-0 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", section.scrollable !== false && "overscroll-contain pr-2 lg:max-h-[calc(100dvh-300px)] lg:overflow-y-auto")}
           >
             {(visited.has(section.id) || section.id === active.id) && <div className="flex min-w-0 flex-col gap-4 pb-2">{section.content}</div>}
           </div>

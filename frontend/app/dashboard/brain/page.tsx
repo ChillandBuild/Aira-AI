@@ -7,7 +7,6 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import KnowledgeReviewModal from "@/app/dashboard/knowledge/KnowledgeReviewModal";
 import { announceApprovalsChanged } from "@/components/brain/approvalsEvent";
 import { BrainWorkspace } from "@/components/brain/BrainWorkspace";
-import { CanReply } from "@/components/brain/CanReply";
 import { HandoverFeed } from "@/components/brain/HandoverFeed";
 import { HeadlineStrip } from "@/components/brain/HeadlineStrip";
 import { NextBrainAction } from "@/components/brain/NextBrainAction";
@@ -135,11 +134,11 @@ export default function AiraBrainPage() {
             {refreshError && <p role="alert" className="font-body text-sm text-danger">{refreshError} Showing the last loaded status; try refreshing again.</p>}
             <NextBrainAction brain={data} onSelect={setActiveSection} activeSection={activeSection} canManageSettings={isOwner || permissions.includes("settings.manage")} />
             <BrainWorkspace activeId={activeSection} onSelect={setActiveSection} sections={[
-              { id: "overview", label: "Overview", description: "How Aira is doing and whether it can reply.", content: <><HeadlineStrip headline={data.headline} /><CanReply status={data.status} /></> },
+              { id: "overview", label: "Overview", description: "How Aira is doing and where its answers can improve.", content: <HeadlineStrip headline={data.headline} /> },
               { id: "approvals", label: "Needs attention", description: "Review sorted files, resolve conflicts, and fix failed inputs.", count: data.waiting.count, content: <WaitingOnYou waiting={data.waiting} canManage={canManage} isOwner={isOwner} panelKey={panelKey} onConflictsChanged={announceApprovalsChanged} onOpenReview={openReview} onTest={() => setActiveSection("test")} /> },
               { id: "knowledge", label: "What Aira knows", description: "Check the information Aira reads before answering.", content: <InputsList inputs={data.inputs} /> },
               { id: "handovers", label: "Handovers", description: "See which conversations needed a person.", content: <HandoverFeed handovers={data.handovers} canManageKnowledge={canManage} /> },
-              { id: "test", label: "Test Aira", description: "Try a customer message and inspect Aira’s response.", content: <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} initialQuestion={testQuestion} onAddAnswer={canManage ? addAnswer : undefined} /> },
+              { id: "test", scrollable: false, label: "Test Aira", description: "Try a customer message and inspect Aira’s response.", content: <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} initialQuestion={testQuestion} onAddAnswer={canManage ? addAnswer : undefined} /> },
             ]} />
           </>
         )}

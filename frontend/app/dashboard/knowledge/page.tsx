@@ -331,6 +331,7 @@ export default function KnowledgePage() {
   const presetStatus = searchParams.get("status");
   const gapQuestion = searchParams.get("question")?.trim().slice(0, 2000) ?? "";
   const requestedReviewId = searchParams.get("review");
+  const openedReviewLink = useRef<string | null>(null);
   const uploadedDocumentId = searchParams.get("uploaded");
   useEffect(() => {
     if (presetStatus && PRESETTABLE_STATUSES.includes(presetStatus)) setStatusFilter(presetStatus);
@@ -429,9 +430,12 @@ export default function KnowledgePage() {
   usePolling(loadDocuments, 5000, hasProcessing);
 
   useEffect(() => {
-    if (!requestedReviewId) return;
+    if (!requestedReviewId || openedReviewLink.current === requestedReviewId) return;
     const requested = documents.find((document) => document.id === requestedReviewId);
-    if (requested && docStatus(requested) === "review") setReviewingDocId(requested.id);
+    if (requested && docStatus(requested) === "review") {
+      openedReviewLink.current = requestedReviewId;
+      setReviewingDocId(requested.id);
+    }
   }, [documents, requestedReviewId]);
 
   // Map campaign tags for fast lookup
@@ -973,6 +977,7 @@ export default function KnowledgePage() {
 
           {gapQuestion && (
             <KnowledgeGapAnswerForm
+              key={`${gapQuestion}:${uploadedDocumentId ?? ""}`}
               question={gapQuestion}
               uploadedDocumentId={uploadedDocumentId}
               canManage={canManageKnowledge}
