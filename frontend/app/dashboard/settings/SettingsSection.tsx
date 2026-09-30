@@ -43,8 +43,18 @@ type AccordionCtx = {
 
 const Ctx = createContext<AccordionCtx | null>(null);
 
-export function SettingsAccordion({ children }: { children: React.ReactNode }) {
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set());
+export function SettingsAccordion({
+  children,
+  defaultOpenId,
+}: {
+  children: React.ReactNode;
+  defaultOpenId?: string | string[];
+}) {
+  const [openIds, setOpenIds] = useState<Set<string>>(() => {
+    if (!defaultOpenId) return new Set();
+    const list = Array.isArray(defaultOpenId) ? defaultOpenId : [defaultOpenId];
+    return new Set(list);
+  });
   const [ids, setIds] = useState<string[]>([]);
   const seeded = useRef(false);
 
@@ -56,9 +66,25 @@ export function SettingsAccordion({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (seeded.current || ids.length === 0) return;
     seeded.current = true;
-    // Lone section opens; two or more stay closed until the user picks one.
-    if (ids.length === 1) setOpenIds(new Set(ids));
-  }, [ids]);
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hash = window.location.hash.replace("#", "");
+      if (hash === "business" || hash === "business-details") {
+        setOpenIds(new Set(["business-details"]));
+        return;
+      }
+      if (ids.includes(hash)) {
+        setOpenIds(new Set([hash]));
+        return;
+      }
+    }
+    if (defaultOpenId) {
+      const list = Array.isArray(defaultOpenId) ? defaultOpenId : [defaultOpenId];
+      setOpenIds(new Set(list));
+    } else if (ids.length === 1) {
+      // Lone section opens; two or more stay closed until the user picks one.
+      setOpenIds(new Set(ids));
+    }
+  }, [ids, defaultOpenId]);
 
   const toggle = useCallback((id: string) => {
     setOpenIds((prev) => {

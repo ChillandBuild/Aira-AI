@@ -6,8 +6,7 @@ import { toast } from "sonner";
 import { api, BusinessProfile } from "@/lib/api";
 import { PasskeySettings } from "@/app/dashboard/profile/PasskeySettings";
 import { useAuthRole } from "../../contexts/AuthRoleContext";
-import { SaveButton, SaveStatus, SectionFooter, SettingsSection } from "../SettingsSection";
-import { SwitchPill } from "@/components/ui/controls";
+import { SaveButton, SaveStatus, SectionFooter, SettingsAccordion, SettingsSection, SwitchPill } from "../SettingsSection";
 import { useSettingsForm } from "../SettingsFormContext";
 import ChangePasswordCard from "../ChangePasswordCard";
 
@@ -94,13 +93,7 @@ export default function AccountSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-ink sm:text-3xl">Profile & Business</h1>
-        <p className="mt-2 max-w-2xl font-body text-sm text-ink-muted">
-          Your account, sign-in, and the business details printed on your monthly export.
-        </p>
-      </div>
+    <SettingsAccordion defaultOpenId="profile">
 
       <SettingsSection
         id="profile"
@@ -226,6 +219,6 @@ export default function AccountSettingsPage() {
           </SectionFooter>
         </SettingsSection>
       </div>
-    </div>
+    </SettingsAccordion>
   );
 }
