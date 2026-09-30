@@ -2058,6 +2058,23 @@ def clear_data(tenant_id: str, data_type: str, _admin: dict = Depends(get_system
     return {"deleted_count": deleted, "data_type": data_type}
 
 
+def _parse_ts(value) -> datetime | None:
+    """A datetime or an ISO string (PostgREST or isoformat) as an aware UTC datetime; None if unreadable."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+# A job is "not running" once it has gone this many of its own intervals without a success.
+_NOT_RUNNING_INTERVALS = 3
+
+
 def _build_scheduler_jobs(db, now) -> list[dict]:
     """Fetch each global APScheduler job's last-run status and 24h error count.
 
@@ -2066,7 +2083,7 @@ def _build_scheduler_jobs(db, now) -> list[dict]:
     running the queries twice.
     """
     from datetime import timedelta
-    from app.main import _scheduler
+    from app.main import _scheduler, _scheduler_started_at
 
     day_ago = (now - timedelta(hours=24)).isoformat()
 
@@ -2081,6 +2098,17 @@ def _build_scheduler_jobs(db, now) -> list[dict]:
             .execute()
         )
         last_row = (last.data or [None])[0]
+        last_ok = (
+            db.table("scheduler_runs")
+            .select("ran_at")
+            .eq("job_id", job.id)
+            .eq("status", "success")
+            .order("ran_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        last_success = ((last_ok.data or [None])[0] or {}).get("ran_at")
+        interval = getattr(job.trigger, "interval", None)  # cron jobs have none
         errs = (
             db.table("scheduler_runs")
             .select("id", count="exact")
@@ -2098,6 +2126,13 @@ def _build_scheduler_jobs(db, now) -> list[dict]:
             "last_lateness_ms": last_row["lateness_ms"] if last_row else None,
             "last_error": last_row["error"] if last_row else None,
             "errors_24h": errs.count or 0,
+            "last_success": last_success,
+            "interval_seconds": interval.total_seconds() if interval else None,
+            # The newer of the last success and this process's start: a job with no success
+            # since boot is judged from boot, never from a success in a previous deploy.
+            "watch_from": max(
+                (t for t in (_parse_ts(last_success), _scheduler_started_at) if t), default=None,
+            ),
         })
 
     return jobs_out
@@ -2242,6 +2277,16 @@ _INCIDENT_SEVERITY: dict[str, str] = {
 _SEVERITY_RANK: dict[str, int] = {"critical": 0, "warning": 1, "info": 2}
 
 
+def _job_not_running(job: dict, now: datetime) -> bool:
+    """An interval job whose last success (or this process's start) is older than
+    _NOT_RUNNING_INTERVALS of its interval. Cron jobs (no interval) are never judged."""
+    interval = job.get("interval_seconds")
+    since = _parse_ts(job.get("watch_from"))
+    if not interval or since is None:
+        return False
+    return (now - since).total_seconds() > _NOT_RUNNING_INTERVALS * interval
+
+
 def compute_alerts(
     *,
     fleet_rows: list[dict],
@@ -2324,6 +2369,21 @@ def compute_alerts(
                 "severity": "critical",
                 "title": f"Scheduler job failing: {job_id}",
                 "detail": job.get("last_error") or f"{job.get('errors_24h', 0)} error(s) in the last 24h.",
+                "tenant_id": None,
+                "tenant_name": None,
+                "source": "scheduler",
+                "created_at": job.get("last_run") or now.isoformat(),
+                "href": "/operator/scheduler",
+            })
+        elif not job.get("paused") and _job_not_running(job, now):
+            add({
+                "id": f"scheduler:not_running:{job_id}",
+                "severity": "critical",
+                "title": f"Scheduler job not running: {job_id}",
+                "detail": (
+                    f"No successful run in {_NOT_RUNNING_INTERVALS} of its intervals "
+                    f"(last status: {job.get('last_status') or 'none'})."
+                ),
                 "tenant_id": None,
                 "tenant_name": None,
                 "source": "scheduler",

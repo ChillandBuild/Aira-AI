@@ -126,6 +126,50 @@ class ComputeAlertsTests(unittest.TestCase):
         self.assertEqual(len(alerts), 1)
         self.assertEqual(alerts[0]["severity"], "warning")
 
+    def test_job_with_no_success_for_three_intervals_emits_not_running_alert(self):
+        """Live 2026-09-30: jobs were skipped as 'missed' for 30 days (1s misfire grace) and
+        the alert center stayed silent, since it only looked at errors and pauses."""
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[job(
+                id="intake-staleness-sweep", last_status="missed", interval_seconds=300,
+                watch_from="2026-07-01T11:44:00+00:00",  # 16 min ago > 3 x 5 min
+            )],
+            incidents=[],
+            now=NOW,
+        )
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0]["id"], "scheduler:not_running:intake-staleness-sweep")
+        self.assertEqual(alerts[0]["severity"], "critical")
+        self.assertEqual(alerts[0]["href"], "/operator/scheduler")
+
+    def test_job_that_succeeded_within_three_intervals_is_quiet(self):
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[job(interval_seconds=300, watch_from="2026-07-01T11:46:00+00:00")],
+            incidents=[],
+            now=NOW,
+        )
+        self.assertEqual(alerts, [])
+
+    def test_paused_job_is_not_also_reported_as_not_running(self):
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[job(paused=True, interval_seconds=60, watch_from="2026-06-01T00:00:00+00:00")],
+            incidents=[],
+            now=NOW,
+        )
+        self.assertEqual([a["id"] for a in alerts], ["scheduler:paused:scheduled-broadcasts"])
+
+    def test_cron_job_without_interval_never_gets_not_running_alert(self):
+        alerts = compute_alerts(
+            fleet_rows=[],
+            scheduler_jobs=[job(interval_seconds=None, watch_from="2026-06-01T00:00:00+00:00")],
+            incidents=[],
+            now=NOW,
+        )
+        self.assertEqual(alerts, [])
+
     def test_healthy_job_emits_no_alert(self):
         alerts = compute_alerts(
             fleet_rows=[],

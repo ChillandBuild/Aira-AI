@@ -358,7 +358,14 @@ async def _send_brain_weekly_digest() -> None:
         logger.error(f"Brain weekly digest error: {e}")
 
 
-_scheduler = AsyncIOScheduler()
+# APScheduler's default misfire_grace_time is 1s: a run that starts more than 1s late is
+# dropped as "missed". Ours start 1.3-2s late (many jobs share a second and block on sync DB
+# calls), so for 30 days most runs of most jobs were silently skipped -- the intake sweep ran
+# 6 times out of 8,520 (scheduler_runs, 2026-09-30). coalesce folds a backlog into one run.
+_scheduler = AsyncIOScheduler(job_defaults={"misfire_grace_time": 60, "coalesce": True, "max_instances": 1})
+# When this process's scheduler started: the "not running" alert measures from here for a
+# job that has no successful run yet (operator._build_scheduler_jobs).
+_scheduler_started_at: datetime | None = None
 
 
 def _record_scheduler_event(event) -> None:
@@ -497,6 +504,8 @@ async def lifespan(app: FastAPI):
         _record_scheduler_event,
         EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED,
     )
+    global _scheduler_started_at
+    _scheduler_started_at = datetime.now(timezone.utc)
     _scheduler.start(paused=not settings.scheduler_enabled)
     if settings.scheduler_enabled:
         logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
