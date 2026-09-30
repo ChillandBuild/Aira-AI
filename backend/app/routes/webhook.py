@@ -418,6 +418,10 @@ async def _process_inbound_message_background(
             # audio) -- we genuinely cannot read this. One canned line beats the
             # total silence this used to be. Deduped to once per lead per window
             # so a lead sending ten photos in a row gets one reply, not ten.
+            # Still a lead message: it restarts their open deal's idle clock (D3). Text-like
+            # messages do the same inside generate_reply.
+            from app.services.intake import note_lead_message
+            note_lead_message(db, tenant_id, lead_id)
             try:
                 cutoff = (datetime.now(timezone.utc) - timedelta(hours=_MEDIA_ACK_DEDUPE_HOURS)).isoformat()
                 recent = (

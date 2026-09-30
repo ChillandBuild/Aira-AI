@@ -10,7 +10,7 @@ stock, so the rules live in one spot:
     the ledger says, so callers get stock_warnings instead of an error.
 """
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from app.db.supabase import get_supabase
 
@@ -19,9 +19,6 @@ logger = logging.getLogger(__name__)
 STAGES = ("quoted", "awaiting_payment", "won", "lost")
 SOURCES = ("whatsapp", "form", "call", "walk_in", "manual", "indiamart", "justdial")
 PAYMENT_METHODS = ("razorpay", "cash", "upi", "card", "bank_transfer", "other")
-# Matches payment_razorpay's link expiry, so link_expires_at is what the
-# customer actually sees.
-LINK_TTL = timedelta(hours=24)
 LOW_STOCK_THRESHOLD = 5
 
 
@@ -301,6 +298,39 @@ async def create_deal(
 
 # ---------------------------------------------------------------- payment link
 
+def _link_is_live(deal: dict) -> bool:
+    """The shared liveness rule (deal_engine.link_is_live) applied to a deal row: awaiting
+    payment, a stored link, not about to expire. A deal row keeps no separate link amount --
+    its link is always made for total_paise and re-made whenever that moves -- so the amount
+    check compares total_paise with itself."""
+    from app.services import deal_engine
+    view = {
+        "status": deal_engine.AWAITING_PAYMENT_STATUS if deal.get("stage") == "awaiting_payment" else deal.get("stage"),
+        "payment_link": deal.get("payment_link"),
+        "amount_paise": deal.get("total_paise"),
+        "payment_link_expires_at": deal.get("link_expires_at"),
+    }
+    return deal_engine.link_is_live(view, deal.get("total_paise"))
+
+
+async def _cancel_replaced_link(before: dict, new_plink_id: str | None) -> bool:
+    """Best-effort cancel of the deal's previous Razorpay link, after the new one is stored.
+    Skips when there was no link, it is the same link, or it already expired. Never raises."""
+    try:
+        from app.services import deal_engine
+        old = before.get("razorpay_payment_link_id")
+        if not old or old == new_plink_id or not before.get("payment_link"):
+            return False
+        expires_at = deal_engine.parse_time(before.get("link_expires_at"))
+        if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+            return False
+        from app.services.payment_razorpay import cancel_payment_link
+        return await cancel_payment_link(old, before["tenant_id"])
+    except Exception as e:
+        logger.warning(f"Deal {before.get('id')}: cancelling the old payment link failed: {e}")
+        return False
+
+
 def _lead_contact(tenant_id: str, lead_id: str, db) -> dict:
     res = db.table("leads").select("name, phone").eq("id", lead_id).eq("tenant_id", tenant_id).maybe_single().execute()
     return (res.data if res else None) or {}
@@ -327,23 +357,33 @@ async def send_payment_link(tenant_id: str, deal_id: str, *, send_whatsapp_messa
     phone = contact.get("phone") or ""
     customer_name = contact.get("name") or phone
 
-    from app.services.payment_razorpay import create_payment_link
-    link = await create_payment_link(
-        idempotency_key=f"deal:{deal_id}:payment_link",
-        notes={"deal_id": deal_id},
-        amount_paise=deal["total_paise"],
-        customer_name=customer_name,
-        customer_phone=phone,
-        description=f"{format_deal_number(deal['deal_number'])} — " + ", ".join(i["name"] for i in items)[:200],
-        tenant_id=tenant_id,
-    )
-    patch = {
-        "stage": "awaiting_payment",
-        "payment_link": link["payment_link_url"],
-        "razorpay_payment_link_id": link.get("razorpay_payment_link_id"),
-        "link_expires_at": (datetime.now(timezone.utc) + LINK_TTL).isoformat(),
-    }
-    db.table("deals").update(patch).eq("id", deal_id).eq("tenant_id", tenant_id).execute()
+    live = _link_is_live(deal)
+    if live:
+        link, patch = {"payment_link_url": deal["payment_link"]}, {}
+    else:
+        from app.services.payment_razorpay import create_payment_link
+        # Razorpay replays the original link for a repeated key, so the key carries the last
+        # link's id (unique per link made) and the amount: a regenerate is never deduped to
+        # the dead link.
+        previous_plink = deal.get("razorpay_payment_link_id") or ""
+        link = await create_payment_link(
+            idempotency_key=f"deal:{deal_id}:{deal['total_paise']}:{previous_plink}:payment_link",
+            notes={"deal_id": deal_id},
+            amount_paise=deal["total_paise"],
+            customer_name=customer_name,
+            customer_phone=phone,
+            description=f"{format_deal_number(deal['deal_number'])} — " + ", ".join(i["name"] for i in items)[:200],
+            tenant_id=tenant_id,
+        )
+        patch = {
+            "stage": "awaiting_payment",
+            "payment_link": link["payment_link_url"],
+            "razorpay_payment_link_id": link.get("razorpay_payment_link_id"),
+            # What Razorpay reports, not a guess: it is the time the customer sees.
+            "link_expires_at": link.get("payment_link_expires_at"),
+        }
+        db.table("deals").update(patch).eq("id", deal_id).eq("tenant_id", tenant_id).execute()
+        await _cancel_replaced_link(deal, link.get("razorpay_payment_link_id"))
 
     message_sent = False
     if send_whatsapp_message and phone:
@@ -355,6 +395,23 @@ async def send_payment_link(tenant_id: str, deal_id: str, *, send_whatsapp_messa
         except Exception as e:
             logger.info(f"Deal {deal_id}: payment link WhatsApp send failed (likely outside 24h window): {e}")
     return {"payment_link": link["payment_link_url"], "message_sent": message_sent, "deal_patch": patch}
+
+
+def expire_deal_link(tenant_id: str, deal_id: str, db=None) -> bool:
+    """The deal's CURRENT payment link expired (blueprint D2): only the link dies. It is
+    cleared (the razorpay id stays for audit and the next link's idempotency key) and the
+    deal stays in awaiting_payment; the board shows a "link expired" tag and the customer
+    gets a fresh link if they come back. False when the deal is not awaiting payment."""
+    db = db or get_supabase()
+    result = (
+        db.table("deals")
+        .update({"payment_link": None, "link_expires_at": None})
+        .eq("id", deal_id)
+        .eq("tenant_id", tenant_id)
+        .eq("stage", "awaiting_payment")
+        .execute()
+    )
+    return bool(result.data)
 
 
 # ---------------------------------------------------------------- won / lost
@@ -386,21 +443,37 @@ def mark_won(
     return {"deal": claimed.data[0], "stock_warnings": warnings}
 
 
-def mark_lost(tenant_id: str, deal_id: str, reason: str, *, created_by: str | None = None, db=None) -> dict | None:
-    """A won deal marked lost is a refund/cancelled sale: its stock comes back."""
+def mark_lost(
+    tenant_id: str,
+    deal_id: str,
+    reason: str,
+    *,
+    created_by: str | None = None,
+    only_from: tuple[str, ...] | None = None,
+    db=None,
+) -> dict | None:
+    """A won deal marked lost is a refund/cancelled sale: its stock comes back.
+
+    only_from limits which stages may move to lost (checked again in the claiming UPDATE, so a
+    deal that becomes won between the read and the write is not lost either). Automatic callers
+    such as the Razorpay webhook pass the open stages: a won deal is never lost by an event."""
     db = db or get_supabase()
     current = db.table("deals").select("stage").eq("id", deal_id).eq("tenant_id", tenant_id).maybe_single().execute()
     if not current or not current.data or current.data["stage"] == "lost":
         return None
+    if only_from is not None and current.data["stage"] not in only_from:
+        return None
     was_won = current.data["stage"] == "won"
-    claimed = (
+    query = (
         db.table("deals")
         .update({"stage": "lost", "lost_at": _now_iso(), "lost_reason": (reason or "").strip() or None})
         .eq("id", deal_id)
         .eq("tenant_id", tenant_id)
         .neq("stage", "lost")
-        .execute()
     )
+    if only_from is not None:
+        query = query.in_("stage", list(only_from))
+    claimed = query.execute()
     if not claimed.data:
         return None
     warnings = _deduct_for_deal(tenant_id, deal_id, created_by, db, direction=1) if was_won else []
@@ -486,7 +559,7 @@ def _intake_deal_total(session: dict, lines: list[dict]) -> int:
     return subtotal + gst_paise
 
 
-def sync_intake_session(session: dict, db=None) -> None:
+def sync_intake_session(session: dict, db=None, lost_reason: str | None = None) -> None:
     """Mirror the intake (form) flow onto its deal, keyed by intake_session_id.
     The intake state machine stays the source of truth for the conversation;
     this only keeps the Deals board and sales export complete. Never raises."""
@@ -507,7 +580,8 @@ def sync_intake_session(session: dict, db=None) -> None:
             total = _intake_deal_total(session, lines)
             fields = {
                 "stage": "awaiting_payment", "total_paise": total, "payment_link": session.get("payment_link"),
-                "link_expires_at": (datetime.now(timezone.utc) + LINK_TTL).isoformat(),
+                "razorpay_payment_link_id": session.get("razorpay_payment_link_id"),
+                "link_expires_at": session.get("payment_link_expires_at"),
             }
             if existing:
                 deal_id = existing[0]["id"]
@@ -531,6 +605,6 @@ def sync_intake_session(session: dict, db=None) -> None:
             mark_won(tenant_id, deal_id, payment_method="razorpay",
                      razorpay_payment_id=session.get("razorpay_payment_id"), db=db)
         elif status == "cancelled" and existing[0]["stage"] != "won":
-            mark_lost(tenant_id, deal_id, "Link expired or cancelled", db=db)
+            mark_lost(tenant_id, deal_id, lost_reason or "Link expired or cancelled", db=db)
     except Exception as e:
         logger.warning(f"sync_intake_session failed for session {session.get('id')}: {e}")

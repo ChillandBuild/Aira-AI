@@ -1,6 +1,6 @@
 # Deal lifecycle: links expire, deals don't — Blueprint
 
-Status: design locked 2026-09-30 (grill-me, 8 decisions). Not built. Ship order R1 → R4, each pushed only on the user's say-so.
+Status: R1–R4 shipped 2026-09-30. Eval (106 returning-lead chats x 3 tenants, gemini-3.1-flash-lite): 0 wrong closes, 0 dead/old-price links, 80–84% right actions (D5 bar 90%; user chose to ship). Added: price-rise needs the lead’s yes before a link; paid customers can book again at once.
 
 Trigger: lead Vivek (session 7091a634, tenant eba3ed94) was re-sent a dead ₹49 link after the price moved to ₹1.
 Fixed on 2026-09-29 (commit d35cb7df, link_is_live). He got a new ₹1 link on 2026-09-30, confirmed live. The research that

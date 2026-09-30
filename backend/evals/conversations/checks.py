@@ -240,6 +240,155 @@ def offers_tappable_choice(transcript: list[dict], config: dict) -> CheckResult:
     return CheckResult("offers_tappable_choice", FAIL, "no reply carried tappable options")
 
 
+# ---------------------------------------------------------------- returning lead (D4 / D5 / D6)
+#
+# A scenario states what should happen on each turn in expect.turns (one dict per lead turn):
+#   close: close_deal expected (True) or forbidden (default False)
+#   ask: the reply asks "continue or something else?" (True) or does not (False); read from
+#        turn["asks_continue"], set by judge.asks_continue_question because code cannot read meaning
+#   link: a payment link is sent this turn (True) or none (False)
+#   new_booking: select_offering with new_booking true (True) or not (default False)
+#   confirm_details: previous details shown for confirmation, nothing saved or linked (True)
+#   no_save: save_details must not be called this turn (True)
+#   package: the open deal's offering key at the end of the turn
+# Whatever a scenario says, any link must be live and at the current price, and no turn may close
+# a deal the lead did not decline.
+
+LINK_MIN_LIFE_SECONDS = 60
+_RZP_HOSTS = ("rzp.io", "razorpay.com")
+_NEW_BOOKING_RE = re.compile(r"new_booking['\"]?\s*:\s*true", re.IGNORECASE)
+
+
+def _turn_expect(config: dict, index: int) -> dict:
+    turns = (config.get("expect") or {}).get("turns") or []
+    return turns[index] if index < len(turns) and turns[index] else {}
+
+
+def _tool_calls(turn: dict, name: str) -> list[str]:
+    calls = (turn.get("debug") or {}).get("tool_calls") or []
+    return [c for c in calls if c.split(" ", 1)[0] == name]
+
+
+def _link_events(turn: dict) -> list[dict]:
+    return [e for e in turn.get("events") or [] if e.get("type") == "payment_link"]
+
+
+def _link_problems(turn: dict) -> list[str]:
+    """Dead links and old-price links in one turn."""
+    from datetime import datetime, timezone
+
+    problems = []
+    charge = ((turn.get("debug") or {}).get("deal") or {}).get("current_charge_paise")
+    sent = {e.get("url") for e in _link_events(turn)}
+    for event in _link_events(turn):
+        expires = event.get("expires_at")
+        try:
+            life = (datetime.fromisoformat(expires) - datetime.now(timezone.utc)).total_seconds()
+        except (TypeError, ValueError):
+            life = 0
+        if life < LINK_MIN_LIFE_SECONDS:
+            problems.append(f"dead link {event.get('url')} (expires {expires})")
+        if event.get("amount_paise") != charge:
+            problems.append(f"old-price link {event.get('url')}: {event.get('amount_paise')} paise, today's charge {charge}")
+    for reply in _replies(turn):
+        for url in _URL_RE.findall(reply["text"]):
+            host = urlparse(url).hostname or ""
+            if url not in sent and any(host == h or host.endswith("." + h) for h in _RZP_HOSTS):
+                problems.append(f"payment link not made this turn (dead or copied): {url}")
+    return problems
+
+
+def returning_close(transcript: list[dict], config: dict) -> CheckResult:
+    bad = []
+    for i, turn in enumerate(transcript):
+        called, wanted = bool(_tool_calls(turn, "close_deal")), _turn_expect(config, i).get("close") is True
+        if called and not wanted:
+            bad.append(f"turn {i}: WRONG_CLOSE (close_deal on a lead who did not decline)")
+        if wanted and not called:
+            bad.append(f"turn {i}: MISSED_CLOSE (explicit decline, deal left open)")
+        if wanted and called and not any(e.get("type") == "deal_closed" for e in turn.get("events") or []):
+            bad.append(f"turn {i}: close_deal called but no deal was closed")
+    return CheckResult("returning_close", FAIL, "; ".join(bad)) if bad else CheckResult("returning_close", PASS)
+
+
+def returning_link(transcript: list[dict], config: dict) -> CheckResult:
+    bad = []
+    for i, turn in enumerate(transcript):
+        bad += [f"turn {i}: {p}" for p in _link_problems(turn)]
+        wanted = _turn_expect(config, i).get("link")
+        if wanted is True and not _link_events(turn):
+            bad.append(f"turn {i}: no payment link sent")
+        if wanted is False and _link_events(turn):
+            bad.append(f"turn {i}: payment link sent when none was wanted")
+    return CheckResult("returning_link", FAIL, "; ".join(bad)) if bad else CheckResult("returning_link", PASS)
+
+
+def returning_question(transcript: list[dict], config: dict) -> CheckResult:
+    bad, undecided = [], 0
+    for i, turn in enumerate(transcript):
+        wanted = _turn_expect(config, i).get("ask")
+        if wanted is None:
+            continue
+        asked = turn.get("asks_continue")
+        if asked is None:
+            undecided += 1
+        elif asked != wanted:
+            bad.append(f"turn {i}: {'no continue-or-something-else question' if wanted else 'asked the continue-or-something-else question'}")
+    if bad:
+        return CheckResult("returning_question", FAIL, "; ".join(bad))
+    if undecided:
+        return CheckResult("returning_question", SKIP, f"{undecided} turn(s) the classifier could not read")
+    return CheckResult("returning_question", PASS)
+
+
+def returning_new_booking(transcript: list[dict], config: dict) -> CheckResult:
+    bad = []
+    for i, turn in enumerate(transcript):
+        expected = _turn_expect(config, i).get("new_booking", False)
+        if expected is None:  # the scenario does not care
+            continue
+        made = any(_NEW_BOOKING_RE.search(c) for c in _tool_calls(turn, "select_offering"))
+        wanted = expected is True
+        events = [e.get("type") for e in turn.get("events") or []]
+        if made != wanted:
+            bad.append(f"turn {i}: new_booking {'missing' if wanted else 'used when the lead only continued'}")
+        elif wanted and "deal_closed" not in events:
+            bad.append(f"turn {i}: new booking opened without closing the old deal first")
+    return CheckResult("returning_new_booking", FAIL, "; ".join(bad)) if bad else CheckResult("returning_new_booking", PASS)
+
+
+def returning_confirm_details(transcript: list[dict], config: dict) -> CheckResult:
+    """D6. confirm_details: the earlier details are shown for confirmation. no_save: nothing is
+    saved this turn (the lead gave no details, so anything saved was reused silently)."""
+    values = [str(v).lower() for v in (config.get("expect") or {}).get("previous_values") or []]
+    bad = []
+    for i, turn in enumerate(transcript):
+        wanted = _turn_expect(config, i)
+        if wanted.get("confirm_details") is True:
+            text = " ".join(r["text"] for r in _replies(turn)).lower()
+            if not values or not any(v in text for v in values):
+                bad.append(f"turn {i}: previous details not shown for confirmation")
+            if _link_events(turn):
+                bad.append(f"turn {i}: link sent before the details were confirmed")
+        if (wanted.get("confirm_details") is True or wanted.get("no_save") is True) and _tool_calls(turn, "save_details"):
+            bad.append(f"turn {i}: details saved before the lead confirmed them")
+    return CheckResult("returning_confirm_details", FAIL, "; ".join(bad)) if bad else CheckResult("returning_confirm_details", PASS)
+
+
+def returning_package(transcript: list[dict], config: dict) -> CheckResult:
+    bad = []
+    for i, turn in enumerate(transcript):
+        wanted = _turn_expect(config, i).get("package")
+        have = ((turn.get("debug") or {}).get("deal") or {}).get("package_key")
+        if wanted and have != wanted:
+            bad.append(f"turn {i}: open deal is {have}, expected {wanted}")
+    return CheckResult("returning_package", FAIL, "; ".join(bad)) if bad else CheckResult("returning_package", PASS)
+
+
+RETURNING_CHECKS = ("returning_close", "returning_link", "returning_question", "returning_new_booking",
+                    "returning_confirm_details", "returning_package")
+
+
 def _undecidable(name: str, why: str):
     def check(transcript: list[dict], config: dict) -> CheckResult:
         return CheckResult(name, SKIP, why)
@@ -258,6 +407,12 @@ HARD_CHECKS = {
     "respects_opt_out": respects_opt_out,
     "choices_tappable": choices_tappable,
     "offers_tappable_choice": offers_tappable_choice,
+    "returning_close": returning_close,
+    "returning_link": returning_link,
+    "returning_question": returning_question,
+    "returning_new_booking": returning_new_booking,
+    "returning_confirm_details": returning_confirm_details,
+    "returning_package": returning_package,
     "window_respected": _undecidable("window_respected", "needs the real send path; not testable offline"),
     "language_matches": _undecidable("language_matches", "graded by the LLM judge, not a fixed rule"),
 }

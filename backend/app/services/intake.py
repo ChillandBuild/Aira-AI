@@ -8,7 +8,9 @@ import json
 import logging
 import re
 import uuid
+from datetime import datetime, timedelta, timezone
 
+from app.config_dynamic import SettingReadError
 from app.services.gemini_client import gemini_chat_completion_json
 from app.services.intake_copy import (
     collector_identity,
@@ -19,7 +21,7 @@ from app.services.intake_copy import (
     resolve_language_mode,
 )
 from app.services.notify import notify_pool
-from app.services.payment_razorpay import create_payment_link
+from app.services.payment_razorpay import cancel_payment_link, create_payment_link
 
 logger = logging.getLogger(__name__)
 
@@ -674,27 +676,143 @@ def _get_active_session(lead_id: str, tenant_id: str, db) -> dict | None:
     return active[0] if active else None
 
 
+# Statuses that end a session; migration 213 allows one session per (tenant, lead) outside these.
+_CLOSED_STATUSES = ("paid", "cancelled", "resolved")
+
+
+def _is_unique_violation(error: Exception) -> bool:
+    """Postgres 23505, as postgrest-py's APIError carries it (or its text, if wrapped)."""
+    return getattr(error, "code", None) == "23505" or "23505" in str(error)
+
+
 def _create_session(lead_id: str, tenant_id: str, db) -> dict:
-    result = (
-        db.table("intake_sessions")
-        .insert({"lead_id": lead_id, "tenant_id": tenant_id, "status": "offer_pending", "collected_data": {}})
-        .execute()
-    )
+    """Open a session for a lead. Two racing inbound messages both try to; the 213 unique index
+    lets one win, and the loser gets the winner's open session back instead of an exception."""
+    try:
+        result = (
+            db.table("intake_sessions")
+            .insert({
+                "lead_id": lead_id, "tenant_id": tenant_id, "status": "offer_pending", "collected_data": {},
+                "last_activity_at": _now_iso(),
+            })
+            .execute()
+        )
+    except Exception as e:
+        if not _is_unique_violation(e):
+            raise
+        existing = (
+            db.table("intake_sessions")
+            .select("*")
+            .eq("lead_id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .not_.in_("status", list(_CLOSED_STATUSES))
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not existing:
+            raise
+        logger.info(f"Racing session create for lead {lead_id} (tenant {tenant_id}): using the open session")
+        return existing[0]
     return result.data[0]
 
 
-def _update_session(session_id: str, patch: dict, db, unless_status: str | None = None) -> None:
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# Statuses a session can sit in before it is paid: the idle-close sweep covers all of them.
+_UNFINISHED_STATUSES = ("offer_pending", *_PACKAGE_CHANGEABLE_STATUSES)
+
+_PROGRESS_KEYS = frozenset({"package_key", "collected_data", "skipped_fields", "selected_addons"})
+
+
+def _is_progress(patch: dict) -> bool:
+    """A write that means the lead really moved the deal on (D3): an offering picked, details
+    saved, a link created, paid. Cancelling, clearing a link or a status-only nudge is not."""
+    return bool(
+        _PROGRESS_KEYS & patch.keys() or patch.get("payment_link") or patch.get("status") == "paid"
+    )
+
+
+def touch_session_activity(db, tenant_id: str, session_id: str) -> None:
+    """Restart the idle-close clock of one unfinished session. Tenant-scoped; the status
+    filter keeps a closed or paid session from being revived by a stray message."""
+    (
+        db.table("intake_sessions")
+        .update({"last_activity_at": _now_iso()})
+        .eq("id", session_id)
+        .eq("tenant_id", tenant_id)
+        .in_("status", list(_UNFINISHED_STATUSES))
+        .execute()
+    )
+
+
+def note_lead_message(db, tenant_id: str, lead_id: str) -> str | None:
+    """A lead message arrived: restart the idle clock of their open deal and return the value
+    it had BEFORE (None when there is no open deal), so the reply can tell how long they were
+    away. Call it first thing, before any progress write moves the clock. Never raises."""
+    try:
+        rows = (
+            db.table("intake_sessions")
+            .select("id,last_activity_at,created_at")
+            .eq("lead_id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .in_("status", list(_UNFINISHED_STATUSES))
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        ).data or []
+        if not rows:
+            return None
+        touch_session_activity(db, tenant_id, rows[0]["id"])
+        return rows[0].get("last_activity_at") or rows[0].get("created_at")
+    except Exception as e:
+        logger.warning(f"Activity touch failed for lead {lead_id}: {e}")
+        return None
+
+
+_PREVIOUS_LOOKBACK = 5
+
+
+def previous_booking(db, tenant_id: str, lead_id: str) -> dict | None:
+    """The lead's most recent finished booking that holds details (cancelled, paid or
+    resolved), for D6: offered back to them to confirm or correct, never reused silently.
+    Tenant-scoped. Never raises."""
+    try:
+        rows = (
+            db.table("intake_sessions")
+            .select("package_name,collected_data,status")
+            .eq("lead_id", lead_id)
+            .eq("tenant_id", tenant_id)
+            .in_("status", ["cancelled", "paid", "resolved"])
+            .order("created_at", desc=True)
+            .limit(_PREVIOUS_LOOKBACK)
+            .execute()
+        ).data or []
+        return next((r for r in rows if any((r.get("collected_data") or {}).values())), None)
+    except Exception as e:
+        logger.warning(f"Previous booking lookup failed for lead {lead_id}: {e}")
+        return None
+
+
+def _update_session(session_id: str, patch: dict, db, unless_status: str | None = None) -> bool:
     """unless_status: skip the write if the session is already in that status, so a slow
-    caller (a Razorpay call in between) cannot undo a webhook that just moved it there."""
+    caller (a Razorpay call in between) cannot undo a webhook that just moved it there.
+    Real progress also restarts the idle clock (last_activity_at).
+    Returns whether a row was written (False when unless_status skipped it)."""
+    if _is_progress(patch):
+        patch = {**patch, "last_activity_at": _now_iso()}
     query = db.table("intake_sessions").update(patch).eq("id", session_id)
     if unless_status:
         query = query.neq("status", unless_status)
     result = query.execute()
     if "status" in patch:
         _sync_deal(result, db)
+    return bool(getattr(result, "data", None))
 
 
-def _sync_deal(update_result, db) -> None:
+def _sync_deal(update_result, db, lost_reason: str | None = None) -> None:
     """Mirror the session rows an UPDATE just returned onto their Deals-board
     deal (services/deals.sync_intake_session). Uses the returned rows rather
     than re-reading, so the conversation path pays for no extra query. Never
@@ -707,9 +825,60 @@ def _sync_deal(update_result, db) -> None:
         from app.services.deals import sync_intake_session
         for row in rows:
             if isinstance(row, dict) and row.get("tenant_id") and row.get("status"):
-                sync_intake_session(row, db=db)
+                sync_intake_session(row, db=db, lost_reason=lost_reason)
     except Exception as e:
         logger.warning(f"Deal sync failed after intake update: {e}")
+
+
+def link_store_patch(link: dict) -> dict:
+    """The intake_sessions columns that record a freshly created Razorpay link. The Razorpay id
+    is what the webhook compares against, so an event for a replaced link can be told apart."""
+    return {
+        "payment_link": link["payment_link_url"],
+        "razorpay_payment_link_id": link.get("razorpay_payment_link_id"),
+        "payment_link_expires_at": link.get("payment_link_expires_at"),
+    }
+
+
+def legacy_link_key(session: dict) -> str:
+    """Idempotency key for the scripted flow's link. Razorpay replays the original link for a
+    repeated key, so once a link has existed (and may have been cancelled) the key carries
+    that link's id: a re-link then makes a genuinely new link."""
+    previous = session.get("razorpay_payment_link_id")
+    if not previous:
+        return f"booking:{session['id']}:payment_link"
+    return f"booking:{session['id']}:{previous}:payment_link"
+
+
+async def cancel_session_link(db, session: dict, *, keep_plink_id: str | None = None) -> bool:
+    """Best-effort: cancel the session's outstanding Razorpay link so it can't be paid after
+    it was replaced or the deal was closed. Call it AFTER the replacement link is stored (or
+    the session is closed) so a failed cancel never leaves the lead without a link.
+
+    `session` is the row as it was BEFORE the change. Skips (False) when there is nothing
+    outstanding: no stored Razorpay id, no link, a link already past its expiry, or
+    keep_plink_id equal to it (Razorpay replayed the same link). Never raises; a cancel
+    Razorpay refuses (an already-paid link) is left to the paid webhook."""
+    try:
+        if "razorpay_payment_link_id" in session:
+            plink_id = session.get("razorpay_payment_link_id")
+        else:
+            row = (
+                db.table("intake_sessions").select("razorpay_payment_link_id")
+                .eq("id", session["id"]).eq("tenant_id", session["tenant_id"])
+                .maybe_single().execute()
+            )
+            plink_id = ((row.data if row else None) or {}).get("razorpay_payment_link_id")
+        if not plink_id or plink_id == keep_plink_id or not session.get("payment_link"):
+            return False
+        from app.services.deal_engine import parse_time
+        expires_at = parse_time(session.get("payment_link_expires_at"))
+        if expires_at is not None and expires_at <= datetime.now(timezone.utc):
+            return False
+        return await cancel_payment_link(plink_id, session["tenant_id"])
+    except Exception as e:
+        logger.warning(f"Cancel of the old link failed for session {session.get('id')}: {e}")
+        return False
 
 
 def _package_patch(package: dict, path: list[dict] | None = None, total_amount_paise: int | None = None) -> dict:
@@ -1226,7 +1395,7 @@ async def route_intake(
             service_noun = config["service_noun"].capitalize()
             try:
                 link = await create_payment_link(
-                    idempotency_key=f"booking:{session['id']}:payment_link",
+                    idempotency_key=legacy_link_key(session),
                     notes={"booking_id": session["id"], "booking_ref": ref},
                     amount_paise=gst_fields["amount_paise"],
                     customer_name=customer_name,
@@ -1239,9 +1408,9 @@ async def route_intake(
                 _update_session(session["id"], {
                     "status": "awaiting_payment",
                     **gst_fields,
-                    "payment_link": link["payment_link_url"],
-                    "payment_link_expires_at": link.get("payment_link_expires_at"),
+                    **link_store_patch(link),
                 }, db)
+                await cancel_session_link(db, session, keep_plink_id=link.get("razorpay_payment_link_id"))
                 intro = await compose_line(
                     "payment_intro",
                     tenant_id=tenant_id,
@@ -1381,6 +1550,138 @@ def get_session_tenant_id(session_id: str, db=None) -> str | None:
     return row.data.get("tenant_id")
 
 
+def _is_already_paid(session: dict) -> bool:
+    """A session that has taken money: status paid, or a payment id on file (a paid session that
+    staff or the 48h sweep has since resolved keeps its id, and must not be paid "again")."""
+    return session.get("status") == "paid" or bool(session.get("razorpay_payment_id"))
+
+
+def _record_extra_payment(
+    db, session_id: str, razorpay_payment_id: str, *, tenant_id: str | None = None, known_paid: bool = False,
+) -> None:
+    """A payment arrived for a session that is already paid. Razorpay retries the SAME payment
+    id, so that one is a no-op; a DIFFERENT id means the lead paid twice (e.g. two live links).
+    Record it, flag the session refund_needed and tell staff, who refund by hand -- there is no
+    auto-refund. Idempotent per payment id; never raises (the webhook must still answer 200).
+
+    known_paid: the caller already knows money was taken (a won deal linked to this session), so
+    the session's own status is not required to say paid. tenant_id scopes the read and write.
+
+    The write is a compare-and-set (only when the id is not already in extra_payment_ids) and
+    staff are alerted only when it changed a row, so two racing deliveries alert once. If the
+    write itself fails staff are alerted anyway: money must never go unreported."""
+    try:
+        query = (
+            db.table("intake_sessions")
+            .select("id,tenant_id,lead_id,status,razorpay_payment_id,extra_payment_ids,collected_data,field_schema")
+            .eq("id", session_id)
+        )
+        if tenant_id:
+            query = query.eq("tenant_id", tenant_id)
+        row = query.maybe_single().execute()
+        session = (row.data if row else None) or {}
+        if not session or not (known_paid or _is_already_paid(session)):
+            return
+        extras = list(session.get("extra_payment_ids") or [])
+        if not razorpay_payment_id or razorpay_payment_id == session.get("razorpay_payment_id") \
+                or razorpay_payment_id in extras:
+            return
+    except Exception as e:
+        logger.error(f"Reading session {session_id} to record a second payment failed: {e}")
+        return
+    tenant_id = session["tenant_id"]
+    try:
+        written = (
+            db.table("intake_sessions")
+            .update({"extra_payment_ids": [*extras, razorpay_payment_id], "refund_needed": True})
+            .eq("id", session_id)
+            .eq("tenant_id", tenant_id)
+            .not_.contains("extra_payment_ids", [razorpay_payment_id])
+            .execute()
+        )
+        if not (written and written.data):
+            logger.info(f"Second payment {razorpay_payment_id} on session {session_id} already recorded")
+            return
+    except Exception as e:
+        logger.error(
+            f"Recording second payment {razorpay_payment_id} on session {session_id} (tenant {tenant_id}) "
+            f"failed: {e} -- alerting staff anyway"
+        )
+    else:
+        logger.warning(
+            f"Second payment {razorpay_payment_id} on already-paid intake session {session_id} "
+            f"(tenant {tenant_id}) -- refund needed"
+        )
+    _alert_double_payment(db, session, razorpay_payment_id)
+
+
+def report_extra_deal_payment(tenant_id: str, deal_id: str, razorpay_payment_id: str, db=None) -> None:
+    """A payment.paid event reached a deal that is already won. The same payment id as the one
+    the deal was won with is a Razorpay retry (no-op); anything else is a second payment (or a
+    link paid after staff took cash): flag it and tell staff, who refund by hand. A deal linked to
+    an intake session is recorded on that session, so the board's refund_needed tag shows.
+    Never raises; a deal with no session has no flag column, so staff get the alert only."""
+    if not razorpay_payment_id:
+        return
+    try:
+        if db is None:
+            from app.db.supabase import get_supabase
+            db = get_supabase()
+        row = (
+            db.table("deals").select("id,lead_id,razorpay_payment_id,intake_session_id,deal_number")
+            .eq("id", deal_id).eq("tenant_id", tenant_id).maybe_single().execute()
+        )
+        deal = (row.data if row else None) or {}
+        if not deal or razorpay_payment_id == deal.get("razorpay_payment_id"):
+            return
+        if deal.get("intake_session_id"):
+            _record_extra_payment(
+                db, deal["intake_session_id"], razorpay_payment_id, tenant_id=tenant_id, known_paid=True,
+            )
+            return
+        logger.warning(
+            f"Second payment {razorpay_payment_id} on already-won deal {deal_id} (tenant {tenant_id}) -- refund needed"
+        )
+        notify_pool(
+            tenant_id,
+            "deal_double_payment",
+            "Refund needed: paid twice",
+            f"A customer paid deal {deal_id} again (extra payment {razorpay_payment_id}). "
+            "Refund the extra payment in Razorpay.",
+            db=db,
+        )
+    except Exception as e:
+        logger.error(f"Reporting extra payment {razorpay_payment_id} on deal {deal_id} failed: {e}")
+
+
+def _alert_double_payment(db, session: dict, razorpay_payment_id: str) -> None:
+    """In-app notification for the tenant's staff, plus a chat handover, which is what queues the
+    tenant's configured staff WhatsApp alert. Each part is best-effort."""
+    tenant_id, lead_id = session["tenant_id"], session.get("lead_id")
+    name = resolve_customer_name(session.get("collected_data"), session.get("field_schema"))
+    who = f"'{name}'" if name else "A lead"
+    try:
+        notify_pool(
+            tenant_id,
+            "intake_double_payment",
+            "Refund needed: paid twice",
+            f"{who} paid twice for the same consultation (extra payment {razorpay_payment_id}). "
+            "Refund the extra payment in Razorpay.",
+            db=db,
+        )
+    except Exception as e:
+        logger.warning(f"Double-payment notify_pool failed for session {session.get('id')}: {e}")
+    if not lead_id:
+        return
+    try:
+        from app.services import ai_reply
+        ai_reply._trigger_chat_escalation(
+            lead_id=lead_id, reason="Paid twice: refund needed", tenant_id=tenant_id, assigned_to=None, db=db,
+        )
+    except Exception as e:
+        logger.warning(f"Double-payment handover failed for session {session.get('id')}: {e}")
+
+
 def confirm_intake_payment(
     session_id: str,
     razorpay_payment_id: str,
@@ -1403,13 +1704,16 @@ def confirm_intake_payment(
 
     existing = (
         db.table("intake_sessions")
-        .select("id,status,lead_id,tenant_id,collected_data,field_schema,"
+        .select("id,status,lead_id,tenant_id,collected_data,field_schema,razorpay_payment_id,"
                 "package_key,package_name,package_amount_paise,total_amount_paise,amount_paise,trigger_reason")
         .eq("id", session_id)
         .maybe_single()
         .execute()
     )
-    if not existing or not existing.data or existing.data.get("status") == "paid":
+    if not existing or not existing.data:
+        return None
+    if _is_already_paid(existing.data):
+        _record_extra_payment(db, session_id, razorpay_payment_id)
         return None
 
     session = existing.data
@@ -1447,6 +1751,7 @@ def confirm_intake_payment(
     )
     if not claimed or not claimed.data:
         logger.info(f"Intake session {session_id} already claimed by a concurrent confirm — skipping")
+        _record_extra_payment(db, session_id, razorpay_payment_id)
         return None
 
     session = {**session, **(claimed.data[0] or {})}
@@ -1496,27 +1801,25 @@ def confirm_intake_payment(
 
 
 def expire_intake_session(session_id: str, db=None) -> bool:
-    """A Razorpay payment link expired (payment_razorpay._LINK_EXPIRE_SECONDS,
-    24h -- matches WhatsApp's own free-form messaging window, Hard Invariant 3).
-    Cancel the session so the lead's next inbound is free to trigger a fresh
-    offer instead of being stuck behind a dead link. Filtered to
-    'awaiting_payment' so this can never touch a session that raced to 'paid'
-    just before the expiry webhook arrived, and is naturally idempotent on a
-    retried webhook. No message to the lead -- expiry lands at or past the 24h
-    window, so nothing could be sent without burning an approved template, and
-    that isn't worth it for an abandoned session."""
-    from datetime import datetime, timezone
-
+    """A Razorpay payment link expired (payment_razorpay._LINK_EXPIRE_SECONDS, 24h --
+    matches WhatsApp's own free-form messaging window, Hard Invariant 3). Only the LINK dies:
+    it is cleared and the deal stays open in awaiting_payment, so the lead who comes back gets
+    a fresh link for the same booking (blueprint D2). The old link's Razorpay id is kept: the
+    next link's idempotency key is built from it. Filtered to 'awaiting_payment' so this can
+    never touch a session that raced to 'paid' just before the expiry webhook arrived, and it
+    is naturally idempotent on a retried webhook. Not activity (D3) and no message to the
+    lead: expiry lands at or past the 24h window, so nothing could be sent without burning an
+    approved template."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
     # The webhook names the session, not which link expired. A regenerated session
-    # holds a NEWER link, so a late "old link expired" event must not cancel it: only
-    # cancel when the stored link's expiry is unknown (NULL) or already past.
+    # holds a NEWER link, so a late "old link expired" event must not clear it: only
+    # clear when the stored link's expiry is unknown (NULL) or already past.
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     result = (
         db.table("intake_sessions")
-        .update({"status": "cancelled", "payment_link": None, "payment_link_expires_at": None})
+        .update({"payment_link": None, "payment_link_expires_at": None})
         .eq("id", session_id)
         .eq("status", "awaiting_payment")
         .or_(f"payment_link_expires_at.is.null,payment_link_expires_at.lte.{now_iso}")
@@ -1659,118 +1962,139 @@ def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
     return bool(result.data)
 
 
-_STALE_SESSION_HOURS = 48
+_STALE_PAID_HOURS = 48
+_SWEEP_BATCH = 200
+_SWEEP_TENANT_LIMIT = 1000
 
-# Every pre-payment status a session can sit in mid-flow (package pick, addon
-# pick, field collection, confirmation) -- none of these had a staleness sweep
-# before, so a session left here (e.g. the customer went quiet, or the
-# tenant's package list changed out from under it) blocked that lead from a
-# fresh offer and, for awaiting_addon_choice specifically, could loop forever
-# on a broken empty-menu reply (live evidence 2026-09-25, see route_intake's
-# awaiting_addon_choice handler).
-_MID_FLOW_STALE_STATUSES = (
-    "awaiting_package_choice", "awaiting_addon_choice", "collecting", "awaiting_confirmation",
-)
+
+def _iso_z(moment: datetime) -> str:
+    return moment.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+async def cancel_open_session(
+    db, session: dict, *, idle_before: str | None = None, reason: str | None = None,
+) -> bool:
+    """Close one unfinished session, but only if it is still in the status the caller saw
+    (tenant-scoped), so a payment or a state change that just landed wins. With idle_before
+    (the idle sweep) it also requires that the lead has not been active since then and that
+    no live link exists, so a fresh lead message wins the race. Afterwards its outstanding
+    Razorpay link is cancelled (best effort) and the Deals-board card follows."""
+    query = (
+        db.table("intake_sessions")
+        .update({"status": "cancelled"})
+        .eq("id", session["id"])
+        .eq("tenant_id", session["tenant_id"])
+        .eq("status", session["status"])
+    )
+    if idle_before is not None:
+        query = query.or_(
+            f"payment_link_expires_at.is.null,payment_link_expires_at.lte.{_iso_z(datetime.now(timezone.utc))}"
+        )
+        if session.get("last_activity_at"):
+            query = query.lt("last_activity_at", idle_before)
+        else:
+            query = query.is_("last_activity_at", "null")  # deploy-gap row: only ever touched by a message
+    result = query.execute()
+    if not result.data:
+        return False
+    _sync_deal(result, db, lost_reason=reason)
+    await cancel_session_link(db, session)
+    return True
+
+
+# Deals-board "lost" reason for a deal the idle sweep closed.
+_IDLE_LOST_REASON = "No reply from the customer (idle close)"
+
+
+def _idle_since(row: dict) -> str | None:
+    return row.get("last_activity_at") or row.get("created_at")
+
+
+async def _close_idle_for_tenant(db, tenant_id: str, now: datetime) -> int:
+    from app.services import deal_settings
+    from app.services.deal_engine import parse_time
+
+    try:
+        idle_days = deal_settings.read_deal_idle_close_days(tenant_id)
+    except SettingReadError as e:
+        # Not the 30-day default: a tenant who chose 90 would lose deals early. Try next sweep.
+        logger.warning(f"Idle-close sweep skipped tenant {tenant_id}: deal_idle_close_days unreadable ({e})")
+        return 0
+    cutoff_at = now - timedelta(days=idle_days)
+    cutoff = cutoff_at.isoformat()
+    rows = (
+        db.table("intake_sessions")
+        .select("id,tenant_id,status,created_at,last_activity_at,payment_link,payment_link_expires_at,razorpay_payment_link_id")
+        .eq("tenant_id", tenant_id)
+        .in_("status", list(_UNFINISHED_STATUSES))
+        .or_(f"last_activity_at.lt.{cutoff},last_activity_at.is.null")
+        .order("last_activity_at")
+        .limit(_SWEEP_BATCH)
+        .execute()
+    ).data or []
+    closed = 0
+    for row in rows:
+        idle_since = parse_time(_idle_since(row))
+        if idle_since is None or idle_since >= cutoff_at:
+            continue  # a NULL-activity row that is younger than the window
+        try:
+            if await cancel_open_session(db, row, idle_before=cutoff, reason=_IDLE_LOST_REASON):
+                closed += 1
+        except Exception as e:
+            logger.error(f"Idle close failed for session {row['id']}: {e}")
+    return closed
 
 
 async def sweep_stale_intake_sessions(db=None) -> dict:
-    """APScheduler job (every 5 min): clear intake sessions that have sat too
-    long with no forward progress, so a lead is never permanently blocked from
-    a fresh offer and the AI stops treating a dead flow as still in progress.
+    """APScheduler job (every 5 min).
 
-    - awaiting_payment older than 48h (by created_at) -> cancelled. Razorpay
-      links now carry a 24h expire_by (payment_razorpay._LINK_EXPIRE_SECONDS) and
-      the payment_link.expired webhook (routes/intake.py) normally cancels the
-      session well before this sweep runs -- this stays as the backstop for a
-      missed/unsubscribed expiry webhook, not the primary mechanism. Safe to cancel: confirm_intake_payment()
-      updates with `.neq(status, "paid")`, not `.eq("awaiting_payment")`, so a lead
-      who pays a cancelled link days later still gets confirmed and surfaced to
-      staff -- this only stops the AI's "reply so payment can continue" nagging
-      and the re-offer block, never the payment path itself.
-    - paid older than 48h (by paid_at) -> resolved, same transition the
-      dashboard's own Resolve button performs. Nothing else ever closes these
-      out automatically; a human has to remember to click it.
-    - any _MID_FLOW_STALE_STATUSES row older than 48h (by updated_at, since
-      created_at would ignore forward progress the lead already made) ->
-      cancelled. Counted into the same `cancelled` total as awaiting_payment.
+    - Unfinished deals (every status before paid, offer_pending included) with no lead
+      message and no real progress for the tenant's deal_idle_close_days
+      (deal_settings, default 30) -> cancelled (blueprint D1/D3, measured by
+      last_activity_at). Each tenant's setting is read once per sweep. The cancel is
+      conditional, so a lead who writes right now keeps the deal, and a deal whose link can
+      still be paid is never cancelled. A lead who pays a cancelled link later is still
+      confirmed and surfaced to staff: confirm_intake_payment() filters on `.neq(status,
+      "paid")`, so this only stops the AI's "reply so payment can continue" nagging.
+    - paid older than 48h (by paid_at) -> resolved, same transition the dashboard's own
+      Resolve button performs. Nothing else ever closes these out automatically.
     """
-    from datetime import datetime, timedelta, timezone
-
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
 
+    from app.services import deal_settings
+
     now = datetime.now(timezone.utc)
-    cutoff = (now - timedelta(hours=_STALE_SESSION_HOURS)).isoformat()
-    # A link regenerated late in the session (the lead came back on day 2) can outlive the 48h
-    # created_at cutoff -- never cancel a deal while its link can still be paid.
-    link_dead = (
-        f"payment_link_expires_at.is.null,payment_link_expires_at.lte.{now.strftime('%Y-%m-%dT%H:%M:%SZ')}"
-    )
     cancelled = 0
     resolved = 0
 
     try:
-        stale_awaiting = (
+        floor = (now - timedelta(days=deal_settings.DEAL_IDLE_CLOSE_DAYS_MIN)).isoformat()
+        candidates = (
             db.table("intake_sessions")
-            .select("id")
-            .eq("status", "awaiting_payment")
-            .lt("created_at", cutoff)
-            .or_(link_dead)
-            .limit(200)
+            .select("tenant_id")
+            .in_("status", list(_UNFINISHED_STATUSES))
+            .or_(f"last_activity_at.lt.{floor},last_activity_at.is.null")
+            .order("last_activity_at")
+            .limit(_SWEEP_TENANT_LIMIT)
             .execute()
-        )
-        for row in stale_awaiting.data or []:
+        ).data or []
+        for tenant_id in dict.fromkeys(r["tenant_id"] for r in candidates):
             try:
-                result = (
-                    db.table("intake_sessions")
-                    .update({"status": "cancelled"})
-                    .eq("id", row["id"])
-                    .eq("status", "awaiting_payment")
-                    .or_(link_dead)
-                    .execute()
-                )
-                if result.data:
-                    cancelled += 1
-                    _sync_deal(result, db)
+                cancelled += await _close_idle_for_tenant(db, tenant_id, now)
             except Exception as e:
-                logger.error(f"Stale awaiting_payment cancel failed for session {row['id']}: {e}")
+                logger.error(f"Idle-close sweep failed for tenant {tenant_id}: {e}")
     except Exception as e:
-        logger.error(f"Stale awaiting_payment sweep query failed: {e}")
-
-    try:
-        stale_mid_flow = (
-            db.table("intake_sessions")
-            .select("id")
-            .in_("status", list(_MID_FLOW_STALE_STATUSES))
-            .lt("updated_at", cutoff)
-            .limit(200)
-            .execute()
-        )
-        for row in stale_mid_flow.data or []:
-            try:
-                result = (
-                    db.table("intake_sessions")
-                    .update({"status": "cancelled"})
-                    .eq("id", row["id"])
-                    .in_("status", list(_MID_FLOW_STALE_STATUSES))
-                    .execute()
-                )
-                if result.data:
-                    cancelled += 1
-                    _sync_deal(result, db)
-            except Exception as e:
-                logger.error(f"Stale mid-flow cancel failed for session {row['id']}: {e}")
-    except Exception as e:
-        logger.error(f"Stale mid-flow sweep query failed: {e}")
+        logger.error(f"Idle-close sweep query failed: {e}")
 
     try:
         stale_paid = (
             db.table("intake_sessions")
             .select("id,tenant_id")
             .eq("status", "paid")
-            .lt("paid_at", cutoff)
-            .limit(200)
+            .lt("paid_at", (now - timedelta(hours=_STALE_PAID_HOURS)).isoformat())
+            .limit(_SWEEP_BATCH)
             .execute()
         )
         for row in stale_paid.data or []:
@@ -1783,7 +2107,7 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
         logger.error(f"Stale paid sweep query failed: {e}")
 
     if cancelled or resolved:
-        logger.info(f"Intake staleness sweep: cancelled {cancelled} (awaiting_payment + mid-flow), resolved {resolved} paid")
+        logger.info(f"Intake staleness sweep: cancelled {cancelled} idle, resolved {resolved} paid")
     return {"cancelled": cancelled, "resolved": resolved}
 
 
@@ -1797,7 +2121,8 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
 
     row = (
         db.table("intake_sessions")
-        .select("id,tenant_id,lead_id,status,collected_data,package_key")
+        .select("id,tenant_id,lead_id,status,collected_data,package_key,"
+                "payment_link,payment_link_expires_at,razorpay_payment_link_id")
         .eq("id", session_id)
         .eq("tenant_id", tenant_id)
         .maybe_single()
@@ -1823,6 +2148,9 @@ async def change_session_package(session_id: str, tenant_id: str, package_key: s
     }
     updated = db.table("intake_sessions").update(patch).eq("id", session_id).eq("tenant_id", tenant_id).execute()
     _sync_deal(updated, db)
+    # The old link is only cancelled once the session no longer points at it. The stored
+    # Razorpay id stays as the "last link", so a later re-link's idempotency key is new.
+    await cancel_session_link(db, session)
     return {**session, **patch}
 
 

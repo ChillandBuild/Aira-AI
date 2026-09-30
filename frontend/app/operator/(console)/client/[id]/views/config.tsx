@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Image as ImageIcon, Link2, Loader2, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Image as ImageIcon, Clock, Link2, Loader2, Mic, Plus, Puzzle, RadioTower, Shield, Smartphone, Sparkles, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SkeletonCard } from "../components/skeleton";
@@ -22,6 +22,10 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 type RetrievalMode = "semantic" | "keyword" | "hybrid";
 type ReplyLanguageMode = "mirror" | "tanglish" | "english" | "tamil" | "tanglish_escalate_tamil";
 type VoiceSettingKey = "ai_voice_reply_speaker";
+const IDLE_CLOSE_DAYS_MIN = 2;
+const IDLE_CLOSE_DAYS_MAX = 90;
+const IDLE_CLOSE_DAYS_DEFAULT = 30;
+
 type MediaRecommendationSettingKey = "ai_media_recommendations_enabled" | "catalog_ai_max_images_ceiling";
 
 type ReplyModelId =
@@ -153,6 +157,7 @@ interface ConfigData {
     kb_retrieval_mode: RetrievalMode;
     ai_reply_model: ReplyModelId | null;
     reply_language_mode: ReplyLanguageMode;
+    deal_idle_close_days?: number | null;
   };
 }
 
@@ -208,6 +213,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   const [retrievalSaving, setRetrievalSaving] = useState<RetrievalMode | null>(null);
   const [replyLanguageSaving, setReplyLanguageSaving] = useState<ReplyLanguageMode | null>(null);
   const [autoReplySaving, setAutoReplySaving] = useState(false);
+  const [idleCloseDraft, setIdleCloseDraft] = useState<string | null>(null);
+  const [idleCloseSaving, setIdleCloseSaving] = useState(false);
   const [voiceReplySaving, setVoiceReplySaving] = useState(false);
   const [voiceSettingSaving, setVoiceSettingSaving] = useState<VoiceSettingKey | null>(null);
   const [mediaRecommendationSaving, setMediaRecommendationSaving] = useState<MediaRecommendationSettingKey | null>(null);
@@ -279,6 +286,41 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       toast.error("Failed to update reply language. Please try again.");
     } finally {
       setReplyLanguageSaving(null);
+    }
+  }
+
+  async function saveIdleCloseDays() {
+    if (!config || idleCloseDraft === null) return;
+    const days = Number(idleCloseDraft);
+    if (!Number.isInteger(days) || days < IDLE_CLOSE_DAYS_MIN || days > IDLE_CLOSE_DAYS_MAX) {
+      toast.error(`Enter a whole number from ${IDLE_CLOSE_DAYS_MIN} to ${IDLE_CLOSE_DAYS_MAX}.`);
+      return;
+    }
+    setIdleCloseSaving(true);
+    setError(null);
+    try {
+      await apiFetch<{ status: string }>(
+        `/api/v1/operator/clients/${tenantId}/config`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            settings: { deal_idle_close_days: String(days) }
+          })
+        }
+      );
+      setConfig({
+        ...config,
+        settings: {
+          ...config.settings,
+          deal_idle_close_days: days
+        }
+      });
+      setIdleCloseDraft(null);
+      toast.success(`Unpaid deals now close after ${days} idle days.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update the idle-close setting.");
+    } finally {
+      setIdleCloseSaving(false);
     }
   }
 
@@ -610,6 +652,9 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
   };
   const mediaRecommendationsEnabled = config.settings.ai_media_recommendations_enabled ?? false;
   const mediaMaxImagesCeiling = Number(config.settings.catalog_ai_max_images_ceiling ?? 5);
+  const idleCloseSaved = config.settings.deal_idle_close_days ?? IDLE_CLOSE_DAYS_DEFAULT;
+  const idleCloseValue = idleCloseDraft ?? String(idleCloseSaved);
+  const idleCloseDirty = idleCloseDraft !== null && idleCloseDraft.trim() !== String(idleCloseSaved);
   const customFeatureKeys = enabledFeatures.filter(f => !MANAGED_FEATURE_KEYS.has(f));
 
   return (
@@ -940,6 +985,41 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Deal idle-close window */}
+      <div>
+        <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
+          <Clock size={16} className="text-ink-muted" />
+          Unpaid Deals
+        </h3>
+        <div className="flex items-end gap-3 rounded-card border border-border bg-white p-4 shadow-sm">
+          <label className="block min-w-0 flex-1">
+            <span className="mb-1.5 block text-xs font-medium text-ink-muted">Close unpaid deals after (days idle)</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={IDLE_CLOSE_DAYS_MIN}
+              max={IDLE_CLOSE_DAYS_MAX}
+              step={1}
+              value={idleCloseValue}
+              onChange={(e) => setIdleCloseDraft(e.target.value)}
+              disabled={idleCloseSaving}
+              className="w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60"
+            />
+            <span className="mt-1 block text-[11px] leading-relaxed text-ink-muted">
+              2–90 days. A lead message or real progress resets the clock.
+            </span>
+          </label>
+          <button
+            type="button"
+            onClick={saveIdleCloseDays}
+            disabled={idleCloseSaving || !idleCloseDirty}
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:text-ink-muted"
+          >
+            {idleCloseSaving ? <Loader2 size={16} className="animate-spin" /> : "Save"}
+          </button>
         </div>
       </div>
 

@@ -115,6 +115,33 @@ async def create_payment_link(
     }
 
 
+async def cancel_payment_link(plink_id: str, tenant_id: str) -> bool:
+    """Best-effort cancel of a Razorpay Payment Link so a replaced link can't be paid.
+
+    Never raises: True only when Razorpay confirmed the cancel. Razorpay refuses to cancel a
+    link that is already paid (or expired/cancelled); that comes back False too, and the
+    paid webhook is what decides the outcome -- callers must treat False as "carry on",
+    never as a reason to undo the replacement link."""
+    if not plink_id:
+        return False
+    if not tenant_id:
+        # Required, and never blank: a missing tenant would resolve to the default tenant's keys.
+        logger.warning(f"Razorpay cancel of {plink_id} skipped: no tenant_id")
+        return False
+    try:
+        key_id = _get_key_id(tenant_id)
+        key_secret = _get_key_secret(tenant_id)
+        async with httpx.AsyncClient(auth=(key_id, key_secret), timeout=15.0) as client:
+            resp = await client.post(f"{_RAZORPAY_BASE}/payment_links/{plink_id}/cancel")
+    except Exception as e:
+        logger.warning(f"Razorpay cancel of {plink_id} failed: {type(e).__name__}: {e}")
+        return False
+    if not resp.is_success:
+        logger.warning(f"Razorpay cancel of {plink_id} refused: {resp.status_code} (likely already paid or closed)")
+        return False
+    return True
+
+
 def verify_webhook_signature(raw_body: bytes, received_signature: str, tenant_id: str | None = None) -> bool:
     """Verify Razorpay webhook payload using HMAC-SHA256.
 

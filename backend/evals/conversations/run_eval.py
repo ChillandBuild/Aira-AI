@@ -144,6 +144,18 @@ def _install_patches(stack: ExitStack, sim: Sim, intake_config: dict) -> None:
     async def gather(db, lead_id, tenant_id, message):
         return [], ""
 
+    async def cancel_open_session(db, session, *, idle_before=None):
+        """close_deal / new_booking: close the simulated session (no Razorpay, no DB)."""
+        row = sim.sessions.get(session["id"])
+        if not row or row["status"] != session["status"]:
+            return False
+        row["status"] = "cancelled"
+        sim.events.append({"type": "deal_closed", "session_id": row["id"]})
+        return True
+
+    async def cancel_session_link(db, session, *, keep_plink_id=None):
+        return False
+
     targets = {
         (intake, "get_intake_config"): lambda tenant_id, db=None: intake_config,
         (intake, "_get_active_session"): lambda lead_id, tenant_id, db: sim.active_session(),
@@ -159,6 +171,8 @@ def _install_patches(stack: ExitStack, sim: Sim, intake_config: dict) -> None:
         (intake, "_send_buttons_and_log"): send_buttons,
         (intake, "_send_list_and_log"): send_list,
         (intake, "create_payment_link"): payment_link,
+        (intake, "cancel_open_session"): cancel_open_session,
+        (intake, "cancel_session_link"): cancel_session_link,
         (intake, "resolve_language_mode"): lambda lead_id, tenant_id, db: LANGUAGE_MODE,
         (intake, "gather_context"): gather,
         (intake, "collector_identity"): lambda db, lead_id, tenant_id, message: "",

@@ -4,6 +4,7 @@ it back, prices come from the catalog, the AI keeps one open quote per lead,
 and the intake form mirrors onto one deal per session."""
 import itertools
 import uuid
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -251,7 +252,194 @@ def test_cancelled_intake_session_marks_its_deal_lost(db):
     deals.sync_intake_session(session, db=db)
     deals.sync_intake_session({**session, "status": "cancelled"}, db=db)
     assert db.tables["deals"][0]["stage"] == "lost"
+    assert db.tables["deals"][0]["lost_reason"] == "Link expired or cancelled"
+
+
+def test_cancelled_intake_session_carries_the_callers_lost_reason(db):
+    session = {"id": "s-3", "tenant_id": TENANT, "lead_id": "lead-1", "status": "awaiting_payment",
+               "package_name": "Horoscope", "package_amount_paise": 150000}
+    deals.sync_intake_session(session, db=db)
+    deals.sync_intake_session({**session, "status": "cancelled"}, db=db, lost_reason="Customer declined")
+    assert db.tables["deals"][0]["lost_reason"] == "Customer declined"
 
 
 def test_sync_never_raises_on_bad_input():
     deals.sync_intake_session({"status": "paid"}, db=FakeDb())
+
+
+# ---------------------------------------------------------------- R2: one live link per deal
+
+def _in(**delta) -> str:
+    return (datetime.now(timezone.utc) + timedelta(**delta)).isoformat()
+
+
+def _open_deal(db, **over) -> dict:
+    deal = {
+        "id": "d-1", "tenant_id": TENANT, "lead_id": "lead-1", "deal_number": 7, "stage": "awaiting_payment",
+        "source": "manual", "total_paise": 129900, "payment_link": "https://rzp.io/old",
+        "razorpay_payment_link_id": "plink_old", "link_expires_at": _in(hours=10), **over,
+    }
+    db.tables.setdefault("deals", []).append(deal)
+    db.tables.setdefault("deal_items", []).append(
+        {"deal_id": "d-1", "tenant_id": TENANT, "name": "Earbuds", "qty": 1, "line_total_paise": 129900})
+    return deal
+
+
+class _Razorpay:
+    """Fake create/cancel pair patched over the payment_razorpay module."""
+
+    def __init__(self, cancel_ok=True):
+        self.created: list[dict] = []
+        self.cancelled: list[tuple] = []
+        self.events: list[str] = []
+        self.cancel_ok = cancel_ok
+        self.expiry = _in(hours=24, minutes=-7)  # deliberately not now+24h
+
+    async def create(self, **kw):
+        self.created.append(kw)
+        self.events.append("create")
+        return {"payment_link_url": f"https://rzp.io/new{len(self.created)}",
+                "razorpay_payment_link_id": f"plink_new{len(self.created)}",
+                "payment_link_expires_at": self.expiry}
+
+    async def cancel(self, plink_id, tenant_id=None):
+        self.cancelled.append((plink_id, tenant_id))
+        self.events.append("cancel")
+        return self.cancel_ok
+
+    def install(self):
+        return (patch("app.services.payment_razorpay.create_payment_link", self.create),
+                patch("app.services.payment_razorpay.cancel_payment_link", self.cancel),
+                patch("app.services.ai_reply.send_whatsapp", AsyncMock()))
+
+
+@pytest.fixture
+def rzp():
+    fake = _Razorpay()
+    patches = fake.install()
+    for p in patches:
+        p.start()
+    yield fake
+    for p in patches:
+        p.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_live_link_is_resent_not_recreated(db, rzp):
+    _open_deal(db)
+    out = await deals.send_payment_link(TENANT, "d-1", db=db)
+    assert out["payment_link"] == "https://rzp.io/old" and out["message_sent"] is True
+    assert rzp.created == [] and rzp.cancelled == []
+    assert db.tables["deals"][0]["razorpay_payment_link_id"] == "plink_old"
+
+
+@pytest.mark.asyncio
+async def test_an_expired_link_is_replaced_and_the_real_expiry_is_stored(db, rzp):
+    _open_deal(db, link_expires_at=_in(hours=-1))
+    out = await deals.send_payment_link(TENANT, "d-1", db=db)
+    deal = db.tables["deals"][0]
+    assert out["payment_link"] == "https://rzp.io/new1" and deal["payment_link"] == "https://rzp.io/new1"
+    assert deal["razorpay_payment_link_id"] == "plink_new1"
+    assert deal["link_expires_at"] == rzp.expiry
+    assert rzp.cancelled == []  # already dead on Razorpay's side, nothing to cancel
+
+
+@pytest.mark.asyncio
+async def test_a_link_with_no_recorded_expiry_counts_as_dead(db, rzp):
+    _open_deal(db, link_expires_at=None, razorpay_payment_link_id=None)
+    await deals.send_payment_link(TENANT, "d-1", db=db)
+    assert len(rzp.created) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_link_about_to_expire_is_replaced_and_the_old_plink_cancelled_after_storing(db, rzp):
+    _open_deal(db, link_expires_at=_in(seconds=20))
+    real_update = db.table
+
+    def spy_table(name):
+        q = real_update(name)
+        if name == "deals":
+            orig = q.execute
+
+            def execute():
+                if q.op == "update":
+                    rzp.events.append("store")
+                return orig()
+            q.execute = execute
+        return q
+
+    db.table = spy_table
+    await deals.send_payment_link(TENANT, "d-1", db=db)
+    assert rzp.cancelled == [("plink_old", TENANT)]
+    assert rzp.events == ["create", "store", "cancel"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_cancel_still_leaves_the_new_link_in_place(db, rzp):
+    rzp.cancel_ok = False
+    _open_deal(db, link_expires_at=_in(seconds=20))
+    out = await deals.send_payment_link(TENANT, "d-1", db=db)
+    assert out["payment_link"] == "https://rzp.io/new1"
+    assert db.tables["deals"][0]["razorpay_payment_link_id"] == "plink_new1"
+
+
+@pytest.mark.asyncio
+async def test_a_raising_cancel_never_breaks_link_creation(db, rzp):
+    async def boom(*a, **k):
+        raise RuntimeError("network")
+
+    _open_deal(db, link_expires_at=_in(seconds=20))
+    with patch("app.services.payment_razorpay.cancel_payment_link", boom):
+        out = await deals.send_payment_link(TENANT, "d-1", db=db)
+    assert out["payment_link"] == "https://rzp.io/new1"
+
+
+@pytest.mark.asyncio
+async def test_a_regenerated_link_uses_a_new_idempotency_key(db, rzp):
+    _open_deal(db, link_expires_at=_in(hours=-1), razorpay_payment_link_id=None)
+    await deals.send_payment_link(TENANT, "d-1", db=db)
+    db.tables["deals"][0]["link_expires_at"] = _in(hours=-1)
+    await deals.send_payment_link(TENANT, "d-1", db=db)
+    first, second = (c["idempotency_key"] for c in rzp.created)
+    assert first != second and second.endswith(":payment_link") and "d-1" in second
+
+
+def test_intake_sync_stores_the_sessions_real_expiry_and_plink_id(db):
+    session = {
+        "id": "s-x", "tenant_id": TENANT, "lead_id": "lead-1", "status": "awaiting_payment",
+        "package_name": "Horoscope", "package_amount_paise": 4900, "total_amount_paise": 4900, "amount_paise": 4900,
+        "payment_link": "https://rzp.io/s", "razorpay_payment_link_id": "plink_s",
+        "payment_link_expires_at": "2026-10-04T12:32:00+00:00",
+    }
+    deals.sync_intake_session(session, db=db)
+    deal = db.tables["deals"][0]
+    assert deal["link_expires_at"] == "2026-10-04T12:32:00+00:00"
+    assert deal["razorpay_payment_link_id"] == "plink_s"
+
+
+# ---- R3 / D2: an expired link clears the link, the deal stays open -----------------
+
+def test_expire_deal_link_clears_the_link_and_keeps_the_stage():
+    from app.services.deals import expire_deal_link
+    from tests.fake_supabase import FakeSupabase
+
+    db = FakeSupabase()
+    deal = db.add("deals", tenant_id="t1", stage="awaiting_payment", payment_link="https://rzp.io/x",
+                  razorpay_payment_link_id="plink_1", link_expires_at="2026-01-02T00:00:00+00:00")
+    assert expire_deal_link("t1", deal["id"], db=db) is True
+    saved = db.rows("deals")[0]
+    assert saved["stage"] == "awaiting_payment"
+    assert saved["payment_link"] is None and saved["link_expires_at"] is None
+    assert saved["razorpay_payment_link_id"] == "plink_1"
+
+
+def test_expire_deal_link_ignores_other_tenants_and_settled_deals():
+    from app.services.deals import expire_deal_link
+    from tests.fake_supabase import FakeSupabase
+
+    db = FakeSupabase()
+    other = db.add("deals", tenant_id="t2", stage="awaiting_payment", payment_link="https://rzp.io/x")
+    won = db.add("deals", tenant_id="t1", stage="won", payment_link="https://rzp.io/y")
+    assert expire_deal_link("t1", other["id"], db=db) is False
+    assert expire_deal_link("t1", won["id"], db=db) is False
+    assert all(r["payment_link"] for r in db.rows("deals"))

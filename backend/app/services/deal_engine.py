@@ -28,10 +28,16 @@ TOOL_SAVE_DETAILS = "save_details"
 TOOL_SKIP_DETAIL = "skip_detail"
 TOOL_CREATE_PAYMENT_LINK = "create_payment_link"
 TOOL_HAND_TO_HUMAN = "hand_to_human"
+TOOL_CLOSE_DEAL = "close_deal"
 DEAL_TOOL_NAMES = frozenset({
     TOOL_SHOW_OPTIONS, TOOL_SELECT_OFFERING, TOOL_SAVE_DETAILS,
-    TOOL_SKIP_DETAIL, TOOL_CREATE_PAYMENT_LINK, TOOL_HAND_TO_HUMAN,
+    TOOL_SKIP_DETAIL, TOOL_CREATE_PAYMENT_LINK, TOOL_HAND_TO_HUMAN, TOOL_CLOSE_DEAL,
 })
+
+# A lead away at least this long from an open deal is asked "continue or something else?"
+# unless their message already shows clear intent (blueprint D4).
+RETURN_AFTER = timedelta(hours=24)
+IST = timezone(timedelta(hours=5, minutes=30))
 
 # "I paid", "pay pana", "status of my payment", "money deducted". Deliberately narrow:
 # "how do I pay?" and "is it paid or free?" are ordinary buying talk, not a complaint.
@@ -329,6 +335,17 @@ def current_charge(config: dict, session: dict) -> int | None:
     return _intake().charge_paise(prices[1], gst_percent(config)) if prices else None
 
 
+def price_moved(config: dict, session: dict) -> tuple[int, int] | None:
+    """(agreed, now) package + add-ons before GST, when the business changed the price after the
+    customer agreed to it (picked the offering, or got a link at it); None when unchanged or
+    unknown. A rise needs the customer's yes before a link (create_payment_link enforces it)."""
+    prices = current_prices(config, session)
+    agreed = session.get("total_amount_paise")
+    if not prices or not agreed or prices[1] == agreed:
+        return None
+    return agreed, prices[1]
+
+
 def parse_time(value) -> datetime | None:
     if isinstance(value, str):
         try:
@@ -351,12 +368,45 @@ def link_is_live(session: dict, current_total: int | None, now: datetime | None 
     return expires_at is not None and expires_at - (now or datetime.now(timezone.utc)) > LINK_EXPIRY_MARGIN
 
 
-def _payment_line(session: dict, link_live: bool = False) -> str:
+def _ist_text(moment: datetime) -> str:
+    """'4 Oct, 6:02 PM IST': the time a customer in India reads on their own clock."""
+    local = moment.astimezone(IST)
+    return f"{local.day} {local:%b}, {local.hour % 12 or 12}:{local:%M} {'AM' if local.hour < 12 else 'PM'} IST"
+
+
+def away_text(last_seen_at, now: datetime | None = None) -> str | None:
+    """'4 days ago' / '5 hours ago' / 'just now'; None when the time is unknown."""
+    seen = parse_time(last_seen_at)
+    if seen is None:
+        return None
+    seconds = max(((now or datetime.now(timezone.utc)) - seen).total_seconds(), 0)
+    if seconds < 300:
+        return "just now"
+    if seconds < 3600:
+        return f"{int(seconds // 60)} minutes ago"
+    if seconds < 86400:
+        hours = int(seconds // 3600)
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days = int(seconds // 86400)
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def had_link(session: dict) -> bool:
+    """A link was made for this deal at some point (cleared on expiry, but its id is kept)."""
+    return bool(session.get("payment_link") or session.get("razorpay_payment_link_id"))
+
+
+def _payment_line(session: dict, link_live: bool = False, now: datetime | None = None) -> str:
     amount = session.get("amount_paise") or session.get("total_amount_paise") or session.get("package_amount_paise")
     if session.get("status") == PAID_STATUS:
         return "PAID"
     if link_live:
-        return f"link sent ({_rupees(amount)}), not paid yet"
+        expires = parse_time(session.get("payment_link_expires_at"))
+        return f"link sent ({_rupees(amount)}), not paid yet" + (f", valid till {_ist_text(expires)}" if expires else "")
+    if session.get("status") == AWAITING_PAYMENT_STATUS and had_link(session):
+        expired = parse_time(session.get("payment_link_expires_at"))
+        when = f" on {_ist_text(expired)}" if expired and expired <= (now or datetime.now(timezone.utc)) else ""
+        return f"the last link expired{when} (or is out of date); a new one will be made if they continue"
     return "not sent"
 
 
@@ -369,13 +419,15 @@ def _next_step(session: dict, missing: list[str], labels: dict, link_live: bool 
                 "the same link; otherwise just answer them.")
     if missing:
         return f"ask for {labels.get(missing[0], missing[0])} (only after answering anything they asked)."
-    if status == AWAITING_PAYMENT_STATUS and session.get("payment_link"):
+    if status == AWAITING_PAYMENT_STATUS and had_link(session):
         return ("send the payment link now by calling create_payment_link (the old link is expired or "
                 "out of date; a fresh one will be made).")
     return "send the payment link now by calling create_payment_link."
 
 
-def deal_state_block(config: dict, session: dict | None) -> str:
+def deal_state_block(config: dict, session: dict | None, *, last_seen_at=None, now: datetime | None = None) -> str:
+    """last_seen_at: when the customer last wrote or moved this deal on, read BEFORE this
+    message counted (None: the line is left out, e.g. in a mid-turn refresh)."""
     header = "DEAL STATE (facts from the system; trust these over the chat history):"
     if not session or not session.get("package_key"):
         return (
@@ -388,7 +440,7 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     prices = current_prices(config, session)
     total = prices[1] if prices else session.get("total_amount_paise") or session.get("package_amount_paise")
     charge = current_charge(config, session)
-    link_live = link_is_live(session, charge)
+    link_live = link_is_live(session, charge, now)
     have = "; ".join(f"{k} = {v}" for k, v in collected.items() if v) or "none yet"
     missing = missing_details(fields, collected, skipped)
     labels = {f["key"]: f["label"] for f in fields}
@@ -396,21 +448,49 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     lines = [
         header,
         f"- Offering: {session.get('package_name')} — {_rupees(total)}",
+    ]
+    away = away_text(last_seen_at, now)
+    if away:
+        lines.append(f"- Last message from them: {away}")
+    lines += [
         f"- Details collected: {have}",
         f"- Details still needed: {needed}",
     ]
     if skipped:
         lines.append(f"- Details the customer could not give: {', '.join(skipped)}")
-    lines.append(f"- Payment: {_payment_line(session, link_live)}")
+    lines.append(f"- Payment: {_payment_line(session, link_live, now)}")
+    moved = price_moved(config, session) if session.get("status") != PAID_STATUS else None
+    if moved and moved[1] > moved[0]:
+        lines.append(
+            f"- Price changed: they agreed to {_rupees(moved[0])}, it is now {_rupees(moved[1])}. Tell them "
+            "the new price and get a clear yes before any link; then call create_payment_link with "
+            "customer_agreed_new_price true."
+        )
+    elif moved:
+        lines.append(
+            f"- Price changed: it was {_rupees(moved[0])}, it is now {_rupees(moved[1])} (cheaper). "
+            "Mention the lower price when you send the link."
+        )
     if charge and gst_percent(config):
         lines.append(f"- Payment total with {gst_percent(config):g}% GST: {_rupees(charge)}")
-    if prices is None and session.get("status") != PAID_STATUS:
-        next_step = ("this offering is not available or not priced any more. Do not send a payment "
-                     "link; tell them and help them choose something else.")
-    else:
-        next_step = _next_step(session, missing, labels, link_live)
+    next_step = _session_next_step(config, session, now)
+    if is_returning(session, last_seen_at, now):
+        next_step = ("the customer has been away a long time, so the note at the end of this prompt "
+                     "decides what to say first.")
     lines.append(f"- Next step: {next_step}")
     return "\n".join(lines)
+
+
+def _session_next_step(config: dict, session: dict, now: datetime | None = None) -> str:
+    """What to do next for an open booking, from the system's facts (no away-time logic)."""
+    fields = config.get("fields") or []
+    labels = {f["key"]: f["label"] for f in fields}
+    missing = missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
+    if current_prices(config, session) is None and session.get("status") != PAID_STATUS:
+        return ("this offering is not available or not priced any more. Do not send a payment "
+                "link; tell them and help them choose something else.")
+    link_live = link_is_live(session, current_charge(config, session), now)
+    return _next_step(session, missing, labels, link_live)
 
 
 def _rules_block(config: dict, tapped_key: str | None) -> str:
@@ -422,9 +502,12 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "who each suits). Do not send them to an app or website to see prices or to buy these. If "
         "your knowledge says prices or offers are shown in an app, that is a different channel; for "
         "anything in OFFERINGS the price is the one here, and there is no discount unless OFFERINGS shows one.",
-        "If DEAL STATE shows a choice already in progress and the customer comes back (a greeting, "
-        "'hi', a new day), welcome them back in a few words and continue from exactly where it "
-        "stopped: ask for the next missing detail, or offer the link. Do not start over.",
+        "If DEAL STATE shows a choice already in progress and the customer comes back within a day or "
+        "so (a greeting, 'hi'), welcome them back in a few words and continue from exactly where it "
+        "stopped: ask for the next missing detail, or offer the link. Do not start over. "
+        "But when DEAL STATE says they have been away a long time, this rule does not apply: the note "
+        "after these rules decides your whole reply, and a bare greeting or acknowledgement gets only "
+        "its question, never a detail request or a link.",
         "Whenever your message lays out two or more offerings for them to pick from, call "
         "show_options in that same turn so they can tap one; the system adds the buttons under "
         "your words. Never "
@@ -440,7 +523,11 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "they give several at once, and call save_details as soon as you have any. If they cannot "
         "or will not answer a detail after you asked, call skip_detail for it.",
         "When DEAL STATE shows nothing is still needed, call create_payment_link in that same "
-        "turn. The system attaches the real link; you write only a short lead-in.",
+        "turn. The system attaches the real link; you write only a short lead-in. The same goes "
+        "when they ask for the link, say to go ahead or continue, or say a link will not open or "
+        "has expired: call create_payment_link (a fresh link is made when the old one is dead or "
+        "out of date), do not hand them to a person for that, and never say a link is coming "
+        "without calling it.",
         "Never write a payment link, a URL you were not given, or a price that is not in OFFERINGS. "
         "Your knowledge base may still mention older prices or packages; when it disagrees with "
         "OFFERINGS, OFFERINGS is right and the older figure must never be quoted. "
@@ -467,7 +554,20 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
         "never claim a time is free or held.",
         "While a booking is open or after they have paid, show products or photos only if the "
         "customer asks about a product; never push one on your own.",
-        "If they clearly say no or ask you to stop, stop selling and close politely in one line.",
+        "If they clearly say no or ask you to stop, stop selling and close politely in one line. "
+        "When the no is an explicit decline of the booking in DEAL STATE ('venam', 'not interested', "
+        "'cancel it'), also call close_deal. 'Later', 'will think', 'yosichu solren', a price complaint "
+        "or silence are not declines: leave the booking open and answer.",
+        "A second, separate booking (another question, one for another person, or a different offering "
+        "from the one DEAL STATE shows) while DEAL STATE already shows a booking: call select_offering "
+        "with new_booking true, never just re-point the old one; an unpaid old booking is closed for "
+        "them, a paid one stays paid. A customer who already paid and wants another booking gets one "
+        "the same way, straight away. "
+        "Their earlier details (in DEAL STATE, or in a PREVIOUS BOOKING block): show them in "
+        "ONE message and ask them to confirm or correct them, and save only what they confirm or "
+        "correct. Right after select_offering with new_booking true, that message is your reply: do "
+        "not ask for those details afresh and do not send a link yet. Never reuse earlier details "
+        "silently, the booking may be for someone else.",
         f"Sound like one real person on WhatsApp: short, warm, use their name once known, "
         f"no bot phrases like 'please select an option'. This is a {noun}, not a form.",
     ]
@@ -479,35 +579,75 @@ def _rules_block(config: dict, tapped_key: str | None) -> str:
     return text
 
 
-def _resume_note(config: dict, session: dict | None) -> str:
-    """For a bare greeting while a deal is open: weaker models answer 'hi' with a stock
-    welcome and forget the half-finished booking, so say exactly what to do, last."""
-    if not session or not session.get("package_key") or session.get("status") == PAID_STATUS:
-        return ""
-    fields = config.get("fields") or []
-    missing = missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
-    labels = {f["key"]: f["label"] for f in fields}
-    if link_is_live(session, current_charge(config, session)):
-        step = f"gently mention their {session.get('package_name')} payment link is ready whenever they are."
-    elif missing:
-        step = f"ask for their {labels.get(missing[0], missing[0])}."
-    else:
-        step = "offer to send the payment link for " + str(session.get("package_name")) + "."
+def is_open_deal(session: dict | None) -> bool:
+    """A booking with an offering chosen that is not paid or closed."""
+    return bool(session and session.get("package_key") and session.get("status") in OPEN_DEAL_STATUSES)
+
+
+OPEN_DEAL_STATUSES = frozenset({
+    "awaiting_package_choice", "awaiting_addon_choice", COLLECTING_STATUS, CONFIRM_STATUS, AWAITING_PAYMENT_STATUS,
+})
+
+
+def is_returning(session: dict | None, last_seen_at, now: datetime | None = None) -> bool:
+    """D4: an open deal and the customer away for a day or more. Only the time and the deal
+    are checked here; whether their message already shows intent is the model's judgement."""
+    seen = parse_time(last_seen_at)
+    return is_open_deal(session) and seen is not None and (now or datetime.now(timezone.utc)) - seen >= RETURN_AFTER
+
+
+def _return_note(config: dict, session: dict, last_seen_at, now: datetime | None) -> str:
+    prices = current_prices(config, session)
+    total = prices[1] if prices else session.get("total_amount_paise") or session.get("package_amount_paise")
+    offering = f"{session.get('package_name')} ({_rupees(total)})"
     return (
-        f"\n\nTHE CUSTOMER IS BACK after a pause, mid-way through booking {session.get('package_name')}. "
-        f"Do not reply with a generic greeting: welcome them back in one short line and, in the same "
-        f"message, {step}"
+        f"\n\nTHE CUSTOMER IS BACK after {away_text(last_seen_at, now).replace(' ago', '')} away, with "
+        f"a booking still open for {offering}. Decide first, by the meaning of their latest message in "
+        "whatever language they wrote:\n"
+        "A. It shows clear intent: they answer a question, give a detail, pick or name an offering, "
+        "ask for the payment link, ask about the price or the service, or decline. Act on it as usual "
+        f"(the usual next step: {_session_next_step(config, session, now)}) and do not ask the question in B.\n"
+        "B. It does not: a greeting, an acknowledgement, a thank-you, a stray character or an emoji, "
+        "or anything you are unsure about. After this long a silence such a message is not an answer "
+        "to anything you asked earlier and not a yes to sending the link. Your whole reply is then ONE "
+        f"short question, in their language, offering both choices: continue with {offering}, or "
+        "something else? In that reply do not ask for any detail, do not mention the payment or the "
+        "link, do not list the offerings, and call no tool."
     )
 
 
-def deal_prompt(config: dict, session: dict | None, *, tapped_key: str | None = None, returning: bool = False) -> str:
+def previous_details_block(config: dict, previous: dict | None) -> str:
+    """The details of their earlier, closed booking, offered for confirmation (D6). Never
+    reused silently: a repeat customer may be booking for someone else."""
+    collected = {k: v for k, v in ((previous or {}).get("collected_data") or {}).items() if v}
+    if not collected:
+        return ""
+    labels = {f["key"]: f.get("label") or f["key"] for f in config.get("fields") or []}
+    lines = "; ".join(f"{labels.get(k, k)} = {v}" for k, v in collected.items())
+    return (
+        f"\n\nPREVIOUS BOOKING (their earlier {(previous or {}).get('package_name') or 'booking'}, now "
+        f"closed): {lines}.\nIf they want another booking of any kind (another question, or a new "
+        "consultation), your very next message shows these in ONE message and asks them to confirm or "
+        "correct them (it may be for someone else); you may ask which offering in the same message. "
+        "Do not ask for these details afresh. Save details only after they confirm or correct. "
+        "Never reuse them silently."
+    )
+
+
+def deal_prompt(
+    config: dict, session: dict | None, *, tapped_key: str | None = None, last_seen_at=None,
+    previous_details: dict | None = None, now: datetime | None = None,
+) -> str:
     body = "\n\n" + "\n\n".join([
         offerings_block(config),
         required_details_block(config.get("fields") or []),
-        deal_state_block(config, session),
+        deal_state_block(config, session, last_seen_at=last_seen_at, now=now),
         _rules_block(config, tapped_key),
     ]) + "\n"
-    return body + (_resume_note(config, session) if returning else "")
+    body += previous_details_block(config, previous_details)
+    if is_returning(session, last_seen_at, now):
+        body += _return_note(config, session, last_seen_at, now)
+    return body
 
 
 def handover_tools() -> list[dict]:
@@ -555,6 +695,13 @@ def _all_tools(config: dict) -> list[dict]:
                 "key": {"type": "string", "enum": keys},
                 "addon_keys": {"type": "array", "items": {"type": "string"},
                                "description": "Chosen add-on keys. Empty list if none. Required when the offering has add-ons."},
+                "new_booking": {"type": "boolean",
+                                "description": "true when DEAL STATE already shows a booking in progress and the customer "
+                                "wants a second, separate booking (another question, or for another person) or "
+                                "picks a different offering from the one shown, or DEAL STATE shows a PAID booking "
+                                "and they want another: an unpaid earlier booking is closed, a paid one stays paid, "
+                                "and a new one starts. Omit when DEAL STATE shows no booking, or the offering is the "
+                                "same one (only its add-ons change)."},
             },
             ["key"],
         ),
@@ -578,7 +725,23 @@ def _all_tools(config: dict) -> list[dict]:
             TOOL_CREATE_PAYMENT_LINK,
             "Create the payment link for the chosen offering. Takes no amount: the amount is the "
             "chosen offering's price. Refused until every required detail is saved or skipped.",
-            {},
+            {
+                "customer_agreed_new_price": {
+                    "type": "boolean",
+                    "description": "true only when DEAL STATE says the price went up and the customer "
+                    "has said yes to the new price in this chat. Omit otherwise.",
+                },
+            },
+        ),
+        _tool(
+            TOOL_CLOSE_DEAL,
+            "Close the customer's open booking. Call it ONLY when they have EXPLICITLY declined it: "
+            "'venam', 'not interested', 'cancel it', 'I don't want it'. These are NOT declines, so "
+            "do not close: 'later', 'will think', 'yosichu solren', 'let me ask my family', a question "
+            "about the price, a complaint that it is costly or a request for a discount (answer it "
+            "instead), or silence. If you are not sure it is an explicit decline, do not call "
+            "it: the booking stays open. Not for a paid booking.",
+            {"reason": {"type": "string", "description": "Their words, briefly."}},
         ),
         _tool(
             TOOL_HAND_TO_HUMAN,

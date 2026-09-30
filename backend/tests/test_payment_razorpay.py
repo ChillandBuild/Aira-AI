@@ -87,3 +87,48 @@ async def test_create_payment_link_raises_on_failed_response():
                 customer_name="Priya", customer_phone="+919876543210",
                 description="x", tenant_id="t-1",
             )
+
+
+def _fake_client(resp=None, error=None):
+    client = AsyncMock()
+    if error:
+        client.post.side_effect = error
+    else:
+        client.post.return_value = resp
+    client.__aenter__.return_value = client
+    client.__aexit__.return_value = False
+    return client
+
+
+@pytest.mark.asyncio
+async def test_cancel_payment_link_posts_to_the_cancel_endpoint_with_tenant_credentials():
+    client = _fake_client(MagicMock(is_success=True))
+    with patch.object(pr, "get_setting", side_effect=["key_id", "key_secret"]) as get_setting, \
+         patch("httpx.AsyncClient", return_value=client):
+        assert await pr.cancel_payment_link("plink_old", "t-1") is True
+    assert client.post.call_args.args[0].endswith("/payment_links/plink_old/cancel")
+    assert [c.kwargs for c in get_setting.call_args_list] == [{"tenant_id": "t-1"}, {"tenant_id": "t-1"}]
+
+
+@pytest.mark.asyncio
+async def test_cancel_payment_link_returns_false_when_razorpay_refuses_an_already_paid_link():
+    resp = MagicMock(is_success=False, status_code=400, text="cannot cancel a paid link")
+    with patch.object(pr, "get_setting", side_effect=["key_id", "key_secret"]), \
+         patch("httpx.AsyncClient", return_value=_fake_client(resp)):
+        assert await pr.cancel_payment_link("plink_paid", "t-1") is False
+
+
+@pytest.mark.asyncio
+async def test_cancel_payment_link_never_raises_on_network_or_config_errors():
+    with patch.object(pr, "get_setting", side_effect=["key_id", "key_secret"]), \
+         patch("httpx.AsyncClient", return_value=_fake_client(error=RuntimeError("timeout"))):
+        assert await pr.cancel_payment_link("plink_x", "t-1") is False
+    with patch.object(pr, "get_setting", return_value=None):
+        assert await pr.cancel_payment_link("plink_x", "t-1") is False
+
+
+@pytest.mark.asyncio
+async def test_cancel_payment_link_without_an_id_does_nothing():
+    with patch("httpx.AsyncClient") as client:
+        assert await pr.cancel_payment_link("", "t-1") is False
+    client.assert_not_called()

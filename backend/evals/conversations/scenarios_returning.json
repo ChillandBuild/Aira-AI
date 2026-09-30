@@ -1,0 +1,6861 @@
+{
+  "_readme": "Returning-lead eval for release R3 (blueprint D4/D5/D6). Scenarios use tokens ({pkg.cheap}, {d.name}, {price.cheap.old} ...) expanded per live tenant by evals/conversations/returning.py; configs are the three live tenants' real offerings, required details, description and reply-language mode (read from the live DB, read-only, 2026-09-30; description trimmed of phone numbers/links). Run: run_aira --files scenarios_returning.json --config <name>. Gate: python -m evals.conversations.returning results...",
+  "configs": {
+    "astro_tamil": {
+      "source_tenant": "eba3ed94-277c-430f-a992-19bbe855e2f4",
+      "kind": "service",
+      "service_noun": "Consultation",
+      "gst_percent": 18,
+      "description": "ABOUT US\nWe are a privacy-protected platform featuring experienced Tamil astrologers. We offer personalized horoscope analysis, daily/monthly/yearly predictions, daily panchangam, temple information, dosham-pariharam guidance, digital horoscopes, a digital calendar, and a matrimony platform.\n\nHOW CUSTOMERS BUY\nConsultations can be booked and paid right here in this chat. Each consultation is paid separately. There is no office to visit. Price summary: Options and prices are shown in this chat.\n\nWHO WE TALK TO\nUsers seeking guidance on future, marriage, love, career, business, finance, health, or other horoscope-related concerns.\n\nHOW TO SOUND\nTone: 70% Helpful Friend, 20% Expert Guidance, 10% Conversion. Be precise, direct, and short (1-3 sentences). Use one emoji per message. Approved spellings: naal-ku, kelvi, unga, sollunga, kelunga, venum, therinjukonga, help/assistance, avanga, neenga, avvappo, vaangalam/kidaikkum. Greetings: 'Vanakkam! 😊 Sollunga, ungaluku enna thagaval venum?', 'Vanakkam! 😊', 'Sollunga. 😊', 'Enna thagaval venum? 😊'. Closings: 'Nandri! 😊', 'Sari, meendum sandhippom. 😊', 'Magizhchi! 😊'.\n\nYOUR JOB IN EVERY CONVERSATION\nYou are a caring assistant, not an astrologer. For prediction questions, state once that an astrologer provides analysis via a booked consultation. Respond to the latest message first, then provide guidance. Acknowledge personal worries in the user's words. If asked for pricing, share available options. Privacy: Personal contact details are not shared with astrologers; history is not saved. Limit consultation suggestions to once every 8-10 messages. If birth details are shared, acknowledge them without asking for more or performing analysis.\n\nWHAT YOU MUST NEVER DO\nNever guarantee outcomes, predict exact dates, or claim certainty. Never pretend to have personally analyzed a horoscope. Do not ask for birth details outside a booking. Do not send voice replies or force consultations. Never ask users to choose a language.\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nIdha naan team kitta solliten, avanga inga reply pannuvanga. 😊",
+      "language_mode": "tanglish",
+      "facts": [],
+      "allowed_hosts": [
+        "astrotamil.co.in"
+      ],
+      "packages": [
+        {
+          "key": "one_question",
+          "name": "One Question",
+          "amount_paise": 100,
+          "description": "You will receive an accurate predictions for the simple Question",
+          "active": true,
+          "button_label": "1 Rs"
+        },
+        {
+          "key": "detailed_question",
+          "name": "Detailed Question",
+          "amount_paise": 9900,
+          "description": "You will receive an DETAILED predictions for your life situation.",
+          "active": true,
+          "button_label": "99Rs"
+        },
+        {
+          "key": "marriage_compatability",
+          "name": "Marriage Compatability",
+          "amount_paise": 9900,
+          "description": "Accurate Compatability report",
+          "active": true,
+          "button_label": "Marriage 99Rs"
+        }
+      ],
+      "required_details": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text"
+        },
+        {
+          "key": "date_of_birth",
+          "label": "Date of birth",
+          "type": "text"
+        },
+        {
+          "key": "place_of_birh",
+          "label": "Place of Birh",
+          "type": "text"
+        },
+        {
+          "key": "time_of_birth",
+          "label": "Time of Birth",
+          "type": "text"
+        },
+        {
+          "key": "question",
+          "label": "Question",
+          "type": "text"
+        }
+      ],
+      "roles": {
+        "cheap": "one_question",
+        "dear": "detailed_question"
+      },
+      "detail_keys": {
+        "name": "name",
+        "dob": "date_of_birth",
+        "pob": "place_of_birh",
+        "tob": "time_of_birth",
+        "question": "question"
+      }
+    },
+    "astro_tamil_co": {
+      "source_tenant": "9dfe3f53-a4f8-4c0e-99b5-853b42556ee8",
+      "kind": "service",
+      "service_noun": "Consultation",
+      "description": "ABOUT US\nWe are a privacy-protected platform connecting you with experienced Tamil astrologers for personalised horoscope analysis.\n\nHOW CUSTOMERS BUY\nYou can book a consultation through our app. Latest pricing and offers app-la display aaguradhu final-ah consider pannunga. There is no office to visit: everything happens through the app. If users ask about app download, provide the link. Each consultation is paid separately; the price is shown in the app before paying.\n\nWHO WE TALK TO\nWe talk to users seeking astrological guidance regarding life, marriage, love, career, business, finance, health, or children.\n\nHOW TO SOUND\nMaintain a tone that is 70% helpful friend, 20% expert guidance, and 10% conversion. Sound like a real person. Be concise, direct, and action-oriented. Use at most one emoji per message. Use natural conversational Tanglish. Approved spellings: naal-ku, kelvi, unga, sollunga, kelunga, venum, therinjukonga, help, avanga, neenga, avvappo, vaangalam / kidaikkum.\n\nYOUR JOB IN EVERY CONVERSATION\nFirst greeting: Vanakkam! 😊 Sollunga, ungaluku enna thagaval venum? Subsequent greetings: Vanakkam! 😊 or Sollunga. 😊 or Enna thagaval venum? 😊. Acknowledge personal worries in the user's own words. Never claim to be an astrologer or personally analyse horoscopes. Never guarantee outcomes. Limit consultation suggestions to once every 8-10 messages unless the user asks. Before every reply, respond to the user's latest message first, then provide guidance and consultation CTA naturally.\n\nWHAT YOU MUST NEVER DO\nNever guarantee outcomes or present astrology as a medical diagnosis. Do not send voice replies. Never ask multiple questions in one message. Never predict exact dates or timelines. Never claim actions that have not happened. Never assume user intention, concern, or emotions. Do not add unnecessary introductions or motivational sentences. Never copy the same consultation template; adapt to the conversation context.\n\nWHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nIndha issue ku support team assistance useful ah irukkalam. App la irukkura support option moolama contact pannalam.",
+      "language_mode": "tanglish",
+      "facts": [],
+      "allowed_hosts": [
+        "astrotamil.co.in"
+      ],
+      "packages": [
+        {
+          "key": "one_question",
+          "name": "One Question",
+          "amount_paise": 100,
+          "description": "For a basic question you will receive 1-2 minutes astrologer voice guidance",
+          "active": true,
+          "button_label": "Ask One Question"
+        },
+        {
+          "key": "detailed_consultation",
+          "name": "Detailed Consultation",
+          "amount_paise": 200,
+          "description": "You will receive a very detailed analysis with 4-5 minutes of astrologer voice guidance",
+          "active": true,
+          "button_label": "Ask Detailed One"
+        }
+      ],
+      "required_details": [
+        {
+          "key": "full_name",
+          "label": "Full Name",
+          "type": "text"
+        },
+        {
+          "key": "date_of_birth",
+          "label": "Date of birth",
+          "type": "date"
+        },
+        {
+          "key": "time_of_birth",
+          "label": "Time of Birth",
+          "type": "text"
+        },
+        {
+          "key": "place_of_birth",
+          "label": "Place of Birth",
+          "type": "text"
+        },
+        {
+          "key": "question",
+          "label": "Question",
+          "type": "text"
+        }
+      ],
+      "roles": {
+        "cheap": "one_question",
+        "dear": "detailed_consultation"
+      },
+      "detail_keys": {
+        "name": "full_name",
+        "dob": "date_of_birth",
+        "tob": "time_of_birth",
+        "pob": "place_of_birth",
+        "question": "question"
+      }
+    },
+    "astro_pooja": {
+      "source_tenant": "82c63194-1957-4262-ae7c-a95f05effcb1",
+      "kind": "service",
+      "service_noun": "consultation",
+      "description": "ABOUT US\nAstroTamil Sudharsana Homam booking. Devotees can take part in the Sudharsana Homam from anywhere; a Sankalpam is performed for every booked person.\n\nHOW CUSTOMERS BUY\nBook through the AstroTamil app or here on WhatsApp. Includes Homam participation, an individual Sankalpam for each booked person, and video clippings shared on YouTube within one week after the Pooja.\n\nWHO WE TALK TO\nDevotees who want to take part in the Sudharsana Homam for themselves or their family, wherever they live.\n\nHOW TO SOUND\nRespectful, warm and simple, like a helpful temple-booking assistant. Short replies.\n\nYOUR JOB IN EVERY CONVERSATION\nAnswer questions about the Homam, the price and what is included. When someone wants to book, explain how to book through the app or WhatsApp. There is no cancellation after booking, but booking details can be edited by contacting the AstroTamil team.\n\nWHAT YOU MUST NEVER DO\nNever promise specific results or benefits from the Homam. Never say a booking is confirmed unless it actually is. Never invent the Homam date, time, place, or which member details are required.",
+      "language_mode": "tanglish_escalate_tamil",
+      "facts": [],
+      "allowed_hosts": [
+        "astrotamil.co.in"
+      ],
+      "packages": [
+        {
+          "key": "one_question",
+          "name": "One Question",
+          "amount_paise": 4900,
+          "description": "Answer for your one simple question",
+          "active": true
+        },
+        {
+          "key": "detailed_consultation",
+          "name": "Detailed Consultation",
+          "amount_paise": 9900,
+          "description": "Deeper analysis from the astrologer",
+          "active": true,
+          "button_label": "Detailed"
+        },
+        {
+          "key": "marriage_compatability",
+          "name": "Marriage Compatability",
+          "amount_paise": 9900,
+          "description": "Accurate compatability report",
+          "active": true,
+          "button_label": "Marriage Match"
+        }
+      ],
+      "required_details": [
+        {
+          "key": "name",
+          "label": "Name",
+          "type": "text"
+        },
+        {
+          "key": "gender",
+          "label": "Gender",
+          "type": "text"
+        },
+        {
+          "key": "date_of_birth",
+          "label": "Date of birth",
+          "type": "text"
+        },
+        {
+          "key": "place_of_birth",
+          "label": "Place of Birth",
+          "type": "text"
+        },
+        {
+          "key": "time_of_birth",
+          "label": "Time of Birth",
+          "type": "text"
+        },
+        {
+          "key": "question",
+          "label": "Question",
+          "type": "text"
+        }
+      ],
+      "roles": {
+        "cheap": "one_question",
+        "dear": "detailed_consultation"
+      },
+      "detail_keys": {
+        "name": "name",
+        "gender": "gender",
+        "dob": "date_of_birth",
+        "pob": "place_of_birth",
+        "tob": "time_of_birth",
+        "question": "question"
+      }
+    }
+  },
+  "scenarios": [
+    {
+      "id": "ru-unclear-hi",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "Hi"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-hii",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "Hii"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-hello-sir",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hello sir"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-vanakkam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 5
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "vanakkam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-sir-vanakkam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "Sir vanakkam sir"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-hlo",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 6,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hlo"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-hai",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "hai"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-question-mark",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-ok",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "Ok"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-ok-sir",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 7
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "Ok sir"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-haii",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "haii"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-hi-mam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hi mam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-ok-thanks",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 5
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "ok thanks"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-thanks",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "thanks"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-mm",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "mm"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-sollunga",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "sollunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-tamil-hi",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 9
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "ஹாய்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-tamil-vanakkam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "வணக்கம்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-emoji-hands",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "🙏🏻"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-unclear-emoji-thumb",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "👍"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "After 24h or more away, a greeting or vague message is not intent: Aira asks one short question, in the lead's language, whether to continue the open booking or look at something else. It does not close, send a link, list offerings or repeat details."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-correct-link",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "correct link venum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-share-link",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "adhuku neega link ah share pannalam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-pay-pannalama",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "ipa nan pay pannalama"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-continue-full-expired",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "continue"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-continue-partial",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "continue"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-payment-link-en",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "can you send me the payment link"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-ok-link",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "ok link"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-link-pls",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "link pls"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-consultation-venum",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "consultation venum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-tamil-link",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "லிங்க் அனுப்புங்க"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-payment-link-question",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "payment link?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-give-missing-detail",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 5
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "28-03-1991"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-price-question",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "amount evalo"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-how-much",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "how much"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-cost-enna",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "cost enna varum ?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-send-link-syn",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "send link"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-clear-pay-panren-syn",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "pay panren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "package": "{pkg.cheap}",
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "The message already shows intent, so Aira acts on it without asking 'continue or something else': it sends a live payment link at today's price when asked to pay, answers a price question, or takes the detail given and asks for the next one."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-venam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "venam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-not-interested",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "not interested"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-cancel-pannidunga",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "cancel pannidunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-seri-vendam-bro",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "seri vendam bro"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-vendam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "vendam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-tamil-vendam",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "எனக்கு வேண்டாம்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-please-cancel",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 6,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "please cancel my booking"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-consultation-vendam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "enaku consultation vendam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-nan-vendam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "nan vendam solitanka"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-cancel-it",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "no need sir, cancel it"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-hours-venam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "venam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-decline-hours-cancel",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_hours": 5,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "cancel pannidunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "An explicit decline of the booking: Aira calls close_deal (the booking and any live link are closed) and closes politely in one line, without pushing a link, a menu or another offer."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-later",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "later"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-yosichu-solren",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "yosichu solren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-next-week",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "next week pakalam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-busy-now",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "busy now"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-evlo",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "evlo?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-very-costly",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "very costly sorry"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-cannot-afford",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "adhigam pay pandramathrina enaku mudiyadhu"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-discount",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "discount irukka?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-ask-husband",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "let me ask my husband first"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-naalaikku",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "naalaikku pannikiren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-salary",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 6
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "salary vandhadhum pannuren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-no-time",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "sir romba neram pesa mudiyala"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-tamil-later",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "பிறகு பார்க்கலாம்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-tamil-think",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "யோசிச்சு சொல்றேன்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-refund-option",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "refund option irukka?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-apram",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 7
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "apram pakalam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-no-gpay",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "enkitta gpay illa"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-free-ah",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "free ah"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-hours-later",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "later"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-hours-busy",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_hours": 6
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "busy now"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-notdecline-hours-evlo",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 20
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "evlo?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Not a decline: a delay, an objection, a price or policy question. The booking stays open (close_deal is never called). Aira answers honestly, may ease a price worry with the real price only, and leaves the door open."
+        ]
+      }
+    },
+    {
+      "id": "ru-recent-hi",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 5
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "Hi"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Under 24 hours away, a greeting is answered normally: welcome back in a few words and continue from the deal (ask for the next missing detail). The 'continue or something else' question is not asked."
+        ]
+      }
+    },
+    {
+      "id": "ru-recent-hi-hello",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 12
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "hi hello"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Under 24 hours away, a greeting is answered normally: welcome back in a few words and continue from the deal (ask for the next missing detail). The 'continue or something else' question is not asked."
+        ]
+      }
+    },
+    {
+      "id": "ru-recent-vanakkam",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 20
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "vanakkam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Under 24 hours away, a greeting is answered normally: welcome back in a few words and continue from the deal (ask for the next missing detail). The 'continue or something else' question is not asked."
+        ]
+      }
+    },
+    {
+      "id": "ru-recent-sir",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 8
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "sir"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Under 24 hours away, a greeting is answered normally: welcome back in a few words and continue from the deal (ask for the next missing detail). The 'continue or something else' question is not asked."
+        ]
+      }
+    },
+    {
+      "id": "ru-recent-tamil-hi",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik"
+        },
+        "away_hours": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Unga date of birth sollunga."
+        ]
+      ],
+      "lead_turns": [
+        "ஹாய்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": false,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "Under 24 hours away, a greeting is answered normally: welcome back in a few words and continue from the deal (ask for the next missing detail). The 'continue or something else' question is not asked."
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-en",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "I want the {name.dear} instead"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.dear}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-tanglish",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "{name.dear} ku maathunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.dear}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-tamil",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "எனக்கு {name.dear} வேணும்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.dear}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-live-link",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": {
+          "expires_in_hours": 20
+        }
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "I want to change to {name.dear}"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.dear}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-dear-to-cheap",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.dear}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "{name.cheap} podhum, adhu venum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.cheap}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-switch-expired-link",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 5,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "{name.dear} pannalam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "new_booking": true,
+            "link": false,
+            "package": "{pkg.dear}",
+            "confirm_details": true
+          }
+        ],
+        "behaviour": [
+          "A different offering: the old booking is closed first (new_booking), the earlier details are shown in one message for the lead to confirm or correct, and no link goes out until they do."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-vera-question",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "resolved"
+        },
+        "away_days": 10
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Nandri, unga consultation mudinjadhu. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "vera oru question kekanum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "confirm_details": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A repeat customer wanting a new booking: Aira shows the earlier details in one message and asks them to confirm or correct them (it may be for someone else). It never reuses them silently and sends no link yet."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-consultation-pannanum",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "resolved"
+        },
+        "away_days": 10
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Nandri, unga consultation mudinjadhu. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "consultation pannanum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "confirm_details": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A repeat customer wanting a new booking: Aira shows the earlier details in one message and asks them to confirm or correct them (it may be for someone else). It never reuses them silently and sends no link yet."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-book-again",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "resolved"
+        },
+        "away_days": 10
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Nandri, unga consultation mudinjadhu. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "I want to book again"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "confirm_details": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A repeat customer wanting a new booking: Aira shows the earlier details in one message and asks them to confirm or correct them (it may be for someone else). It never reuses them silently and sends no link yet."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-tamil",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "resolved"
+        },
+        "away_days": 10
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Nandri, unga consultation mudinjadhu. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "இன்னொரு கேள்வி கேட்கணும்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "confirm_details": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A repeat customer wanting a new booking: Aira shows the earlier details in one message and asks them to confirm or correct them (it may be for someone else). It never reuses them silently and sends no link yet."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-ask-one-question",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "resolved"
+        },
+        "away_days": 10
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Nandri, unga consultation mudinjadhu. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "ask one question"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "confirm_details": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A repeat customer wanting a new booking: Aira shows the earlier details in one message and asks them to confirm or correct them (it may be for someone else). It never reuses them silently and sends no link yet."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-repeat-paid-probe",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "previous": {
+          "selected": "{pkg.cheap}",
+          "collected": {
+            "{d.name}": "Karthik",
+            "{d.gender}": "male",
+            "{d.dob}": "14-03-1992",
+            "{d.tob}": "6:30 am",
+            "{d.pob}": "Salem",
+            "{d.question}": "When will I get a job abroad?"
+          },
+          "status": "paid"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "ok"
+        ],
+        [
+          "aira",
+          "Nandri Karthik, payment vandhuduchu. Astrologer answer seekiram varum. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "one more question venum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "no_save": true,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "A paid booking is never closed and details are never saved silently; Aira handles the new ask sensibly."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-check-link",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "check if the link is available now ?"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-this-link-expired",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "this link is expired"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-link-open-agula",
+      "source": "real",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "link open agula"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-pay-pannalam",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "payment pannalam, link anupunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-link-expire-aayiduchu",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "link expire aayiduchu"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-expired-tamil",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 4,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "லிங்க் வேலை செய்யல"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The old link is dead: Aira makes a fresh live link at today's price and never repeats the old URL."
+        ]
+      }
+    },
+    {
+      "id": "ru-pricechange-live-link-send",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": {
+          "expires_in_hours": 20
+        },
+        "stale_amount_paise": "{price.cheap.old}"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "send link"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The price changed while they were away: the link Aira sends is at today's price, not the price the booking was made at, and an old-price link is never resent."
+        ]
+      }
+    },
+    {
+      "id": "ru-pricechange-live-link-pay",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": {
+          "expires_in_hours": 20
+        },
+        "stale_amount_paise": "{price.cheap.old}"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "pay panren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The price changed while they were away: the link Aira sends is at today's price, not the price the booking was made at, and an old-price link is never resent."
+        ]
+      }
+    },
+    {
+      "id": "ru-pricechange-expired-continue",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "link": "expired",
+        "stale_amount_paise": "{price.cheap.old}"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link inge: https://rzp.io/l/dead1234 😊"
+        ]
+      ],
+      "lead_turns": [
+        "continue"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The price changed while they were away: the link Aira sends is at today's price, not the price the booking was made at, and an old-price link is never resent."
+        ]
+      }
+    },
+    {
+      "id": "ru-pricechange-no-link-pay",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2,
+        "stale_amount_paise": "{price.cheap.old}"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "link anupunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": false,
+            "link": true,
+            "package": "{pkg.cheap}"
+          }
+        ],
+        "behaviour": [
+          "The price changed while they were away: the link Aira sends is at today's price, not the price the booking was made at, and an old-price link is never resent."
+        ]
+      }
+    },
+    {
+      "id": "ru-amma-en",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "it's for my amma"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "no_save": true,
+            "confirm_details": null,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "The booking is for another person: Aira asks for her details (or shows the earlier ones and asks to correct them). It sends no link and saves nothing silently."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-amma-tanglish",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "amma-kku dhaan, avangaloda details anupren"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "no_save": true,
+            "confirm_details": null,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "The booking is for another person: Aira asks for her details (or shows the earlier ones and asks to correct them). It sends no link and saves nothing silently."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-amma-tamil",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 2
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "அம்மாவுக்கு தான்"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "link": false,
+            "no_save": true,
+            "confirm_details": null,
+            "new_booking": null
+          }
+        ],
+        "behaviour": [
+          "The booking is for another person: Aira asks for her details (or shows the earlier ones and asks to correct them). It sends no link and saves nothing silently."
+        ],
+        "previous_values": [
+          "Karthik",
+          "14-03-1992"
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-hi-then-continue",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hi",
+        "continue"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false
+          },
+          {
+            "close": false,
+            "ask": false,
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "First a question, then on 'continue' the link at today's price."
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-hi-then-venam",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hello sir",
+        "venam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false
+          },
+          {
+            "close": true
+          }
+        ],
+        "behaviour": [
+          "First a question; the explicit decline that follows closes the booking."
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-hi-then-something-else",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "vanakkam",
+        "vera onnu pakanum"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false
+          },
+          {
+            "close": false,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "'Something else' is not a decline: nothing is closed and no link goes out; Aira helps them choose."
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-later-then-hi",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "later",
+        {
+          "text": "hi",
+          "away_days": 4
+        }
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false
+          },
+          {
+            "close": false,
+            "ask": true,
+            "link": false
+          }
+        ],
+        "behaviour": [
+          "'Later' keeps the deal open; when they come back after days with a greeting Aira asks continue or something else."
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-costly-then-decline",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "very costly sorry",
+        "seri venam"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false
+          },
+          {
+            "close": true
+          }
+        ],
+        "behaviour": [
+          "A price objection keeps the booking open; the later explicit decline closes it."
+        ]
+      }
+    },
+    {
+      "id": "ru-flow-hi-then-link",
+      "source": "syn",
+      "config": "@tenant",
+      "state": {
+        "selected": "{pkg.cheap}",
+        "collected": {
+          "{d.name}": "Karthik",
+          "{d.gender}": "male",
+          "{d.dob}": "14-03-1992",
+          "{d.tob}": "6:30 am",
+          "{d.pob}": "Salem",
+          "{d.question}": "When will I get a job abroad?"
+        },
+        "away_days": 3,
+        "link": "expired"
+      },
+      "prior": [
+        [
+          "lead",
+          "consultation pannanum"
+        ],
+        [
+          "aira",
+          "Sari! Ungaloda name sollunga."
+        ],
+        [
+          "lead",
+          "Karthik"
+        ],
+        [
+          "aira",
+          "Nandri. Date of birth, time, place of birth, unga kelvi sollunga."
+        ],
+        [
+          "lead",
+          "14-03-1992, 6:30 am, Salem. Job abroad kidaikkuma?"
+        ],
+        [
+          "aira",
+          "Nandri Karthik. Payment link anupren, oru nimisham. 😊"
+        ]
+      ],
+      "lead_turns": [
+        "hii",
+        "link anupunga"
+      ],
+      "expect": {
+        "hard": [
+          "returning_close",
+          "returning_link",
+          "returning_question",
+          "returning_new_booking",
+          "returning_confirm_details",
+          "returning_package"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false
+          },
+          {
+            "close": false,
+            "ask": false,
+            "link": true
+          }
+        ],
+        "behaviour": [
+          "First a question, then the link on a clear request."
+        ]
+      }
+    }
+  ]
+}

@@ -23,7 +23,7 @@ import httpx
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent.parent))
 
-from evals.conversations import engine_sim, judge  # noqa: E402
+from evals.conversations import engine_sim, judge, returning, write_guard  # noqa: E402
 from evals.conversations.checks import ALWAYS_CHECKS, FAIL, PASS, SKIP, run_check  # noqa: E402
 
 CONCURRENCY = 3
@@ -45,16 +45,35 @@ def load(files: str) -> tuple[list[dict], dict]:
     return scenarios, configs
 
 
-def _check_config(config: dict) -> dict:
-    """What checks.py needs: packages, catalog prices, and hosts the business may link to."""
+def _check_config(config: dict, scenario: dict | None = None) -> dict:
+    """What checks.py needs: packages, catalog prices, hosts the business may link to, and this
+    scenario's expectations (the returning-lead checks read expect.turns)."""
     return {
+        "expect": (scenario or {}).get("expect") or {},
         "packages": config.get("packages") or [],
         "catalog": config.get("catalog") or [],
         "allowed_hosts": config.get("allowed_hosts") or [],
     }
 
 
+async def _classify_returning_questions(scenario: dict, transcript: list[dict], tenant: str) -> None:
+    """Only where a scenario states whether the continue-or-something-else question is due: code
+    cannot read meaning, so a small classifier reads each such reply (a hard-check input, run even
+    with --no-judge)."""
+    wanted = (scenario.get("expect") or {}).get("turns") or []
+    for i, turn in enumerate(transcript):
+        if i < len(wanted) and wanted[i] and wanted[i].get("ask") is not None:
+            text = "\n".join(r["text"] + (f" [buttons: {' | '.join(r['options'])}]" if r.get("options") else "")
+                             for r in turn["replies"])
+            turn["asks_continue"] = await judge.asks_continue_question(turn["lead"], text, tenant)
+
+
 async def _one(scenario: dict, config: dict, tenant: str, use_judge: bool, gate: asyncio.Semaphore) -> dict:
+    row = await _run_one(scenario, config, tenant, use_judge, gate)
+    return {**row, "config": scenario.get("config_name")}
+
+
+async def _run_one(scenario: dict, config: dict, tenant: str, use_judge: bool, gate: asyncio.Semaphore) -> dict:
     async with gate:
         transcript = None
         for attempt in range(NETWORK_RETRIES + 1):
@@ -66,8 +85,9 @@ async def _one(scenario: dict, config: dict, tenant: str, use_judge: bool, gate:
                     return {"id": scenario["id"], "crash": repr(e), "transcript": [], "checks": [], "judge": None}
             except Exception as e:  # a crash is a finding, not a reason to stop the run
                 return {"id": scenario["id"], "crash": repr(e), "transcript": [], "checks": [], "judge": None}
+        await _classify_returning_questions(scenario, transcript, tenant)
         names = list(dict.fromkeys([*scenario.get("expect", {}).get("hard", []), *ALWAYS_CHECKS]))
-        hard = [run_check(n, transcript, _check_config(config)) for n in names]
+        hard = [run_check(n, transcript, _check_config(config, scenario)) for n in names]
         verdict = await judge.judge_conversation(scenario, transcript, config, tenant) if use_judge else None
         return {
             "id": scenario["id"], "transcript": transcript, "judge": verdict,
@@ -120,17 +140,23 @@ async def main_async(args) -> None:
     scenarios, configs = load(args.files)
     wanted = set(args.only.split(",")) if args.only else None
     picked = [s for s in scenarios if not wanted or s["id"] in wanted]
+    # A templated scenario ("config": "@tenant", see returning.py) runs on the tenant named by --config.
+    picked = [returning.expand(s, configs[args.config]) if s["config"] == "@tenant" else s for s in picked]
+    picked = [{**s, "config": args.config if s["config"] == "@tenant" else s["config"]} for s in picked]
     gate = asyncio.Semaphore(CONCURRENCY)
     with ExitStack() as stack:
         engine_sim.install(stack)
         engine_sim.install_settings(stack)
+        write_guard.install(stack)
         jobs = []
         for run in range(args.repeat):
             for s in picked:
                 scenario = s if args.repeat == 1 else {**s, "id": f"{s['id']}#{run + 1}"}
+                scenario = {**scenario, "config_name": s["config"]}
                 jobs.append(_one(scenario, configs[s["config"]], args.key_tenant, not args.no_judge, gate))
         rows = await asyncio.gather(*jobs)
     report(rows)
+    print(f"Database writes attempted (refused by write_guard): {len(write_guard.blocked)} {write_guard.blocked[:5]}")
     if args.out:
         Path(args.out).write_text(json.dumps(rows, ensure_ascii=False, indent=2))
         print(f"Written to {args.out}")
@@ -140,6 +166,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--key-tenant", required=True)
     parser.add_argument("--files", default=DEFAULT_FILES)
+    parser.add_argument("--config", help='the business a templated ("@tenant") scenario runs against, e.g. astro_tamil_co')
     parser.add_argument("--only")
     parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("--no-judge", action="store_true")

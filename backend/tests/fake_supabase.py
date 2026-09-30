@@ -59,6 +59,32 @@ class _Query:
         self.filters: list = []
         self._order: tuple[str, bool] | None = None
         self._limit: int | None = None
+        self._single = False
+        self._negate = False
+
+    def _add_filter(self, predicate, null_matches_neither: str | None = None):
+        """Append a row predicate, inverted when `.not_` came just before (PostgREST `not.<op>`).
+        `null_matches_neither` names a column for which, like Postgres, a NULL matches neither
+        the positive nor the negated form."""
+        if self._negate:
+            self._negate = False
+            col = null_matches_neither
+            self.filters.append(lambda r, p=predicate: not (col and r.get(col) is None) and not p(r))
+        else:
+            self.filters.append(predicate)
+        return self
+
+    @property
+    def not_(self):
+        self._negate = True
+        return self
+
+    def contains(self, column, values):
+        """Array column contains every one of `values` (PostgREST `cs`)."""
+        wanted = set(values)
+        return self._add_filter(
+            lambda r: r.get(column) is not None and wanted <= set(r.get(column)), null_matches_neither=column,
+        )
 
     def select(self, _columns: str = "*", count: str | None = None):
         self.op = "select"
@@ -77,22 +103,31 @@ class _Query:
         return self
 
     def eq(self, column, value):
-        self.filters.append(lambda r: r.get(column) == value)
-        return self
+        return self._add_filter(lambda r: r.get(column) == value)
 
     def neq(self, column, value):
-        self.filters.append(lambda r: r.get(column) != value)
-        return self
+        return self._add_filter(lambda r: r.get(column) != value)
 
     def is_(self, column, value):
         assert value == "null", "fake only supports is_(col, 'null')"
         self.filters.append(lambda r: r.get(column) is None)
         return self
 
+    def lt(self, column, value):
+        self.filters.append(lambda r: r.get(column) is not None and str(r.get(column)) < str(value))
+        return self
+
+    def lte(self, column, value):
+        self.filters.append(lambda r: r.get(column) is not None and str(r.get(column)) <= str(value))
+        return self
+
+    def maybe_single(self):
+        self._single = True
+        return self
+
     def in_(self, column, values):
         allowed = set(values)
-        self.filters.append(lambda r: r.get(column) in allowed)
-        return self
+        return self._add_filter(lambda r: r.get(column) in allowed)
 
     def or_(self, filter_string: str):
         """Minimal PostgREST `or_` support: "col.op.val,col2.op2.val2", OR'd together.
@@ -111,6 +146,12 @@ class _Query:
                         return True
                 elif op == "eq":
                     if actual is not None and str(actual) == value:
+                        return True
+                elif op == "lte":
+                    if actual is not None and str(actual) <= value:
+                        return True
+                elif op == "lt":
+                    if actual is not None and str(actual) < value:
                         return True
                 else:
                     raise AssertionError(f"fake or_ doesn't support op {op!r}")
@@ -166,4 +207,6 @@ class _Query:
             rows.sort(key=lambda r: (r.get(column) is None, r.get(column) or ""), reverse=desc)
         if self._limit is not None:
             rows = rows[: self._limit]
+        if self._single:
+            return SimpleNamespace(data=rows[0] if rows else None, count=len(rows))
         return SimpleNamespace(data=rows, count=len(rows))

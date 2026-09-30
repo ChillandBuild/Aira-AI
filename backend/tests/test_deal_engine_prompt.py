@@ -139,7 +139,7 @@ class TestTools:
         names = {t["function"]["name"] for t in deal_engine.deal_tools(CONFIG)}
         assert names == {
             "show_options", "select_offering", "save_details", "skip_detail",
-            "create_payment_link", "hand_to_human",
+            "create_payment_link", "hand_to_human", "close_deal",
         }
 
     def test_select_offering_key_is_limited_to_active_configured_keys(self):
@@ -150,7 +150,8 @@ class TestTools:
     def test_save_details_has_no_amount_or_url_parameter(self):
         tools = {t["function"]["name"]: t for t in deal_engine.deal_tools(CONFIG)}
         params = tools["create_payment_link"]["function"]["parameters"]["properties"]
-        assert params == {}
+        assert not {k for k in params if "amount" in k or "url" in k or "price" == k}
+        assert set(params) <= {"customer_agreed_new_price"}  # a yes flag, never an amount
 
 
 class TestUnknownPrices:
@@ -283,20 +284,22 @@ class TestLinkLiveness:
 
     def test_expired_link_is_not_reported_as_sent(self):
         state = self._state(payment_link_expires_at=self._in(hours=-1))
-        assert "link sent" not in state.lower() and "Payment: not sent" in state
+        assert "link sent" not in state.lower() and "Payment: the last link expired" in state
         assert "Next step: send the payment link now by calling create_payment_link" in state
         assert "expired or out of date" in state
 
     def test_link_without_an_expiry_is_not_reported_as_sent(self):
         state = self._state(payment_link_expires_at=None)
-        assert "link sent" not in state.lower() and "Payment: not sent" in state
+        assert "link sent" not in state.lower() and "Payment: the last link expired" in state
 
     def test_link_at_a_stale_price_is_not_reported_as_sent(self):
         repriced = {**CONFIG, "packages": [{**CONFIG["packages"][0], "amount_paise": 100}, *CONFIG["packages"][1:]]}
         session = {**self.BASE, "payment_link_expires_at": self._in(hours=5)}
         state = deal_engine.deal_state_block(repriced, session)
-        assert "link sent" not in state.lower() and "Payment: not sent" in state
-        assert "₹1" in state and "₹49" not in state
+        assert "link sent" not in state.lower() and "Payment: the last link expired" in state
+        assert "₹1" in state
+        # ₹49 only in the "cheaper now" note, never as what the customer will pay
+        assert all("₹49" not in line or line.startswith("- Price changed") for line in state.splitlines())
 
     def test_link_for_a_removed_package_is_not_reported_as_sent(self):
         gone = {**CONFIG, "packages": CONFIG["packages"][1:]}
@@ -343,22 +346,6 @@ def test_human_touch_block_is_in_every_reply_prompt():
     assert "HUMAN TOUCH" in ai_reply._HUMAN_TOUCH_BLOCK
     import inspect
     assert "_HUMAN_TOUCH_BLOCK" in inspect.getsource(ai_reply.build_reply_system_prompt)
-
-
-class TestReturningGreeting:
-    SESSION = {"status": "collecting", "package_key": "one_question", "package_name": "One Question",
-               "total_amount_paise": 4900, "collected_data": {"name": "Ravi"}, "skipped_fields": []}
-
-    def test_greeting_with_a_deal_in_progress_asks_to_resume(self):
-        prompt = deal_engine.deal_prompt(CONFIG, self.SESSION, returning=True)
-        assert prompt.rstrip().endswith("Date of birth.") and "welcome them back" in prompt
-
-    def test_no_resume_note_without_a_deal(self):
-        assert "welcome them back in one short line" not in deal_engine.deal_prompt(CONFIG, None, returning=True)
-
-    def test_no_resume_note_once_paid(self):
-        paid = {**self.SESSION, "status": "paid"}
-        assert "welcome them back in one short line" not in deal_engine.deal_prompt(CONFIG, paid, returning=True)
 
 
 class TestBlankMessage:

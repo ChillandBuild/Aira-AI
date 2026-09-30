@@ -1,176 +1,196 @@
-"""Regressions for the intake staleness sweep: dead awaiting_payment links get
-cancelled, forgotten paid sessions get auto-resolved, stale mid-flow sessions
-(package/addon choice, collecting, confirmation) get cancelled too, all after
-48h, and the sweep never lets one bad row stop the rest."""
+"""The intake staleness sweep (blueprint D1): an unfinished deal is closed only after the
+tenant's idle-close days with no lead message and no real progress (last_activity_at), in
+EVERY unfinished status; a paid session auto-resolves after 48h; a live link is never cut
+off; a fresh lead message beats the sweep; and one bad row never stops the rest."""
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from unittest.mock import MagicMock
-
 import pytest
 
+from app.services import intake
 from app.services.intake import sweep_stale_intake_sessions
+from tests.fake_supabase import FakeSupabase
 
-SID_AWAITING = "11111111-2222-3333-4444-555555555555"
-SID_PAID = "22222222-3333-4444-5555-666666666666"
-SID_MID_FLOW = "33333333-4444-5555-6666-777777777777"
-TENANT = "0f897915-2d34-4b67-8d69-f83f52e4fb6c"
-
-
-class _Chain:
-    def __init__(self, result, log, table):
-        self._result = result
-        self._log = log
-        self._table = table
-
-    def __getattr__(self, name):
-        def _record(*args, **kwargs):
-            if name in ("update", "insert"):
-                self._log.append((self._table, name, args[0] if args else None))
-            return self
-
-        return _record
-
-    def execute(self):
-        if isinstance(self._result, Exception):
-            raise self._result
-        return self._result
+T1, T2 = "tenant-1", "tenant-2"
+UNFINISHED = (
+    "offer_pending", "awaiting_package_choice", "awaiting_addon_choice", "collecting",
+    "awaiting_confirmation", "awaiting_payment",
+)
 
 
-class _SeqDb:
-    """Routes each .table(name) call to the next preset result for that table,
-    recording every update/insert payload for assertions."""
-
-    def __init__(self, results_by_table):
-        self._results = {k: list(v) for k, v in results_by_table.items()}
-        self.writes = []
-
-    def table(self, name):
-        return _Chain(self._results[name].pop(0), self.writes, name)
+def _ago(**delta) -> str:
+    return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
 
 
-def _res(data):
-    m = MagicMock()
-    m.data = data
-    return m
-
-
-@pytest.mark.asyncio
-async def test_sweep_cancels_stale_awaiting_payment_and_resolves_stale_paid():
-    db = _SeqDb({
-        "intake_sessions": [
-            _res([{"id": SID_AWAITING}]),          # stale awaiting_payment query
-            _res([{"id": SID_AWAITING}]),           # cancel update
-            _res([]),                               # stale mid-flow query (none)
-            _res([{"id": SID_PAID, "tenant_id": TENANT}]),  # stale paid query
-            _res([{"id": SID_PAID}]),               # resolve update
-        ],
+def _session(db, tenant=T1, status="collecting", idle=None, **extra) -> dict:
+    return db.add("intake_sessions", **{
+        "tenant_id": tenant, "lead_id": f"lead-{len(db.rows('intake_sessions'))}", "status": status,
+        "last_activity_at": _ago(days=idle) if idle is not None else None, "payment_link": None,
+        "payment_link_expires_at": None, **extra,
     })
 
-    out = await sweep_stale_intake_sessions(db=db)
 
-    assert out == {"cancelled": 1, "resolved": 1}
-    updates = [(t, p) for t, op, p in db.writes if op == "update"]
-    assert updates[0] == ("intake_sessions", {"status": "cancelled"})
-    assert updates[1][1]["status"] == "resolved"
-    assert "resolved_at" in updates[1][1]
+def _status(db, row) -> str:
+    return next(r["status"] for r in db.rows("intake_sessions") if r["id"] == row["id"])
 
 
-@pytest.mark.asyncio
-async def test_sweep_cancels_stale_mid_flow_session():
-    """Live bug 2026-09-25: a session stuck at awaiting_addon_choice for a package
-    the tenant later deleted from their config sat forever with no sweep -- only
-    awaiting_payment/paid were ever auto-cleared. Mid-flow statuses now expire on
-    updated_at (not created_at, since the lead may have made real progress first)."""
-    db = _SeqDb({
-        "intake_sessions": [
-            _res([]),                                    # no stale awaiting_payment
-            _res([{"id": SID_MID_FLOW}]),                 # stale mid-flow query
-            _res([{"id": SID_MID_FLOW}]),                 # cancel update
-            _res([]),                                     # no stale paid
-        ],
-    })
+@pytest.fixture
+def days():
+    """Per-tenant idle-close days; the mock records how often each tenant was read."""
+    table = {T1: 30, T2: 5}
+    with patch("app.services.deal_settings.read_deal_idle_close_days", side_effect=lambda t: table[t]) as m:
+        yield m
 
-    out = await sweep_stale_intake_sessions(db=db)
 
-    assert out == {"cancelled": 1, "resolved": 0}
-    updates = [(t, p) for t, op, p in db.writes if op == "update"]
-    assert updates == [("intake_sessions", {"status": "cancelled"})]
+@pytest.fixture(autouse=True)
+def _no_side_effects():
+    with patch.object(intake, "_sync_deal"), patch.object(intake, "cancel_session_link", new=AsyncMock(return_value=True)) as c:
+        yield c
 
 
 @pytest.mark.asyncio
-async def test_sweep_no_stale_rows_is_a_clean_no_op():
-    db = _SeqDb({
-        "intake_sessions": [
-            _res([]),  # no stale awaiting_payment
-            _res([]),  # no stale mid-flow
-            _res([]),  # no stale paid
-        ],
-    })
-
+@pytest.mark.parametrize("status", UNFINISHED)
+async def test_every_unfinished_status_closes_after_the_idle_days(status, days):
+    db = FakeSupabase()
+    row = _session(db, status=status, idle=31)
     out = await sweep_stale_intake_sessions(db=db)
-
-    assert out == {"cancelled": 0, "resolved": 0}
-    assert db.writes == []
+    assert out["cancelled"] == 1
+    assert _status(db, row) == "cancelled"
 
 
 @pytest.mark.asyncio
-async def test_sweep_survives_a_failing_cancel_and_continues_to_paid():
-    db = _SeqDb({
-        "intake_sessions": [
-            _res([{"id": SID_AWAITING}]),
-            RuntimeError("db blip"),  # cancel update fails
-            _res([]),                # no stale mid-flow
-            _res([{"id": SID_PAID, "tenant_id": TENANT}]),
-            _res([{"id": SID_PAID}]),
-        ],
-    })
-
-    out = await sweep_stale_intake_sessions(db=db)
-
-    assert out == {"cancelled": 0, "resolved": 1}
-
-
-class _FilterLog:
-    """Records every filter call on the intake_sessions chain so a test can see which
-    rows the sweep asked for, not just what it wrote."""
-
-    def __init__(self, results):
-        self._results = list(results)
-        self.calls = []
-
-    def table(self, name):
-        log = self.calls
-        result = self._results.pop(0)
-
-        class _C:
-            def __getattr__(self, method):
-                def _rec(*args, **kwargs):
-                    log.append((method, args))
-                    return self
-                return _rec
-
-            def execute(self):
-                return result
-
-        return _C()
-
-
-@pytest.mark.asyncio
-async def test_sweep_never_cancels_awaiting_payment_while_its_link_is_live():
-    """Live 2026-09-30: Vivek got a fresh 24h link on day 2 of his session; the 48h
-    created_at rule would cancel the deal 3h before that link expired. Both the
-    stale-row query and the cancel update must skip a session whose link is live."""
-    db = _FilterLog([_res([{"id": SID_AWAITING}]), _res([{"id": SID_AWAITING}]), _res([]), _res([])])
-
+async def test_offer_pending_stuck_since_august_is_closed(days):
+    db = FakeSupabase()
+    row = _session(db, status="offer_pending", idle=49)
     await sweep_stale_intake_sessions(db=db)
+    assert _status(db, row) == "cancelled"
 
-    link_guards = [a[0] for m, a in db.calls if m == "or_" and "payment_link_expires_at" in a[0]]
-    assert len(link_guards) == 2, db.calls  # the select AND the cancel update
-    for g in link_guards:
-        assert "payment_link_expires_at.is.null" in g and "payment_link_expires_at.lte." in g
+
+@pytest.mark.asyncio
+async def test_a_deal_idle_less_than_the_tenants_days_is_left_alone(days):
+    db = FakeSupabase()
+    row = _session(db, status="awaiting_payment", idle=29)
+    out = await sweep_stale_intake_sessions(db=db)
+    assert out["cancelled"] == 0 and _status(db, row) == "awaiting_payment"
+
+
+@pytest.mark.asyncio
+async def test_the_old_48h_created_at_rule_no_longer_closes_an_active_deal(days):
+    """Created long ago but the lead was active yesterday: not idle."""
+    db = FakeSupabase()
+    row = _session(db, status="awaiting_payment", idle=1, created_at=_ago(days=40))
+    await sweep_stale_intake_sessions(db=db)
+    assert _status(db, row) == "awaiting_payment"
+
+
+@pytest.mark.asyncio
+async def test_each_tenant_uses_its_own_days_and_is_read_once(days):
+    db = FakeSupabase()
+    quick = _session(db, tenant=T2, status="collecting", idle=6)   # T2 closes after 5 days
+    slow = _session(db, tenant=T1, status="collecting", idle=6)    # T1 waits 30 days
+    _session(db, tenant=T2, status="offer_pending", idle=9)
+    await sweep_stale_intake_sessions(db=db)
+    assert _status(db, quick) == "cancelled" and _status(db, slow) == "collecting"
+    reads = [c.args[0] for c in days.call_args_list]
+    assert sorted(reads) == sorted(set(reads))  # one read per tenant
+
+
+@pytest.mark.asyncio
+async def test_a_live_link_is_never_cut_off(days):
+    db = FakeSupabase()
+    future = (datetime.now(timezone.utc) + timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    row = _session(db, status="awaiting_payment", idle=40, payment_link="https://rzp.io/x", payment_link_expires_at=future)
+    await sweep_stale_intake_sessions(db=db)
+    assert _status(db, row) == "awaiting_payment"
+
+
+@pytest.mark.asyncio
+async def test_an_expired_link_deal_is_closed_and_its_link_cancelled(days, _no_side_effects):
+    db = FakeSupabase()
+    row = _session(db, status="awaiting_payment", idle=40, payment_link="https://rzp.io/x",
+                   payment_link_expires_at=_ago(days=39), razorpay_payment_link_id="plink_1")
+    await sweep_stale_intake_sessions(db=db)
+    assert _status(db, row) == "cancelled"
+    _no_side_effects.assert_awaited_once()
+    assert _no_side_effects.await_args.args[1]["id"] == row["id"]
+
+
+@pytest.mark.asyncio
+async def test_a_message_that_lands_during_the_sweep_wins(days):
+    """The row was idle when the sweep read it; the lead's message touches it before the
+    cancel write. The conditional update must not fire."""
+    db = FakeSupabase()
+    row = _session(db, status="collecting", idle=40)
+    real = intake.cancel_open_session
+
+    async def touch_first(db_, session, **kw):
+        intake.touch_session_activity(db_, T1, session["id"])
+        return await real(db_, session, **kw)
+
+    with patch.object(intake, "cancel_open_session", touch_first):
+        out = await sweep_stale_intake_sessions(db=db)
+    assert out["cancelled"] == 0 and _status(db, row) == "collecting"
+
+
+@pytest.mark.asyncio
+async def test_a_status_change_during_the_sweep_wins(days):
+    db = FakeSupabase()
+    row = _session(db, status="awaiting_payment", idle=40)
+    real = intake.cancel_open_session
+
+    async def paid_first(db_, session, **kw):
+        db.rows("intake_sessions")[0]["status"] = "paid"
+        return await real(db_, session, **kw)
+
+    with patch.object(intake, "cancel_open_session", paid_first):
+        await sweep_stale_intake_sessions(db=db)
+    assert _status(db, row) == "paid"
+
+
+@pytest.mark.asyncio
+async def test_a_session_from_the_deploy_gap_with_no_activity_value_uses_created_at(days):
+    db = FakeSupabase()
+    old = _session(db, status="collecting", idle=None, created_at=_ago(days=45))
+    new = _session(db, status="collecting", idle=None, created_at=_ago(days=3))
+    await sweep_stale_intake_sessions(db=db)
+    assert _status(db, old) == "cancelled" and _status(db, new) == "collecting"
+
+
+@pytest.mark.asyncio
+async def test_paid_sessions_still_auto_resolve_after_48h(days):
+    db = FakeSupabase()
+    old = _session(db, status="paid", idle=0, paid_at=_ago(hours=49))
+    fresh = _session(db, status="paid", idle=0, paid_at=_ago(hours=5))
+    out = await sweep_stale_intake_sessions(db=db)
+    assert out["resolved"] == 1
+    assert _status(db, old) == "resolved" and _status(db, fresh) == "paid"
+
+
+@pytest.mark.asyncio
+async def test_one_failing_cancel_does_not_stop_the_rest(days):
+    db = FakeSupabase()
+    bad = _session(db, status="collecting", idle=40)
+    good = _session(db, status="collecting", idle=41)
+    real = intake.cancel_open_session
+
+    async def flaky(db_, session, **kw):
+        if session["id"] == bad["id"]:
+            raise RuntimeError("db blip")
+        return await real(db_, session, **kw)
+
+    with patch.object(intake, "cancel_open_session", flaky):
+        out = await sweep_stale_intake_sessions(db=db)
+    assert out["cancelled"] == 1 and _status(db, good) == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_no_stale_rows_is_a_clean_no_op(days):
+    db = FakeSupabase()
+    assert await sweep_stale_intake_sessions(db=db) == {"cancelled": 0, "resolved": 0}
 
 
 def test_scheduler_tolerates_late_starts():

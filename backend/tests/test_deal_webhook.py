@@ -35,6 +35,8 @@ async def test_paid_marks_won_and_sends_receipt():
 async def test_retried_paid_delivery_is_ignored_without_second_receipt():
     send = AsyncMock()
     with patch("app.services.deals.mark_won", return_value=None), \
+         patch("app.routes.intake.report_extra_deal_payment"), \
+         patch("app.routes.intake.get_supabase"), \
          patch("app.routes.intake.send_whatsapp", send):
         out = await _handle_deal_payment_event(PAID, "payment_link.paid", "d1", "t1")
     assert out["status"] == "ignored"
@@ -42,11 +44,23 @@ async def test_retried_paid_delivery_is_ignored_without_second_receipt():
 
 
 @pytest.mark.asyncio
-async def test_expired_link_marks_deal_lost():
-    with patch("app.services.deals.mark_lost", return_value={"deal": {}, "stock_warnings": []}) as lost:
+async def test_expired_link_clears_the_link_and_keeps_the_deal_open():
+    with patch("app.routes.intake._current_plink_id", return_value=None), \
+         patch("app.services.deals.expire_deal_link", return_value=True) as expire, \
+         patch("app.services.deals.mark_lost") as lost:
         out = await _handle_deal_payment_event({}, "payment_link.expired", "d1", "t1")
     assert out["status"] == "ok"
-    lost.assert_called_once_with("t1", "d1", "Payment link expired")
+    expire.assert_called_once_with("t1", "d1")
+    lost.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_link_still_marks_the_deal_lost_with_its_own_reason():
+    with patch("app.routes.intake._current_plink_id", return_value=None), \
+         patch("app.services.deals.mark_lost", return_value={"deal": {}, "stock_warnings": []}) as lost:
+        out = await _handle_deal_payment_event({}, "payment_link.cancelled", "d1", "t1")
+    assert out["status"] == "ok"
+    lost.assert_called_once_with("t1", "d1", "Payment link cancelled", only_from=("quoted", "awaiting_payment"))
 
 
 @pytest.mark.asyncio

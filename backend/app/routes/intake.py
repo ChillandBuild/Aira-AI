@@ -22,6 +22,7 @@ from app.services.intake import (
     get_session_tenant_id,
     notify_payment_failed,
     record_astro_bridge_ids,
+    report_extra_deal_payment,
     resolve_intake_session,
 )
 from app.services.intake_copy import compose_payment_receipt, gst_receipt_line
@@ -264,6 +265,8 @@ async def razorpay_webhook(request: Request):
         return await _handle_deal_payment_event(payload, event, deal_id, tenant_id)
 
     if event == "payment_link.expired":
+        if _is_stale_link_event("intake_sessions", session_id, tenant_id, pl_entity.get("id")):
+            return {"status": "ignored", "event": event}
         expired = expire_intake_session(session_id)
         return {"status": "ok" if expired else "ignored", "event": event}
 
@@ -373,15 +376,56 @@ def _with_gst_line(receipt: str, gst_row: dict) -> str:
     return f"{receipt}\n{line}" if line else receipt
 
 
+def _current_plink_id(table: str, row_id: str, tenant_id: str) -> str | None:
+    """The Razorpay link id a session/deal currently points at (None for rows from before it
+    was stored). Tenant-scoped; raises on a database error so the caller can fail closed."""
+    row = (
+        get_supabase().table(table).select("razorpay_payment_link_id")
+        .eq("id", row_id).eq("tenant_id", tenant_id).maybe_single().execute()
+    )
+    return ((row.data if row else None) or {}).get("razorpay_payment_link_id")
+
+
+def _is_stale_link_event(table: str, row_id: str, tenant_id: str, event_plink_id: str | None) -> bool:
+    """True when a cancelled/expired event is NOT about the row's current link, so it must not
+    change any state: we cancel replaced links ourselves, and an old link can expire late.
+    A row with no stored link id keeps the old behaviour (False). If the row can't be read the
+    event is treated as stale: a lost 'expired' is harmless, a wrongly closed deal is not."""
+    try:
+        current = _current_plink_id(table, row_id, tenant_id)
+    except Exception as e:
+        logger.warning(f"Link event ignored: could not read {table} {row_id}: {e}")
+        return True
+    if not current or current == event_plink_id:
+        return False
+    logger.info(f"Ignoring event for non-current link {event_plink_id} on {table} {row_id} (current {current})")
+    return True
+
+
+_OPEN_DEAL_STAGES = ("quoted", "awaiting_payment")
+
+
 async def _handle_deal_payment_event(payload: dict, event: str, deal_id: str, tenant_id: str) -> dict:
     """Payment events for a deal's Razorpay link (services/deals.send_payment_link
     puts notes.deal_id on it). Paid -> won (stock deducts once: mark_won's claim
-    makes a retried delivery a no-op); expired/cancelled -> lost; a failed
+    makes a retried delivery a no-op); expired -> the link is cleared and the deal stays open;
+    cancelled -> lost; a failed
     attempt is ignored because the customer can still retry the same link."""
-    from app.services.deals import mark_lost, mark_won
+    from app.services.deals import expire_deal_link, mark_lost, mark_won
 
     if event in ("payment_link.expired", "payment_link.cancelled"):
-        lost = mark_lost(tenant_id, deal_id, "Payment link expired")
+        event_plink = payload.get("payload", {}).get("payment_link", {}).get("entity", {}).get("id")
+        if _is_stale_link_event("deals", deal_id, tenant_id, event_plink):
+            return {"status": "ignored", "event": event}
+        if event == "payment_link.expired":
+            # D2: a link dying is not a lost sale. Clear it, keep the deal open.
+            cleared = expire_deal_link(tenant_id, deal_id)
+            return {"status": "ok" if cleared else "ignored", "event": event}
+        # A cancel of the CURRENT link is not ours (we only cancel links we replace or close,
+        # and those no longer match the deal's current link id): staff killed it on purpose.
+        # Open stages only: a deal already won (staff took cash, then cancelled the open link)
+        # must never be un-won -- that would restore its stock and hide a real sale.
+        lost = mark_lost(tenant_id, deal_id, "Payment link cancelled", only_from=_OPEN_DEAL_STAGES)
         return {"status": "ok" if lost else "ignored", "event": event}
     if event != "payment_link.paid":
         return {"status": "ignored", "event": event}
@@ -389,6 +433,9 @@ async def _handle_deal_payment_event(payload: dict, event: str, deal_id: str, te
     razorpay_payment_id = payload.get("payload", {}).get("payment", {}).get("entity", {}).get("id", "")
     result = mark_won(tenant_id, deal_id, payment_method="razorpay", razorpay_payment_id=razorpay_payment_id)
     if not result:
+        # Already won: a retry of the same payment is a no-op, but a DIFFERENT payment id is a
+        # second payment (or a link paid after staff took cash) -- flag it and tell staff.
+        report_extra_deal_payment(tenant_id, deal_id, razorpay_payment_id, db=get_supabase())
         return {"status": "ignored", "detail": "already won"}
     lead = (
         get_supabase().table("leads").select("phone").eq("id", result["deal"]["lead_id"])

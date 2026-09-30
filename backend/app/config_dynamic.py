@@ -41,9 +41,24 @@ SECRET_SETTING_KEYS = frozenset({
 })
 
 
+class SettingReadError(RuntimeError):
+    """The settings database could not be read (as opposed to the key being unset)."""
+
+
 def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[str] = None) -> Optional[str]:
     """Read from cache → app_settings table → fallback. No env-var fallback: every
     tenant (including the first) configures its own credentials in app_settings."""
+    return _load_setting(key, fallback, tenant_id, strict=False)
+
+
+def get_setting_strict(key: str, fallback: Optional[str] = None, tenant_id: Optional[str] = None) -> Optional[str]:
+    """Like get_setting, but a failed database read raises SettingReadError instead of quietly
+    looking like "not set". For callers where acting on a wrong default is worse than skipping
+    (e.g. the idle sweep closing deals on a 30-day default for a tenant who chose 90)."""
+    return _load_setting(key, fallback, tenant_id, strict=True)
+
+
+def _load_setting(key: str, fallback: Optional[str], tenant_id: Optional[str], *, strict: bool) -> Optional[str]:
     now = time.monotonic()
     resolved_tenant_id = tenant_id or _DEFAULT_TENANT_ID
     cache_key = f"{resolved_tenant_id}:{key}"
@@ -79,6 +94,8 @@ def get_setting(key: str, fallback: Optional[str] = None, tenant_id: Optional[st
                 continue
             logger.warning(f"get_setting({key}, tenant_id={resolved_tenant_id}) DB read failed: {e}")
 
+    if strict and not read_ok:
+        raise SettingReadError(f"could not read setting {key} for tenant {resolved_tenant_id}")
     if not value:
         value = fallback
 

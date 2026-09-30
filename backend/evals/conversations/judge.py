@@ -126,3 +126,29 @@ async def judge_conversation(scenario: dict, transcript: list[dict], config: dic
         return {"status": "fail", "min_score": 0, "scores": {k: 0 for k in SCORE_KEYS},
                 "worst_turn": None, "issues": [f"judge_error: {e}"]}
     return parse_verdict(data if isinstance(data, dict) else {})
+
+
+ASK_SYSTEM = """You read one WhatsApp exchange between a customer and a business assistant.
+The customer had a booking open, went quiet for a while and has just written again.
+Decide ONE thing: does the assistant's reply ask the customer whether they want to CONTINUE with
+their open booking or look at something else / start something different (in any wording or
+language, in words or as buttons)?
+- true: the reply asks (or offers a choice) between carrying on with the booking and something else.
+- false: it does not ask that. Asking for the next detail, answering a question, sending a link,
+  confirming a close, or a plain greeting do NOT count.
+Return JSON only: {"asks": true|false}"""
+
+
+async def asks_continue_question(lead_message: str, reply_text: str, tenant_id: str, *, llm_json=None) -> bool | None:
+    """True/False, or None when the classifier failed (never a silent pass: the check skips)."""
+    if llm_json is None:
+        from app.services.gemini_client import gemini_chat_completion_json as llm_json
+    try:
+        data = await llm_json(
+            ASK_SYSTEM, f"Customer: {lead_message}\nAssistant: {reply_text}",
+            model=JUDGE_MODEL, temperature=0.0, max_tokens=60, tenant_id=tenant_id, purpose="eval_judge",
+        )
+    except Exception:
+        return None
+    value = data.get("asks") if isinstance(data, dict) else None
+    return value if isinstance(value, bool) else None

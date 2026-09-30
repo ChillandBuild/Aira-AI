@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services import deal_actions, intake
+from app.services import deal_actions, deal_engine, intake
 
 LEAD, TENANT, PHONE = "lead-1", "tenant-1", "+910000000000"
 
@@ -42,6 +42,9 @@ class World:
         self.sessions: dict[str, dict] = {}
         self.links: list[dict] = []
         self.handovers: list[str] = []
+        self.cancelled: list[str] = []  # Razorpay plink ids we asked to cancel, in order
+        self.events: list[str] = []
+        self.cancel_ok = True
         self.pay_during_link = False  # the customer pays the OLD link while a new one is being made
 
     def install(self, stack_patches):
@@ -61,8 +64,15 @@ class World:
 
         def update(session_id, patch_, db, unless_status=None):
             if unless_status and w.sessions[session_id]["status"] == unless_status:
-                return
+                return False
+            w.events.append("update")
             w.sessions[session_id].update(patch_)
+            return True
+
+        async def cancel(plink_id, tenant_id=None):
+            w.events.append("cancel")
+            w.cancelled.append(plink_id)
+            return w.cancel_ok
 
         async def link(**kw):
             w.links.append(kw)
@@ -71,6 +81,7 @@ class World:
                     sess["status"] = "paid"
             return {
                 "payment_link_url": f"https://rzp.io/l/{len(w.links)}",
+                "razorpay_payment_link_id": f"plink_{len(w.links)}",
                 "payment_link_expires_at": _in(hours=24),
             }
 
@@ -82,6 +93,7 @@ class World:
             (intake, "_create_session", create),
             (intake, "_update_session", update),
             (intake, "create_payment_link", link),
+            (intake, "cancel_payment_link", cancel),
             (intake, "adopt_lead_name", lambda *a, **k: None),
         ]:
             stack_patches.append(patch.object(module, name, fn))
@@ -218,6 +230,35 @@ class TestSkipDetail:
         assert run([call("skip_detail", key="shoe_size")]).refusals
 
 
+class TestPriceChangedWhileAway:
+    """The business changed the price after the customer agreed (they picked it, or got a link).
+    Dearer: no link until the customer says yes to the new price. Cheaper: just the new price."""
+
+    def _agreed_at(self, world, paise):
+        run([call("select_offering", key="one_question")])
+        run([call("save_details", fields={"name": "Ravi", "birth_date": "12-03-1994"})])
+        next(iter(world.sessions.values()))["total_amount_paise"] = paise  # what they agreed to then
+
+    def test_a_price_rise_needs_the_customers_yes_before_a_link(self, world):
+        self._agreed_at(world, 100)  # agreed at ₹1, price now ₹49
+        out = run([call("create_payment_link")])
+        assert out.refusals and "₹49" in out.refusals[0] and not world.links
+        out = run([call("create_payment_link", customer_agreed_new_price=True)])
+        assert not out.refusals and world.links[0]["amount_paise"] == 4900
+
+    def test_a_price_drop_just_uses_the_lower_price(self, world):
+        self._agreed_at(world, 9900)  # agreed at ₹99, price now ₹49
+        out = run([call("create_payment_link")])
+        assert not out.refusals and world.links[0]["amount_paise"] == 4900
+
+    def test_deal_state_tells_the_ai_which_way_the_price_moved(self):
+        session = {"package_key": "one_question", "package_name": "One Question", "status": "collecting",
+                   "total_amount_paise": 100, "collected_data": {}}
+        assert "₹1" in deal_engine.deal_state_block(CONFIG, session) and "yes" in deal_engine.deal_state_block(CONFIG, session)
+        cheaper = deal_engine.deal_state_block(CONFIG, {**session, "total_amount_paise": 9900})
+        assert "cheaper" in cheaper
+
+
 class TestCreatePaymentLink:
     def test_refused_without_a_selection(self, world):
         out = run([call("create_payment_link")])
@@ -310,6 +351,15 @@ class TestLinkFreshness:
         run([call("create_payment_link")], NO_DETAILS_CONFIG)
         assert s["status"] == "paid"
 
+    def test_a_link_made_after_the_session_got_paid_is_cancelled_and_not_sent(self, world):
+        _, s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        world.pay_during_link = True
+        out = run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert out.payment_link is None
+        assert world.cancelled == ["plink_2"]  # the NEW link, never stored, is killed
+        assert any("already paid" in r for r in out.refusals)
+
     def test_link_about_to_expire_is_replaced(self, world):
         _, s = self._first_link(world)
         s["payment_link_expires_at"] = _in(seconds=30)
@@ -338,7 +388,8 @@ class TestLinkFreshness:
             {**NO_DETAILS_CONFIG["packages"][1], "addons": [{"key": "report", "name": "Written report", "amount_paise": 3000}]},
             NO_DETAILS_CONFIG["packages"][2],
         ]}
-        run([call("create_payment_link")], pricier)
+        assert run([call("create_payment_link")], pricier).refusals  # a rise needs their yes first
+        run([call("create_payment_link", customer_agreed_new_price=True)], pricier)
         assert world.links[-1]["amount_paise"] == 12900 and s["total_amount_paise"] == 12900
         assert s["package_amount_paise"] == 9900
 
@@ -603,11 +654,45 @@ class TestSendQuote:
         assert out.refusals and not shop.created
 
     def test_same_open_quote_reuses_the_existing_link(self, monkeypatch):
-        existing = [{"id": "d9", "payment_link": "https://rzp.io/l/old", "total_paise": 499800,
+        existing = [{"id": "d9", "stage": "awaiting_payment", "payment_link": "https://rzp.io/l/old",
+                     "total_paise": 499800, "link_expires_at": _in(hours=10),
                      "items": [{"catalog_item_id": "sku-runner", "qty": 2, "name": "Runner X", "line_total_paise": 499800}]}]
         shop = Shop(monkeypatch, existing=existing)
         out = run_shop([call("send_quote", item_ids=["sku-runner"], quantities=[2])])
         assert not shop.created and "https://rzp.io/l/old" in out.quote_text
+
+    def test_same_open_quote_with_a_dead_link_gets_a_fresh_link_not_the_dead_one(self, monkeypatch):
+        from app.services import deals
+        dead = [{"id": "d9", "stage": "awaiting_payment", "payment_link": "https://rzp.io/l/old",
+                 "total_paise": 499800, "link_expires_at": _in(hours=-1),
+                 "items": [{"catalog_item_id": "sku-runner", "qty": 2, "name": "Runner X", "line_total_paise": 499800}]}]
+        shop = Shop(monkeypatch, existing=dead)
+        regenerated = []
+
+        async def send_payment_link(tenant_id, deal_id, *, send_whatsapp_message=True, db=None):
+            regenerated.append((tenant_id, deal_id, send_whatsapp_message))
+            return {"payment_link": "https://rzp.io/l/fresh", "message_sent": False}
+
+        monkeypatch.setattr(deals, "send_payment_link", send_payment_link)
+        out = run_shop([call("send_quote", item_ids=["sku-runner"], quantities=[2])])
+        assert regenerated == [(TENANT, "d9", False)] and not shop.created
+        assert "https://rzp.io/l/fresh" in out.quote_text and "l/old" not in out.quote_text
+
+    def test_a_dead_link_that_cannot_be_regenerated_brings_in_a_person(self, monkeypatch):
+        from app.services import deals
+        dead = [{"id": "d9", "stage": "awaiting_payment", "payment_link": "https://rzp.io/l/old",
+                 "total_paise": 499800, "link_expires_at": None,
+                 "items": [{"catalog_item_id": "sku-runner", "qty": 2, "name": "Runner X", "line_total_paise": 499800}]}]
+        Shop(monkeypatch, existing=dead)
+        opened = []
+
+        async def broken(*a, **k):
+            raise RuntimeError("401")
+
+        monkeypatch.setattr(deals, "send_payment_link", broken)
+        monkeypatch.setattr(deal_actions, "open_handover", lambda ctx, reason: opened.append(reason))
+        out = run_shop([call("send_quote", item_ids=["sku-runner"], quantities=[2])])
+        assert out.handover and opened and out.quote_text is None
 
     def test_quote_failure_brings_in_a_person(self, monkeypatch):
         from app.services import deals
@@ -680,3 +765,91 @@ class TestAutoLinkWhenReady:
                                        phone=PHONE, payment_concern=True)
         out = asyncio.run(deal_actions.apply_tool_calls([call("select_offering", key="one_question")], ctx, auto_link=True))
         assert out.payment_link is None and not world.links
+
+
+class TestLinkCancel:
+    """R2: a replaced link is cancelled on Razorpay, after the new one is stored, best effort."""
+
+    def _first_link(self, world, key="one_question"):
+        run([call("select_offering", key=key)], NO_DETAILS_CONFIG)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        return next(iter(world.sessions.values()))
+
+    def test_link_creation_stores_the_razorpay_plink_id(self, world):
+        s = self._first_link(world)
+        assert s["razorpay_payment_link_id"] == "plink_1" and s["payment_link"] == "https://rzp.io/l/1"
+        assert world.cancelled == []
+
+    def test_regenerating_a_dead_price_link_cancels_the_old_plink_after_storing_the_new_one(self, world):
+        s = self._first_link(world)
+        cheaper = {**NO_DETAILS_CONFIG, "packages": [{**NO_DETAILS_CONFIG["packages"][0], "amount_paise": 100},
+                                                     *NO_DETAILS_CONFIG["packages"][1:]]}
+        world.events.clear()
+        run([call("create_payment_link")], cheaper)
+        assert world.cancelled == ["plink_1"]
+        assert s["razorpay_payment_link_id"] == "plink_2"
+        assert world.events == ["update", "cancel"]
+
+    def test_a_failed_cancel_does_not_undo_the_new_link(self, world):
+        s = self._first_link(world)
+        world.cancel_ok = False
+        s["payment_link_expires_at"] = _in(hours=10)
+        s["amount_paise"] = 1  # price moved: the stored link is stale
+        out = run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert out.payment_link == "https://rzp.io/l/2" and s["razorpay_payment_link_id"] == "plink_2"
+        assert world.cancelled == ["plink_1"]
+
+    def test_a_live_link_is_reused_and_nothing_is_cancelled(self, world):
+        self._first_link(world)
+        out = run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert out.payment_link == "https://rzp.io/l/1" and world.cancelled == []
+
+    def test_an_expired_link_needs_no_cancel_call(self, world):
+        s = self._first_link(world)
+        s["payment_link_expires_at"] = _in(hours=-1)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        assert world.cancelled == [] and s["razorpay_payment_link_id"] == "plink_2"
+
+    def test_repointing_the_offering_cancels_the_old_plink(self, world):
+        s = self._first_link(world)
+        world.events.clear()
+        run([call("select_offering", key="marriage")], CONFIG)
+        assert world.cancelled == ["plink_1"]
+        assert s["package_key"] == "marriage" and s["payment_link"] is None
+        assert world.events[0] == "update" and world.events[-1] == "cancel"
+
+    def test_reselecting_the_same_offering_keeps_the_link(self, world):
+        self._first_link(world)
+        run([call("select_offering", key="one_question")], NO_DETAILS_CONFIG)
+        assert world.cancelled == []
+
+    def test_relinking_after_a_repoint_uses_a_key_that_cannot_replay_the_cancelled_link(self, world):
+        self._first_link(world)
+        run([call("select_offering", key="marriage")], NO_DETAILS_CONFIG)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        run([call("select_offering", key="one_question")], NO_DETAILS_CONFIG)
+        run([call("create_payment_link")], NO_DETAILS_CONFIG)
+        keys = [l["idempotency_key"] for l in world.links]
+        assert len(keys) == len(set(keys)) == 3
+
+
+@pytest.mark.asyncio
+async def test_send_quote_relinks_a_deal_whose_link_expired_instead_of_opening_a_second_deal():
+    """D2: an expired link is cleared but the deal stays open in awaiting_payment."""
+    from unittest.mock import AsyncMock, patch as _patch
+    from app.services import deal_actions as da
+
+    lines = [{"catalog_item_id": "c1", "qty": 1, "name": "Ring"}]
+    expired = {"id": "d1", "payment_link": None, "total_paise": 5000, "link_expires_at": None,
+               "items": [{"catalog_item_id": "c1", "qty": 1, "name": "Ring", "line_total_paise": 5000}]}
+    ctx = da.DealContext(config={}, db=object(), lead_id="l", tenant_id="t", phone="+91",
+                         catalog={"c1": {"name": "Ring", "price_paise": 5000, "stock_quantity": None}})
+    relink = AsyncMock(return_value={"payment_link": "https://rzp.io/new"})
+    create = AsyncMock()
+    with _patch.object(da, "_open_awaiting_deals", return_value=[expired]), \
+         _patch("app.services.deals.send_payment_link", relink), _patch("app.services.deals.create_deal", create):
+        turn = da._Turn()
+        assert await da._send_quote(ctx, {"item_ids": ["c1"], "quantities": [1]}, turn) is None
+    relink.assert_awaited_once()
+    create.assert_not_awaited()
+    assert "https://rzp.io/new" in turn.quote_text

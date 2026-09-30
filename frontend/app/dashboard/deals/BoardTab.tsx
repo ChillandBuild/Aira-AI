@@ -5,6 +5,7 @@ import { usePolling } from "@/hooks/usePolling";
 import { SourceBadge } from "@/components/deals/SourceBadge";
 import { formatRupees } from "@/components/deals/money";
 import { timeAgo } from "@/lib/utils";
+import { DealTagTone, getDealTags } from "@/lib/deal-tags";
 
 const COLUMN_ORDER: DealStage[] = ["quoted", "awaiting_payment", "won", "lost"];
 
@@ -22,8 +23,15 @@ const COLUMN_TONE: Record<DealStage, string> = {
   lost: "border-t-rose-300",
 };
 
+const TAG_STYLE: Record<DealTagTone, string> = {
+  muted: "bg-slate-50 text-slate-600 border-slate-200",
+  warning: "bg-amber-50 text-amber-700 border-amber-200",
+  danger: "bg-rose-50 text-danger border-rose-200",
+};
+
 function DealCard({ deal, onOpen }: { deal: DealSummary; onOpen: () => void }) {
   const when = deal.won_at || deal.lost_at || deal.created_at;
+  const tags = getDealTags(deal);
   return (
     <button
       type="button"
@@ -38,6 +46,18 @@ function DealCard({ deal, onOpen }: { deal: DealSummary; onOpen: () => void }) {
       </div>
       <p className="font-body text-[11px] text-ink-muted truncate">{deal.deal_label}</p>
       <p className="font-body text-[11px] text-ink-muted truncate">{deal.item_summary}</p>
+      {tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-0.5">
+          {tags.map((tag) => (
+            <span
+              key={tag.key}
+              className={`inline-flex items-center rounded-full border px-2 py-0.5 font-label text-[10px] font-bold whitespace-nowrap ${TAG_STYLE[tag.tone]}`}
+            >
+              {tag.label}
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 pt-0.5">
         <SourceBadge source={deal.source} />
         <span className="font-body text-[10px] text-ink-muted shrink-0">{timeAgo(when)}</span>

@@ -12,6 +12,11 @@ from app.dependencies.system_admin import get_system_admin
 from app.services.assignment import get_telecalling_config, save_telecalling_config
 from app.services.audit_log import record_audit_event
 from app.services.call_wrapup import connect_rate as wrapup_connect_rate
+from app.services.deal_settings import (
+    DEAL_IDLE_CLOSE_DAYS_KEY,
+    clamp_deal_idle_close_days,
+    validate_deal_idle_close_days,
+)
 from app.services.entitlements import compute_period_key, get_billing_period
 from app.services.token_pricing import estimate_cost, get_rates, upsert_rate
 from app.services.subscription_requests import approve_request, reject_request
@@ -1289,6 +1294,7 @@ def client_config(tenant_id: str, _admin: dict = Depends(get_system_admin)):
             "kb_retrieval_mode": settings_map.get("kb_retrieval_mode", "semantic") or "semantic",
             "ai_reply_model": settings_map.get("ai_reply_model"),
             "reply_language_mode": settings_map.get("reply_language_mode", "mirror") or "mirror",
+            "deal_idle_close_days": clamp_deal_idle_close_days(settings_map.get(DEAL_IDLE_CLOSE_DAYS_KEY)),
         },
         "usage": {
             "period": period,
@@ -1322,6 +1328,16 @@ def update_client_config(
     if not payload.settings:
         raise HTTPException(status_code=400, detail="No settings to update")
 
+    # Validate the whole batch before writing anything, so one bad value can't leave
+    # its siblings half-saved.
+    normalized: dict[str, str | bool] = dict(payload.settings)
+    if DEAL_IDLE_CLOSE_DAYS_KEY in normalized:
+        try:
+            days = validate_deal_idle_close_days(normalized[DEAL_IDLE_CLOSE_DAYS_KEY])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        normalized[DEAL_IDLE_CLOSE_DAYS_KEY] = str(days)
+
     db = get_supabase()
     tenant = db.table("tenants").select("id").eq("id", tenant_id).maybe_single().execute()
     if not tenant or not tenant.data:
@@ -1329,7 +1345,7 @@ def update_client_config(
 
     from app.config_dynamic import SECRET_SETTING_KEYS
 
-    for key, value in payload.settings.items():
+    for key, value in normalized.items():
         db_val = str(value).lower() if isinstance(value, bool) else str(value)
         db.table("app_settings").upsert({
             "tenant_id": tenant_id,
@@ -1344,7 +1360,7 @@ def update_client_config(
 
     redacted_settings = {
         key: ("***redacted***" if key in SECRET_SETTING_KEYS else value)
-        for key, value in payload.settings.items()
+        for key, value in normalized.items()
     }
     record_audit_event(
         db,

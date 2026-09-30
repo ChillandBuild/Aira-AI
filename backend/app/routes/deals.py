@@ -22,15 +22,25 @@ router = APIRouter()
 require_deals_view = require_permission("leads.view")
 require_deals_manage = require_permission("leads.manage")
 
-DEAL_SELECT = "*, leads(id, name, phone), deal_items(id, catalog_item_id, name, qty, unit_price_paise, gst_rate, line_total_paise)"
+DEAL_SELECT = "*, leads(id, name, phone), deal_items(id, catalog_item_id, name, qty, unit_price_paise, gst_rate, line_total_paise), intake_sessions(last_activity_at, refund_needed)"
 BOARD_CARD_CAP = 100
 BOARD_RECENT_DAYS = 30
 DEAL_NUMBER_RE = re.compile(r"^(?:d-?)?0*(\d+)$", re.IGNORECASE)
 
 
+def _session_fields(row: dict) -> dict:
+    """The linked intake session's card fields, from the PostgREST embed in DEAL_SELECT (an
+    object for this many-to-one link). Deals with no session (quotes, manual) have none."""
+    embedded = row.get("intake_sessions")
+    if isinstance(embedded, list):
+        embedded = embedded[0] if embedded else None
+    return embedded or {}
+
+
 def _summary(row: dict) -> dict:
     items = row.get("deal_items") or []
     lead = row.get("leads") or {}
+    session = _session_fields(row)
     return {
         "id": row["id"],
         "deal_number": row["deal_number"],
@@ -40,6 +50,9 @@ def _summary(row: dict) -> dict:
         "total_paise": row["total_paise"],
         "payment_method": row.get("payment_method"),
         "payment_link": row.get("payment_link"),
+        "link_expires_at": row.get("link_expires_at"),
+        "last_activity_at": session.get("last_activity_at"),
+        "refund_needed": bool(session.get("refund_needed")),
         "created_at": row["created_at"],
         "won_at": row.get("won_at"),
         "lost_at": row.get("lost_at"),
@@ -62,7 +75,6 @@ def _full(row: dict, db, tenant_id: str) -> dict:
         **_summary(row),
         "items": row.get("deal_items") or [],
         "notes": row.get("notes"),
-        "link_expires_at": row.get("link_expires_at"),
         "razorpay_payment_id": row.get("razorpay_payment_id"),
         "intake_session_id": row.get("intake_session_id"),
         "intake_answers": intake_answers,

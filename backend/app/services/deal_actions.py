@@ -102,6 +102,26 @@ def _labels(ctx: DealContext, keys: list[str]) -> str:
     return ", ".join(f"{k} ({by_key.get(k, k)})" for k in keys)
 
 
+def _offering_changed(session: dict, leaf: dict, addons: list[dict], total: int) -> bool:
+    """False when select_offering re-picks what the session already has: its link stays valid
+    and must not be cancelled or cleared."""
+    if not session.get("package_key"):
+        return False
+    have_addons = sorted(a.get("key") for a in session.get("selected_addons") or [])
+    return (
+        session.get("package_key") != leaf["key"]
+        or session.get("total_amount_paise") != total
+        or have_addons != sorted(a["key"] for a in addons)
+    )
+
+
+async def _close_open_session(ctx: DealContext, session: dict, reason: str) -> bool:
+    """Cancel one open booking of THIS tenant (and its live payment link, best effort). False
+    when it was no longer open in the state we saw, e.g. a payment landed a moment ago: that
+    write wins and nothing is closed."""
+    return await intake.cancel_open_session(ctx.db, {**session, "tenant_id": ctx.tenant_id}, reason=reason)
+
+
 async def _select_offering(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
     packages = intake.normalize_packages(ctx.config)
     key = args.get("key")
@@ -133,19 +153,40 @@ async def _select_offering(ctx: DealContext, args: dict, turn: _Turn) -> str | N
 
     session = _session(ctx)
     if session and session["status"] == deal_engine.PAID_STATUS:
-        return "select_offering refused: the customer has already paid. Do not sell again."
+        # A paid booking is finished and stays exactly as it is. A repeat customer starts a new
+        # one next to it at once, instead of waiting for the 48h paid -> resolved auto-resolve.
+        if args.get("new_booking") is not True:
+            return (
+                "select_offering refused: that booking is already paid and cannot change. If the "
+                "customer wants another, separate booking, call select_offering with new_booking true."
+            )
+        session = None
+    if session and args.get("new_booking") is True and session.get("package_key"):
+        # D6: a second, separate booking. The old one (and its link) is closed BEFORE the new
+        # session is opened, so there is never more than one open deal for this lead.
+        if not await _close_open_session(ctx, session, "Replaced by a new booking"):
+            return (
+                "select_offering refused: the earlier booking changed while you were replying. "
+                "Read DEAL STATE again before continuing."
+            )
+        session = None
     if session is None:
         session = intake._create_session(ctx.lead_id, ctx.tenant_id, ctx.db)
+    before = dict(session)
+    repointed = _offering_changed(before, leaf, chosen, total)
     patch = intake._package_patch(leaf, path, total_amount_paise=total) | {
         "selected_addons": chosen,
         "field_schema": _fields(ctx),
         "status": _ready_status(ctx, session.get("collected_data") or {}, session.get("skipped_fields") or []),
-        "payment_link": None,
-        "amount_paise": None,
-        "gst_percent": None,
-        "gst_amount_paise": None,
     }
+    if repointed:
+        # The stored Razorpay id stays as the "last link" (it feeds the next link's idempotency
+        # key); only a NEW link replaces it.
+        patch |= {"payment_link": None, "amount_paise": None, "gst_percent": None, "gst_amount_paise": None}
     intake._update_session(session["id"], patch, ctx.db)
+    if repointed:
+        # After the session stopped pointing at the old link: a failed cancel can't strand the lead.
+        await intake.cancel_session_link(ctx.db, before)
     return None
 
 
@@ -282,6 +323,14 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     if not prices:
         return "create_payment_link refused: the chosen offering is not available any more or has no price."
     package_amount, subtotal = prices
+    moved = deal_engine.price_moved(ctx.config, session)
+    if moved and moved[1] > moved[0] and args.get("customer_agreed_new_price") is not True:
+        # The business raised the price after the customer agreed: never surprise them with it.
+        return (
+            f"create_payment_link refused: the price went up from {deal_engine._rupees(moved[0])} to "
+            f"{deal_engine._rupees(moved[1])} since they agreed. Tell them the new price and ask if they "
+            "want to continue; call again with customer_agreed_new_price true only after they say yes."
+        )
     gst_fields = intake.gst_session_fields(subtotal, deal_engine.gst_percent(ctx.config))
     amount = gst_fields["amount_paise"]  # what the link charges: subtotal + GST
 
@@ -297,11 +346,15 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     ref = f"IN-{uuid.uuid4().hex[:8].upper()}"
     # Razorpay hands back the SAME link for a repeated key, so a regeneration must change it:
     # the old link's expiry is unique per link made (0 when there was none).
+    # The last Razorpay link's id is unique per link made, so a re-link after a cancel (which may
+    # leave the expiry unchanged) still gets a fresh key instead of the cancelled link back.
     previous = deal_engine.parse_time(session.get("payment_link_expires_at"))
     previous_epoch = int(previous.timestamp()) if previous else 0
+    previous_plink = session.get("razorpay_payment_link_id") or ""
+    before = dict(session)
     try:
         link = await intake.create_payment_link(
-            idempotency_key=f"booking:{session['id']}:{session['package_key']}:{amount}:{previous_epoch}:payment_link",
+            idempotency_key=f"booking:{session['id']}:{session['package_key']}:{amount}:{previous_epoch}:{previous_plink}:payment_link",
             notes={"booking_id": session["id"], "booking_ref": ref},
             amount_paise=amount,
             customer_name=name,
@@ -318,13 +371,19 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
             "create_payment_link failed: a team member has been asked to send the payment link. Tell "
             "the customer that, in your own words, without promising a time."
         )
-    url = link["payment_link_url"]
-    intake._update_session(session["id"], {
-        "status": deal_engine.AWAITING_PAYMENT_STATUS, **gst_fields, "payment_link": url,
-        "payment_link_expires_at": link.get("payment_link_expires_at"),
+    stored = intake._update_session(session["id"], {
+        "status": deal_engine.AWAITING_PAYMENT_STATUS, **gst_fields, **intake.link_store_patch(link),
         "package_amount_paise": package_amount, "total_amount_paise": subtotal,
     }, ctx.db, unless_status=deal_engine.PAID_STATUS)
-    turn.payment_link = url
+    if stored is False:  # explicit False: _update_session skipped the write (doubles may return None)
+        # The customer paid while the link was being made: the write was skipped, so this new
+        # link is stored nowhere. Kill it (best effort) and never send it -- a second payment
+        # on it would be a double charge.
+        await intake.cancel_payment_link(link.get("razorpay_payment_link_id"), ctx.tenant_id)
+        return "create_payment_link refused: the customer has already paid. Do not send another link."
+    turn.payment_link = link["payment_link_url"]
+    # Cancel the replaced link only now that the new one is stored (best effort).
+    await intake.cancel_session_link(ctx.db, before, keep_plink_id=link.get("razorpay_payment_link_id"))
     return None
 
 
@@ -424,6 +483,19 @@ def open_handover(ctx: DealContext, reason: str) -> None:
         logger.exception("Handover failed for lead %s", ctx.lead_id)
 
 
+async def _close_deal(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
+    """The customer explicitly declined the open booking. The model decides that (in any
+    language); this only closes what is really open, never a paid booking."""
+    session = _session(ctx)
+    if session is None:
+        return "close_deal refused: there is no open booking to close."
+    if session["status"] == deal_engine.PAID_STATUS:
+        return "close_deal refused: the customer has already paid. Do not close a paid booking."
+    if not await _close_open_session(ctx, session, "Customer declined"):
+        return "close_deal: the booking changed at the same moment and was left as it is. Do not say it was closed."
+    return None
+
+
 async def _hand_to_human(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
     reason = str(args.get("reason") or "").strip() or "The AI asked for a person to take over"
     open_handover(ctx, reason[:200])
@@ -461,12 +533,12 @@ def lead_orders(db, tenant_id: str, lead_id: str) -> list[dict]:
 
 
 def _open_awaiting_deals(ctx: DealContext) -> list[dict]:
-    """This lead's unpaid product quotes that already have a live link, newest first,
-    each with its lines. Never raises."""
+    """This lead's unpaid product quotes (link sent, or its link expired: the deal stays open
+    and is re-linked), newest first, each with its lines. Never raises."""
     try:
         deals = (
             ctx.db.table("deals")
-            .select("id,payment_link,total_paise")
+            .select("id,stage,payment_link,total_paise,link_expires_at,razorpay_payment_link_id")
             .eq("tenant_id", ctx.tenant_id)
             .eq("lead_id", ctx.lead_id)
             .eq("stage", "awaiting_payment")
@@ -489,7 +561,7 @@ def _open_awaiting_deals(ctx: DealContext) -> list[dict]:
 def _same_lines(deal: dict, lines: list[dict]) -> bool:
     have = sorted((i.get("catalog_item_id"), i.get("qty")) for i in deal.get("items") or [])
     want = sorted((line["catalog_item_id"], line["qty"]) for line in lines)
-    return bool(deal.get("payment_link")) and have == want
+    return have == want
 
 
 async def _recommend_item(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
@@ -552,6 +624,14 @@ def _quote_text(items: list[dict], total_paise: int, link: str) -> str:
     return deals.quote_summary_block(items, total_paise) + f"\n\nPay here: {link}"
 
 
+def _quote_failed(ctx: DealContext, turn: _Turn) -> str:
+    _handover_for_failed_link(ctx, turn, "Payment link could not be created for a product order")
+    return (
+        "send_quote failed: a team member has been asked to send the quote and payment link. "
+        "Tell the customer that, in your own words, without promising a time."
+    )
+
+
 async def _send_quote(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
     if ctx.payment_concern:
         return "send_quote " + _PAYMENT_CONCERN_REFUSAL
@@ -563,11 +643,20 @@ async def _send_quote(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
     problem = _stock_problem(ctx, lines)
     if problem:
         return problem
-    for deal in _open_awaiting_deals(ctx):
-        if _same_lines(deal, lines):
-            turn.quote_text = _quote_text(deal["items"], deal["total_paise"], deal["payment_link"])
-            return None
     from app.services import deals
+    for deal in _open_awaiting_deals(ctx):
+        if not _same_lines(deal, lines):
+            continue
+        link = deal["payment_link"]
+        if not deals._link_is_live(deal):
+            # Never hand the customer a dead link: make a new one (the old one is cancelled).
+            try:
+                link = (await deals.send_payment_link(ctx.tenant_id, deal["id"], send_whatsapp_message=False, db=ctx.db))["payment_link"]
+            except Exception:
+                logger.exception("Relinking deal %s failed for lead %s", deal["id"], ctx.lead_id)
+                return _quote_failed(ctx, turn)
+        turn.quote_text = _quote_text(deal["items"], deal["total_paise"], link)
+        return None
     try:
         created = await deals.create_deal(
             ctx.tenant_id, ctx.lead_id, lines, "whatsapp", "awaiting_payment", send_link=False, db=ctx.db,
@@ -576,11 +665,7 @@ async def _send_quote(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
         logger.exception("create_deal (send_quote) failed for lead %s", ctx.lead_id)
         created = {}
     if not created.get("payment_link"):
-        _handover_for_failed_link(ctx, turn, "Payment link could not be created for a product order")
-        return (
-            "send_quote failed: a team member has been asked to send the quote and payment link. "
-            "Tell the customer that, in your own words, without promising a time."
-        )
+        return _quote_failed(ctx, turn)
     turn.quote_text = _quote_text(created["items"], created["deal"]["total_paise"], created["payment_link"])
     return None
 
@@ -592,6 +677,7 @@ _EXECUTORS = {
     deal_engine.TOOL_SKIP_DETAIL: _skip_detail,
     deal_engine.TOOL_CREATE_PAYMENT_LINK: _create_payment_link,
     deal_engine.TOOL_HAND_TO_HUMAN: _hand_to_human,
+    deal_engine.TOOL_CLOSE_DEAL: _close_deal,
     "recommend_catalog_item": _recommend_item,
     "send_quote": _send_quote,
 }

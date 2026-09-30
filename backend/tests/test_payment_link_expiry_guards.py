@@ -1,5 +1,5 @@
 """Expiry bookkeeping around regenerated payment links: a late "old link expired" webhook
-must not cancel a session that now holds a newer link, and the stored expiry is the one
+must not clear a session that now holds a newer link, and the stored expiry is the one
 Razorpay reports, not just the one we computed."""
 import sys
 from pathlib import Path
@@ -45,7 +45,7 @@ class _Chain:
         return result
 
 
-def test_expiry_webhook_only_cancels_a_link_that_is_unknown_or_past():
+def test_expiry_webhook_only_clears_a_link_that_is_unknown_or_past():
     db = _RecordingDb([{"id": "s1"}])
     with patch("app.services.intake._sync_deal"):
         assert expire_intake_session("s1", db=db) is True
@@ -55,7 +55,8 @@ def test_expiry_webhook_only_cancels_a_link_that_is_unknown_or_past():
     assert or_filter.startswith("payment_link_expires_at.is.null,payment_link_expires_at.lte.")
     assert or_filter.endswith("Z")
     update_payload = calls["update"][0]
-    assert update_payload == {"status": "cancelled", "payment_link": None, "payment_link_expires_at": None}
+    # D2: only the link dies; the deal stays open, so no status is written.
+    assert update_payload == {"payment_link": None, "payment_link_expires_at": None}
 
 
 def test_expiry_webhook_for_a_session_that_moved_on_reports_ignored():

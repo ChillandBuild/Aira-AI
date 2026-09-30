@@ -473,7 +473,7 @@
         "details_saved": [
           "name"
         ],
-        "age_days": 3
+        "away_days": 3
       },
       "lead_turns": [
         "hi"
@@ -481,10 +481,21 @@
       "expect": {
         "hard": [
           "no_repeat",
-          "window_respected"
+          "window_respected",
+          "returning_close",
+          "returning_link",
+          "returning_question"
+        ],
+        "turns": [
+          {
+            "close": false,
+            "ask": true,
+            "link": false,
+            "package": "one_question"
+          }
         ],
         "behaviour": [
-          "Aira welcomes back in one line and continues from the deal state (asks for the next missing detail); it does not restart the offer or re-send the full menu."
+          "D4: the lead was away 3 days and 'hi' shows no intent, so Aira asks ONE short question: continue with the open One Question booking, or look at something else. It does not close the booking, send a link, list the offerings or repeat the saved details until they answer."
         ],
         "judge": [
           "remembered_context",

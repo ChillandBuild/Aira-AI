@@ -1256,6 +1256,10 @@ export interface DealSummary {
   lead: { id: string; name: string | null; phone: string | null };
   item_summary: string;
   item_count: number;
+  // Optional: the board API may not send these yet; a missing field just hides its tag.
+  last_activity_at?: string | null;
+  link_expires_at?: string | null;
+  refund_needed?: boolean | null;
 }
 
 export interface Deal extends DealSummary {
