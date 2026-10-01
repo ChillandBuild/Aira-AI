@@ -6,13 +6,15 @@ import { IntakeTable } from "@/app/dashboard/intake/IntakeTable";
 import { ColumnPicker } from "@/app/dashboard/intake/ColumnPicker";
 import { deriveColumns } from "@/app/dashboard/intake/columns";
 
-type Filter = "all" | "awaiting_payment" | "paid";
+type Filter = "all" | "awaiting_payment" | "paid" | "resolved";
 
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "awaiting_payment", label: "Awaiting Payment" },
   { key: "paid", label: "Paid" },
 ];
+// Resolved means the astrologer's answer was delivered, so only AstroTamil clients have the tab.
+const RESOLVED_FILTER: { key: Filter; label: string } = { key: "resolved", label: "Resolved" };
 
 interface PackageOption {
   key: string;
@@ -34,6 +36,8 @@ export function FormAnswersTab() {
   const [error, setError] = useState(false);
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set());
   const [packages, setPackages] = useState<PackageOption[]>([]);
+  const [astroConnected, setAstroConnected] = useState(false);
+  const filters = astroConnected ? [...FILTERS, RESOLVED_FILTER] : FILTERS;
 
   const columns = useMemo(() => deriveColumns(rows), [rows]);
   const visibleKeys = useMemo(
@@ -48,6 +52,7 @@ export function FormAnswersTab() {
       const page = await api.intake.listSessions({ status: filter, q: query || undefined });
       setRows(page.data);
       setCursor(page.next_cursor);
+      setAstroConnected(Boolean(page.astro_connected));
     } catch {
       setError(true);
     } finally {
@@ -91,11 +96,6 @@ export function FormAnswersTab() {
     loadFirstPage();
   }
 
-  async function handleResolve(sessionId: string) {
-    await api.intake.resolveSession(sessionId);
-    loadFirstPage();
-  }
-
   async function downloadCsv() {
     const auth = await getAuthHeaders();
     const res = await fetch(`${API_URL}${api.intake.csvPath({ status: filter, q: query || undefined })}`, {
@@ -115,7 +115,7 @@ export function FormAnswersTab() {
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
         <div className="flex gap-1 rounded-xl border border-border bg-surface-subtle p-1">
-          {FILTERS.map(({ key, label }) => (
+          {filters.map(({ key, label }) => (
             <button
               key={key}
               type="button"
@@ -180,7 +180,6 @@ export function FormAnswersTab() {
             loadingMore={loadingMore}
             onLoadMore={loadMore}
             onChangePackage={handleChangePackage}
-            onResolve={handleResolve}
           />
         )}
       </div>

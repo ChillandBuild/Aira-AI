@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check, CheckCircle2, Copy, Pencil } from "lucide-react";
+import { Check, Copy, Pencil } from "lucide-react";
 import { IntakeSession } from "@/lib/api";
 import { FieldColumn } from "./columns";
 
@@ -31,7 +31,6 @@ interface IntakeTableProps {
   loadingMore: boolean;
   onLoadMore: () => void;
   onChangePackage: (sessionId: string, packageKey: string) => void;
-  onResolve: (sessionId: string) => Promise<void>;
 }
 
 function CopyLinkButton({ link }: { link: string }) {
@@ -90,34 +89,6 @@ function AstroCell({ row }: { row: IntakeSession }) {
   );
 }
 
-function ResolveButton({ sessionId, onResolve }: { sessionId: string; onResolve: (sessionId: string) => Promise<void> }) {
-  const [resolving, setResolving] = useState(false);
-
-  async function handleResolve(e: React.MouseEvent) {
-    e.stopPropagation();
-    setResolving(true);
-    try {
-      await onResolve(sessionId);
-    } finally {
-      setResolving(false);
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleResolve}
-      disabled={resolving}
-      aria-label="Mark resolved"
-      title="Mark resolved"
-      className="ml-1.5 inline-flex items-center gap-1 rounded-lg border border-border px-1.5 py-0.5 font-label text-[10px] font-bold text-ink-muted hover:bg-surface-subtle disabled:opacity-50"
-    >
-      <CheckCircle2 size={11} />
-      {resolving ? "…" : "Resolve"}
-    </button>
-  );
-}
-
 function PackageCell({
   row, packages, onChangePackage,
 }: {
@@ -172,7 +143,7 @@ function PackageCell({
 }
 
 export function IntakeTable({
-  rows, columns, visibleKeys, packages, hasMore, loadingMore, onLoadMore, onChangePackage, onResolve,
+  rows, columns, visibleKeys, packages, hasMore, loadingMore, onLoadMore, onChangePackage,
 }: IntakeTableProps) {
   const sentinel = useRef<HTMLDivElement | null>(null);
 
@@ -245,7 +216,6 @@ export function IntakeTable({
                   <span className={`inline-flex rounded-full border px-2.5 py-1 font-label text-[10px] font-bold ${STATUS_BADGE[row.status]}`}>
                     {STATUS_LABEL[row.status]}
                   </span>
-                  {row.status === "paid" && <ResolveButton sessionId={row.id} onResolve={onResolve} />}
                 </td>
                 <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
                   <PackageCell row={row} packages={packages} onChangePackage={onChangePackage} />

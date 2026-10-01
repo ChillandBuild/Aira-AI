@@ -318,8 +318,8 @@ async def _reconcile_astro_pushes() -> None:
 
 
 async def _sweep_stale_intake_sessions() -> None:
-    """APScheduler job: cancel dead awaiting_payment links and auto-resolve
-    forgotten paid sessions, both after 48h. See intake.sweep_stale_intake_sessions."""
+    """APScheduler job: cancel unfinished deals idle past the tenant's deal_idle_close_days.
+    See intake.sweep_stale_intake_sessions."""
     _heartbeats["intake-staleness-sweep"] = datetime.now(timezone.utc)
     try:
         from app.services.intake import sweep_stale_intake_sessions

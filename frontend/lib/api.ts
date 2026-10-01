@@ -1390,6 +1390,8 @@ export interface IntakeStats {
 export interface IntakePage {
   data: IntakeSession[];
   next_cursor: string | null;
+  /** True only for a client with the AstroTamil connection; it unlocks the Resolved view. */
+  astro_connected?: boolean;
 }
 
 export interface VerticalStarter {
@@ -2645,10 +2647,6 @@ export const api = {
       if (params.cursor) search.set("cursor", params.cursor);
       return apiFetch<IntakePage>(`/api/v1/intake/sessions?${search}`);
     },
-    resolveSession: (sessionId: string) =>
-      apiFetch<{ status: string }>(`/api/v1/intake/sessions/${sessionId}/resolve`, {
-        method: "PATCH",
-      }),
     changePackage: (sessionId: string, packageKey: string) =>
       apiFetch<IntakeSession>(`/api/v1/intake/sessions/${sessionId}/package`, {
         method: "PATCH",

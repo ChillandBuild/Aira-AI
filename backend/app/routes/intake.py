@@ -23,7 +23,6 @@ from app.services.intake import (
     notify_payment_failed,
     record_astro_bridge_ids,
     report_extra_deal_payment,
-    resolve_intake_session,
 )
 from app.services.intake_copy import compose_payment_receipt, gst_receipt_line
 from app.services.intake_csv import FIXED_HEADERS, build_csv_headers, build_csv_row
@@ -36,6 +35,9 @@ require_conversations_view = require_permission("conversations.view")
 require_conversations_reply = require_permission("conversations.reply")
 
 VISIBLE_STATUSES = ["awaiting_payment", "paid"]
+# Resolved is a real outcome only for a client with the AstroTamil connection: the astrologer's
+# delivered reply resolves the session (intake.deliver_astro_reply). For everyone else it stays hidden.
+CONNECTED_STATUSES = [*VISIBLE_STATUSES, "resolved"]
 
 SESSION_COLUMNS = (
     "id, lead_id, status, collected_data, field_schema, amount_paise, "
@@ -55,23 +57,27 @@ _CURSOR_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?
 _CURSOR_ID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
-def _statuses_for(status: str) -> list[str]:
+def _statuses_for(status: str, connected: bool = False) -> list[str]:
+    allowed = CONNECTED_STATUSES if connected else VISIBLE_STATUSES
     if status == "all":
-        return VISIBLE_STATUSES
-    if status in VISIBLE_STATUSES:
+        return allowed
+    if status in allowed:
         return [status]
     raise HTTPException(
         status_code=400,
-        detail=f"status must be 'all' or one of {VISIBLE_STATUSES}",
+        detail=f"status must be 'all' or one of {allowed}",
     )
 
 
-def _build_query(db, tenant_id: str, status: str, package: str | None, q: str | None, cursor: str | None, limit: int):
+def _build_query(
+    db, tenant_id: str, status: str, package: str | None, q: str | None, cursor: str | None, limit: int,
+    connected: bool = False,
+):
     query = (
         db.table("intake_sessions")
         .select(SESSION_COLUMNS)
         .eq("tenant_id", tenant_id)
-        .in_("status", _statuses_for(status))
+        .in_("status", _statuses_for(status, connected))
     )
     if package:
         query = query.eq("package_key", package)
@@ -96,11 +102,10 @@ def _build_query(db, tenant_id: str, status: str, package: str | None, q: str | 
     return query.order("created_at", desc=True).order("id", desc=True).limit(limit)
 
 
-def _with_astro_status(rows: list[dict], tenant_id: str) -> list[dict]:
+def _with_astro_status(rows: list[dict], connected: bool) -> list[dict]:
     """Fold the two AstroTamil ids into one "astro" object, and only for a client that has the
     AstroTamil connection. For everyone else the ids are dropped, so their rows and table are
     exactly what they were before the column existed."""
-    connected = astro_bridge.is_connected(tenant_id)
     for row in rows:
         question_id = row.pop("astro_question_id", None)
         horoscope_id = row.pop("astro_horoscope_id", None)
@@ -119,13 +124,17 @@ def list_intake_sessions(
     ctx: dict = Depends(require_conversations_view),
 ):
     db = get_supabase()
-    result = _build_query(db, ctx["tenant_id"], status, package, q, cursor, limit).execute()
-    rows = _with_astro_status(result.data or [], ctx["tenant_id"])
+    connected = astro_bridge.is_connected(ctx["tenant_id"])
+    result = _build_query(db, ctx["tenant_id"], status, package, q, cursor, limit, connected).execute()
+    rows = _with_astro_status(result.data or [], connected)
     next_cursor = None
     if len(rows) == limit:
         last = rows[-1]
         next_cursor = f"{last['created_at']}|{last['id']}"
-    return {"data": rows, "next_cursor": next_cursor}
+    page = {"data": rows, "next_cursor": next_cursor}
+    if connected:
+        page["astro_connected"] = True  # unlocks the Resolved tab; other clients' response is unchanged
+    return page
 
 
 @router.get("/sessions.csv")
@@ -138,7 +147,8 @@ def export_intake_sessions_csv(
     """Honours the active filter and search; ignores the client's column picker,
     which is a viewing preference, not a data one."""
     db = get_supabase()
-    result = _build_query(db, ctx["tenant_id"], status, package, q, None, CSV_MAX_ROWS).execute()
+    connected = astro_bridge.is_connected(ctx["tenant_id"])
+    result = _build_query(db, ctx["tenant_id"], status, package, q, None, CSV_MAX_ROWS, connected).execute()
     rows = result.data or []
     if len(rows) == CSV_MAX_ROWS:
         logger.warning(
@@ -202,14 +212,6 @@ def intake_stats(ctx: dict = Depends(require_conversations_view)):
         },
         "daily": [{"date": d, "count": n} for d, n in sorted(per_day.items())],
     }
-
-
-@router.patch("/sessions/{session_id}/resolve")
-def resolve_session(session_id: str, ctx: dict = Depends(require_conversations_reply)):
-    ok = resolve_intake_session(session_id, ctx["tenant_id"])
-    if not ok:
-        raise HTTPException(status_code=404, detail="Session not found or not in 'paid' status")
-    return {"status": "resolved"}
 
 
 class PackageChange(BaseModel):

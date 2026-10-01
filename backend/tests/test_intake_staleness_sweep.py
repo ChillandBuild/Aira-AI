@@ -1,6 +1,6 @@
 """The intake staleness sweep (blueprint D1): an unfinished deal is closed only after the
 tenant's idle-close days with no lead message and no real progress (last_activity_at), in
-EVERY unfinished status; a paid session auto-resolves after 48h; a live link is never cut
+EVERY unfinished status; a paid session is never touched by it; a live link is never cut
 off; a fresh lead message beats the sweep; and one bad row never stops the rest."""
 import sys
 from datetime import datetime, timedelta, timezone
@@ -161,13 +161,13 @@ async def test_a_session_from_the_deploy_gap_with_no_activity_value_uses_created
 
 
 @pytest.mark.asyncio
-async def test_paid_sessions_still_auto_resolve_after_48h(days):
+async def test_a_paid_session_is_never_resolved_by_the_sweep_however_old(days):
+    """Only the astrologer's delivered answer closes a paid session (deliver_astro_reply)."""
     db = FakeSupabase()
-    old = _session(db, status="paid", idle=0, paid_at=_ago(hours=49))
-    fresh = _session(db, status="paid", idle=0, paid_at=_ago(hours=5))
+    old = _session(db, status="paid", idle=90, paid_at=_ago(days=90))
     out = await sweep_stale_intake_sessions(db=db)
-    assert out["resolved"] == 1
-    assert _status(db, old) == "resolved" and _status(db, fresh) == "paid"
+    assert out == {"cancelled": 0}
+    assert _status(db, old) == "paid"
 
 
 @pytest.mark.asyncio
@@ -190,7 +190,7 @@ async def test_one_failing_cancel_does_not_stop_the_rest(days):
 @pytest.mark.asyncio
 async def test_no_stale_rows_is_a_clean_no_op(days):
     db = FakeSupabase()
-    assert await sweep_stale_intake_sessions(db=db) == {"cancelled": 0, "resolved": 0}
+    assert await sweep_stale_intake_sessions(db=db) == {"cancelled": 0}
 
 
 def test_scheduler_tolerates_late_starts():

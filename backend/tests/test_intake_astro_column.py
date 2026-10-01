@@ -46,3 +46,39 @@ def test_a_client_without_the_connection_gets_no_astrotamil_data_at_all(client):
     rows = _list(client, [SENT, UNSENT])
     assert all("astro" not in r and "astro_question_id" not in r and "astro_horoscope_id" not in r for r in rows)
     assert [r["id"] for r in rows] == ["s-1", "s-2"]
+
+
+RESOLVED = {"id": "s-3", "status": "resolved", "created_at": "2026-10-01T03:00:00Z",
+            "astro_question_id": 5856, "astro_horoscope_id": "HOR-RM8CPTET"}
+
+
+def _statuses_asked(client, status, connected):
+    """The status list the route filters on, for one request."""
+    db = MagicMock()
+    res = MagicMock()
+    res.data = []
+    chain = db.table.return_value.select.return_value.eq.return_value
+    chain.in_.return_value.order.return_value.order.return_value.limit.return_value.execute.return_value = res
+    setting = (lambda k, fallback=None, tenant_id=None: _CONNECTED.get(k, fallback)) if connected else (lambda k, fallback=None, tenant_id=None: fallback)
+    with patch("app.routes.intake.get_supabase", return_value=db), patch.object(astro_bridge, "get_setting", setting):
+        resp = client.get(f"/api/v1/intake/sessions?status={status}")
+    asked = chain.in_.call_args.args[1] if chain.in_.called else None
+    return resp, asked
+
+
+def test_a_connected_client_sees_resolved_rows_in_all_and_in_their_own_tab(client):
+    resp, asked = _statuses_asked(client, "all", connected=True)
+    assert asked == ["awaiting_payment", "paid", "resolved"] and resp.json()["astro_connected"] is True
+    _, asked = _statuses_asked(client, "resolved", connected=True)
+    assert asked == ["resolved"]
+
+
+def test_a_client_without_the_connection_never_gets_resolved_rows_or_a_resolved_tab(client):
+    resp, asked = _statuses_asked(client, "all", connected=False)
+    assert asked == ["awaiting_payment", "paid"] and "astro_connected" not in resp.json()
+    resp, _ = _statuses_asked(client, "resolved", connected=False)
+    assert resp.status_code == 400
+
+
+def test_there_is_no_manual_resolve_endpoint_any_more(client):
+    assert client.patch("/api/v1/intake/sessions/s-1/resolve").status_code in (404, 405)

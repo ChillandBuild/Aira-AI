@@ -1942,10 +1942,11 @@ def get_in_progress_session(lead_id: str, tenant_id: str, db=None) -> dict | Non
 
 
 def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
-    """Staff marks a paid intake session as handled — the AI reassurance context
-    (get_paid_unresolved_session) stops applying and the session leaves the
-    Intake "Paid" list. Only transitions from 'paid'; returns False if
-    the session doesn't exist, belongs to another tenant, or isn't paid yet."""
+    """Close a paid intake session as handled — the AI reassurance context
+    (get_paid_unresolved_session) stops applying. Its only caller is
+    deliver_astro_reply, once the astrologer's answer has been announced to the customer.
+    Only transitions from 'paid'; returns False if the session doesn't exist, belongs to
+    another tenant, or isn't paid yet."""
     if db is None:
         from app.db.supabase import get_supabase
         db = get_supabase()
@@ -1962,7 +1963,6 @@ def resolve_intake_session(session_id: str, tenant_id: str, db=None) -> bool:
     return bool(result.data)
 
 
-_STALE_PAID_HOURS = 48
 _SWEEP_BATCH = 200
 _SWEEP_TENANT_LIMIT = 1000
 
@@ -2056,8 +2056,8 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
       still be paid is never cancelled. A lead who pays a cancelled link later is still
       confirmed and surfaced to staff: confirm_intake_payment() filters on `.neq(status,
       "paid")`, so this only stops the AI's "reply so payment can continue" nagging.
-    - paid older than 48h (by paid_at) -> resolved, same transition the dashboard's own
-      Resolve button performs. Nothing else ever closes these out automatically.
+    Paid sessions are never touched here: a paid session closes only when the astrologer's
+    answer is announced to the customer (deliver_astro_reply).
     """
     if db is None:
         from app.db.supabase import get_supabase
@@ -2067,7 +2067,6 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
 
     now = datetime.now(timezone.utc)
     cancelled = 0
-    resolved = 0
 
     try:
         floor = (now - timedelta(days=deal_settings.DEAL_IDLE_CLOSE_DAYS_MIN)).isoformat()
@@ -2088,27 +2087,9 @@ async def sweep_stale_intake_sessions(db=None) -> dict:
     except Exception as e:
         logger.error(f"Idle-close sweep query failed: {e}")
 
-    try:
-        stale_paid = (
-            db.table("intake_sessions")
-            .select("id,tenant_id")
-            .eq("status", "paid")
-            .lt("paid_at", (now - timedelta(hours=_STALE_PAID_HOURS)).isoformat())
-            .limit(_SWEEP_BATCH)
-            .execute()
-        )
-        for row in stale_paid.data or []:
-            try:
-                if resolve_intake_session(row["id"], row["tenant_id"], db=db):
-                    resolved += 1
-            except Exception as e:
-                logger.error(f"Stale paid auto-resolve failed for session {row['id']}: {e}")
-    except Exception as e:
-        logger.error(f"Stale paid sweep query failed: {e}")
-
-    if cancelled or resolved:
-        logger.info(f"Intake staleness sweep: cancelled {cancelled} idle, resolved {resolved} paid")
-    return {"cancelled": cancelled, "resolved": resolved}
+    if cancelled:
+        logger.info(f"Intake staleness sweep: cancelled {cancelled} idle")
+    return {"cancelled": cancelled}
 
 
 async def change_session_package(session_id: str, tenant_id: str, package_key: str, db=None) -> dict | None:
@@ -2548,8 +2529,8 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     logger.info(f"Astro reply {reply_id} for session {external_ref}: customer nudged to the app via {via}")
 
     # The astrologer's answer just landed -- that's the resolution signal itself,
-    # unlike a generic tenant where only a human clicking Resolve (or the 48h
-    # sweep) can know the paid request was handled. No-ops if already resolved.
+    # nothing else closes a paid session, so a paid row with no answer yet stays Paid
+    # (and visible) until this runs. No-ops if already resolved.
     resolve_intake_session(session_id, tenant_id, db=db)
 
     return {"ok": True, "nudged": True, "via": via}
