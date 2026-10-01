@@ -143,9 +143,10 @@ function MainNavItem({
 
 interface SidebarProps {
   collapsed?: boolean;
+  hideLogo?: boolean;
 }
 
-export function Sidebar({ collapsed = false }: SidebarProps) {
+export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
@@ -283,6 +284,8 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const canServices = canAny(["settings.view", "settings.manage", "catalog.view", "catalog.manage"]);
   const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
   const showSettings = expandedGroups.Settings || isSettingsActive;
+  const isConversationsPage = pathname?.startsWith("/dashboard/conversations") ?? false;
+  const shouldHideLogo = hideLogo || (collapsed && isConversationsPage);
 
   return (
     <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none", collapsed ? "w-16" : "w-[220px]")}>
@@ -290,21 +293,23 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
           header border form one continuous divider. shrink-0 is essential: the
           nav below overflows and would otherwise compress this box under flex
           pressure, lifting the divider above the header's fixed 64px line. */}
-      <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e8e3db]", collapsed ? "justify-center px-2" : "px-5")}>
-        {collapsed ? (
-          // Brand mark only: every page is already an icon in the rail below, so the
-          // old "open menu" drawer was a second copy of the same navigation.
-          // public/ assets are not basePath-prefixed, hence the hard-coded /aira.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src="/aira/icons/aira-icon.svg" alt="Aira" width={32} height={32} className="h-8 w-8" />
-        ) : (
-          <AiraLogo className="h-6 w-auto text-[#1c1917]" />
-        )}
-      </div>
+      {!shouldHideLogo && (
+        <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e8e3db]", collapsed ? "justify-center px-2" : "px-5")}>
+          {collapsed ? (
+            // Brand mark only: every page is already an icon in the rail below, so the
+            // old "open menu" drawer was a second copy of the same navigation.
+            // public/ assets are not basePath-prefixed, hence the hard-coded /aira.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src="/aira/icons/aira-icon.svg" alt="Aira" width={32} height={32} className="h-8 w-8" />
+          ) : (
+            <AiraLogo className="h-6 w-auto text-[#1c1917]" />
+          )}
+        </div>
+      )}
 
 
       {collapsed ? (
-        <div className="flex-grow overflow-y-auto flex flex-col items-center py-4 space-y-1.5 scrollbar-thin">
+        <div className={cn("flex-grow overflow-y-auto flex flex-col items-center space-y-1.5 scrollbar-thin", shouldHideLogo ? "py-3" : "py-4")}>
         {/* TOP LEVEL: Overview / Dashboard */}
         {can("dashboard.view") ? (
           <CollapsedNavItem

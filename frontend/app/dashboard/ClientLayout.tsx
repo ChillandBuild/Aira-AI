@@ -119,7 +119,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               <div className="h-screen bg-background overflow-hidden relative">
                 {/* Collapsed Dashboard Rail (md+) */}
                 <div className="hidden md:block">
-                  <Sidebar collapsed />
+                  <Sidebar collapsed hideLogo />
                 </div>
                 {children}
                 <div className="fixed top-[calc(0.75rem+env(safe-area-inset-top))] left-3 z-[65] md:hidden">
