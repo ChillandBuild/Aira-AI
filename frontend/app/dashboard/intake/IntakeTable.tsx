@@ -57,6 +57,15 @@ function CopyLinkButton({ link }: { link: string }) {
   );
 }
 
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Dates are stored as 2003-11-19; staff read day-first, so show 19-11-2003. */
+function formatAnswer(value: string | undefined): string {
+  if (!value) return "—";
+  const iso = ISO_DATE.exec(value);
+  return iso ? `${iso[3]}-${iso[2]}-${iso[1]}` : value;
+}
+
 function AstroCell({ row }: { row: IntakeSession }) {
   if (!row.astro || row.status === "awaiting_payment") {
     return <span className="font-body text-sm text-ink-muted">—</span>;
@@ -267,7 +276,7 @@ export function IntakeTable({
                 </td>
                 {shown.map((col) => (
                   <td key={col.key} className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
-                    {row.collected_data?.[col.key] || "—"}
+                    {formatAnswer(row.collected_data?.[col.key])}
                   </td>
                 ))}
               </tr>

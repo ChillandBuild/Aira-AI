@@ -123,6 +123,18 @@ class TestAnswerGuard:
         assert not _save(gender="female").refusals
         assert _session(world)["collected_data"]["gender"] == "Female"
 
+    @pytest.mark.parametrize("typed", ["?", "idk", "theriyathu", "12"])
+    def test_a_non_place_is_not_saved_as_the_birth_place(self, world, typed):
+        _start(world)
+        out = _save(place_of_birth=typed)
+        assert "place_of_birth" not in _session(world)["collected_data"]
+        assert "place_of_birth" in out.refusals[0]
+
+    def test_a_real_place_is_saved(self, world):
+        _start(world)
+        assert not _save(place_of_birth="Neyveli").refusals
+        assert _session(world)["collected_data"]["place_of_birth"] == "Neyveli"
+
     def test_the_good_answers_in_a_mixed_message_are_still_saved(self, world):
         _start(world)
         out = _save(name="Keerthi", date_of_birth="19112003", time_of_birth="theriyathu")
@@ -133,14 +145,14 @@ class TestAnswerGuard:
 
 @pytest.mark.usefixtures("connected")
 class TestSkipGuard:
-    @pytest.mark.parametrize("key", ["date_of_birth", "gender", "question"])
+    @pytest.mark.parametrize("key", ["date_of_birth", "gender", "question", "place_of_birth"])
     def test_a_detail_astrotamil_cannot_work_without_cannot_be_skipped(self, world, key):
         _start(world)
         out = run([call("skip_detail", key=key)], ASTRO_CONFIG)
         assert out.refusals and _session(world)["skipped_fields"] == []
 
-    @pytest.mark.parametrize("key", ["time_of_birth", "place_of_birth", "name"])
-    def test_birth_time_place_and_name_can_be_skipped(self, world, key):
+    @pytest.mark.parametrize("key", ["time_of_birth", "name"])
+    def test_birth_time_and_name_can_be_skipped(self, world, key):
         _start(world)
         out = run([call("skip_detail", key=key)], ASTRO_CONFIG)
         assert not out.refusals and _session(world)["skipped_fields"] == [key]

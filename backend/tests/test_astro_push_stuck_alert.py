@@ -30,7 +30,7 @@ def connected():
 
 def _session(minutes_ago=30, **collected):
     data = {"name": "Keerthi", "gender": "Male", "date_of_birth": "2003-11-19",
-            "time_of_birth": "10:30 AM", "question": "job eppo?", **collected}
+            "time_of_birth": "10:30 AM", "place_of_birth": "Neyveli", "question": "job eppo?", **collected}
     paid = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
     return {"id": SID, "tenant_id": TENANT, "lead_id": "L1", "collected_data": data,
             "skipped_fields": [], "paid_at": paid.isoformat()}

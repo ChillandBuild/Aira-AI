@@ -214,6 +214,20 @@ def format_time_12h(normalized: str) -> str:
     return f"{shown} {'AM' if hour < 12 else 'PM'}"
 
 
+_NOT_A_PLACE = {"idk", "na", "n/a", "none", "nil", "unknown"}
+
+
+def normalize_place(raw) -> str | None:
+    """The place as typed, trimmed, or None when it is not a place ("?", "idk", "theriyathu").
+    No geocoding: only enough to stop a junk answer being cast as a chart."""
+    text = _text(raw)
+    if not text or text in _NOT_A_PLACE or _UNKNOWN_TIME.search(text):
+        return None
+    if sum(ch.isalpha() for ch in text) < 2:
+        return None
+    return unicodedata.normalize("NFC", str(raw)).strip()
+
+
 def normalize_gender(raw) -> str | None:
     """Return "M" or "F", or None when unparseable — never guess."""
     # Django coerces anything that is not exactly "M"/"F" into "M", so a wrong

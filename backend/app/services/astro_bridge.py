@@ -23,7 +23,9 @@ from app.services.astro_normalize import (
     normalize_date,
     normalize_gender,
     normalize_phone,
+    normalize_place,
     normalize_time,
+    time_needs_meridiem,
 )
 
 logger = logging.getLogger(__name__)
@@ -192,9 +194,13 @@ def _prepare(session: dict, lead: dict) -> tuple[dict, list[str]]:
         "person_name": str(_pick(collected, "person_name") or lead.get("name") or "").strip(),
         "phone": normalize_phone(_pick(collected, "phone") or lead.get("phone")),
         "birth_date": normalize_date(_pick(collected, "birth_date")),
-        "birth_time": UNKNOWN_TIME_PLACEHOLDER if time_unknown else normalize_time(raw_time),
+        # 5:30 could be 05:30 or 17:30, and a chart cast for the wrong one is wrong: whichever path
+        # saved it, the push refuses until AM or PM is settled.
+        "birth_time": UNKNOWN_TIME_PLACEHOLDER if time_unknown else (
+            None if time_needs_meridiem(raw_time) else normalize_time(raw_time)
+        ),
         "gender": normalize_gender(_pick(collected, "gender")),
-        "birth_place": str(_pick(collected, "birth_place") or "").strip(),
+        "birth_place": normalize_place(_pick(collected, "birth_place")) or "",
         "question_text": str(_pick(collected, "question") or session.get("trigger_reason") or "").strip(),
     }
     if time_unknown and values["question_text"]:
@@ -205,6 +211,7 @@ def _prepare(session: dict, lead: dict) -> tuple[dict, list[str]]:
             ("phone", "phone"),
             ("birth date", "birth_date"),
             ("birth time", "birth_time"),
+            ("birth place", "birth_place"),
             ("gender", "gender"),
             ("question", "question_text"),
         )
@@ -239,9 +246,6 @@ async def push_consultation(session: dict, lead: dict, tenant_id: str) -> dict |
             external_ref, tenant_id, ", ".join(unusable), sorted((session.get("collected_data") or {}).keys()),
         )
         return None
-
-    if not values["birth_place"]:
-        logger.warning("Astro bridge pushing session %s with no birth place", external_ref)
 
     person_name, phone, gender = values["person_name"], values["phone"], values["gender"]
     birth_date, birth_time, birth_place = values["birth_date"], values["birth_time"], values["birth_place"]

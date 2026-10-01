@@ -331,3 +331,19 @@ def test_twelve_hour_time_without_am_pm_needs_a_question(raw, needs):
 def test_time_is_shown_in_twelve_hour_form(normalized, shown):
     assert format_time_12h(normalized) == shown
     assert normalize_time(shown) == normalized
+
+
+from app.services.astro_normalize import normalize_place
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("Neyveli", "Neyveli"), ("  Coimbatore, Tamil Nadu ", "Coimbatore, Tamil Nadu"), ("நெய்வேலி", "நெய்வேலி"),
+    ("St. John's", "St. John's"),
+])
+def test_a_real_place_is_kept(raw, expected):
+    assert normalize_place(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["", None, "?", "-", "12", "x", "idk", "na", "N/A", "theriyathu", "don't know", "🙏"])
+def test_a_non_place_is_refused(raw):
+    assert normalize_place(raw) is None

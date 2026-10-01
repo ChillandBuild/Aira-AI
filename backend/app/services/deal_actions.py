@@ -26,6 +26,7 @@ from app.services.astro_normalize import (
     is_unknown_time,
     normalize_date,
     normalize_gender,
+    normalize_place,
     normalize_time,
     time_needs_meridiem,
 )
@@ -233,9 +234,11 @@ def _astro_connected(ctx: DealContext) -> bool:
         return False
 
 
-# A detail AstroTamil cannot answer without. Birth time may be skipped (it is then sent as 12:00
-# with a note), and so may name and place.
-_UNSKIPPABLE_ROLES = {"birth_date": "date of birth", "gender": "gender", "question": "question"}
+# A detail AstroTamil cannot answer without. Only birth time may be skipped (it is then sent as
+# 12:00 with a note), and the name, which falls back to the lead's.
+_UNSKIPPABLE_ROLES = {
+    "birth_date": "date of birth", "gender": "gender", "question": "question", "birth_place": "place of birth",
+}
 
 
 def _astro_value(role: str, key: str, text: str) -> tuple[str | None, str | None]:
@@ -264,6 +267,8 @@ def _astro_value(role: str, key: str, text: str) -> tuple[str | None, str | None
         if time_needs_meridiem(text):
             return None, f"{key} '{text}' could be AM or PM. Ask: is that AM (morning) or PM (evening)?"
         return format_time_12h(time), None
+    if role == "birth_place" and not normalize_place(text):
+        return None, f"{key} '{text}' is not a place. Ask for the town or city they were born in"
     if role == "gender" and not normalize_gender(text):
         return None, f"{key} '{text}' is not clear. Ask: Male or Female?"
     return text, None

@@ -348,7 +348,7 @@ async def test_a_skipped_birth_date_is_still_refused():
 
 @pytest.mark.asyncio
 async def test_a_real_time_inside_an_i_dont_know_sentence_is_kept_not_replaced_by_noon():
-    collected = {"name": "K", "gender": "Male", "date_of_birth": "2003-11-15",
+    collected = {"name": "K", "gender": "Male", "date_of_birth": "2003-11-15", "place_of_birth": "Neyveli",
                  "time_of_birth": "I don't know exactly, maybe 6 am", "question": "job?"}
     post = AsyncMock(return_value=_response({"success": True, "question_id": 1}))
     patcher, _ = _client_patch(post)
@@ -362,6 +362,21 @@ async def test_a_real_time_inside_an_i_dont_know_sentence_is_kept_not_replaced_b
 
 
 def test_unusable_for_push_counts_trigger_reason_as_a_question_like_the_push_does():
-    collected = {"gender": "Male", "date_of_birth": "2003-11-15", "time_of_birth": "10:30 AM"}
+    collected = {"gender": "Male", "date_of_birth": "2003-11-15", "time_of_birth": "10:30 AM", "place_of_birth": "Neyveli"}
     assert astro_bridge.unusable_for_push(collected, [], "+916369781582") == ["question"]
     assert astro_bridge.unusable_for_push(collected, [], "+916369781582", "job eppo?") == []
+
+
+@pytest.mark.parametrize("place", [None, "", "?", "idk"])
+def test_a_missing_or_junk_birth_place_is_unusable(place):
+    collected = {"gender": "Male", "date_of_birth": "2003-11-15", "time_of_birth": "10:30 AM", "question": "job?"}
+    if place is not None:
+        collected["place_of_birth"] = place
+    assert astro_bridge.unusable_for_push(collected, [], "+916369781582") == ["birth place"]
+
+
+@pytest.mark.parametrize("raw_time", ["5:30", "1030", "9"])
+def test_a_time_that_could_be_am_or_pm_is_unusable_whatever_path_saved_it(raw_time):
+    collected = {"gender": "Male", "date_of_birth": "2003-11-15", "place_of_birth": "Neyveli",
+                 "question": "job?", "time_of_birth": raw_time}
+    assert astro_bridge.unusable_for_push(collected, [], "+916369781582") == ["birth time"]
