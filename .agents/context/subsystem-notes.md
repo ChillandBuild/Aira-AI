@@ -670,20 +670,23 @@ exercise, so the contract is checked statically instead.
 `frontend/app/dashboard/settings/SettingsSection.tsx` holds both the card
 (`SettingsSection`) and the group (`SettingsAccordion`). Two rules are load-bearing:
 
-- **Initial open state comes from the section COUNT, not per-section props.** One
-  section → opens; two or more → all collapsed, so the page reads as a list of topics.
+- **Initial open state comes from the section COUNT or `defaultOpenId`.** One
+  section → opens; two or more → all collapsed, unless `defaultOpenId` is provided (e.g.
+  `Profile & Business` sets `defaultOpenId="profile"` so "Your profile" opens while the
+  other two remain collapsed). URL hash navigation (`#business`, `#business-details`, etc.)
+  also automatically expands the target section.
   Sections `register(id)` on mount and the group seeds **once**, on the first commit
   where the id list is non-empty — every section mounts in the same commit, so that
   first list is the complete one. A section that mounts in a *later* commit (behind its
   own loading gate) therefore misses the seed and stays closed; render sections together
-  or the rule silently misapplies. `defaultOpen` now only affects a `SettingsSection`
+  or the rule silently misapplies. `defaultOpen` on `SettingsSection` only affects a section
   rendered **outside** a group (Inbox, Intake Config, Business Hours, Quick Replies,
-  Telecalling Behavior, Packages — all single-section pages, all open by default).
-- **A group must actually wrap its sections.** `NotificationConfigPanel` rendered its
-  three cards in a bare `<>`, so they were outside the group entirely: no count rule, no
-  spacing, no toolbar. It is now wrapped in `<SettingsAccordion>` — the only multi-section
-  settings page today. Its loading skeleton carries the same `space-y` as the group so
-  nothing shifts when data lands.
+  Telecalling Behavior, Packages — single-section pages, open by default).
+- **A group must actually wrap its sections.** `NotificationConfigPanel` and `Profile & Business`
+  (`account/page.tsx`) wrap their cards in `<SettingsAccordion>` (with `defaultOpenId="profile"`
+  for the latter). Its loading skeleton carries the same `space-y` as the group so nothing
+  shifts when data lands. Wrapping in `<SettingsAccordion>` bridges the section count and
+  `Expand all` / `Collapse all` controls into `AppHeader.tsx`.
 
 The section count and Expand all / Collapse all render in **`AppHeader.tsx`**, not above
 the cards (same "chrome belongs in the header" call as the telecalling tab note above).
@@ -929,3 +932,12 @@ Catalogue was removed from the Nira config on 2026-09-06 for this reason.
 - **"What Aira saw" gates are mirrored from `generate_reply`** (blocked, opted out, auto-reply off) — keep them in sync when the real gates change.
 - **Weekly digest:** cron Monday 09:00 IST (`brain-weekly-digest`), owners only, runs off the event loop.
 - **Test Aira** calls `ai_reply._llm_chat` (never `generate_reply`/`converse_once`); rate limiter and kill-switch cache are per process.
+
+## Deal lifecycle — intake_sessions (R1–R4, 2026-09-30)
+- **Two clocks, don't mix them.** `payment_link_expires_at` only kills the *link* (`expire_intake_session` clears it; deal stays open). `last_activity_at` drives the idle *close*. Only a lead message (text or media) or real deal progress resets it. `updated_at` is never written, so don't use it.
+- **One current plink.** `razorpay_payment_link_id` is the only link that counts. Sending a new link cancels the old one on Razorpay (`cancel_payment_link(plink_id, tenant_id)`). Webhooks for any other plink are ignored.
+- **A session counts as "paid" if status == 'paid' OR `razorpay_payment_id` is set.** A second payment on a paid deal goes into `extra_payment_ids` through a compare-and-set write (`.not_.contains`). That sets `refund_needed` and alerts staff; staff refund it by hand.
+- **Three different 48 h / expiry things existed.** (1) The link expiry. (2) The old 48 h idle cancel, now replaced by `deal_idle_close_days`. (3) The paid → resolved auto-resolve. That last one still exists, but no longer blocks a repeat booking because of `new_booking`.
+- **`mark_lost(..., only_from=...)`**: the webhook path passes ("quoted","awaiting_payment") so a late event can't flip a won deal to lost.
+- **Idle sweep reads the setting strictly** (`get_setting_strict`). If the read fails, it skips that tenant and never falls back to a default. A DB blip must never mass-close deals.
+- **Eval harness:** `backend/evals/conversations/` (`run_aira.py --files scenarios_returning.json`, score with `python -m evals.conversations.returning`). `write_guard.py` makes it refuse DB writes. It needs a tenant key and explicit user OK to spend it.
