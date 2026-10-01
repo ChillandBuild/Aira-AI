@@ -41,6 +41,7 @@ class DealContext:
     payment_concern: bool = False  # they say they paid / want a refund: no new link or quote this turn
     buttons_enabled: bool = False  # the channel can show tappable options (WhatsApp)
     business_details: dict = field(default_factory=dict)  # Business Details page values Aira may share when asked
+    rejected_detail_tap: bool = False
 
 
 @dataclass(frozen=True)
@@ -261,9 +262,13 @@ def _status_after_change(ctx: DealContext, session: dict, collected: dict, skipp
 
 
 async def _save_details(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
+    if ctx.rejected_detail_tap:
+        return "save_details refused: this message tapped an old or invalid detail button. Ask the customer again."
     session, refusal = _open_session_for_details(ctx, "save_details")
     if refusal:
         return refusal
+    if args.get("session_id") and session["id"] != args["session_id"]:
+        return "save_details refused: the booking changed after that detail button was shown. Ask for the current details again."
     raw = args.get("fields")
     if not isinstance(raw, dict):
         return "save_details refused: pass fields as an object of detail key to value."
@@ -394,10 +399,12 @@ def build_level_menu(level: list[dict]) -> dict | None:
         return None
     if mode == "buttons":
         buttons = intake._build_buttons(level)
-        return {"kind": "buttons", "options": [b["title"] for b in buttons], "buttons": buttons}
+        return {"kind": "buttons", "options": [b["title"] for b in buttons], "buttons": buttons,
+                "offering_keys": [n["key"] for n in level]}
     sections = intake._build_list_sections(level)
     titles = [row["title"] for s in sections for row in s["rows"]]
-    return {"kind": "list", "options": titles, "sections": sections, "button_text": MENU_BUTTON_TEXT}
+    return {"kind": "list", "options": titles, "sections": sections, "button_text": MENU_BUTTON_TEXT,
+            "offering_keys": [n["key"] for n in level]}
 
 
 def top_level_menu(ctx: DealContext) -> tuple[list[dict], dict | None]:

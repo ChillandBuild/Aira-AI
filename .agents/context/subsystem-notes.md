@@ -635,6 +635,8 @@
 
 Saved client-authored button blocks are gone (service, route and panel deleted; the table is kept). Aira now turns choices into buttons itself — see `[[decisions/log.md]]` 2026-09-27. One lesson from it still holds for any AI tool: **to stop the model using a tool, remove the tool definition** (as `if intake_active: catalog_tools = []` does in `ai_reply.py`); a prompt instruction does not stop a live tool the model can still call.
 
+- **Configured choices bind to their data (2026-10-01).** `offer_choices` accepts `offering_keys` or `field_key`; package menus use saved labels and package IDs, and detail menus encode the booking session, field and canonical value in `choice:detail:` IDs. Legacy labels matching a unique sibling offering level are canonicalized as a backstop. Field taps save through the guarded detail executor before the reply model runs; stale sessions, removed options and paid bookings are rejected. Migration 214 stores incoming interactive IDs, and those detail-tap rows are excluded from extraction/prompt history so old taps cannot be reinterpreted later. Existing rows with NULL IDs cannot be classified retrospectively. Apply migration 214 before deploying readers/writers of `messages.interactive_id`.
+
 ## `generate_reply`'s LLM `try` block does not return on exception
 
 Load-bearing, and it has already caused one live bug. The `except Exception` around the LLM call sets a fallback `reply_text` and **falls through** to the channel dispatch below. Any variable bound only *inside* that `try` is unbound on the exception path — and the dispatch reads several of them.

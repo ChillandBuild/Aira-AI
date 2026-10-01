@@ -1,5 +1,72 @@
 """Choices always go out tappable (services/choices.py)."""
+import base64
+import json
+
+import pytest
+
 from app.services import choices
+
+
+def test_detail_list_does_not_exceed_whatsapp_row_id_limit():
+    field = {"key": "appointment_type", "options": ["அ" * 26, "Female"]}
+    menu = choices.build_detail_menu(field, "00000000-0000-0000-0000-000000000000")
+    assert menu is None or all(len(row["id"]) <= 200 for row in menu["sections"][0]["rows"])
+
+
+class TestDetailMenu:
+    def test_saved_options_bind_tap_to_session_field_and_value(self):
+        menu = choices.build_detail_menu({"key": "gender", "options": ["Male", "Female"]}, "session-1")
+        assert menu["kind"] == "buttons"
+        assert [button["title"] for button in menu["buttons"]] == ["Male", "Female"]
+        for button, value in zip(menu["buttons"], ["Male", "Female"]):
+            assert choices.is_choice_tap(button["id"])
+            assert choices.parse_detail_tap(button["id"]) == ("session-1", "gender", value)
+
+    def test_long_list_titles_keep_full_canonical_values(self):
+        options = ["Weekend consultation with specialist", "Weekday"]
+        menu = choices.build_detail_menu({"key": "preferred_slot", "options": options}, "s")
+        assert menu["kind"] == "list"
+        rows = menu["sections"][0]["rows"]
+        assert len(rows[0]["title"]) == choices.LIST_ROW_TITLE_MAX
+        assert choices.parse_detail_tap(rows[0]["id"]) == ("s", "preferred_slot", options[0])
+
+    def test_non_ascii_values_and_duplicate_options_round_trip(self):
+        menu = choices.build_detail_menu({"key": "நேரம்", "options": ["காலை", "காலை", "மாலை"]}, "s")
+        assert len(menu["buttons"]) == 2
+        assert choices.parse_detail_tap(menu["buttons"][0]["id"]) == ("s", "நேரம்", "காலை")
+
+    def test_whatsapp_list_option_count_limit_is_preserved(self):
+        menu = choices.build_detail_menu({"key": "slot", "options": [f"Slot {i}" for i in range(14)]}, "s")
+        assert len(menu["sections"][0]["rows"]) == choices.LIST_ROW_COUNT_MAX
+
+    @pytest.mark.parametrize("field,session_id", [
+        ({"key": "gender", "options": ["Male", "Female"]}, ""),
+        ({"options": ["Male", "Female"]}, "s"),
+        ({"key": "gender", "options": ["Male"]}, "s"),
+        ({"key": "gender", "options": "Male,Female"}, "s"),
+        ({"key": "gender", "options": ["Male", None]}, "s"),
+        ({"key": "gender", "options": ["Male", "Female"]}, "s" * 200),
+        ({"key": "gender", "options": ["Male", "Female" * 100]}, "s"),
+    ])
+    def test_unusable_or_oversized_binding_does_not_create_menu(self, field, session_id):
+        assert choices.build_detail_menu(field, session_id) is None
+
+    @pytest.mark.parametrize("interactive_id", [None, 42, "choice:1", "choice:detail:", "choice:detail:%%%", "choice:detail:" + "a" * 256])
+    def test_invalid_taps_are_ignored(self, interactive_id):
+        assert choices.parse_detail_tap(interactive_id) is None
+
+    @pytest.mark.parametrize("payload", [["s", "gender"], ["s", "gender", "Male", "extra"], {"key": "gender"}, ["s", "gender", 1], ["", "gender", "Male"], ["s", "", "Male"], ["s", "gender", ""]])
+    def test_invalid_payloads_are_ignored(self, payload):
+        encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        assert choices.parse_detail_tap("choice:detail:" + encoded) is None
+
+
+def test_choice_tool_supports_structured_configuration_references():
+    parameters = choices.tool_def()["function"]["parameters"]
+    assert parameters["required"] == ["message"]
+    assert parameters["properties"]["field_key"]["type"] == "string"
+    assert parameters["properties"]["offering_keys"]["items"]["type"] == "string"
+    assert "field_key" in choices.PROMPT_BLOCK and "offering_keys" in choices.PROMPT_BLOCK
 
 
 class TestMarker:

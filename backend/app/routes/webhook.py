@@ -955,6 +955,8 @@ async def whatsapp_webhook(
                             insert_row["media_url"] = f"meta:{media_id}"
                             insert_row["media_type"] = msg_type
                             insert_row["media_mime_type"] = media_mime_type
+                        if interactive_id:
+                            insert_row["interactive_id"] = interactive_id
                         db.table("messages").insert(insert_row).execute()
 
                         # The thread has moved on — drop any pending silence

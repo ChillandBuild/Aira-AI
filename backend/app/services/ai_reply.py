@@ -375,18 +375,12 @@ def _handover_rule_block(tenant_id: str | None) -> str:
     )
 
 
-def _recent_thread(db, lead_id: str, limit: int = 6) -> list[dict]:
+def _recent_thread(db, lead_id: str, limit: int = 6, *, tenant_id: str | None = None) -> list[dict]:
     # Fetch extra rows so we can filter out [Template] messages without falling short of the requested limit
-    raw = (
-        db.table("messages")
-        .select("direction,content,created_at")
-        .eq("lead_id", str(lead_id))
-        .order("created_at", desc=True)
-        .limit(limit + 10)
-        .execute()
-        .data
-        or []
-    )
+    query = db.table("messages").select("direction,content,created_at,interactive_id").eq("lead_id", str(lead_id))
+    if tenant_id:
+        query = query.eq("tenant_id", tenant_id)
+    raw = query.order("created_at", desc=True).limit(limit + 10).execute().data or []
     filtered = [
         r for r in raw
         if not (r.get("content") or "").strip().startswith("[Template")
@@ -913,7 +907,7 @@ async def generate_reengagement_message(lead_id: str, cadence: str, db=None) -> 
     )
     lead_data = lead.data[0] if lead.data else {}
     tenant_id = lead_data.get("tenant_id")
-    history_rows = list(reversed(_recent_thread(db, lead_id, limit=6)))
+    history_rows = list(reversed(_recent_thread(db, lead_id, limit=6, tenant_id=tenant_id)))
     history = "\n".join(
         f"{row.get('direction', 'unknown')}: {row.get('content', '').strip()}"
         for row in history_rows
@@ -960,7 +954,7 @@ async def generate_silence_nudge(lead_id: str, db=None) -> str:
     lead_data = lead.data[0] if lead.data else {}
     tenant_id = lead_data.get("tenant_id")
 
-    history_rows = list(reversed(_recent_thread(db, lead_id, limit=6)))
+    history_rows = list(reversed(_recent_thread(db, lead_id, limit=6, tenant_id=tenant_id)))
     history = "\n".join(
         f"{row.get('direction', 'unknown')}: {row.get('content', '').strip()}"
         for row in history_rows
@@ -1774,7 +1768,7 @@ async def generate_reply(
         logger.info(f"Trigger C: lead {lead_id} asked for human agent")
 
     # Pre-fetch recent thread (reused for trigger D + LLM chat below)
-    recent_thread = _recent_thread(db, lead_id, limit=8)
+    recent_thread = _recent_thread(db, lead_id, limit=8, tenant_id=tenant_id)
 
     # Trigger D: user repeated the same question (AI not resolving it)
     # Skip the first inbound match — it's the current message (already stored before generate_reply runs).
@@ -1893,11 +1887,16 @@ async def generate_reply(
         logger.info(f"Payment complaint: lead {lead_id} handed to a person before the model ran")
     # Save any required details in this message before the prompt is built, so the
     # DEAL STATE the model reads is already up to date (see capture_details).
+    reply_thread = deal_turn.without_detail_taps(recent_thread)
     earlier_inbound = [
-        (row.get("content") or "") for row in reversed(recent_thread)
+        (row.get("content") or "") for row in reversed(reply_thread)
         if row.get("direction") == "inbound" and (row.get("content") or "") != message
     ]
-    await deal_turn.capture_details(deal_ctx, message, earlier=earlier_inbound)
+    await deal_turn.capture_details(deal_ctx, message, earlier=earlier_inbound, interactive_id=interactive_id)
+    rejected_tap_note = deal_turn.detail_tap_note(deal_ctx, interactive_id)
+    if rejected_tap_note:
+        from dataclasses import replace
+        deal_ctx = replace(deal_ctx, rejected_detail_tap=True)
 
     try:
         system_prompt, reply_language_mode, intake_active = build_reply_system_prompt(
@@ -1916,7 +1915,7 @@ async def generate_reply(
         )
         # recent_thread already fetched at step 0 (reuse - no extra DB call)
         chat_messages: list[dict] = [{"role": "system", "content": system_prompt}]
-        for row in reversed(recent_thread):  # oldest first
+        for row in reversed(reply_thread):  # oldest first
             content = (row.get("content") or "").strip()
             if not content:
                 continue
@@ -1931,6 +1930,9 @@ async def generate_reply(
         # than a hardcoded keyword list.
         if not chat_messages or chat_messages[-1].get("role") != "user" or chat_messages[-1].get("content") != message:
             chat_messages.append({"role": "user", "content": message})
+        if rejected_tap_note:
+            chat_messages[0]["content"] += "\n\n" + rejected_tap_note
+            chat_messages[-1] = {"role": "user", "content": "[Tapped an old detail button; ask for the current details again.]"}
 
         # The payment link and any product quote are appended below, after the
         # script-mismatch rewrite, so a translation pass can never touch a URL or a price.
@@ -2083,11 +2085,11 @@ async def generate_reply(
                     logger.warning(f"Burst check failed for lead {lead_id}: {burst_err}")
             if deal_outcome and deal_outcome.menu:
                 from app.services import deal_turn
-                sid = await deal_turn.send_menu(
+                sid, tappable = await deal_turn.send_menu(
                     _wa_phone, reply_text, deal_outcome.menu,
                     tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id,
                 )
-                reply_text = deal_turn.menu_log_text(reply_text, deal_outcome.menu)
+                reply_text = deal_turn.menu_record(reply_text, deal_outcome.menu, tappable=tappable)
             else:
                 sid = await send_whatsapp(
                     _wa_phone,

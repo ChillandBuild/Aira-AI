@@ -13,6 +13,8 @@ the backstops recognise (a list under a question, or "Morning, Afternoon or Even
 
 Pure functions only; deal_turn.converse_once applies them to every reply.
 """
+import base64
+import binascii
 import json
 import re
 
@@ -22,9 +24,12 @@ BUTTON_COUNT_MAX = 3
 LIST_ROW_TITLE_MAX = 24
 LIST_ROW_DESCRIPTION_MAX = 72
 LIST_ROW_COUNT_MAX = 10
+LIST_ROW_ID_MAX = 200
 LIST_BUTTON_TEXT = "Choose"
 OPTION_MAX_CHARS = 72  # longer than this is a sentence, not an option
 ID_PREFIX = "choice:"
+DETAIL_ID_PREFIX = f"{ID_PREFIX}detail:"
+INTERACTIVE_ID_MAX = 256
 
 _MARKER_RE = re.compile(r"^[ \t>*_`]*CHOICES?[ \t*_`]*[:：][ \t]*(.*?)[ \t*_`]*$", re.IGNORECASE | re.MULTILINE)
 _LIST_ITEM_RE = re.compile(
@@ -33,7 +38,7 @@ _LIST_ITEM_RE = re.compile(
 # A question that asks the customer to pick, in English and romanised Tamil/Hindi.
 PICK_CUE_RE = re.compile(
     r"\b(which|choose|pick|select|prefer|option|options|or|edhu|ethu|endha|entha|konsa|kaunsa|"
-    r"illa|illana|allathu|venuma|vendumaa?)\b|எது|எந்த|அல்லது",
+    r"edhula|ethula|illa|illana|allathu|venuma|vendumaa?)\b|எது|எந்த|அல்லது",
     re.IGNORECASE,
 )
 
@@ -190,6 +195,55 @@ def build_menu(options: list[str]) -> dict | None:
     }
 
 
+def build_detail_menu(field: dict, session_id: str) -> dict | None:
+    """Build saved field choices with canonical, session-bound tap values."""
+    if not isinstance(field, dict) or not isinstance(session_id, str) or not session_id.strip():
+        return None
+    field_key = field.get("key")
+    options = field.get("options")
+    if not isinstance(field_key, str) or not field_key.strip() or not isinstance(options, list):
+        return None
+    if any(not isinstance(option, str) for option in options):
+        return None
+    options = _unique([option.strip() for option in options if option.strip()])[:LIST_ROW_COUNT_MAX]
+    menu = build_menu(options)
+    if menu is None:
+        return None
+    ids = []
+    for option in options:
+        payload = json.dumps([session_id, field_key, option], ensure_ascii=False, separators=(",", ":"))
+        encoded = base64.urlsafe_b64encode(payload.encode("utf-8")).decode("ascii").rstrip("=")
+        interactive_id = DETAIL_ID_PREFIX + encoded
+        if len(interactive_id) > (LIST_ROW_ID_MAX if menu["kind"] == "list" else INTERACTIVE_ID_MAX):
+            return None
+        ids.append(interactive_id)
+    rows = menu["buttons"] if menu["kind"] == "buttons" else menu["sections"][0]["rows"]
+    for row, interactive_id in zip(rows, ids):
+        row["id"] = interactive_id
+    return menu
+
+
+def parse_detail_tap(interactive_id: str | None) -> tuple[str, str, str] | None:
+    """Decode a detail choice; callers validate its session and saved field options."""
+    if not isinstance(interactive_id, str) or len(interactive_id) > INTERACTIVE_ID_MAX:
+        return None
+    if not interactive_id.startswith(DETAIL_ID_PREFIX):
+        return None
+    encoded = interactive_id[len(DETAIL_ID_PREFIX):]
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", encoded):
+        return None
+    try:
+        payload = base64.b64decode(encoded + "=" * (-len(encoded) % 4), altchars=b"-_", validate=True)
+        values = json.loads(payload.decode("utf-8"))
+    except (ValueError, UnicodeError, binascii.Error):
+        return None
+    if not isinstance(values, list) or len(values) != 3:
+        return None
+    if any(not isinstance(value, str) or not value.strip() for value in values):
+        return None
+    return tuple(values)
+
+
 def as_text(body: str, options: list[str]) -> str:
     """For channels without buttons: the options written out, unless already in the text."""
     if not options or all(option.lower() in body.lower() for option in options):
@@ -245,8 +299,10 @@ def tool_def() -> dict:
             "description": (
                 "Send your message with tappable options whenever you ask the customer to pick "
                 "between two or more things (a time, a date, a type, yes/no, a product, a batch). "
-                "Put your whole message in 'message'; do not list the options in it. For this "
-                "business's packages use show_options instead."
+                "Put your whole message in 'message'. For a configured booking detail use "
+                "field_key; for configured packages use offering_keys or show_options. Code "
+                "supplies their saved option labels and prices. Only use options for other "
+                "conversational choices. Use exactly one choice source."
             ),
             "parameters": {
                 "type": "object",
@@ -254,8 +310,11 @@ def tool_def() -> dict:
                     "message": {"type": "string", "description": "The full message to send above the options, in the customer's language."},
                     "options": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": LIST_ROW_COUNT_MAX,
                                 "description": "Short option labels, ideally 20 characters or fewer."},
+                    "field_key": {"type": "string", "description": "The exact configured booking field key being asked; code attaches its saved choices."},
+                    "offering_keys": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": LIST_ROW_COUNT_MAX,
+                                      "description": "Exact configured package keys being offered; code supplies names, prices, and saved button labels."},
                 },
-                "required": ["message", "options"],
+                "required": ["message"],
             },
         },
     }
@@ -302,11 +361,18 @@ def is_choice_tap(interactive_id: str | None) -> bool:
 PROMPT_BLOCK = (
     "\n\nTAPPABLE CHOICES: whenever you ask the customer to pick between options (two or more: "
     "a time slot, a day, a type, a batch, yes or no, a product, anything), call offer_choices "
-    "with your whole message and the options; the customer gets them as buttons to tap. If you "
+    "with your whole message. For a configured booking detail use its exact field_key; code "
+    "attaches its saved choices even when your question is in another language. For configured "
+    "packages use their exact offering_keys or show_options; code supplies saved names, prices "
+    "and button labels. Use options only for other conversational choices, and use exactly one "
+    "choice source per call. Explain the attached offerings and their differences using "
+    "business information, without inventing services or saying only 'other services'. Answer "
+    "general service questions from business information; offer paid package selection only "
+    "when your reply clearly introduces those packages. If you "
     "cannot call it, end the message with ONE final line: CHOICES: first | second | third. "
     "Never type the options as a list for them to copy. When they ask what options exist "
     "(timings, batches, sizes, flavours), name them and let them pick. When you cannot do what "
     "they asked (a closed day, something out of stock), offer the nearest real alternatives to "
-    "pick from. For this business's packages call show_options instead. Never ask which language "
+    "pick from. Never substitute generic options for configured packages or detail fields. Never ask which language "
     "they want to chat in: the business sets the reply language."
 )

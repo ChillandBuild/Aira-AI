@@ -11,7 +11,7 @@ from app.services import deal_actions, deal_turn
 CTX = deal_actions.DealContext(
     config={"enabled": True, "fields": [], "service_noun": "consultation",
             "packages": [{"key": "one_question", "name": "One Question", "amount_paise": 4900}]},
-    db=object(), lead_id="lead-1", tenant_id="t-1", phone="+91000",
+    db=object(), lead_id="lead-1", tenant_id="t-1", phone="+91000", buttons_enabled=True,
 )
 BASE = [{"role": "system", "content": "s"}, {"role": "user", "content": "evlo charge?"}]
 MENU = {"kind": "buttons", "options": ["49 Rs", "99 Rs"], "buttons": []}

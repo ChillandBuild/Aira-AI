@@ -187,6 +187,7 @@ CAPTURE_LOOKBACK = 6
 
 async def capture_details(
     ctx: deal_actions.DealContext, message: str, *, extractor=None, earlier: list[str] | None = None,
+    interactive_id: str | None = None,
 ) -> dict:
     """Save any required details the customer's message contains, BEFORE the model runs.
 
@@ -203,6 +204,13 @@ async def capture_details(
             return {}
         fields = ctx.config.get("fields") or []
         collected = session.get("collected_data") or {}
+        if interactive_id and interactive_id.startswith(choices.DETAIL_ID_PREFIX):
+            new = _detail_tap_fields(ctx, interactive_id, session)
+            if not new:
+                return {}
+            call = {"function": {"name": deal_engine.TOOL_SAVE_DETAILS, "arguments": json.dumps({"fields": new, "session_id": session["id"]})}}
+            outcome = await deal_actions.apply_tool_calls([call], ctx)
+            return {} if outcome.refusals else new
         if not deal_engine.missing_details(fields, collected, session.get("skipped_fields") or []):
             return {}
         extract = extractor or intake.extract_fields
@@ -221,10 +229,44 @@ async def capture_details(
         return {}
 
 
-async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_number_id: str | None = None) -> str | None:
-    """Send the AI's text with tappable options attached. Falls back to plain text with the
-    options listed, so a WhatsApp interactive-message failure never costs the customer the turn."""
+def _detail_tap_fields(ctx: deal_actions.DealContext, interactive_id: str, session: dict) -> dict:
+    tap = choices.parse_detail_tap(interactive_id)
+    if not tap or session.get("id") != tap[0] or not session.get("package_key") or session.get("status") == deal_engine.PAID_STATUS:
+        return {}
+    _, key, value = tap
+    field = next((f for f in ctx.config.get("fields") or [] if f["key"] == key), None)
+    candidates = [option for option in (field.get("options") or []) if option.strip() == value] if field else []
+    if len(candidates) != 1:
+        return {}
+    return {key: candidates[0]}
+
+
+def detail_tap_note(ctx: deal_actions.DealContext, interactive_id: str | None) -> str:
+    if not interactive_id or not interactive_id.startswith(choices.DETAIL_ID_PREFIX):
+        return ""
+    if ctx.offerings_enabled and _detail_tap_fields(ctx, interactive_id, _open_session(ctx)):
+        return ""
+    return (
+        "The customer tapped an old or invalid detail button. Its value was not accepted. "
+        "Ask for the current booking's missing details again; do not save the value of that old tap."
+    )
+
+
+def without_detail_taps(rows: list[dict]) -> list[dict]:
+    return [row for row in rows if not (row.get("interactive_id") or "").startswith(choices.DETAIL_ID_PREFIX)]
+
+
+INTERACTIVE_BODY_MAX = 1024
+
+
+async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_number_id: str | None = None) -> tuple[str | None, bool]:
+    """Send the reply with its choices and return the message ID and whether they were tappable."""
     from app.services import meta_cloud
+    from app.services.ai_reply import send_whatsapp
+
+    if len(body) > INTERACTIVE_BODY_MAX:
+        await send_whatsapp(phone, body, tenant_id=tenant_id, phone_number_id=phone_number_id)
+        body = CHOICE_BODY_FALLBACK
     try:
         if menu["kind"] == "buttons":
             data = await meta_cloud.send_interactive_buttons(
@@ -236,16 +278,24 @@ async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_
                 to_number=phone, body_text=body, button_text=menu["button_text"], sections=menu["sections"],
                 tenant_id=tenant_id, phone_number_id=phone_number_id,
             )
-        return (data.get("messages") or [{}])[0].get("id")
+        return (data.get("messages") or [{}])[0].get("id"), True
     except Exception:
         logger.exception("Interactive menu send failed -- falling back to plain text")
-        from app.services.ai_reply import send_whatsapp
-        listing = "\n".join(f"• {title}" for title in menu["options"])
-        return await send_whatsapp(phone, f"{body}\n\n{listing}", tenant_id=tenant_id, phone_number_id=phone_number_id)
+        sid = await send_whatsapp(phone, menu_as_text(body, menu), tenant_id=tenant_id, phone_number_id=phone_number_id)
+        return sid, False
+
+
+def menu_as_text(body: str, menu: dict) -> str:
+    return body + "\n\n" + "\n".join(f"• {title}" for title in menu["options"])
 
 
 def menu_log_text(body: str, menu: dict) -> str:
     return body + "\n\n" + "  ".join(f"[{title}]" for title in menu["options"])
+
+
+def menu_record(body: str, menu: dict, *, tappable: bool) -> str:
+    """Record button tags only for choices sent as an interactive message."""
+    return menu_log_text(body, menu) if tappable else menu_as_text(body, menu)
 
 
 def _last_assistant_text(messages: list[dict]) -> str:
@@ -521,6 +571,7 @@ async def converse_once(
     )
     tool_names = frozenset((t.get("function") or {}).get("name") for t in tools) - {None}
     offered: list[str] = []
+    choice_args: dict = {}
     last_text = _last_assistant_text(chat_messages)
     customer_message = _last_user_text(chat_messages)
     line_said_before = any(_said_handover_line(t, handover_line) for t in _earlier_assistant_texts(chat_messages))
@@ -561,10 +612,14 @@ async def converse_once(
         if written:
             logger.info("Model wrote %s as text for lead %s -- running it as the call", _names(written), ctx.lead_id)
             calls = [*calls, *written]
+        offered = []
         from_tool = choices.from_tool_calls(calls)
         if from_tool:
             message, offered = from_tool
-            draft = draft or message
+            draft = message or draft
+        choice_args = _choice_args(calls)
+        if choice_args:
+            draft = str(choice_args.get("message") or "") or draft
         draft, removed_url = strip_payment_urls(strip_placeholders(draft))
         if attempt == 0 and line_said_before and _said_handover_line(draft, handover_line):
             # The model reached for the "I can't help" line a second time: it has nothing
@@ -579,8 +634,15 @@ async def converse_once(
             )
         )
         attached.add(outcome)
+        if attached.menu and attached.menu.get("choice_bound"):
+            attached.menu = None
+        choice_menu, choice_refusal = _configured_menu(ctx, choice_args, offered or choices.extract(draft)[1], body=draft)
+        if choice_menu:
+            choice_menu["choice_bound"] = True
+            attached.menu = choice_menu
         refusals = (
             *outcome.refusals,
+            *((choice_refusal,) if choice_refusal else ()),
             *_price_refusals(draft, ctx, customer_message),
             *_repeat_refusals(draft, _earlier_assistant_texts(chat_messages)),
             *_bare_handover_refusals(draft, handover_line, handover_opened),
@@ -612,7 +674,7 @@ async def converse_once(
     if not attached.handover and _TEAM_CHECKING_RE.search(text):
         deal_actions.open_handover(ctx, TEAM_CLAIM_REASON)
         attached.handover = True
-    text = _attach_choices(text, ctx, attached, offered, last_text, customer_message)
+    text = _attach_choices(text, ctx, attached, offered, last_text, customer_message, choice_args)
     if attached.link and append_link:
         text = f"{text}\n{attached.link}".strip()
     return text, all_calls, attached.outcome(refusals)
@@ -624,33 +686,153 @@ CHOICE_BODY_FALLBACK = "👇"
 def _attach_choices(
     text: str, ctx: deal_actions.DealContext, attached: _Attached, offered: list[str], last_text: str,
     customer_message: str = "",
+    choice_args: dict | None = None,
 ) -> str:
     """Options offered in words always go out tappable (services/choices.py). In order: a
     package menu from show_options, offer_choices, a CHOICES line or a typed list, a question
     naming two or more packages, a question about a detail with fixed options, options
     written inline in the question ("Morning, Afternoon or Evening?")."""
     body, options = choices.extract(text)
-    if attached.menu and not _menu_fits(body, attached.menu, ctx):
+    if attached.menu and not attached.menu.get("field_key") and not _menu_fits(body, attached.menu, ctx):
         # show_options under a message about something else ("your name and a time?"): the
         # buttons would not answer the question, so drop them and look for the real options.
         logger.info("Dropped a package menu that did not match the message for lead %s", ctx.lead_id)
         attached.menu = None
     if attached.menu:
+        body = _explain_menu(body, attached.menu, ctx)
+        if not ctx.buttons_enabled or attached.menu["kind"] == "text":
+            options = attached.menu["options"]
+            attached.menu = None
+            return choices.as_text(body, options)
         return body
     options = offered or options
+    menu, refusal = _configured_menu(ctx, choice_args or {}, options, body=body)
+    if menu:
+        body = _explain_menu(body, menu, ctx)
+        if not ctx.buttons_enabled or menu["kind"] == "text":
+            return choices.as_text(body, menu["options"])
+        attached.menu = menu
+        return body
+    if refusal:
+        return body
     if not options and ctx.buttons_enabled:
         attached.menu, just_shown = _package_menu(body, ctx, last_text, customer_message)
         if attached.menu or just_shown:
-            return body  # the same packages were just shown to a vague reply: ask in words this time
-    options = (
-        options or _detail_options(body, ctx) or choices.inline_options(body) or choices.yes_no_options(body)
-    )
+            return _explain_menu(body, attached.menu, ctx) if attached.menu else body
+    options = options or _detail_options(body, ctx) or choices.inline_options(body) or choices.yes_no_options(body)
     if not options:
         return body
     if not ctx.buttons_enabled:
         return choices.as_text(body, options)
-    attached.menu = choices.build_menu(options)
+    menu, refusal = _configured_menu(ctx, {}, options, body=body)
+    if refusal:
+        return body
+    if menu and menu["kind"] == "text":
+        return choices.as_text(body, menu["options"])
+    attached.menu = menu or choices.build_menu(options)
     return body or CHOICE_BODY_FALLBACK
+
+
+def _choice_args(calls: list[dict]) -> dict:
+    for call in calls:
+        func = call.get("function") or {}
+        if func.get("name") == choices.TOOL_NAME:
+            try:
+                args = json.loads(func.get("arguments") or "{}")
+            except (ValueError, TypeError):
+                return {}
+            return args if isinstance(args, dict) else {}
+    return {}
+
+
+def _offering_levels(ctx: deal_actions.DealContext) -> list[list[dict]]:
+    levels = []
+
+    def walk(nodes):
+        active = deal_engine._active(nodes)
+        if active:
+            levels.append(active)
+        for node in active:
+            walk(node.get("options") or [])
+            walk(node.get("addons") or [])
+
+    walk(intake.normalize_packages(ctx.config))
+    return levels
+
+
+def _option_name(text: str) -> str:
+    return re.sub(r"\s*\((?:₹\s*\d+(?:\.\d+)?|\d+(?:\.\d+)?\s*(?:Rs\.?|INR|₹))\)\s*$", "", text, flags=re.I).strip().casefold()
+
+
+def _configured_menu(
+    ctx: deal_actions.DealContext, args: dict, options: list[str], *, body: str | None = None,
+) -> tuple[dict | None, str]:
+    explicit = "field_key" in args or "offering_keys" in args
+    refused = "offer_choices refused: use a valid configured offering or an unanswered choice field from this booking."
+    if not ctx.offerings_enabled:
+        return None, refused if explicit else ""
+    if sum(key in args for key in ("field_key", "offering_keys", "options")) > 1:
+        return None, refused
+    if "offering_keys" in args or options and "field_key" not in args:
+        keys = args.get("offering_keys")
+        if "offering_keys" in args and (not isinstance(keys, list) or len(keys) < 2 or any(not isinstance(k, str) for k in keys)):
+            return None, refused
+        matches = []
+        for level in _offering_levels(ctx):
+            selected = []
+            for option in keys if keys is not None else options:
+                found = [n for n in level if n["key"] == option] if keys is not None else [
+                    n for n in level if _option_name(option) in {
+                        n["key"].casefold(), n["name"].casefold(), (n.get("button_label") or "").casefold(),
+                    }
+                ]
+                if len(found) != 1:
+                    break
+                selected.append(found[0])
+            else:
+                if len(selected) >= 2 and len({n["key"] for n in selected}) == len(selected):
+                    matches.append(selected)
+        if len(matches) == 1:
+            menu = deal_actions.build_level_menu(matches[0])
+            if menu:
+                menu["offering_keys"] = [n["key"] for n in matches[0]]
+                if body is not None and not _menu_fits(body, menu, ctx):
+                    return None, "offer_choices refused: the message asks for a detail, but these options select offerings. Explain the offerings and ask the customer to choose one."
+                return menu, ""
+        if keys is not None:
+            return None, refused
+    session = _open_session(ctx)
+    if not session.get("package_key") or session.get("status") == deal_engine.PAID_STATUS:
+        return None, refused if explicit else ""
+    fields = ctx.config.get("fields") or []
+    missing = deal_engine.missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
+    candidates = [f for f in fields if (f["key"] in missing or "field_key" in args) and f.get("options") and (
+        f["key"] == args.get("field_key") if "field_key" in args else
+        len(options) >= 2 and {o.casefold() for o in options} == {o.casefold() for o in f["options"]}
+    )]
+    if len(candidates) == 1 and session.get("id"):
+        menu = choices.build_detail_menu(candidates[0], session["id"])
+        menu = menu or {"kind": "text", "options": candidates[0]["options"]}
+        menu["field_key"] = candidates[0]["key"]
+        return menu, ""
+    return None, refused if explicit else ""
+
+
+def _explain_menu(body: str, menu: dict, ctx: deal_actions.DealContext) -> str:
+    keys = menu.get("offering_keys") or []
+    if not keys:
+        return body
+    nodes = {n["key"]: n for level in _offering_levels(ctx) for n in level}
+    missing = [nodes[k] for k in keys if k in nodes and nodes[k]["name"].casefold() not in body.casefold()]
+    if not missing:
+        return body
+    summary = []
+    for node in missing:
+        line = node["name"]
+        if not node.get("options"):
+            line += f" — {intake._rupees(node['amount_paise'])}"
+        summary.append(line)
+    return (body + "\n\n" + "\n".join(summary)).strip()
 
 
 def _detail_options(text: str, ctx: deal_actions.DealContext) -> list[str]:
@@ -661,8 +843,9 @@ def _detail_options(text: str, ctx: deal_actions.DealContext) -> list[str]:
     if not session.get("package_key"):
         return []
     missing = deal_engine.missing_details(fields, session.get("collected_data") or {}, session.get("skipped_fields") or [])
-    field = next((f for f in fields if missing and f["key"] == missing[0]), None)
-    return choices.field_options_for(text, field)
+    matches = [choices.field_options_for(text, f) for f in fields if f["key"] in missing]
+    matches = [m for m in matches if m]
+    return matches[0] if len(matches) == 1 else []
 
 
 PACKAGE_MENTION_MIN = 2

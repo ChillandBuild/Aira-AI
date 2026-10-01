@@ -28,6 +28,7 @@ TOOL_SAVE_DETAILS = "save_details"
 TOOL_SKIP_DETAIL = "skip_detail"
 TOOL_CREATE_PAYMENT_LINK = "create_payment_link"
 TOOL_HAND_TO_HUMAN = "hand_to_human"
+TOOL_CLOSE_DEAL = "close_deal"
 DEAL_TOOL_NAMES = frozenset({
     TOOL_SHOW_OPTIONS, TOOL_SELECT_OFFERING, TOOL_SAVE_DETAILS,
     TOOL_SKIP_DETAIL, TOOL_CREATE_PAYMENT_LINK, TOOL_HAND_TO_HUMAN,
@@ -329,6 +330,15 @@ def current_charge(config: dict, session: dict) -> int | None:
     return _intake().charge_paise(prices[1], gst_percent(config)) if prices else None
 
 
+def price_moved(config: dict, session: dict) -> tuple[int, int] | None:
+    """Return agreed and current package/add-on subtotals when the configured price changed."""
+    prices = current_prices(config, session)
+    agreed = session.get("total_amount_paise")
+    if not prices or not agreed or prices[1] == agreed:
+        return None
+    return agreed, prices[1]
+
+
 def parse_time(value) -> datetime | None:
     if isinstance(value, str):
         try:
@@ -402,6 +412,18 @@ def deal_state_block(config: dict, session: dict | None) -> str:
     if skipped:
         lines.append(f"- Details the customer could not give: {', '.join(skipped)}")
     lines.append(f"- Payment: {_payment_line(session, link_live)}")
+    moved = price_moved(config, session) if session.get("status") != PAID_STATUS else None
+    if moved and moved[1] > moved[0]:
+        lines.append(
+            f"- Price changed: they agreed to {_rupees(moved[0])}, it is now {_rupees(moved[1])}. Tell them "
+            "the new price and get a clear yes before any link; then call create_payment_link with "
+            "customer_agreed_new_price true."
+        )
+    elif moved:
+        lines.append(
+            f"- Price changed: it was {_rupees(moved[0])}, it is now {_rupees(moved[1])} (cheaper). "
+            "Mention the lower price when you send the link."
+        )
     if charge and gst_percent(config):
         lines.append(f"- Payment total with {gst_percent(config):g}% GST: {_rupees(charge)}")
     if prices is None and session.get("status") != PAID_STATUS:
