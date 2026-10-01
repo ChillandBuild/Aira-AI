@@ -79,12 +79,7 @@ export default function DealsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-        <div>
-          <h1 className="font-display text-lg font-bold text-ink">Deals</h1>
-          <p className="font-body text-xs text-ink-muted">Quotes, payments and sales — from chat, calls and walk-ins.</p>
-        </div>
-
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex gap-1 rounded-xl border border-border bg-surface-subtle p-1">
           {visibleTabs.map(({ id, label }) => (
             <button
@@ -92,7 +87,7 @@ export default function DealsPage() {
               type="button"
               onClick={() => setTab(id)}
               className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
-                tab === id ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+                tab === id ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
               }`}
             >
               {label}
@@ -104,7 +99,7 @@ export default function DealsPage() {
           <button
             type="button"
             onClick={() => setShowNewDeal(true)}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white shadow-sm hover:bg-primary/90"
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white shadow-sm hover:bg-primary/90"
           >
             <Plus size={14} /> New deal
           </button>
