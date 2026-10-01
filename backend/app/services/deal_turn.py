@@ -893,6 +893,66 @@ def _open_session(ctx: deal_actions.DealContext) -> dict:
 _OFFER_QUESTION_RE = re.compile(r"\b(options?|packages?|plans?|prices?|pricing)\b", re.IGNORECASE)
 
 
+# "1200/-" is how Indian price lists write rupees.
+_SLASH_DASH_AMOUNT_RE = re.compile(rf"({deal_engine._NUMBER})\s*/-")
+
+
+def _mentions(lowered: str, phrase: str | None) -> bool:
+    """Whole-word match: plan "Pro" is not in "process", and an empty label matches nothing."""
+    phrase = (phrase or "").strip().lower()
+    return bool(phrase) and re.search(rf"(?<!\w){re.escape(phrase)}(?!\w)", lowered) is not None
+
+
+def _names_quoted(text: str, level: list[dict]) -> int:
+    lowered = text.lower()
+    return sum(1 for n in level if _mentions(lowered, n.get("name")) or _mentions(lowered, n.get("button_label")))
+
+
+def _prices_quoted(text: str, level: list[dict]) -> int:
+    """How many distinct offering prices the text quotes as rupee amounts (₹99, Rs.99, 99 rupees,
+    99/-). A bare number ("199 astrologers") is not a price."""
+    catalog = {n["amount_paise"] / 100 for n in level if n.get("amount_paise")}
+    found = (
+        deal_engine._AMOUNT_BEFORE_RE.findall(text)
+        + deal_engine._AMOUNT_AFTER_RE.findall(text)
+        + _SLASH_DASH_AMOUNT_RE.findall(text)
+    )
+    return len(catalog & {deal_engine._to_float(a) for a in found})
+
+
+def _menu_levels(packages: list[dict]) -> list[list[dict]]:
+    """Every level a customer can pick from: the top level first, then each category's options."""
+    levels: list[list[dict]] = []
+
+    def walk(nodes: list[dict]) -> None:
+        active = deal_engine._active(nodes)
+        if active:
+            levels.append(active)
+        for node in active:
+            if node.get("options"):
+                walk(node["options"])
+
+    walk(packages)
+    return levels
+
+
+def _listed_level(text: str, ctx: deal_actions.DealContext) -> list[dict] | None:
+    """The one level whose offerings the text lays out -- 2+ of them by name or by price --
+    the most-mentioned level winning, the top level on a tie. None when no level is laid out."""
+    best, best_score = None, PACKAGE_MENTION_MIN - 1
+    for level in _menu_levels(intake.normalize_packages(ctx.config)):
+        score = max(_names_quoted(text, level), _prices_quoted(text, level))
+        if score > best_score:
+            best, best_score = level, score
+    return best
+
+
+def _asks_for_detail(question: str, ctx: deal_actions.DealContext) -> bool:
+    """The question asks for one of the business's required details ("may I have your full name?")."""
+    lowered = question.lower()
+    return any(_mentions(lowered, f.get("label")) for f in ctx.config.get("fields") or [])
+
+
 def _last_question(text: str) -> str:
     found = re.findall(r"[^.!?？\n]*[?？]", text or "")
     return found[-1] if found else ""
@@ -913,19 +973,20 @@ def _package_menu(
     session = _open_session(ctx)
     if session.get("package_key") and session.get("status") != deal_engine.PAID_STATUS and not comparing:
         return None, False  # mid-booking: the question is about a detail, not the packages
-    level, menu = deal_actions.top_level_menu(ctx)
-
-    def names(segment: str) -> int:
-        lowered = segment.lower()
-        return sum(1 for n in level if n["name"].lower() in lowered or (n.get("button_label") or "").lower() in lowered)
-
-    offers_them = (
-        (comparing and names(text) >= PACKAGE_MENTION_MIN)  # "what's the difference between 49 and 99?"
-        or names(question) >= PACKAGE_MENTION_MIN
-        or (names(text) >= PACKAGE_MENTION_MIN and bool(choices.PICK_CUE_RE.search(question)))
-        or bool(_OFFER_QUESTION_RE.search(question))
-    )
-    if not offers_them or menu is None:
+    # Two or more offerings laid out, by name or by price, and a question to close: that
+    # question can only be "which one?". No "which" word is required -- the model says it a
+    # different way every time ("Edhula...", "Enthe...", "எதை..."), and a price reads the same
+    # in every language even when the model translates the package names.
+    listed = _listed_level(text, ctx)
+    if listed is not None and question and _asks_for_detail(question, ctx):
+        return None, False  # "Basic is ₹999, Pro ₹1,999 -- may I have your full name?"
+    if listed is not None and (comparing or question):  # "what's the difference between 49 and 99?"
+        menu = deal_actions.build_level_menu(listed)
+    elif _OFFER_QUESTION_RE.search(question):
+        _level, menu = deal_actions.top_level_menu(ctx)
+    else:
+        return None, False
+    if menu is None:
         return None, False
     if last_text and all(f"[{title}]" in last_text for title in menu["options"]) and choices.is_vague(customer_message):
         return None, True
