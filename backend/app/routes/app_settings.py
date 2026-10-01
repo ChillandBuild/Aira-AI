@@ -17,6 +17,7 @@ from app.services.assignment import (
     save_inbox_config, save_telecalling_config,
     _INBOX_CONFIG_DEFAULT, _TELECALLING_CONFIG_DEFAULT,
 )
+from app.services import astro_bridge
 from app.services.intake import get_intake_config, save_intake_config
 from app.services.numbers_pool import normalize_phone_number
 
@@ -1982,6 +1983,22 @@ def _has_active_package(packages: list[dict]) -> bool:
     return any(node.get("active", True) for node, is_leaf in _walk_packages(packages) if is_leaf)
 
 
+def _check_form_fits_astrotamil(tenant_id: str, fields: list[dict]) -> None:
+    """A client connected to AstroTamil needs a form that can collect everything AstroTamil asks
+    for. Refusing here beats finding out when a paid question is turned away. Other clients are
+    not checked."""
+    if not astro_bridge.is_connected(tenant_id):
+        return
+    missing = astro_bridge.missing_form_fields(fields)
+    if not missing:
+        return
+    detail = f"AstroTamil needs these details in the form: {', '.join(missing)}."
+    unrecognised = astro_bridge.unrecognised_form_keys(fields)
+    if unrecognised:
+        detail += f" No AstroTamil detail matches the key(s): {', '.join(unrecognised)}."
+    raise HTTPException(status_code=400, detail=detail)
+
+
 @router.get("/intake-config")
 async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
     return get_intake_config(ctx["tenant_id"])
@@ -2019,6 +2036,8 @@ async def patch_intake_config(
     if "service_noun" in patch and not patch["service_noun"].strip():
         raise HTTPException(status_code=400, detail="service_noun cannot be blank")
     merged = {**current, **patch}
+    if ("fields" in patch or patch.get("enabled")) and merged.get("enabled"):
+        _check_form_fits_astrotamil(tenant_id, merged.get("fields") or [])
     save_intake_config(tenant_id, merged)
     from app.services.consistency import run_check_safely
     background_tasks.add_task(run_check_safely, tenant_id)

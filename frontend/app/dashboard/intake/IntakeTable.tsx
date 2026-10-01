@@ -57,6 +57,30 @@ function CopyLinkButton({ link }: { link: string }) {
   );
 }
 
+function AstroCell({ row }: { row: IntakeSession }) {
+  if (!row.astro || row.status === "awaiting_payment") {
+    return <span className="font-body text-sm text-ink-muted">—</span>;
+  }
+  if (row.astro.sent) {
+    return (
+      <span
+        title={row.astro.horoscope_id ? `Horoscope ${row.astro.horoscope_id}` : undefined}
+        className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-label text-[10px] font-bold text-emerald-700"
+      >
+        Sent #{row.astro.question_id}
+      </span>
+    );
+  }
+  return (
+    <span
+      title="This paid question has not reached AstroTamil yet. Aira keeps retrying and alerts staff if it stays stuck."
+      className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-label text-[10px] font-bold text-red-700"
+    >
+      Not sent
+    </span>
+  );
+}
+
 function ResolveButton({ sessionId, onResolve }: { sessionId: string; onResolve: (sessionId: string) => Promise<void> }) {
   const [resolving, setResolving] = useState(false);
 
@@ -157,6 +181,8 @@ export function IntakeTable({
   }, [hasMore, loadingMore, onLoadMore]);
 
   const shown = columns.filter((c) => visibleKeys.has(c.key));
+  // Only a client connected to AstroTamil gets rows carrying "astro"; everyone else sees no column.
+  const showAstro = rows.some((r) => r.astro);
 
   return (
     <div className="overflow-x-auto">
@@ -173,6 +199,9 @@ export function IntakeTable({
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Package</th>
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Amount</th>
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Payment Link</th>
+            {showAstro && (
+              <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">AstroTamil</th>
+            )}
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Submitted</th>
             {shown.map((col) => (
               <th key={col.key} className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
@@ -228,6 +257,11 @@ export function IntakeTable({
                 <td className="whitespace-nowrap px-4 py-3">
                   {row.payment_link ? <CopyLinkButton link={row.payment_link} /> : <span className="font-body text-sm text-ink-muted">—</span>}
                 </td>
+                {showAstro && (
+                  <td className="whitespace-nowrap px-4 py-3">
+                    <AstroCell row={row} />
+                  </td>
+                )}
                 <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink-muted">
                   {new Date(row.created_at).toLocaleDateString()}
                 </td>

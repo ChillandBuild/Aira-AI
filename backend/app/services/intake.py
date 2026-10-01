@@ -2185,6 +2185,67 @@ def record_astro_bridge_ids(session_id: str, tenant_id: str, bridge_response: di
     )
 
 
+_ASTRO_PUSH_ALERT_AFTER = timedelta(minutes=10)
+
+
+def alert_astro_push_stuck(db, session: dict, lead: dict, tenant_id: str) -> bool:
+    """Tell staff a paid question still has not reached AstroTamil. Until 2026-10-01 the only trace
+    was a log line, so a customer who had paid could wait for an answer that was never asked for.
+
+    Called by the retry job after a failed push, so a payment from the last few minutes is left
+    alone (the webhook's own push may still be in flight), and each session is alerted once, not on
+    every 5-minute retry. Returns True when an alert was raised. Best-effort: never raises."""
+    from app.services import astro_bridge
+
+    if not astro_bridge.is_connected(tenant_id):
+        return False  # the retry job scans every client's paid sessions; only AstroTamil ones have a push
+
+    try:
+        paid_at = datetime.fromisoformat(str(session.get("paid_at")).replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) - paid_at < _ASTRO_PUSH_ALERT_AFTER:
+            return False
+    except (TypeError, ValueError):
+        pass  # no usable paid_at: better an early alert than none
+
+    session_id = session.get("id")
+    try:
+        seen = (
+            db.table("app_notifications")
+            .select("id")
+            .eq("tenant_id", tenant_id)
+            .eq("type", "intake_astro_push_failed")
+            .like("message", f"%{session_id}%")
+            .limit(1)
+            .execute()
+        )
+        if seen and seen.data:
+            return False
+    except Exception as e:
+        logger.warning(f"Astro push alert dedupe check failed for session {session_id}: {e}")
+
+    unusable = astro_bridge.unusable_for_push(
+        session.get("collected_data"), session.get("skipped_fields"), (lead or {}).get("phone"),
+        session.get("trigger_reason"),
+    )
+    reason = (
+        f"AstroTamil cannot use their {', '.join(unusable)}. Ask the customer for it."
+        if unusable else "AstroTamil did not accept it (it may be down). Aira keeps retrying."
+    )
+    who = (lead or {}).get("name") or "A customer"
+    try:
+        notify_pool(
+            tenant_id,
+            "intake_astro_push_failed",
+            "Paid question not sent to AstroTamil",
+            f"{who} has paid, but the question has not reached AstroTamil. {reason} (session {session_id})",
+            db=db,
+        )
+    except Exception as e:
+        logger.warning(f"Astro push alert notify_pool failed for session {session_id}: {e}")
+        return False
+    return True
+
+
 async def reconcile_pending_astro_pushes(db=None) -> int:
     """Re-drive the Django consultation push for paid sessions it never reached.
 
@@ -2206,7 +2267,7 @@ async def reconcile_pending_astro_pushes(db=None) -> int:
     try:
         rows = (
             db.table("intake_sessions")
-            .select("id,tenant_id,lead_id,collected_data,trigger_reason,amount_paise")
+            .select("id,tenant_id,lead_id,collected_data,skipped_fields,trigger_reason,amount_paise,paid_at")
             .eq("status", "paid")
             .is_("astro_question_id", "null")
             .gte("created_at", cutoff)
@@ -2235,6 +2296,8 @@ async def reconcile_pending_astro_pushes(db=None) -> int:
                 record_astro_bridge_ids(session["id"], tenant_id, result, db=db)
                 pushed += 1
                 logger.info(f"Astro push reconciled for session {session['id']} (tenant {tenant_id})")
+            else:
+                alert_astro_push_stuck(db, session, lead, tenant_id)
         except Exception as e:
             logger.error(f"Astro push reconcile failed for session {session.get('id')}: {e}")
     return pushed

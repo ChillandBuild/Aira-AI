@@ -110,7 +110,7 @@ async def test_push_consultation_sends_normalised_payload():
     "field,bad_value",
     [
         ("Date of Birth", "sometime in the 90s"),
-        ("birth_time", "no idea"),
+        ("birth_time", "around the evening"),  # "no idea" is now an unknown time: see the placeholder tests
         ("gender", "not sure"),
         ("question", ""),
     ],
@@ -267,3 +267,101 @@ def test_verify_astro_signature_rejects_missing_header_or_secret():
 def test_verify_astro_signature_rejects_non_ascii_header_without_raising():
     body = b"{}"
     assert astro_bridge.verify_astro_signature(body, "sha256=ஆம்", "s3cr3t") is False
+
+
+# ── Connection check, field roles, form check and the unknown-birth-time placeholder ──
+def test_is_connected_needs_both_url_and_key():
+    with patch.object(astro_bridge, "get_setting", new=_settings_stub()):
+        assert astro_bridge.is_connected(TENANT) is True
+    only_url = {"astro_bridge_url": "https://astro.example.com/"}
+    with patch.object(astro_bridge, "get_setting", lambda k, fallback=None, tenant_id=None: only_url.get(k, fallback)):
+        assert astro_bridge.is_connected(TENANT) is False
+    assert astro_bridge.is_connected(TENANT) is False  # conftest default: nothing saved
+
+
+@pytest.mark.parametrize(
+    "key,role",
+    [
+        ("name", "person_name"), ("full_name", "person_name"),
+        ("gender", "gender"), ("Sex", "gender"),
+        ("date_of_birth", "birth_date"), ("dob", "birth_date"), ("Date Of Birth", "birth_date"),
+        ("time_of_birth", "birth_time"), ("tob", "birth_time"),
+        ("place_of_birth", "birth_place"), ("birthplace", "birth_place"),
+        ("question", "question"),
+        ("place_of_birh", None),  # the live typo from 2026-09-30
+        ("email", None), ("unisex", None),
+    ],
+)
+def test_field_role_reads_the_tenant_authored_key(key, role):
+    assert astro_bridge.field_role(key) == role
+
+
+def test_missing_form_fields_names_what_the_form_cannot_provide():
+    form = [{"key": "name"}, {"key": "date_of_birth"}, {"key": "time_of_birth"},
+            {"key": "place_of_birh"}, {"key": "question"}]
+    assert astro_bridge.missing_form_fields(form) == ["Gender", "Place of birth"]
+    assert astro_bridge.unrecognised_form_keys(form) == ["place_of_birh"]
+    full = form[:3] + [{"key": "gender"}, {"key": "place_of_birth"}, {"key": "question"}]
+    assert astro_bridge.missing_form_fields(full) == []
+
+
+def test_unusable_for_push_matches_what_the_push_would_refuse():
+    good = {"name": "Keerthi", "gender": "Male", "date_of_birth": "2003-11-15",
+            "time_of_birth": "10:30 AM", "place_of_birth": "Neyveli", "question": "job?"}
+    assert astro_bridge.unusable_for_push(good, [], "+916369781582") == []
+    bad = {**good, "date_of_birth": "sometime in the 90s", "gender": "theriyathu", "time_of_birth": "abc"}
+    assert astro_bridge.unusable_for_push(bad, [], "+916369781582") == ["birth date", "birth time", "gender"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("how", ["skipped", "says_unknown"])
+async def test_unknown_birth_time_is_sent_as_noon_with_a_note(how):
+    collected = {"name": "Keerthi", "gender": "Male", "date_of_birth": "2003-11-15",
+                 "place_of_birth": "Neyveli", "question": "job eppo?"}
+    skipped = []
+    if how == "skipped":
+        skipped = ["time_of_birth"]
+    else:
+        collected["time_of_birth"] = "theriyathu"
+    post = AsyncMock(return_value=_response({"success": True, "question_id": 1}))
+    patcher, _ = _client_patch(post)
+    try:
+        with patch.object(astro_bridge, "get_setting", new=_settings_stub()):
+            result = await astro_bridge.push_consultation(
+                _session(collected_data=collected, skipped_fields=skipped), _lead(), TENANT)
+    finally:
+        patcher.stop()
+    sent = post.call_args.kwargs["json"]
+    assert result and sent["person_birth_time"] == "12:00:00"
+    assert "birth time" in sent["question_text"].lower() and "12:00" in sent["question_text"]
+    assert sent["question_text"].startswith("job eppo?")
+
+
+@pytest.mark.asyncio
+async def test_a_skipped_birth_date_is_still_refused():
+    collected = {"name": "K", "gender": "Male", "time_of_birth": "10:30 AM", "question": "job?"}
+    with patch.object(astro_bridge, "get_setting", new=_settings_stub()):
+        result = await astro_bridge.push_consultation(
+            _session(collected_data=collected, skipped_fields=["date_of_birth"]), _lead(), TENANT)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_a_real_time_inside_an_i_dont_know_sentence_is_kept_not_replaced_by_noon():
+    collected = {"name": "K", "gender": "Male", "date_of_birth": "2003-11-15",
+                 "time_of_birth": "I don't know exactly, maybe 6 am", "question": "job?"}
+    post = AsyncMock(return_value=_response({"success": True, "question_id": 1}))
+    patcher, _ = _client_patch(post)
+    try:
+        with patch.object(astro_bridge, "get_setting", new=_settings_stub()):
+            await astro_bridge.push_consultation(_session(collected_data=collected), _lead(), TENANT)
+    finally:
+        patcher.stop()
+    sent = post.call_args.kwargs["json"]
+    assert sent["person_birth_time"] == "06:00:00" and "placeholder" not in sent["question_text"]
+
+
+def test_unusable_for_push_counts_trigger_reason_as_a_question_like_the_push_does():
+    collected = {"gender": "Male", "date_of_birth": "2003-11-15", "time_of_birth": "10:30 AM"}
+    assert astro_bridge.unusable_for_push(collected, [], "+916369781582") == ["question"]
+    assert astro_bridge.unusable_for_push(collected, [], "+916369781582", "job eppo?") == []

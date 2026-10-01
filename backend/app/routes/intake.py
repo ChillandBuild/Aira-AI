@@ -40,7 +40,8 @@ VISIBLE_STATUSES = ["awaiting_payment", "paid"]
 SESSION_COLUMNS = (
     "id, lead_id, status, collected_data, field_schema, amount_paise, "
     "amount_mismatch, package_key, package_name, package_amount_paise, "
-    "gst_percent, gst_amount_paise, payment_link, paid_at, created_at, leads(name, phone)"
+    "gst_percent, gst_amount_paise, payment_link, paid_at, created_at, leads(name, phone), "
+    "astro_question_id, astro_horoscope_id"
 )
 
 CSV_MAX_ROWS = 5000
@@ -95,6 +96,19 @@ def _build_query(db, tenant_id: str, status: str, package: str | None, q: str | 
     return query.order("created_at", desc=True).order("id", desc=True).limit(limit)
 
 
+def _with_astro_status(rows: list[dict], tenant_id: str) -> list[dict]:
+    """Fold the two AstroTamil ids into one "astro" object, and only for a client that has the
+    AstroTamil connection. For everyone else the ids are dropped, so their rows and table are
+    exactly what they were before the column existed."""
+    connected = astro_bridge.is_connected(tenant_id)
+    for row in rows:
+        question_id = row.pop("astro_question_id", None)
+        horoscope_id = row.pop("astro_horoscope_id", None)
+        if connected:
+            row["astro"] = {"sent": question_id is not None, "question_id": question_id, "horoscope_id": horoscope_id}
+    return rows
+
+
 @router.get("/sessions")
 def list_intake_sessions(
     status: str = Query("all"),
@@ -106,7 +120,7 @@ def list_intake_sessions(
 ):
     db = get_supabase()
     result = _build_query(db, ctx["tenant_id"], status, package, q, cursor, limit).execute()
-    rows = result.data or []
+    rows = _with_astro_status(result.data or [], ctx["tenant_id"])
     next_cursor = None
     if len(rows) == limit:
         last = rows[-1]

@@ -1372,6 +1372,8 @@ export interface IntakeSession {
   paid_at: string | null;
   created_at: string;
   leads: { name: string | null; phone: string | null } | null;
+  /** Present only for a client connected to AstroTamil: did the paid question reach it? */
+  astro?: { sent: boolean; question_id: number | null; horoscope_id: string | null };
 }
 
 export interface IntakeStats {

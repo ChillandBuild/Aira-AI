@@ -19,6 +19,7 @@ import httpx
 
 from app.config_dynamic import get_setting
 from app.services.astro_normalize import (
+    is_unknown_time,
     normalize_date,
     normalize_gender,
     normalize_phone,
@@ -75,12 +76,53 @@ def _pick(collected: dict, field: str):
     return None
 
 
+def field_role(key) -> str | None:
+    """Which AstroTamil field a tenant-authored form key feeds ("date_of_birth" -> birth_date),
+    or None when no alias matches ("place_of_birh"). The same matching _pick uses, so a form the
+    setup check accepts is a form the push can read."""
+    squashed = _squash(key)
+    for role, aliases in _FIELD_ALIASES.items():
+        if squashed in aliases:
+            return role
+    for role, aliases in _FIELD_ALIASES.items():
+        if any(len(alias) >= _MIN_SUBSTRING_ALIAS_LEN and alias in squashed for alias in aliases):
+            return role
+    return None
+
+
+# What the Services form must be able to collect for AstroTamil to cast a horoscope.
+_REQUIRED_FORM_ROLES = (
+    ("birth_date", "Date of birth"),
+    ("birth_time", "Time of birth"),
+    ("gender", "Gender"),
+    ("birth_place", "Place of birth"),
+    ("question", "Question"),
+)
+
+
+def missing_form_fields(fields: list[dict]) -> list[str]:
+    """Labels of the AstroTamil details the form has no field for."""
+    present = {field_role(f.get("key")) for f in fields or []}
+    return [label for role, label in _REQUIRED_FORM_ROLES if role not in present]
+
+
+def unrecognised_form_keys(fields: list[dict]) -> list[str]:
+    """Form keys matching no AstroTamil detail: usually the typo behind a missing one."""
+    return [f["key"] for f in fields or [] if f.get("key") and field_role(f["key"]) is None]
+
+
 def _bridge_config(tenant_id: str) -> tuple[str, str] | None:
     base_url = get_setting("astro_bridge_url", tenant_id=tenant_id)
     api_key = get_setting("astro_bridge_api_key", tenant_id=tenant_id)
     if not base_url or not api_key:
         return None
     return base_url.rstrip("/"), api_key
+
+
+def is_connected(tenant_id: str) -> bool:
+    """True for a client with the AstroTamil connection saved (URL and key). Everything that
+    only AstroTamil needs, such as the stricter detail checks, is switched on by this."""
+    return _bridge_config(tenant_id) is not None
 
 
 def get_bridge_secret(tenant_id: str) -> str | None:
@@ -124,6 +166,62 @@ async def _post(path: str, payload: dict, external_ref: str, tenant_id: str) -> 
     return data
 
 
+UNKNOWN_TIME_PLACEHOLDER = "12:00:00"
+UNKNOWN_TIME_NOTE = (
+    "[Note for the astrologer: the customer does not know their birth time. "
+    "12:00 noon was sent as a placeholder.]"
+)
+
+
+def _prepare(session: dict, lead: dict) -> tuple[dict, list[str]]:
+    """The normalised values the push sends, and the names of any the push cannot send. The one
+    place that decides, so the payment-link check and the push can never disagree.
+
+    A customer who does not know their birth time (marked skipped, or answering "theriyathu")
+    is sent as 12:00 with a note appended to the question: they can still be helped, and the
+    astrologer is told the time is not real. Any other detail that cannot be read is unusable."""
+    collected = session.get("collected_data") or {}
+    skipped_roles = {field_role(k) for k in session.get("skipped_fields") or []}
+    raw_time = _pick(collected, "birth_time")
+    # A readable time wins even inside an "I don't know exactly, maybe 6 am" answer.
+    time_unknown = not normalize_time(raw_time) and (
+        is_unknown_time(raw_time) or (not raw_time and "birth_time" in skipped_roles)
+    )
+
+    values = {
+        "person_name": str(_pick(collected, "person_name") or lead.get("name") or "").strip(),
+        "phone": normalize_phone(_pick(collected, "phone") or lead.get("phone")),
+        "birth_date": normalize_date(_pick(collected, "birth_date")),
+        "birth_time": UNKNOWN_TIME_PLACEHOLDER if time_unknown else normalize_time(raw_time),
+        "gender": normalize_gender(_pick(collected, "gender")),
+        "birth_place": str(_pick(collected, "birth_place") or "").strip(),
+        "question_text": str(_pick(collected, "question") or session.get("trigger_reason") or "").strip(),
+    }
+    if time_unknown and values["question_text"]:
+        values["question_text"] = f"{values['question_text']}\n\n{UNKNOWN_TIME_NOTE}"
+    unusable = [
+        label
+        for label, key in (
+            ("phone", "phone"),
+            ("birth date", "birth_date"),
+            ("birth time", "birth_time"),
+            ("gender", "gender"),
+            ("question", "question_text"),
+        )
+        if not values[key]
+    ]
+    return values, unusable
+
+
+def unusable_for_push(
+    collected: dict, skipped: list | None, phone: str | None, trigger_reason: str | None = None,
+) -> list[str]:
+    """What the push would refuse for this answers-so-far: checked before a payment link is made.
+    trigger_reason matters because the push falls back to it when no question was collected."""
+    session = {"collected_data": collected or {}, "skipped_fields": skipped or [], "trigger_reason": trigger_reason}
+    return _prepare(session, {"phone": phone})[1]
+
+
 async def push_consultation(session: dict, lead: dict, tenant_id: str) -> dict | None:
     """Create the Django question for a paid session. Returns Django's response, or None."""
     session = session or {}
@@ -133,36 +231,21 @@ async def push_consultation(session: dict, lead: dict, tenant_id: str) -> dict |
         logger.error("Astro bridge consultation push skipped for tenant %s: session has no id", tenant_id)
         return None
 
-    collected = session.get("collected_data") or {}
-    person_name = str(_pick(collected, "person_name") or lead.get("name") or "").strip()
-    phone = normalize_phone(_pick(collected, "phone") or lead.get("phone"))
-    birth_date = normalize_date(_pick(collected, "birth_date"))
-    birth_time = normalize_time(_pick(collected, "birth_time"))
-    gender = normalize_gender(_pick(collected, "gender"))
-    birth_place = str(_pick(collected, "birth_place") or "").strip()
-    question_text = str(_pick(collected, "question") or session.get("trigger_reason") or "").strip()
-
-    unusable = [
-        label
-        for label, value in (
-            ("phone", phone),
-            ("birth date", birth_date),
-            ("birth time", birth_time),
-            ("gender", gender),
-            ("question", question_text),
-        )
-        if not value
-    ]
+    values, unusable = _prepare(session, lead)
     if unusable:
         logger.error(
             "Astro bridge refusing to push session %s (tenant=%s): unusable %s — "
             "a wrong horoscope is worse than none. collected_data keys=%s",
-            external_ref, tenant_id, ", ".join(unusable), sorted(collected.keys()),
+            external_ref, tenant_id, ", ".join(unusable), sorted((session.get("collected_data") or {}).keys()),
         )
         return None
 
-    if not birth_place:
+    if not values["birth_place"]:
         logger.warning("Astro bridge pushing session %s with no birth place", external_ref)
+
+    person_name, phone, gender = values["person_name"], values["phone"], values["gender"]
+    birth_date, birth_time, birth_place = values["birth_date"], values["birth_time"], values["birth_place"]
+    question_text = values["question_text"]
 
     payload = {
         "external_ref": external_ref,

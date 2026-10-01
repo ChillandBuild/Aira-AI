@@ -78,6 +78,14 @@ def _build_date(year: int, month: int, day: int) -> str | None:
         return None
 
 
+def _compact_date(digits: str) -> str | None:
+    """DDMMYYYY ("19112003") or YYYYMMDD ("20031119") typed with no separators. The two can
+    never both be real dates (DDMMYYYY needs the last four digits to be a year, YYYYMMDD needs
+    them to be a month and day), so at most one reading survives and nothing is guessed."""
+    day_first = _build_date(int(digits[4:]), int(digits[2:4]), int(digits[:2]))
+    return day_first or _build_date(int(digits[:4]), int(digits[4:6]), int(digits[6:]))
+
+
 def normalize_date(raw) -> str | None:
     """Return a birth date as YYYY-MM-DD, or None when genuinely unparseable."""
     text = _text(raw)
@@ -104,6 +112,9 @@ def normalize_date(raw) -> str | None:
         if len(second) == 4:
             return _build_date(int(second), named_month, int(first))
         return None
+
+    if len(nums) == 1 and len(nums[0]) == 8:
+        return _compact_date(nums[0])
 
     if len(nums) != 3:
         return None
@@ -166,6 +177,41 @@ def normalize_time(raw) -> str | None:
     if not (0 <= hour <= 23 and 0 <= minute <= 59 and 0 <= second <= 59):
         return None
     return f"{hour:02d}:{minute:02d}:{second:02d}"
+
+
+_UNKNOWN_TIME = re.compile(
+    r"unknown|no\s*idea|not\s*known|(?:don'?t|do\s*not|didn'?t|not)\s*know"
+    r"|(?<![a-z])th?eriy?a{0,2}(?:th?u|dhu|lai|la|lae|illai|illa)"
+    r"|தெரியா|தெரியல|தெரியவில்லை"
+    r"|pata\s*nahi|maloom\s*nahi|पता\s*नहीं|मालूम\s*नहीं"
+)
+
+
+def is_unknown_time(raw) -> bool:
+    """True when the customer says they do not know their birth time ("theriyathu"), which is
+    different from a time that is merely unreadable ("abc")."""
+    text = _text(raw)
+    return bool(text and _UNKNOWN_TIME.search(text))
+
+
+def time_needs_meridiem(raw) -> bool:
+    """True for a readable 12-hour-looking time with nothing saying AM or PM ("5:30", "1030"):
+    it could be 05:30 or 17:30, and a horoscope cast for the wrong one is wrong. 24-hour
+    times ("17:45", "00:15") and anything with am/pm or a day-part word are unambiguous."""
+    normalized = normalize_time(raw)
+    if not normalized:
+        return False
+    text = _text(raw) or ""
+    if _MERIDIEM.search(text) or any(w in _AM_WORDS or w in _PM_WORDS for w in _words(text)):
+        return False
+    return 1 <= int(normalized[:2]) <= 12
+
+
+def format_time_12h(normalized: str) -> str:
+    """"18:00:00" -> "06:00 PM". The form we store, so the AM/PM question is settled in the data."""
+    hour, minute, second = (int(p) for p in normalized.split(":"))
+    shown = f"{hour % 12 or 12:02d}:{minute:02d}" + (f":{second:02d}" if second else "")
+    return f"{shown} {'AM' if hour < 12 else 'PM'}"
 
 
 def normalize_gender(raw) -> str | None:

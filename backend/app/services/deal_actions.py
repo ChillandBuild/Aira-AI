@@ -19,8 +19,16 @@ import re
 import uuid
 from dataclasses import dataclass, field
 
-from app.services import deal_engine
+from app.services import astro_bridge, deal_engine
 from app.services import intake
+from app.services.astro_normalize import (
+    format_time_12h,
+    is_unknown_time,
+    normalize_date,
+    normalize_gender,
+    normalize_time,
+    time_needs_meridiem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +224,51 @@ def _impossible_date(text: str) -> bool:
     return not 1 <= day <= calendar.monthrange(year, month)[1]
 
 
+def _astro_connected(ctx: DealContext) -> bool:
+    """AstroTamil clients get stricter detail checks. A settings read must never break a turn."""
+    try:
+        return astro_bridge.is_connected(ctx.tenant_id)
+    except Exception as e:
+        logger.warning(f"AstroTamil connection check failed for tenant {ctx.tenant_id}: {e}")
+        return False
+
+
+# A detail AstroTamil cannot answer without. Birth time may be skipped (it is then sent as 12:00
+# with a note), and so may name and place.
+_UNSKIPPABLE_ROLES = {"birth_date": "date of birth", "gender": "gender", "question": "question"}
+
+
+def _astro_value(role: str, key: str, text: str) -> tuple[str | None, str | None]:
+    """(value to store, problem). Only for AstroTamil clients: the date, time and gender must be
+    ones AstroTamil can use, and are stored in one fixed form so what is saved is what is sent."""
+    if role == "birth_date":
+        if _impossible_date(text):
+            return None, f"{key} '{text}' is not a real date; ask them to check it"
+        date = normalize_date(text)
+        if date:
+            return date, None
+        return None, (
+            f"{key} '{text}' is not a date that can be used. Ask for the day, month and a 4-digit "
+            "year, e.g. 19-11-2003"
+        )
+    if role == "birth_time":
+        if is_unknown_time(text) and not normalize_time(text):
+            return None, (
+                f"{key} '{text}' means they do not know their birth time. Ask ONCE for an approximate time "
+                "(a rough hour with AM or PM, like 6 am). If they still cannot say, call skip_detail for "
+                f"{key}: it is then sent with a 12:00 placeholder and a note for the astrologer."
+            )
+        time = normalize_time(text)
+        if not time:
+            return None, f"{key} '{text}' is not a time that can be used. Ask for it like 10:30 am"
+        if time_needs_meridiem(text):
+            return None, f"{key} '{text}' could be AM or PM. Ask: is that AM (morning) or PM (evening)?"
+        return format_time_12h(time), None
+    if role == "gender" and not normalize_gender(text):
+        return None, f"{key} '{text}' is not clear. Ask: Male or Female?"
+    return text, None
+
+
 def _canonical_option(field: dict, value: str) -> str | None:
     for option in field.get("options") or []:
         if option.strip().lower() == value.strip().lower():
@@ -228,6 +281,7 @@ def _clean_details(ctx: DealContext, raw: dict) -> tuple[dict, list[str]]:
     by_key = {f["key"]: f for f in _fields(ctx)}
     accepted: dict[str, str] = {}
     problems: list[str] = []
+    astro = _astro_connected(ctx)
     for key, value in raw.items():
         field = by_key.get(key)
         text = str(value or "").strip()
@@ -239,7 +293,13 @@ def _clean_details(ctx: DealContext, raw: dict) -> tuple[dict, list[str]]:
                 problems.append(f"{key} must be one of: {', '.join(field['options'])}")
                 continue
             text = canonical
-        if field.get("type") == "date" and _impossible_date(text):
+        role = astro_bridge.field_role(key) if astro else None
+        if role:
+            text, problem = _astro_value(role, key, text)
+            if problem:
+                problems.append(problem)
+                continue
+        elif field.get("type") == "date" and _impossible_date(text):
             problems.append(f"{key} '{text}' is not a real date; ask them to check it")
             continue
         accepted[key] = text
@@ -297,6 +357,9 @@ async def _skip_detail(ctx: DealContext, args: dict, turn: _Turn) -> str | None:
     key = args.get("key")
     if key not in {f["key"] for f in _fields(ctx)}:
         return f"skip_detail refused: '{key}' is not a detail this business collects."
+    needed = _UNSKIPPABLE_ROLES.get(astro_bridge.field_role(key)) if _astro_connected(ctx) else None
+    if needed:
+        return f"skip_detail refused: the astrologer cannot answer without their {needed}. Ask for it; do not skip it."
     collected = session.get("collected_data") or {}
     skipped = list(dict.fromkeys([*(session.get("skipped_fields") or []), key]))
     intake._update_session(session["id"], {
@@ -324,6 +387,17 @@ async def _create_payment_link(ctx: DealContext, args: dict, turn: _Turn) -> str
     missing = deal_engine.missing_details(_fields(ctx), collected, session.get("skipped_fields") or [])
     if missing:
         return f"create_payment_link refused: still needed from the customer: {_labels(ctx, missing)}."
+    if _astro_connected(ctx):
+        # The same check the push to AstroTamil makes after payment: a customer who has paid for
+        # a question AstroTamil then refuses is the failure this prevents.
+        unusable = astro_bridge.unusable_for_push(
+            collected, session.get("skipped_fields"), ctx.phone, session.get("trigger_reason"),
+        )
+        if unusable:
+            return (
+                f"create_payment_link refused: the astrologer cannot use their {', '.join(unusable)} yet. "
+                "Ask the customer for it again, then try again."
+            )
     prices = deal_engine.current_prices(ctx.config, session)
     if not prices:
         return "create_payment_link refused: the chosen offering is not available any more or has no price."

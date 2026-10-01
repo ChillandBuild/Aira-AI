@@ -253,3 +253,81 @@ def test_long_input_is_rejected_without_scanning():
     assert normalize_time(blob) is None
     assert normalize_gender("female " * 2000) is None
     assert normalize_phone("9345679286 " * 2000) is None
+
+
+# ── Compact dates, unknown times and AM/PM ambiguity (Keerthi, 2026-10-01: "19112003") ──
+from app.services.astro_normalize import (
+    format_time_12h,
+    is_unknown_time,
+    time_needs_meridiem,
+)
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("19112003", "2003-11-19"),
+        ("01011990", "1990-01-01"),
+        ("20031119", "2003-11-19"),
+        (19112003, "2003-11-19"),
+        ("19 11 2003", "2003-11-19"),
+        ("19-11-2003", "2003-11-19"),
+    ],
+)
+def test_compact_dates_are_read_when_only_one_reading_fits(raw, expected):
+    assert normalize_date(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["1911203", "191120033", "99992003", "31022003", "19112099", "123456"])
+def test_compact_dates_that_do_not_fit_are_refused(raw):
+    # 31 Feb, year 2099 (future), wrong digit counts: never guess.
+    assert normalize_date(raw) is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["theriyathu", "Theriyadhu", "தெரியாது", "தெரியலை", "don't know", "dont know", "not known",
+     "unknown", "no idea", "pata nahi", "पता नहीं", "I do not know",
+     "therila", "teriyathu", "theriyaathu", "theriyalai"],
+)
+def test_unknown_time_words_are_recognised(raw):
+    assert is_unknown_time(raw) is True
+    assert normalize_time(raw) is None
+
+
+@pytest.mark.parametrize("raw", ["10:30 am", "6 pm", "morning", "", None, "abc", "10.30", "theriyum", "terrible"])
+def test_real_or_unreadable_times_are_not_unknown(raw):
+    assert is_unknown_time(raw) is False
+
+
+@pytest.mark.parametrize(
+    "raw,needs",
+    [
+        ("10:30", True),
+        ("5.30", True),
+        ("1030", True),
+        ("9", True),
+        ("10:30 am", False),
+        ("10:30 PM", False),
+        ("6 in the evening", False),
+        ("morning 6", False),
+        ("மாலை 6", False),
+        ("17:45", False),
+        ("13.05", False),
+        ("00:15", False),
+        ("0030", False),
+        ("theriyathu", False),
+    ],
+)
+def test_twelve_hour_time_without_am_pm_needs_a_question(raw, needs):
+    assert time_needs_meridiem(raw) is needs
+
+
+@pytest.mark.parametrize(
+    "normalized,shown",
+    [("10:30:00", "10:30 AM"), ("00:05:00", "12:05 AM"), ("12:00:00", "12:00 PM"), ("18:00:00", "06:00 PM"),
+     ("23:59:30", "11:59:30 PM")],
+)
+def test_time_is_shown_in_twelve_hour_form(normalized, shown):
+    assert format_time_12h(normalized) == shown
+    assert normalize_time(shown) == normalized
