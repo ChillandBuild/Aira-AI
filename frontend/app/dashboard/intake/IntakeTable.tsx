@@ -162,18 +162,18 @@ export function IntakeTable({
     <div className="overflow-x-auto">
       <table className="w-full border-collapse text-left">
         <thead>
-          <tr className="border-b border-border">
-            <th className="sticky left-0 z-10 bg-surface-subtle px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
+          <tr className="border-b border-border bg-surface-subtle">
+            <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] bg-surface-subtle px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
               Lead
             </th>
-            <th className="sticky left-[160px] z-10 bg-surface-subtle px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
+            <th className="sticky left-[180px] z-20 w-[140px] min-w-[140px] max-w-[140px] border-r border-border bg-surface-subtle px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted shadow-[inset_-1px_0_0_0_#e8e3db]">
               Phone
             </th>
-            <th className="px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Status</th>
-            <th className="px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Package</th>
-            <th className="px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Amount</th>
-            <th className="px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Payment Link</th>
-            <th className="px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Submitted</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Status</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Package</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Amount</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Payment Link</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Submitted</th>
             {shown.map((col) => (
               <th key={col.key} className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
                 {col.label}
@@ -182,49 +182,63 @@ export function IntakeTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} className="border-b border-border-subtle hover:bg-surface-subtle">
-              <td className="sticky left-0 z-10 whitespace-nowrap bg-surface-subtle px-4 py-3 font-label text-sm font-semibold text-ink">
-                {row.leads?.name || row.collected_data?.name || "Unknown lead"}
-              </td>
-              <td className="sticky left-[160px] z-10 whitespace-nowrap bg-surface-subtle px-4 py-3 font-body text-sm text-ink-muted">
-                {row.leads?.phone || "—"}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3">
-                <span className={`inline-flex rounded-full border px-2.5 py-1 font-label text-[10px] font-bold ${STATUS_BADGE[row.status]}`}>
-                  {STATUS_LABEL[row.status]}
-                </span>
-                {row.status === "paid" && <ResolveButton sessionId={row.id} onResolve={onResolve} />}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
-                <PackageCell row={row} packages={packages} onChangePackage={onChangePackage} />
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
-                {row.amount_paise ? `₹${(row.amount_paise / 100).toFixed(0)}` : "—"}
-                {row.amount_mismatch && (
-                  <span className="ml-1 font-label text-[10px] font-bold text-amber-700" title="Amount paid differs from the package price">
-                    ⚠
-                  </span>
-                )}
-                {!!row.gst_amount_paise && row.gst_amount_paise > 0 && (
-                  <div className="font-body text-[11px] text-ink-muted">
-                    (incl. ₹{(row.gst_amount_paise / 100).toFixed(2)} GST)
+          {rows.map((row) => {
+            const leadName = row.leads?.name || row.collected_data?.name || "Unknown lead";
+            const leadPhone = row.leads?.phone || "—";
+            return (
+              <tr key={row.id} className="group border-b border-border-subtle hover:bg-surface-subtle">
+                <td
+                  title={leadName}
+                  className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] bg-surface px-4 py-3 font-label text-sm font-semibold text-ink group-hover:bg-surface-subtle"
+                >
+                  <div className="truncate" title={leadName}>
+                    {leadName}
                   </div>
-                )}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3">
-                {row.payment_link ? <CopyLinkButton link={row.payment_link} /> : <span className="font-body text-sm text-ink-muted">—</span>}
-              </td>
-              <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink-muted">
-                {new Date(row.created_at).toLocaleDateString()}
-              </td>
-              {shown.map((col) => (
-                <td key={col.key} className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
-                  {row.collected_data?.[col.key] || "—"}
                 </td>
-              ))}
-            </tr>
-          ))}
+                <td
+                  title={leadPhone}
+                  className="sticky left-[180px] z-10 w-[140px] min-w-[140px] max-w-[140px] whitespace-nowrap border-r border-border bg-surface px-4 py-3 font-body text-sm text-ink-muted shadow-[inset_-1px_0_0_0_#e8e3db] group-hover:bg-surface-subtle"
+                >
+                  <div className="truncate" title={leadPhone}>
+                    {leadPhone}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  <span className={`inline-flex rounded-full border px-2.5 py-1 font-label text-[10px] font-bold ${STATUS_BADGE[row.status]}`}>
+                    {STATUS_LABEL[row.status]}
+                  </span>
+                  {row.status === "paid" && <ResolveButton sessionId={row.id} onResolve={onResolve} />}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
+                  <PackageCell row={row} packages={packages} onChangePackage={onChangePackage} />
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
+                  {row.amount_paise ? `₹${(row.amount_paise / 100).toFixed(0)}` : "—"}
+                  {row.amount_mismatch && (
+                    <span className="ml-1 font-label text-[10px] font-bold text-amber-700" title="Amount paid differs from the package price">
+                      ⚠
+                    </span>
+                  )}
+                  {!!row.gst_amount_paise && row.gst_amount_paise > 0 && (
+                    <div className="font-body text-[11px] text-ink-muted">
+                      (incl. ₹{(row.gst_amount_paise / 100).toFixed(2)} GST)
+                    </div>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3">
+                  {row.payment_link ? <CopyLinkButton link={row.payment_link} /> : <span className="font-body text-sm text-ink-muted">—</span>}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink-muted">
+                  {new Date(row.created_at).toLocaleDateString()}
+                </td>
+                {shown.map((col) => (
+                  <td key={col.key} className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
+                    {row.collected_data?.[col.key] || "—"}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       <div ref={sentinel} className="h-8" />
