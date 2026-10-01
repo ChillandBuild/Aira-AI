@@ -991,52 +991,24 @@ async def compose_new_message(
     return {"lead_id": lead_id, "sid": sid, "phone": phone}
 
 
-@router.delete("/{lead_id}/clear-chat")
-async def clear_chat(lead_id: UUID, tenant_id: str = Depends(get_tenant_id)):
-    """Start this lead over: delete the transcript AND every piece of state derived
-    from it. The lead row itself is preserved.
+@router.delete("/{lead_id}/clear-data")
+@router.delete("/{lead_id}/clear-chat")  # the pre-rename path, for a frontend still on the old build
+async def clear_data(lead_id: UUID, tenant_id: str = Depends(get_owner_tenant_id)):
+    """Clear Data: erase the lead and everything about it -- messages, bookings, payments,
+    notes, score -- so the next message from that number starts as a brand-new lead.
 
-    This used to delete messages only, which made "Clear Chat" a lie -- the intake
-    session, the Tamil lock and the compacted conversation summary all survived, so
-    the next inbound message resumed mid-flow with the transcript already gone
-    (observed live 2026-08-13: a cleared lead's fresh "Hii" was answered with the
-    pending details summary). Deleting the visible history while keeping the state
-    that drives behaviour is worse than doing nothing -- it hides the cause.
+    This used to be "Clear Chat", which kept the lead row, its score and every paid booking,
+    so a cleared test lead still came back "A · Hot" with its history half there. Owner-only
+    because it now erases payment records too (Razorpay keeps its own copy of the payment).
     """
+    from app.services.lead_wipe import wipe_lead
+
     db = get_supabase()
-    # Verify the lead belongs to this tenant
     lead = db.table("leads").select("id").eq("id", str(lead_id)).eq("tenant_id", tenant_id).maybe_single().execute()
-    if not lead.data:
+    if not lead or not lead.data:
         raise HTTPException(status_code=404, detail="Lead not found")
-
-    # Hard-delete all messages for this lead
-    db.table("messages").delete().eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).execute()
-
-    # Drop the conversation state row: message_count, the compacted
-    # conversation_summary (which the AI reads back as "Earlier conversation
-    # summary") and any flow state. get_or_create_state recreates it clean.
-    try:
-        db.table("lead_conversation_state").delete().eq("lead_id", str(lead_id)).eq("tenant_id", tenant_id).execute()
-    except Exception as e:
-        logger.warning(f"clear-chat: conversation state reset failed for lead {lead_id}: {e}")
-
-    # Cancel any intake session still in motion, so the collector does not resume
-    # mid-flow against a transcript that no longer exists. Paid and resolved
-    # sessions are deliberately left alone -- those are financial records.
-    try:
-        db.table("intake_sessions").update({"status": "cancelled"}).eq("lead_id", str(lead_id)).eq(
-            "tenant_id", tenant_id
-        ).in_(
-            "status",
-            ["offer_pending", "awaiting_package_choice", "collecting", "awaiting_confirmation", "awaiting_payment"],
-        ).execute()
-    except Exception as e:
-        logger.warning(f"clear-chat: intake session cancel failed for lead {lead_id}: {e}")
-
-    # Re-enable AI and drop the per-lead language lock so the bot picks up from a
-    # genuinely fresh start.
-    db.table("leads").update({"ai_enabled": True, "tamil_locked": False}).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
-    return {"success": True, "message": "Chat cleared"}
+    cancelled = await wipe_lead(db, str(lead_id), tenant_id)
+    return {"success": True, "message": "Lead data cleared", "payment_links_cancelled": cancelled}
 
 
 @router.delete("/{lead_id}")

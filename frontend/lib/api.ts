@@ -1516,8 +1516,8 @@ export const api = {
       apiFetch<{ success: boolean; message: string }>(`/api/v1/leads/${id}`, {
         method: "DELETE",
       }),
-    clearChat: (id: string) =>
-      apiFetch<{ success: boolean; message: string }>(`/api/v1/leads/${id}/clear-chat`, {
+    clearData: (id: string) =>
+      apiFetch<{ success: boolean; message: string }>(`/api/v1/leads/${id}/clear-data`, {
         method: "DELETE",
       }),
     pin: (id: string) =>

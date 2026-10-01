@@ -343,16 +343,14 @@ export function ChatThread({
     }
   }
 
-  async function clearChat() {
-    if (!confirm(`Clear all messages with ${current.name || current.phone}? The lead profile is kept but the chat history is permanently erased and AI will be re-enabled.`)) return;
+  async function clearData() {
+    if (!confirm(`Erase everything about ${current.name || current.phone}: messages, bookings, payments, notes and score? Any unpaid payment link is cancelled. This cannot be undone. Their next message starts as a brand-new lead.`)) return;
     setClearing(true);
     try {
-      await api.leads.clearChat(lead.id);
-      setMessages([]);
-      setCurrent((prev) => ({ ...prev, ai_enabled: true }));
+      await api.leads.clearData(lead.id);
+      onDeleted?.(lead.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Clear failed");
-    } finally {
       setClearing(false);
     }
   }
@@ -599,13 +597,15 @@ export function ChatThread({
                 </button>
               )}
               <div className="border-t border-surface-mid my-1" />
-              <button
-                onClick={() => { setDropdownOpen(false); clearChat(); }}
-                disabled={clearing}
-                className="w-full text-left px-4 py-2 text-[13px] font-medium text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2 disabled:opacity-40"
-              >
-                <Eraser size={13} /> {clearing ? "Clearing…" : "Clear Chat"}
-              </button>
+              {role === "owner" && (
+                <button
+                  onClick={() => { setDropdownOpen(false); clearData(); }}
+                  disabled={clearing}
+                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2 disabled:opacity-40"
+                >
+                  <Eraser size={13} /> {clearing ? "Clearing…" : "Clear Data"}
+                </button>
+              )}
               <button
                 onClick={() => { setDropdownOpen(false); deleteConversation(); }}
                 disabled={deleting}
