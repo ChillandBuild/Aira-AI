@@ -116,6 +116,24 @@ class AppVersionTests(unittest.TestCase):
         self.assertEqual((first, second), (7, 7))
         self.assertEqual(client.hits, 1)
 
+    def test_first_read_fetches_even_on_a_freshly_booted_machine(self):
+        """monotonic() is uptime on Linux: a new CI VM or Render container starts near 0,
+        which must not make the never-filled cache look fresh."""
+        import asyncio
+        calls._sim_app_version_cache.update(at=0.0, value=None)
+        resp = MagicMock()
+        resp.json.return_value = {"versionCode": 9}
+        client = MagicMock()
+
+        async def _get(url):
+            return resp
+        client.get = _get
+        cm = MagicMock()
+        cm.__aenter__ = MagicMock(side_effect=lambda: asyncio.sleep(0, result=client))
+        cm.__aexit__ = MagicMock(side_effect=lambda *a: asyncio.sleep(0, result=False))
+        with patch("time.monotonic", return_value=12.0), patch.object(calls.httpx, "AsyncClient", return_value=cm):
+            self.assertEqual(asyncio.run(calls._latest_sim_app_version()), 9)
+
     def test_latest_version_none_when_unreachable(self):
         import asyncio
         calls._sim_app_version_cache.update(at=0.0, value=None)

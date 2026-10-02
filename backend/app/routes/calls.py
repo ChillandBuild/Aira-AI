@@ -710,7 +710,8 @@ async def _latest_sim_app_version() -> int | None:
     """Latest published Aira Sync versionCode, cached; None if unreachable."""
     import time
     now = time.monotonic()
-    if now - _sim_app_version_cache["at"] < _SIM_APP_VERSION_TTL_S:
+    # at == 0.0 means never fetched. monotonic() can itself be under the TTL right after boot.
+    if _sim_app_version_cache["at"] and now - _sim_app_version_cache["at"] < _SIM_APP_VERSION_TTL_S:
         return _sim_app_version_cache["value"]
     value = None
     try:
