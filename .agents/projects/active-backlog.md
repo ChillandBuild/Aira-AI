@@ -641,3 +641,12 @@ first review that has already been applied.
 - **Vivek (session 7091a634):** his link expires 2026-10-01 09:52 UTC. Confirm the session stays `awaiting_payment` with the link cleared, and is NOT cancelled.
 - **Eval right-actions 80–84% vs the 90% bar.** Misses: a "👍"-only return sometimes skips the continue question; repeat customers who don't name the offering get the menu first. Both harmless; lift if it matters.
 - **User-side:** staff login details were pasted into Astrotamil Pooja lead chats. The user must remove them and rotate those credentials; they are not to be read or echoed. The "Place of Birh" typo in that tenant's form.
+
+## Meta reconnect follow-ups (open, 2026-10-02, after `4b7d258e` me/adaccounts fix)
+- **`lefthook.yml` `backend-syntax` calls `python3`, which on this Windows machine is only the Microsoft Store alias** → pre-commit fails with "Python syntax error" (exit 49) on any `backend/app/**/*.py` commit. Worked around once with a scratchpad `python3` shim on PATH (hook still ran). Fix: use `python` in lefthook.yml, or disable the `python3` App execution alias. Not changed — user hasn't chosen.
+- **`tests/test_returning_eval.py::test_shipped_scenarios_expand_for_every_tenant_and_meet_the_size_and_language_bar` fails on clean `main`** (verified by stash 2026-10-02). Rest of suite: 3428 passed.
+- **PIN-mismatch log noise:** `app_settings.py` unified-signup complete logs 133005 as WARNING though `register_phone_number` already treats it as fine. Skip 133005 there.
+- **`no tenant for signed payload` warning should log the `phone_number_id`** (`routes/webhook.py` `whatsapp_webhook`) so an unknown source can be identified.
+- **Astro intake session `1ae8883a-...` is stuck**: astro_bridge refuses every 5 min (`place_of_birh` key + no gender). Same typo as the deal-lifecycle note above; the session needs a manual fix or close once the form key is corrected.
+- **Astro Tamil ads (`act_905982549234446`) have not delivered since 2026-08-25** though two are ACTIVE in Meta — user-side check in Ads Manager (budget/end date/payment). Old account `act_4306295769588787` creatives remain in `ad_creatives` (hidden by account filter; harmless).
+- **Render MCP returned `unauthorized` this session** — logs had to be pasted by the user. Re-auth via `/mcp`.

@@ -559,6 +559,7 @@
 ## Meta Embedded Signup / Facebook Login for Business — the token is a SYSTEM_USER, and `me/*` is a lie (2026-08-14)
 
 - **The code exchange returns a business-integration *system user* token, not a personal user token.** Verified live against Meta 2026-08-14: `debug_token` on a real signup token reports `type: SYSTEM_USER`, `application: AIRA`, `expires_at: 0` (never expires), `user_id` = "AIRA System User". **Consequence: every `me/*` edge is dead.** `me/accounts` returns HTTP **200 with `{"data": []}`** — not an error, an empty success, which is what made this so slow to diagnose. `me/adaccounts` → `(#100) Unsupported get request`. `me/businesses` → `(#100) Missing Permission`. `/{business_id}/client_pages` → `(#200) Requires business_management`. Do NOT "fix" a missing-asset bug by reaching for another `me/` edge; they all fail this way.
+- **CORRECTION (2026-10-02) — `me/*` is NOT always dead, and granular scopes are NOT always populated.** The live Astro Tamil unified signup (Nira config, ads_read now approved) logged `type=SYSTEM_USER` with `granted_assets={'pages_show_list': 0, 'ads_read': 0, 'pages_messaging': 0, ..., 'whatsapp_business_management': 2}` — permissions granted with **zero target_ids** — yet the Page still connected, which can only have come from `me/accounts`. Ad accounts had no `me/` fallback, so the picker showed only "Do not connect". Fix `4b7d258e`: `_list_token_edge()` now merges `me/accounts` AND `me/adaccounts` into the granular-scope results (best-effort, never raises; regression test `test_ad_accounts_come_from_me_adaccounts_when_ads_grant_has_no_target_ids`). After deploy + reconnect the ad account (`act_905982549234446`, "Astro Tamil Test") connected. Not yet seen: the log line proving which source supplied it — if a future signup misses it, grep `me/adaccounts is not readable` (it now logs Meta's error). Keep both sources; neither is reliable alone.
 - **The granted assets live ONLY in the token's granular scopes.** `discover_business_login_assets()` (`services/meta_cloud.py`) calls `GET /debug_token` and reads `granular_scopes[].target_ids`, then fetches each asset by id (`GET /{page_id}?fields=id,name,access_token,instagram_business_account{...}`). `me/accounts` is retained as a **best-effort merge only** (`_list_user_token_pages`, never raises) because some Login configurations still issue a real user token — it can add Pages, never fail a signup.
 - **Ad-account ids arrive bare in the grant** (`"42"`, not `"act_42"`) and are only readable as `act_<id>` — `_as_ad_account_id()` normalizes. Instagram scopes (`instagram_basic`, `instagram_manage_messages`) report **Page** ids as their targets, not IG ids, so they're grouped with the Page scopes in `_PAGE_GRANT_SCOPES`.
 - **Meta's asset picker is NOT a permission grant — this is the single most confusing thing here.** The signup window shows a Page/Instagram/Catalogue/Ad-account picker driven by the *configuration's asset setup*, and the review screen will cheerfully say "Facebook Page — <name>". But the issued token only carries the permissions the configuration **requests**. As of 2026-08-14 the unified config (`NEXT_PUBLIC_META_UNIFIED_CONFIG_ID`, `2026693308738446`) requests **WhatsApp only** — every signup token comes back with `scopes: whatsapp_business_management, whatsapp_business_messaging, public_profile` and zero page/IG/ads targets. So a user can select a Page, see it confirmed on Meta's own review screen, and the app still receives no authority over it. **If Messenger/Instagram/Ads "won't connect", check `granular_scopes` in the Render log line before touching any code.**
@@ -906,6 +907,25 @@ note above: `me/adaccounts` is empty, so the id comes from `granular_scopes[].ta
 `ads_read`/`ads_management`, then gets the `act_` prefix. **This silently returns nothing if
 `meta_app_id`/`meta_app_secret` are unset on the backend** — `_debug_token_granular_scopes` only logs
 a warning, and the operator sees "no ad account was granted" with no cause.
+(2026-10-02: no longer "only" — `me/adaccounts` is now merged in too; see the CORRECTION bullet in
+the 2026-08-14 section.)
+
+**Reading signup/webhook logs (2026-10-02):**
+- Render log lines are stamped **UTC**; the user reads the dashboard in **IST (+5:30)**. Always give
+  both when asking them to search a window — a "15:20–15:30" request without a zone cost a round-trip.
+- `WhatsApp webhook: no tenant for signed payload — dropping` in bursts right after
+  `POST /api/v1/settings/disconnect` = the tenant's OWN number's events arriving while it's
+  unmapped. Expected while disconnected; worrying only if it continues while connected. The warning
+  doesn't print the `phone_number_id`, so an unknown source can't be identified from it.
+- `Unified Meta signup phone registration failed ... (#133005) Two step verification PIN Mismatch`
+  on a reconnect is harmless: the number is already registered with an earlier PIN.
+  `register_phone_number` logs it as INFO; `app_settings.py` (unified complete) still re-logs it as WARNING.
+- **Meta Ads table rows ≠ this sync's insights.** `ad_creatives` rows are only inserted from
+  insight rows (`meta_ads_insights_sync.py` `upsert_creative_from_insight`), but persist forever;
+  the `/ads` edge then refreshes `ad_effective_status`/`last_seen_at` on every sync. So "Sync now"
+  saying "Meta returned no ad data" (0 insight rows for last_30d) while the table lists ads is
+  normal when the ads simply haven't delivered — check `ad_insights_daily.insight_date` max per
+  `meta_ad_account_id` before suspecting a stale account.
 
 **`catalog_management` is NOT used at runtime — the decisions-log claim was wrong.**
 `send_catalog_message()` (`meta_cloud.py:749`) exists but **has zero callers anywhere in
