@@ -1,0 +1,627 @@
+"use client";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { ChevronDown, Loader2, Phone, Pin, Search, StickyNote, Users } from "lucide-react";
+import { api, type Caller, type CallLog, type ReviewLead, type ReviewRange } from "@/lib/api";
+import { cn, formatPhone, timeAgo } from "@/lib/utils";
+import { useCallers, useNotes } from "@/hooks/useApi";
+import { SegmentBadge } from "@/components/segment-badge";
+import { CallAiDetail, anyProcessing, scoreColor } from "@/components/CallAi";
+import { TONE_CHIP, callResultKey, callResultLabel, callResultTone } from "@/lib/call-wrapup";
+import { saveNote } from "@/app/dashboard/telecalling/lib/notes-api";
+
+type Preset = "today" | "7" | "30" | "custom";
+type Tab = "all" | "called" | "notes" | "uncalled" | "review";
+
+const PRESETS: { id: Preset; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "7", label: "Last 7 days" },
+  { id: "30", label: "Last 30 days" },
+  { id: "custom", label: "Custom" },
+];
+const PROCESSING_POLL_MS = 10_000;
+const CARD = "bg-white border border-[#e8e3db] rounded-2xl";
+const EYEBROW = "font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e]";
+
+/** Local-midnight ISO with the browser's offset, so "today" means the admin's today. */
+function localIso(d: Date): string {
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  const pad = (n: number) => String(Math.floor(Math.abs(n))).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00${sign}${pad(off / 60)}:${pad(off % 60)}`;
+}
+function dayInput(d: Date): string {
+  return localIso(d).slice(0, 10);
+}
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function rangeFor(preset: Preset, from: string, to: string): { start: string; end: string; label: string } {
+  const today = addDays(new Date(), 0);
+  if (preset === "custom" && from && to) {
+    const [fy, fm, fd] = from.split("-").map(Number);
+    const [ty, tm, td] = to.split("-").map(Number);
+    const s = new Date(fy, fm - 1, fd);
+    const e = addDays(new Date(ty, tm - 1, td), 1);
+    const fmt = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return { start: localIso(s), end: localIso(e), label: `${fmt(s)} – ${fmt(new Date(ty, tm - 1, td))}` };
+  }
+  const days = preset === "today" ? 1 : preset === "30" ? 30 : 7;
+  return {
+    start: localIso(addDays(today, 1 - days)),
+    end: localIso(addDays(today, 1)),
+    label: PRESETS.find((p) => p.id === preset)?.label ?? "",
+  };
+}
+function formatTalk(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h) return `${h}h ${m}m`;
+  return `${m}m ${seconds % 60}s`;
+}
+function formatDuration(seconds: number | null): string {
+  if (!seconds) return "—";
+  const m = Math.floor(seconds / 60);
+  return m ? `${m}m ${seconds % 60}s` : `${seconds % 60}s`;
+}
+function callWhen(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+}
+function initial(name: string | null | undefined): string {
+  return (name || "?").trim().charAt(0).toUpperCase() || "?";
+}
+
+function StatusPill({ call }: { call: Pick<CallLog, "score" | "score_status" | "call_group" | "provider"> | null }) {
+  if (!call || call.provider !== "telecmi") return null;
+  const base = "shrink-0 px-2 py-0.5 rounded-full border font-label text-[9px] font-bold";
+  if ((call.score_status === "scored" || call.score_status === "provisional") && call.score != null) {
+    return <span className={cn(base, "font-mono", scoreColor(call.score))}>{call.score.toFixed(1)}</span>;
+  }
+  const muted = cn(base, "bg-[#faf8f5] text-[#a8a29e] border-[#e8e3db]");
+  if (call.score_status === "early_exit") return <span className={muted}>Early exit</span>;
+  if (call.score_status === "not_connected") return <span className={muted}>Not connected</span>;
+  if (call.score_status === "very_short") return <span className={muted}>Under 30s</span>;
+  return null;
+}
+
+export default function CallReview() {
+  const { data: callersData } = useCallers();
+  const callers = useMemo<Caller[]>(() => {
+    const team = callersData?.data ?? [];
+    const admin = callersData?.admin_caller;
+    return admin ? [{ ...admin, name: `${admin.name || "Admin"} (me)` }, ...team] : team;
+  }, [callersData]);
+  const callerName = useCallback(
+    (id: string | null | undefined) => (id ? callers.find((c) => c.id === id)?.name ?? "Former telecaller" : "Admin"),
+    [callers],
+  );
+
+  const [preset, setPreset] = useState<Preset>("7");
+  const [from, setFrom] = useState(() => dayInput(addDays(new Date(), -29)));
+  const [to, setTo] = useState(() => dayInput(new Date()));
+  const [callerId, setCallerId] = useState<string>("");
+  const [search, setSearch] = useState("");
+  const [tab, setTab] = useState<Tab>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const window_ = useMemo(() => rangeFor(preset, from, to), [preset, from, to]);
+  const range: ReviewRange = useMemo(
+    () => ({ start: window_.start, end: window_.end, callerId: callerId || null }),
+    [window_.start, window_.end, callerId],
+  );
+
+  const [rows, setRows] = useState<ReviewLead[]>([]);
+  const [truncated, setTruncated] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api.callReview
+      .leads(range)
+      .then((res) => {
+        if (cancelled) return;
+        setRows(res.data || []);
+        setTruncated(!!res.truncated);
+      })
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : "Couldn't load calls"))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
+
+  const searched = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    const digits = q.replace(/\D/g, "");
+    return rows.filter(
+      (r) => (r.name ?? "").toLowerCase().includes(q) || (!!digits && (r.phone ?? "").replace(/\D/g, "").includes(digits)),
+    );
+  }, [rows, search]);
+
+  const inTab = useCallback((r: ReviewLead, t: Tab) => {
+    if (t === "called") return r.calls > 0;
+    if (t === "notes") return r.notes > 0;
+    if (t === "uncalled") return r.assigned && r.calls === 0;
+    if (t === "review") return r.needs_review;
+    return true;
+  }, []);
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "all", label: "All" },
+    { id: "called", label: "Called" },
+    { id: "notes", label: "Notes saved" },
+    ...(callerId ? [{ id: "uncalled" as Tab, label: "Assigned, not called" }] : []),
+    { id: "review", label: "Needs review" },
+  ];
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : "all";
+  const visible = searched.filter((r) => inTab(r, activeTab));
+  const selected = visible.find((r) => r.id === selectedId) ?? null;
+
+  // Totals follow the filter bar exactly (telecaller, dates, search); the tabs only narrow the list.
+  const kpi = useMemo(() => {
+    const sum = (k: keyof ReviewLead) => searched.reduce((a, r) => a + (Number(r[k]) || 0), 0);
+    const calls = sum("calls");
+    const connected = sum("connected");
+    const scored = sum("scored");
+    return {
+      calls,
+      leadsCalled: searched.filter((r) => r.calls > 0).length,
+      connected,
+      connectRate: calls ? Math.round((connected / calls) * 100) : null,
+      talk: sum("talk_seconds"),
+      avg: scored ? (sum("score_sum") / scored).toFixed(1) : "—",
+      scored,
+      earlyExits: sum("early_exits"),
+      notes: sum("notes"),
+      uncalled: searched.filter((r) => r.assigned && r.calls === 0).length,
+    };
+  }, [searched]);
+
+  const selectedCaller = callers.find((c) => c.id === callerId);
+
+  return (
+    <div className="flex flex-col gap-4 p-4 md:p-6 min-h-full">
+      {/* Filter bar */}
+      <div className={cn(CARD, "sticky top-0 z-10 p-2.5 shadow-sm flex flex-wrap items-center gap-2")}>
+        <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPreset(p.id)}
+              aria-pressed={preset === p.id}
+              className={cn(
+                "px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all",
+                preset === p.id ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {preset === "custom" && (
+          <div className="flex items-center gap-1.5">
+            <input
+              id="review-from"
+              type="date"
+              value={from}
+              max={to}
+              onChange={(e) => setFrom(e.target.value)}
+              aria-label="From date"
+              className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+            />
+            <span className="font-label text-xs text-[#a8a29e]">to</span>
+            <input
+              id="review-to"
+              type="date"
+              value={to}
+              min={from}
+              onChange={(e) => setTo(e.target.value)}
+              aria-label="To date"
+              className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+            />
+          </div>
+        )}
+        <label htmlFor="review-caller" className="relative flex items-center h-9 pl-2 pr-7 gap-2 rounded-xl border border-[#e8e3db] bg-white">
+          <span className="w-6 h-6 rounded-full bg-primary text-white grid place-items-center font-label text-[10px] font-extrabold shrink-0">
+            {selectedCaller ? initial(selectedCaller.name) : <Users size={12} />}
+          </span>
+          <select
+            id="review-caller"
+            value={callerId}
+            onChange={(e) => {
+              setCallerId(e.target.value);
+              setSelectedId(null);
+            }}
+            className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer max-w-[180px] truncate"
+          >
+            <option value="">All telecallers</option>
+            {callers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+        </label>
+        <label htmlFor="review-search" className="flex-1 min-w-[200px] flex items-center h-9 px-3 gap-2 rounded-xl border border-[#e8e3db] bg-white">
+          <Search size={14} className="text-[#a8a29e] shrink-0" />
+          <input
+            id="review-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search lead name or phone"
+            className="w-full bg-transparent font-body text-xs focus:outline-none"
+          />
+        </label>
+      </div>
+
+      {/* Scope + KPIs */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs text-[#78716c]">
+        <span className={EYEBROW}>Showing</span>
+        <b className="text-[#292524]">{selectedCaller?.name ?? "All telecallers"}</b>·<b className="text-[#292524]">{window_.label}</b>
+        {search.trim() && (
+          <>
+            ·<span>matching “{search.trim()}”</span>
+          </>
+        )}
+        {truncated && <span className="text-amber-700 font-bold">· Too many calls to total exactly, so narrow the dates</span>}
+      </div>
+      <div className={cn(CARD, "grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 overflow-hidden")}>
+        {[
+          { label: "Calls", value: kpi.calls, sub: `${kpi.leadsCalled} lead${kpi.leadsCalled === 1 ? "" : "s"}` },
+          { label: "Connected", value: kpi.connected, sub: kpi.connectRate == null ? "—" : `${kpi.connectRate}% of calls` },
+          { label: "Talk time", value: formatTalk(kpi.talk), sub: "connected calls" },
+          { label: "Avg score", value: kpi.avg, sub: `${kpi.scored} scored call${kpi.scored === 1 ? "" : "s"}` },
+          { label: "Early exits", value: kpi.earlyExits, sub: "not scored" },
+          {
+            label: "Notes saved",
+            value: kpi.notes,
+            sub: callerId ? `${kpi.uncalled} assigned lead${kpi.uncalled === 1 ? "" : "s"} not called` : "in this range",
+          },
+        ].map((k) => (
+          <div key={k.label} className="px-4 py-3 border-[#f0ece4] border-l border-t -ml-px -mt-px min-w-0">
+            <p className={EYEBROW}>{k.label}</p>
+            <p className="font-heading text-2xl font-extrabold text-[#292524] tabular-nums mt-0.5 truncate">
+              {loading ? <span className="inline-block w-10 h-6 rounded bg-[#f0ece4] animate-pulse align-middle" /> : k.value}
+            </p>
+            <p className="font-label text-[11px] text-[#78716c] truncate">{k.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Panes */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
+        <aside className={cn(CARD, "flex flex-col lg:sticky lg:top-20 lg:max-h-[calc(100vh-7rem)] min-w-0")}>
+          <div className="flex flex-wrap gap-1 p-3 border-b border-[#f0ece4]">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                aria-pressed={activeTab === t.id}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-label text-[11px] font-bold transition-colors",
+                  activeTab === t.id
+                    ? "bg-[var(--primary-50)] border-[var(--primary-200)] text-primary"
+                    : "bg-white border-[#e8e3db] text-[#78716c] hover:text-[#292524]",
+                )}
+              >
+                {t.label}
+                <span className="font-mono text-[10px] opacity-70">{searched.filter((r) => inTab(r, t.id)).length}</span>
+              </button>
+            ))}
+          </div>
+          <div className="overflow-y-auto p-1.5 max-h-[420px] lg:max-h-none">
+            {loading ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 size={18} className="animate-spin text-primary" />
+              </div>
+            ) : error ? (
+              <p className="py-10 px-4 text-center font-body text-xs text-rose-700">{error}. Refresh the page to try again.</p>
+            ) : visible.length === 0 ? (
+              <div className="py-10 px-4 text-center">
+                <p className="font-body text-sm font-semibold text-[#78716c]">No leads match these filters</p>
+                <p className="font-label text-xs text-[#a8a29e] mt-1">Try a wider date range, another telecaller or another tab.</p>
+              </div>
+            ) : (
+              visible.map((r) => (
+                <button
+                  key={r.id}
+                  onClick={() => setSelectedId(r.id)}
+                  aria-current={selected?.id === r.id}
+                  className={cn(
+                    "w-full grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors",
+                    selected?.id === r.id
+                      ? "bg-[var(--primary-50)] border-[var(--primary-200)]"
+                      : "border-transparent hover:bg-[#faf8f5]",
+                  )}
+                >
+                  <span className="w-9 h-9 rounded-full bg-primary text-white grid place-items-center font-label text-sm font-extrabold">
+                    {initial(r.name || r.phone)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-body text-[13px] font-bold text-[#292524] truncate">
+                      {r.name || formatPhone(r.phone) || "Unknown lead"}
+                    </span>
+                    {r.name && <span className="block font-label text-[11px] text-[#78716c] truncate">{formatPhone(r.phone)}</span>}
+                    <span className="block font-label text-[11px] text-[#a8a29e] truncate">
+                      {r.last_call_at ? `Called ${timeAgo(r.last_call_at)}` : "Not called yet"}
+                      {r.calls > 0 && ` · ${r.calls} call${r.calls === 1 ? "" : "s"}`}
+                      {r.notes > 0 && ` · ${r.notes} note${r.notes === 1 ? "" : "s"}`}
+                    </span>
+                  </span>
+                  <span className="flex flex-col items-end gap-1">
+                    {r.segment && <SegmentBadge segment={r.segment} />}
+                    <StatusPill call={r.last_call} />
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        </aside>
+
+        <section className={cn(CARD, "min-w-0")}>
+          {selected ? (
+            <LeadWorkspace key={`${selected.id}-${range.start}-${range.end}-${callerId}`} lead={selected} range={range} callerName={callerName} />
+          ) : (
+            <div className="py-24 px-6 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-[var(--primary-50)] text-primary grid place-items-center mb-3">
+                <Phone size={22} />
+              </div>
+              <h3 className="font-heading text-lg font-extrabold text-[#292524]">Pick a lead</h3>
+              <p className="font-body text-sm text-[#78716c] mt-1 max-w-sm">
+                Choose a lead on the left to see each call&apos;s recording, score, summary and transcript, with the notes saved for it.
+              </p>
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function LeadWorkspace({
+  lead,
+  range,
+  callerName,
+}: {
+  lead: ReviewLead;
+  range: ReviewRange;
+  callerName: (id: string | null | undefined) => string;
+}) {
+  const [calls, setCalls] = useState<CallLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const load = useCallback(
+    async (quiet = false) => {
+      if (!quiet) setLoading(true);
+      try {
+        setCalls(await api.callReview.leadCalls(lead.id, range));
+      } catch {
+        if (!quiet) setCalls([]);
+      } finally {
+        if (!quiet) setLoading(false);
+      }
+    },
+    [lead.id, range],
+  );
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const processing = anyProcessing(calls);
+  useEffect(() => {
+    if (!processing) return;
+    const timer = setInterval(() => void load(true), PROCESSING_POLL_MS);
+    return () => clearInterval(timer);
+  }, [processing, load]);
+
+  const call = calls.find((c) => c.id === activeId) ?? calls[0] ?? null;
+
+  return (
+    <>
+      <header className="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-[#f0ece4]">
+        <span className="w-12 h-12 rounded-full bg-primary text-white grid place-items-center font-heading text-lg font-extrabold">
+          {initial(lead.name || lead.phone)}
+        </span>
+        <div className="flex-1 min-w-[200px]">
+          <h2 className="font-heading text-xl font-extrabold text-[#292524] flex flex-wrap items-center gap-2">
+            {lead.name || formatPhone(lead.phone) || "Unknown lead"}
+            {lead.segment && <SegmentBadge segment={lead.segment} />}
+          </h2>
+          <p className="font-label text-xs text-[#78716c] mt-0.5">
+            {formatPhone(lead.phone)} · Assigned to <b className="text-[#292524]">{lead.assigned_to ? callerName(lead.assigned_to) : "nobody"}</b>
+          </p>
+        </div>
+        <dl className="flex gap-5">
+          {[
+            ["Calls", lead.calls],
+            ["Avg score", lead.avg_score?.toFixed(1) ?? "—"],
+            ["Notes", lead.notes],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <dt className={EYEBROW}>{k}</dt>
+              <dd className="font-heading text-base font-extrabold text-[#292524] tabular-nums">{v}</dd>
+            </div>
+          ))}
+        </dl>
+        <Link
+          href={`/dashboard/telecalling?lead_id=${lead.id}`}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-white font-label text-xs font-bold hover:opacity-90 transition-opacity"
+        >
+          <Phone size={13} /> Open in dialer
+        </Link>
+      </header>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="p-4 flex flex-col gap-3 min-w-0 xl:border-r border-[#f0ece4]">
+          <p className={EYEBROW}>Calls in this range</p>
+          {loading ? (
+            <div className="py-10 flex justify-center">
+              <Loader2 size={18} className="animate-spin text-primary" />
+            </div>
+          ) : calls.length === 0 ? (
+            <p className="rounded-2xl border border-[#e8e3db] bg-[#faf8f5] p-4 font-body text-xs text-[#78716c]">
+              No calls in the selected dates.{lead.assigned ? " This lead is assigned to the telecaller and still waiting for a call." : ""}
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {calls.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setActiveId(c.id)}
+                    aria-pressed={call?.id === c.id}
+                    className={cn(
+                      "shrink-0 min-w-[150px] text-left rounded-xl border px-3 py-2 transition-all",
+                      call?.id === c.id ? "border-primary ring-2 ring-[var(--primary-100)]" : "border-[#e8e3db] hover:bg-[#faf8f5]",
+                    )}
+                  >
+                    <span className="block font-body text-[11px] font-bold text-[#292524]">{callWhen(c.created_at)}</span>
+                    <span className="block font-label text-[10px] text-[#a8a29e] mt-0.5 mb-1.5 truncate">
+                      {formatDuration(c.duration_seconds)} · {callerName(c.caller_id)}
+                    </span>
+                    <StatusPill call={c} />
+                  </button>
+                ))}
+              </div>
+              {call && <CallDetail call={call} callerName={callerName} onChanged={() => void load(true)} />}
+            </>
+          )}
+        </div>
+        <NotesRail leadId={lead.id} callerName={callerName} />
+      </div>
+    </>
+  );
+}
+
+function CallDetail({
+  call,
+  callerName,
+  onChanged,
+}: {
+  call: CallLog;
+  callerName: (id: string | null | undefined) => string;
+  onChanged: () => void;
+}) {
+  const resultKey = callResultKey(call);
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="rounded-2xl border border-[#e8e3db] p-3.5 flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-body text-sm font-bold text-[#292524]">
+              {callWhen(call.created_at)} · {formatDuration(call.duration_seconds)}
+            </p>
+            <p className="font-label text-[11px] text-[#78716c]">by {callerName(call.caller_id)}</p>
+          </div>
+          {resultKey && (
+            <span className={cn("px-2 py-0.5 rounded-full border font-label text-[10px] font-bold", TONE_CHIP[callResultTone(resultKey)])}>
+              {callResultLabel(resultKey) ?? resultKey}
+            </span>
+          )}
+        </div>
+        {call.recording_url ? (
+          <audio key={call.id} src={call.recording_url} controls className="w-full h-9" />
+        ) : (
+          <p className="font-label text-[11px] italic text-[#a8a29e]">No recording for this call.</p>
+        )}
+      </div>
+      {call.provider === "telecmi" ? (
+        <CallAiDetail log={call} onChanged={onChanged} />
+      ) : (
+        call.ai_summary?.brief && (
+          <p className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5 font-body text-[11px] leading-relaxed text-[#44403c]">{call.ai_summary.brief}</p>
+        )
+      )}
+    </div>
+  );
+}
+
+function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: string | null | undefined) => string }) {
+  const { data, mutate, isLoading } = useNotes(leadId);
+  const notes = [...(data?.pinned ?? []), ...(data?.notes ?? [])];
+  // Notes saved before authors were recorded have no caller_id; Aira's own call summaries carry a call_log_id.
+  const author = (n: (typeof notes)[number]) =>
+    n.caller_id ? callerName(n.caller_id) : n.call_log_id && n.content.startsWith("AI Summary") ? "Aira AI" : "Author not recorded";
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function add() {
+    const text = draft.trim();
+    if (!text) return;
+    setSaving(true);
+    try {
+      await saveNote(leadId, text, false);
+      setDraft("");
+      await mutate();
+      toast.success("Note added");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't add the note");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <aside className="p-4 flex flex-col gap-2.5 bg-[#faf8f5] rounded-b-2xl xl:rounded-bl-none xl:rounded-r-2xl min-w-0">
+      <p className={cn(EYEBROW, "flex items-center gap-1.5")}>
+        <StickyNote size={11} /> All notes on this lead · {notes.length}
+      </p>
+      {isLoading ? (
+        <div className="py-6 flex justify-center">
+          <Loader2 size={16} className="animate-spin text-primary" />
+        </div>
+      ) : notes.length === 0 ? (
+        <p className="font-body text-xs text-[#a8a29e]">No notes yet.</p>
+      ) : (
+        notes.map((n) => (
+          <div key={n.id} className={cn("rounded-xl border bg-white p-2.5 flex flex-col gap-1", n.is_pinned ? "border-amber-200" : "border-[#e8e3db]")}>
+            <div className="flex items-center gap-1.5 font-label text-[11px] text-[#78716c]">
+              <span className="w-[18px] h-[18px] rounded-full bg-primary text-white grid place-items-center text-[9px] font-extrabold">
+                {initial(author(n))}
+              </span>
+              <b className="text-[#292524] truncate">{author(n)}</b>
+              <span className="shrink-0">{n.created_at ? timeAgo(n.created_at) : ""}</span>
+              {n.is_pinned && <Pin size={11} className="ml-auto text-amber-600 shrink-0" aria-label="Pinned" />}
+            </div>
+            <p className="font-body text-xs text-[#57534e] whitespace-pre-wrap break-words">{n.content}</p>
+            {!!n.tags?.length && (
+              <div className="flex flex-wrap gap-1">
+                {n.tags.map((t) => (
+                  <span key={t} className="px-1.5 py-0.5 rounded-full border border-[#e8e3db] bg-[#faf8f5] font-label text-[9px] font-bold text-[#78716c]">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))
+      )}
+      <div className="rounded-xl border border-[#e8e3db] bg-white p-2 flex flex-col gap-1.5 mt-1">
+        <textarea
+          id={`review-note-${leadId}`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Add a coaching note or follow-up"
+          aria-label="Add a note"
+          rows={3}
+          className="w-full resize-y bg-transparent font-body text-xs focus:outline-none"
+        />
+        <button
+          onClick={add}
+          disabled={saving || !draft.trim()}
+          className="self-end inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white font-label text-xs font-bold disabled:opacity-50"
+        >
+          {saving && <Loader2 size={12} className="animate-spin" />} Add note
+        </button>
+      </div>
+    </aside>
+  );
+}

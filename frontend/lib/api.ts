@@ -319,6 +319,40 @@ export interface PendingWrapupSummary {
   latest_app_version: number | null;
 }
 
+export interface ReviewRange {
+  start: string;
+  end: string;
+  callerId?: string | null;
+}
+
+function reviewQuery({ start, end, callerId }: ReviewRange): string {
+  const qs = new URLSearchParams({ start, end });
+  if (callerId) qs.set("caller_id", callerId);
+  return qs.toString();
+}
+
+/** One lead in Call Review, with the telecaller's call and note totals for the range. */
+export interface ReviewLead {
+  id: string;
+  name: string | null;
+  phone: string | null;
+  segment: "A" | "B" | "C" | "D" | null;
+  assigned_to: string | null;
+  assigned: boolean;
+  calls: number;
+  connected: number;
+  talk_seconds: number;
+  scored: number;
+  score_sum: number;
+  avg_score: number | null;
+  early_exits: number;
+  needs_review: boolean;
+  notes: number;
+  last_call_at: string | null;
+  last_call: Pick<CallLog, "score" | "score_status" | "call_group" | "provider"> | null;
+  last_activity_at: string | null;
+}
+
 export interface CallLog {
   id: string;
   lead_id: string | null;
@@ -1780,6 +1814,14 @@ export const api = {
       ),
     delete: (noteId: string) =>
       apiFetch<{ deleted: boolean }>(`/api/v1/lead-notes/note/${noteId}`, { method: "DELETE" }),
+  },
+  callReview: {
+    leads: (range: ReviewRange) =>
+      apiFetch<{ data: ReviewLead[]; truncated: boolean }>(`/api/v1/call-review/leads?${reviewQuery(range)}`),
+    leadCalls: async (leadId: string, range: ReviewRange) => {
+      const res = await apiFetch<{ data: CallLog[] }>(`/api/v1/call-review/leads/${leadId}/calls?${reviewQuery(range)}`);
+      return res.data || [];
+    },
   },
   segments: {
     templates: async () => {

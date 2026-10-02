@@ -19,6 +19,7 @@ from app.routes import webhook, leads, messages, analytics, upload, segments, ca
 from app.routes.calls import public_router as calls_public_router
 from app.routes.intake import public_router as intake_public_router
 from app.routes import intake
+from app.routes import call_review
 from app.routes.marketplace_intake import public_router as marketplace_public_router
 from app.routes import marketplace_intake
 from app.routes import deals, business_details
@@ -701,6 +702,7 @@ app.include_router(follow_ups.router, prefix="/api/v1/follow-ups", tags=["follow
 app.include_router(numbers.router, prefix="/api/v1/numbers", tags=["numbers"], dependencies=_auth)
 app.include_router(incidents.router, prefix="/api/v1/incidents", tags=["incidents"], dependencies=_auth)
 app.include_router(lead_notes.router, prefix="/api/v1/lead-notes", tags=["lead-notes"], dependencies=_auth)
+app.include_router(call_review.router, prefix="/api/v1/call-review", tags=["call-review"], dependencies=_auth)
 app.include_router(voice_numbers.router, prefix="/api/v1/voice-numbers", tags=["voice-numbers"], dependencies=_auth)
 app.include_router(app_settings.router, prefix="/api/v1/settings", tags=["settings"], dependencies=_auth)
 app.include_router(templates.public_router, prefix="/api/v1/templates", tags=["templates-webhook"])

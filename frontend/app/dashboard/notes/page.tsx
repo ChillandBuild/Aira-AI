@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { serverFetchJson } from "@/lib/serverApi";
-import { NotesClient } from "./NotesClient";
+import { NotesGate } from "./NotesGate";
 import type { Lead } from "@/lib/api";
 
 interface LeadsWithActivityResponse {
@@ -19,5 +19,5 @@ export default async function NotesPage() {
     token,
   );
 
-  return <NotesClient fallbackLeads={seed} />;
+  return <NotesGate fallbackLeads={seed} />;
 }

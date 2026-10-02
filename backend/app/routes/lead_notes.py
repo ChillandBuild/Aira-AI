@@ -11,7 +11,6 @@ router = APIRouter()
 
 class CreateNote(BaseModel):
     content: str
-    caller_id: str | None = None
     call_log_id: str | None = None
     is_pinned: bool = False
     structured: dict = {}
@@ -96,8 +95,9 @@ async def get_lead_notes(lead_id: UUID, tenant_id: str = Depends(get_tenant_id))
 
 
 @router.post("/{lead_id}")
-async def create_lead_note(lead_id: UUID, payload: CreateNote, tenant_id: str = Depends(get_tenant_id)):
+async def create_lead_note(lead_id: UUID, payload: CreateNote, ctx: dict = Depends(get_tenant_and_role)):
     db = get_supabase()
+    tenant_id = ctx["tenant_id"]
     insert_data = {
         "lead_id": str(lead_id),
         "tenant_id": tenant_id,
@@ -107,8 +107,9 @@ async def create_lead_note(lead_id: UUID, payload: CreateNote, tenant_id: str = 
     }
     if payload.tags:
         insert_data["tags"] = payload.tags
-    if payload.caller_id is not None:
-        insert_data["caller_id"] = payload.caller_id
+    # The author is whoever is signed in (never the request body); Call Review filters notes by it.
+    if ctx.get("caller_id"):
+        insert_data["caller_id"] = ctx["caller_id"]
     if payload.call_log_id is not None:
         insert_data["call_log_id"] = payload.call_log_id
 

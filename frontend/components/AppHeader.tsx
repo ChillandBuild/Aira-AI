@@ -6,6 +6,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
 import { api } from "@/lib/api";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useHeaderAccordion } from "@/lib/headerAccordion";
 
 import { cn } from "@/lib/utils";
@@ -192,7 +193,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/notes") {
     return {
-      title: "Call Notes",
+      title: "Call Review",
       description: "Browse and manage notes across your leads.",
     };
   }
@@ -225,7 +226,13 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   // Section count + expand/collapse-all, published by a settings accordion.
   const accordion = useHeaderAccordion();
 
-  const { title, description } = getRouteMetadata(pathname || "", searchParams);
+  const meta = getRouteMetadata(pathname || "", searchParams);
+  const { role, permissions } = useAuthRole();
+  // Owners and managers get Call Review on this route; telecallers keep the notes page and its switchers.
+  const isCallReview = pathname === "/dashboard/notes" && (role === "owner" || permissions.includes("team.manage"));
+  const { title, description } = isCallReview
+    ? { title: "Call Review", description: "Every telecaller's calls, scores and notes, lead by lead." }
+    : meta;
 
   const tab = searchParams.get("tab") || "";
   const leadSegment = searchParams.get("segment") || "A";
@@ -571,7 +578,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
-        {pathname === "/dashboard/notes" && (
+        {pathname === "/dashboard/notes" && !isCallReview && (
           <>
             <div className="hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
               <button

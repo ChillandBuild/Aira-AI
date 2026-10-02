@@ -48,7 +48,7 @@ const MORE_ITEMS: MoreMenuItem[] = [
   { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
   { href: "/dashboard/templates", icon: SquarePen, label: "Templates", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },
   { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", permissionAny: ["telecalling.scheduled.view", "telecalling.scheduled"], feature: "telecalling.scheduled" },
-  { href: "/dashboard/notes", icon: StickyNote, label: "Call Notes", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
+  { href: "/dashboard/notes", icon: StickyNote, label: "Call Review", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
   { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", permissionAny: ["inbound_leads.view"], feature: "inbound_messaging" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
