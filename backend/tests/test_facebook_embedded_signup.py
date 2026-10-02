@@ -177,6 +177,8 @@ class _GranularScopeMetaClient:
                 "access_token": "page-token",
                 "instagram_business_account": {"id": "ig-1", "username": "astro"},
             })
+        if path == "me/adaccounts":
+            return _UnifiedResponse({"data": []})
         if path == "act_42":
             return _UnifiedResponse({"id": "act_42", "name": "Astro Tamil Test", "account_id": "42"})
         raise AssertionError(f"unexpected Graph call: {path}")
@@ -199,6 +201,44 @@ async def test_granted_assets_come_from_granular_scopes_when_me_accounts_is_empt
     # The ads grant reports a bare id; it is only readable as act_<id>.
     assert [account["id"] for account in assets["ad_accounts"]] == ["act_42"]
     assert "debug_token" in client.paths
+
+
+class _UntargetedGrantMetaClient(_GranularScopeMetaClient):
+    """Meta as it answered the live Astro Tamil signup on 2026-10-02: the Page and ads
+    grants carried no target_ids, but me/accounts and me/adaccounts listed the picks."""
+
+    async def get(self, url, *args, **kwargs):
+        path = url.rsplit("/v25.0/", 1)[-1]
+        self.paths.append(path)
+        if path == "debug_token":
+            return _UnifiedResponse({"data": {
+                "type": "SYSTEM_USER",
+                "scopes": ["pages_messaging", "ads_read"],
+                "granular_scopes": [
+                    {"scope": "pages_messaging"},
+                    {"scope": "ads_read"},
+                ],
+            }})
+        if path == "me/accounts":
+            return _UnifiedResponse({"data": [{"id": "page-1", "name": "Astro Tamil", "access_token": "page-token"}]})
+        if path == "me/adaccounts":
+            return _UnifiedResponse({"data": [{"id": "act_42", "name": "Astro Tamil Test", "account_id": "42"}]})
+        raise AssertionError(f"unexpected Graph call: {path}")
+
+
+@pytest.mark.asyncio
+async def test_ad_accounts_come_from_me_adaccounts_when_ads_grant_has_no_target_ids():
+    """Breaks if an ads_read grant without target_ids leaves the ad account picker empty."""
+    from app.services import meta_cloud
+
+    client = _UntargetedGrantMetaClient()
+    with patch("app.services.meta_cloud.httpx.AsyncClient", return_value=client), \
+         patch.object(meta_cloud.env_settings, "meta_app_id", "app-1", create=True), \
+         patch.object(meta_cloud.env_settings, "meta_app_secret", "app-secret", create=True):
+        assets = await meta_cloud.discover_business_login_assets("system-user-token")
+
+    assert [page["id"] for page in assets["pages"]] == ["page-1"]
+    assert [account["id"] for account in assets["ad_accounts"]] == ["act_42"]
 
 
 @pytest.mark.asyncio

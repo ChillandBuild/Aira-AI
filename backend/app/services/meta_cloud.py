@@ -201,7 +201,8 @@ async def _debug_token_granular_scopes(client: httpx.AsyncClient, access_token: 
     the operator picked in the signup window — verified against Meta on
     2026-08-14, where a live signup token reported `type: SYSTEM_USER` and
     `me/accounts` returned `{"data": []}` while the Page was plainly granted.
-    The granted asset ids only exist in the token's granular scopes.
+    The granted asset ids usually only exist in the token's granular scopes — but
+    not always: see `_list_token_edge` for grants that arrive without target_ids.
     """
     if not env_settings.meta_app_id or not env_settings.meta_app_secret:
         logger.warning("Cannot read Meta granular scopes: meta_app_id/meta_app_secret are not configured")
@@ -296,30 +297,37 @@ async def _read_granted_assets(
     return assets
 
 
-async def _list_user_token_pages(client: httpx.AsyncClient, access_token: str) -> list[dict]:
-    """Best-effort me/accounts read, for Login configurations that issue a user token.
+async def _list_token_edge(client: httpx.AsyncClient, access_token: str, edge: str, fields: str) -> list[dict]:
+    """Best-effort me/<edge> read (me/accounts, me/adaccounts).
 
-    A system user token returns an empty list here, so this only ever adds Pages —
+    Meta does not always put target_ids on a grant: the live Astro Tamil signup on
+    2026-10-02 had pages_messaging and ads_read with zero target ids, while
+    me/accounts listed the picked Page. So this only ever adds assets —
     it can never be the reason a signup fails.
     """
-    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/me/accounts"
-    params: dict | None = {"fields": _PAGE_FIELDS, "access_token": access_token, "limit": 100}
-    pages: list[dict] = []
+    url = f"{_BUSINESS_LOGIN_GRAPH_BASE}/me/{edge}"
+    params: dict | None = {"fields": fields, "access_token": access_token, "limit": 100}
+    items: list[dict] = []
     while url:
         try:
             response = await client.get(url, params=params, timeout=10.0)
             data = response.json()
         except (httpx.HTTPError, ValueError) as exc:
-            logger.info("me/accounts lookup skipped during Meta signup: %s", exc)
-            return pages
+            logger.info("me/%s lookup skipped during Meta signup: %s", edge, exc)
+            return items
         if getattr(response, "status_code", 200) >= 400 or data.get("error"):
-            logger.info("me/accounts is not readable for this Meta signup token (expected for system user tokens)")
-            return pages
-        pages.extend(item for item in data.get("data", []) if isinstance(item, dict) and item.get("id"))
+            logger.info("me/%s is not readable for this Meta signup token: %s", edge, data.get("error"))
+            return items
+        items.extend(item for item in data.get("data", []) if isinstance(item, dict) and item.get("id"))
         url = data.get("paging", {}).get("next")
         # Meta's paging URL already carries the cursor and access token.
         params = None
-    return pages
+    return items
+
+
+def _merge_new(known: list[dict], extra: list[dict]) -> None:
+    known_ids = {item["id"] for item in known if item.get("id")}
+    known.extend(item for item in extra if item["id"] not in known_ids)
 
 
 async def discover_business_login_assets(access_token: str) -> dict[str, list[dict]]:
@@ -343,11 +351,8 @@ async def discover_business_login_assets(access_token: str) -> dict[str, list[di
         catalogs = await _read_granted_assets(
             client, _granted_ids(grants, _CATALOG_GRANT_SCOPES), access_token, _CATALOG_FIELDS
         )
-        known_page_ids = {page["id"] for page in pages if page.get("id")}
-        pages.extend(
-            page for page in await _list_user_token_pages(client, access_token)
-            if page["id"] not in known_page_ids
-        )
+        _merge_new(pages, await _list_token_edge(client, access_token, "accounts", _PAGE_FIELDS))
+        _merge_new(ad_accounts, await _list_token_edge(client, access_token, "adaccounts", _AD_ACCOUNT_FIELDS))
     return {"pages": pages, "ad_accounts": ad_accounts, "catalogs": catalogs}
 
 
