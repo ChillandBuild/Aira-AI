@@ -99,17 +99,10 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
                   <p className="font-body text-xs font-bold text-[#292524] truncate">
                     {log.leads?.name || formatPhone(log.leads?.phone) || "Unknown lead"}
                   </p>
-                  <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">
-                    {timeAgo(log.created_at)} · {formatDuration(log.duration_seconds)}
-                    {log.callers?.name ? ` · ${log.callers.name}` : ""}
+                  <p className="font-label text-[10px] text-[#a8a29e] mt-0.5 truncate">
+                    by {log.callers?.name || "Admin"}
                   </p>
                 </div>
-                {resultKey && (
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full border font-label text-[9px] font-bold ${TONE_CHIP[callResultTone(resultKey)]}`}>
-                    {callResultLabel(resultKey) ?? resultKey}
-                  </span>
-                )}
-                <CallScorePill log={log} />
                 <ChevronDown
                   size={13}
                   className={`shrink-0 text-[#a8a29e] transition-transform ${expanded ? "rotate-180" : ""}`}
@@ -117,7 +110,18 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
               </button>
 
               {expanded && (
-                <div className="px-3 pb-3 pt-1 border-t border-[#f0ece4] space-y-2.5">
+                <div className="px-3 pb-3 pt-2 border-t border-[#f0ece4] space-y-2.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="font-label text-[10px] text-[#a8a29e]">
+                      {timeAgo(log.created_at)} · {formatDuration(log.duration_seconds)}
+                    </span>
+                    {resultKey && (
+                      <span className={`px-2 py-0.5 rounded-full border font-label text-[9px] font-bold ${TONE_CHIP[callResultTone(resultKey)]}`}>
+                        {callResultLabel(resultKey) ?? resultKey}
+                      </span>
+                    )}
+                    <CallScorePill log={log} />
+                  </div>
                   {log.recording_url ? (
                     <audio src={log.recording_url} controls className="w-full h-8" />
                   ) : (
