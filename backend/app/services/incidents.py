@@ -51,3 +51,21 @@ def create_token_incident(db, tenant_id: str, channel: str, error_msg: str) -> N
         logger.warning(f"Token invalid incident created: tenant={tenant_id} channel={channel}")
     except Exception as e:
         logger.error(f"Failed to create token incident: {e}")
+
+
+def clear_token_incidents(db, tenant_id: str, channel: str) -> None:
+    """Drop a channel's token_invalid incidents once its credentials are removed, so a
+    reconnect starts clean instead of inheriting the old "Token invalid" banner."""
+    try:
+        rows = (
+            db.table("incidents")
+            .select("id,detail")
+            .eq("tenant_id", tenant_id)
+            .eq("type", "token_invalid")
+            .execute()
+        )
+        ids = [r["id"] for r in (rows.data or []) if (r.get("detail") or {}).get("channel") == channel]
+        if ids:
+            db.table("incidents").delete().in_("id", ids).execute()
+    except Exception as e:
+        logger.error(f"Failed to clear token incidents: {e}")

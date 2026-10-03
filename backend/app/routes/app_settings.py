@@ -12,6 +12,7 @@ from app.config import settings as env_settings
 from app.dependencies.auth import get_current_user
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.audit_log import record_audit_event
+from app.services.incidents import clear_token_incidents
 from app.services.assignment import (
     get_inbox_config, get_telecalling_config,
     save_inbox_config, save_telecalling_config,
@@ -1158,6 +1159,7 @@ async def disconnect_channel(
             db, tenant_id,
             list(plan["keys"]) + [f"{channel}_status", f"{channel}_connection_source"],
         )
+        clear_token_incidents(db, tenant_id, channel)
         results.append({"channel": channel, "webhook_unsubscribed": unsubscribed})
 
     remaining_meta = [

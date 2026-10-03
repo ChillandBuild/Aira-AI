@@ -56,3 +56,15 @@ def test_health_check_ignores_permission_error():
 def test_health_check_records_expired_token():
     incident = _run_check(EXPIRED_190)
     assert incident.call_args.args[2] == "instagram"
+
+
+def test_clear_token_incidents_deletes_only_that_channel():
+    from app.services.incidents import clear_token_incidents
+
+    db = MagicMock()
+    db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+        {"id": "a", "detail": {"channel": "instagram"}},
+        {"id": "b", "detail": {"channel": "facebook"}},
+    ]
+    clear_token_incidents(db, "t1", "instagram")
+    db.table.return_value.delete.return_value.in_.assert_called_once_with("id", ["a"])
