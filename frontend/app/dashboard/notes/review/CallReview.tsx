@@ -20,6 +20,14 @@ const PRESETS: { id: Preset; label: string }[] = [
   { id: "30", label: "Last 30 days" },
   { id: "custom", label: "Custom" },
 ];
+type ScoreBand = "high" | "mid" | "low" | "none";
+// A lead's band comes from its average over scored calls; "none" = no scored call in range.
+const SCORE_BANDS: { id: ScoreBand; label: string; test: (avg: number | null) => boolean }[] = [
+  { id: "high", label: "80 and above", test: (a) => a != null && a >= 80 },
+  { id: "mid", label: "60 to 79", test: (a) => a != null && a >= 60 && a < 80 },
+  { id: "low", label: "Under 60", test: (a) => a != null && a < 60 },
+  { id: "none", label: "Not scored", test: (a) => a == null },
+];
 const PROCESSING_POLL_MS = 10_000;
 const CARD = "bg-white border border-[#e8e3db] rounded-2xl";
 const EYEBROW = "font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e]";
@@ -104,6 +112,7 @@ export default function CallReview() {
   const [to, setTo] = useState(() => dayInput(new Date()));
   const [callerId, setCallerId] = useState<string>("");
   const [search, setSearch] = useState("");
+  const [scoreBand, setScoreBand] = useState<ScoreBand | "">("");
   const [tab, setTab] = useState<Tab>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -138,12 +147,14 @@ export default function CallReview() {
 
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
     const digits = q.replace(/\D/g, "");
+    const band = SCORE_BANDS.find((b) => b.id === scoreBand);
     return rows.filter(
-      (r) => (r.name ?? "").toLowerCase().includes(q) || (!!digits && (r.phone ?? "").replace(/\D/g, "").includes(digits)),
+      (r) =>
+        (!q || (r.name ?? "").toLowerCase().includes(q) || (!!digits && (r.phone ?? "").replace(/\D/g, "").includes(digits))) &&
+        (!band || band.test(r.scored > 0 ? r.avg_score : null)),
     );
-  }, [rows, search]);
+  }, [rows, search, scoreBand]);
 
   const inTab = useCallback((r: ReviewLead, t: Tab) => {
     if (t === "called") return r.calls > 0;
@@ -259,6 +270,25 @@ export default function CallReview() {
             className="w-full bg-transparent font-body text-xs focus:outline-none"
           />
         </label>
+        <label htmlFor="review-score" className="relative flex items-center h-9 pl-3 pr-7 rounded-xl border border-[#e8e3db] bg-white">
+          <select
+            id="review-score"
+            value={scoreBand}
+            onChange={(e) => {
+              setScoreBand(e.target.value as ScoreBand | "");
+              setSelectedId(null);
+            }}
+            className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer"
+          >
+            <option value="">Any score</option>
+            {SCORE_BANDS.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+        </label>
       </div>
 
       {/* Scope + KPIs */}
@@ -268,6 +298,11 @@ export default function CallReview() {
         {search.trim() && (
           <>
             ·<span>matching “{search.trim()}”</span>
+          </>
+        )}
+        {scoreBand && (
+          <>
+            ·<span>score {SCORE_BANDS.find((b) => b.id === scoreBand)?.label.toLowerCase()}</span>
           </>
         )}
         {truncated && <span className="text-amber-700 font-bold">· Too many calls to total exactly, so narrow the dates</span>}
@@ -540,16 +575,24 @@ function CallDetail({
           <p className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5 font-body text-[11px] leading-relaxed text-[#44403c]">{call.ai_summary.brief}</p>
         )
       )}
+      {call.ai_summary?.next_action && (
+        <div className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5">
+          <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-primary mb-1">Next step</p>
+          <p className="font-body text-[11px] leading-relaxed text-[#44403c]">{call.ai_summary.next_action}</p>
+        </div>
+      )}
     </div>
   );
 }
 
 function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: string | null | undefined) => string }) {
   const { data, mutate, isLoading } = useNotes(leadId);
-  const notes = [...(data?.pinned ?? []), ...(data?.notes ?? [])];
-  // Notes saved before authors were recorded have no caller_id; Aira's own call summaries carry a call_log_id.
-  const author = (n: (typeof notes)[number]) =>
-    n.caller_id ? callerName(n.caller_id) : n.call_log_id && n.content.startsWith("AI Summary") ? "Aira AI" : "Author not recorded";
+  // Only notes a person typed: Aira's "AI Summary:" notes show as each call's Next step instead.
+  const notes = [...(data?.pinned ?? []), ...(data?.notes ?? [])].filter(
+    (n) => n.content?.trim() && !n.content.startsWith("AI Summary:"),
+  );
+  // Notes saved before authors were recorded have no caller_id.
+  const author = (n: (typeof notes)[number]) => (n.caller_id ? callerName(n.caller_id) : "Author not recorded");
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
 
