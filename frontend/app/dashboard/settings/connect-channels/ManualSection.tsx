@@ -62,7 +62,7 @@ export default function ManualSection({
 
       <div className="grid grid-cols-1 gap-5 p-5 sm:p-7 md:grid-cols-2 lg:grid-cols-3">
         {CHANNELS.map(channel => {
-          const configured = channel.fields.every(f => settings.find(s => s.key === f.key)?.is_set);
+          const configured = channel.fields.every(f => !f.required || settings.find(s => s.key === f.key)?.is_set);
           const health = webhookHealth?.health?.[channel.id];
           const alert = webhookHealth?.token_alerts?.find(a => a.channel === channel.id);
           const source = resolveConnectionSource(channel.id, settings);

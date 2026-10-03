@@ -24,7 +24,7 @@ export type DisconnectTarget = {
 export function buildDisconnectTarget(channelId: string, settings: Setting[]): DisconnectTarget {
   const isConfigured = (id: string) => {
     const channel = CHANNELS.find(c => c.id === id);
-    return Boolean(channel?.fields.every(f => settings.find(s => s.key === f.key)?.is_set));
+    return Boolean(channel?.fields.every(f => !f.required || settings.find(s => s.key === f.key)?.is_set));
   };
 
   if (channelId === "meta") {

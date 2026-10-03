@@ -34,4 +34,11 @@ describe("buildDisconnectTarget", () => {
     expect(target.sharesMetaToken).toBe(false);
     expect(target.stops).toEqual(["Telegram Bot stops receiving and sending messages"]);
   });
+
+  test("Instagram counts as connected without its optional App Secret", () => {
+    const configured = ["instagram_page_id", "instagram_access_token"].map(setting);
+    expect(buildDisconnectTarget("meta", configured).stops).toEqual([
+      "Instagram DM stops receiving and sending messages",
+    ]);
+  });
 });
