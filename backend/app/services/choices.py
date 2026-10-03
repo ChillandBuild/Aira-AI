@@ -294,9 +294,23 @@ class Link(NamedTuple):
     label: str
 
 
-_URL_RE = re.compile(r"https?://[^\s<>\"'`]+", re.IGNORECASE)
+URL_RE = re.compile(r"https?://[^\s<>\"'`]+", re.IGNORECASE)
 _URL_TRAILING = ".,;:!?)]}»›\"'।。"
 _PAYMENT_HOST_RE = re.compile(r"https?://(?:[\w-]+\.)*(?:rzp\.io|razorpay\.(?:com|me))(?:[/?#]|$)", re.IGNORECASE)
+
+
+def trim_url(raw: str) -> str:
+    """The address without the sentence punctuation that follows it ("...see https://a.com/x.")."""
+    return raw.rstrip(_URL_TRAILING)
+
+
+def urls_in(text: str) -> list[str]:
+    return [trim_url(m.group(0)) for m in URL_RE.finditer(text or "")]
+
+
+def url_key(url: str) -> str:
+    """Two spellings of one address match: scheme, a leading www., letter case and a final slash do not count."""
+    return re.sub(r"^https?://(?:www\.)?", "", trim_url(url).lower()).rstrip("/")
 
 
 def split_link(text: str) -> Link | None:
@@ -304,7 +318,7 @@ def split_link(text: str) -> Link | None:
     the button label). None for no link, two different links (Meta allows one per message),
     an insecure or oversized link, or a message too long for a button body."""
     text = text or ""
-    urls = {m.group(0).rstrip(_URL_TRAILING) for m in _URL_RE.finditer(text)}
+    urls = set(urls_in(text))
     if len(urls) != 1:
         return None
     url = next(iter(urls))
@@ -317,7 +331,7 @@ def split_link(text: str) -> Link | None:
     body = re.sub(r"\n{3,}", "\n\n", body).strip()
     if len(body) > INTERACTIVE_BODY_MAX:
         return None
-    open_label, pay_label = LINK_LABELS.get(language_of(_URL_RE.sub(" ", text)), LINK_LABELS["en"])
+    open_label, pay_label = LINK_LABELS.get(language_of(URL_RE.sub(" ", text)), LINK_LABELS["en"])
     return Link(body, url, pay_label if _PAYMENT_HOST_RE.match(url) else open_label)
 
 

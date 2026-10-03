@@ -52,6 +52,55 @@ _PLACEHOLDER_RE = re.compile(r"\[\s*(?:payment\s+)?(?:link|url)[^\]]*\]|<\s*(?:p
 _PAYMENT_URL_RE = re.compile(r"https?://(?:[\w-]+\.)*(?:rzp\.io|razorpay\.(?:com|me))\S*", re.IGNORECASE)
 
 
+_BRACE_PLACEHOLDER_RE = re.compile(r"\{\{\s*[A-Za-z][\w ]*\}\}")
+_MARKDOWN_LINK_RE = re.compile(r"\[([^\]]*)\]\((https?://[^)\s]+)\)")
+
+
+def strip_unverified_links(text: str, trusted_text: str) -> tuple[str, list[str]]:
+    """(text without invented links, what was removed). A link the model writes must already be in
+    the business's own material (trusted_text: the prompt with its knowledge and business details).
+    Otherwise it is a guess -- an app-store address, a page that does not exist -- and a customer
+    taps it. An unfilled {{PLACEHOLDER}} the model copied from the knowledge goes the same way.
+    Links the system attaches itself (payment links, quotes) are added after this check."""
+    trusted = {choices.url_key(u) for u in choices.urls_in(trusted_text)}
+    removed: list[str] = []
+
+    def drop_markdown(match: re.Match) -> str:
+        url = choices.trim_url(match.group(2))
+        if choices.url_key(url) in trusted:
+            return match.group(0)
+        removed.append(url)
+        return match.group(1)
+
+    def drop_bare(match: re.Match) -> str:
+        url = choices.trim_url(match.group(0))
+        if choices.url_key(url) in trusted:
+            return match.group(0)
+        removed.append(url)
+        return match.group(0)[len(url):]  # keep the sentence's own full stop or comma
+
+    cleaned = _MARKDOWN_LINK_RE.sub(drop_markdown, text or "")
+    cleaned = choices.URL_RE.sub(drop_bare, cleaned)
+    cleaned = _BRACE_PLACEHOLDER_RE.sub(lambda m: removed.append(m.group(0)) or "", cleaned)
+    if not removed:
+        return text, []
+    cleaned = re.sub(r"[ \t]+([.,;:!?])", r"\1", cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r"[ \t]+\n", "\n", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip(), removed
+
+
+def _unverified_link_refusals(removed: list[str]) -> tuple[str, ...]:
+    if not removed:
+        return ()
+    return (
+        "You wrote a link that is not in the business information, so it was removed. Never invent, "
+        "guess or complete a link or an app-store address. Use only links written in the business "
+        "information. If you do not have the link they asked for, say the team will share it here.",
+    )
+
+
 def strip_payment_urls(text: str) -> tuple[str, bool]:
     """(text without payment URLs, whether any was removed)."""
     cleaned, count = _PAYMENT_URL_RE.subn("", text or "")
@@ -596,6 +645,12 @@ async def converse_once(
     choice_args: dict = {}
     last_text = _last_assistant_text(chat_messages)
     customer_message = _last_user_text(chat_messages)
+    # Links the model may repeat: those in the prompt (knowledge, business details) and in the
+    # business's own settings. Earlier replies are not trusted: a bad link would repeat itself.
+    system_prompt = chat_messages[0].get("content") or "" if chat_messages and chat_messages[0].get("role") == "system" else ""
+    trusted_text = "\n".join([system_prompt, *(
+        json.dumps(source, default=str, ensure_ascii=False) for source in (ctx.business_details, ctx.catalog, ctx.config)
+    )])
     line_said_before = any(_said_handover_line(t, handover_line) for t in _earlier_assistant_texts(chat_messages))
     wanted_line_again = False
     messages = list(chat_messages)
@@ -643,6 +698,7 @@ async def converse_once(
         if choice_args:
             draft = str(choice_args.get("message") or "") or draft
         draft, removed_url = strip_payment_urls(strip_placeholders(draft))
+        draft, invented_links = strip_unverified_links(draft, trusted_text)
         if attempt == 0 and line_said_before and _said_handover_line(draft, handover_line):
             # The model reached for the "I can't help" line a second time: it has nothing
             # more to offer here. Bring a person in; the message itself gets rewritten below.
@@ -670,6 +726,7 @@ async def converse_once(
             *_bare_handover_refusals(draft, handover_line, handover_opened),
             *_repeated_line_refusals(draft, handover_line, line_said_before),
             *_payment_url_refusals(removed_url, attached),
+            *_unverified_link_refusals(invented_links),
             *_team_answer_refusals(draft),
             *_business_detail_refusals(draft, ctx, customer_message),
         )
@@ -686,6 +743,7 @@ async def converse_once(
         text = await _final_text(messages, ctx, refusals, attached, tenant_id, llm)
     text, _ = written_tool_calls(text, tool_names)  # the tool-free last call can write one too
     text, _ = strip_payment_urls(text)
+    text, _ = strip_unverified_links(text, trusted_text)
     if sombre(customer_message) or handover_opened or attached.handover:
         text = without_emoji(text)  # a person is being brought in: no smileys
     if refusals and deal_engine.unknown_prices(text, ctx.config, customer_message, ctx.known_prices):
