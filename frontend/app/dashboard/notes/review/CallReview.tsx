@@ -207,9 +207,9 @@ export default function CallReview() {
   const selectedCaller = callers.find((c) => c.id === callerId);
 
   return (
-    <div className="flex flex-col gap-3 pb-6 min-h-full">
-      {/* Locked Sticky Header: Filter bar + KPI Cards */}
-      <div className="sticky top-14 md:top-16 z-20 space-y-2 pb-2 pt-2 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 px-2 sm:px-3 md:px-4">
+    <div className="flex flex-col gap-3 pb-6 min-h-full lg:h-[calc(100vh-4rem)] lg:min-h-0">
+      {/* Locked header: Filter bar + KPI Cards. On desktop the page is one fixed-height frame, so only the panes below scroll. */}
+      <div className="sticky top-14 md:top-16 lg:static lg:shrink-0 z-20 space-y-2 pb-2 pt-2 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 px-2 sm:px-3 md:px-4">
         {/* Filter bar */}
         <div className={cn(CARD, "p-2.5 shadow-sm flex flex-wrap items-center gap-2 bg-white/90 backdrop-blur-sm")}>
           <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
@@ -330,8 +330,8 @@ export default function CallReview() {
       </div>
 
       {/* Panes */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start pt-1 px-2 sm:px-3 md:px-4">
-        <aside className={cn(CARD, "flex flex-col lg:sticky lg:top-[16.5rem] lg:max-h-[calc(100vh-17.5rem)] min-w-0")}>
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start lg:items-stretch lg:flex-1 lg:min-h-0 lg:grid-rows-1 pt-1 px-2 sm:px-3 md:px-4">
+        <aside className={cn(CARD, "flex flex-col lg:h-full lg:min-h-0 min-w-0")}>
           <div className="flex flex-wrap gap-1 p-3 border-b border-[#f0ece4]">
             {tabs.map((t) => (
               <button
@@ -350,7 +350,7 @@ export default function CallReview() {
               </button>
             ))}
           </div>
-          <div className="overflow-y-auto p-1.5 max-h-[420px] lg:max-h-none">
+          <div className="overflow-y-auto p-1.5 max-h-[420px] lg:max-h-none lg:flex-1 lg:min-h-0">
             {loading ? (
               <div className="py-12 flex justify-center">
                 <Loader2 size={18} className="animate-spin text-primary" />
@@ -399,7 +399,7 @@ export default function CallReview() {
           </div>
         </aside>
 
-        <section className={cn(CARD, "min-w-0")}>
+        <section className={cn(CARD, "min-w-0 lg:h-full lg:min-h-0 lg:flex lg:flex-col lg:overflow-hidden")}>
           {selected ? (
             <LeadWorkspace key={`${selected.id}-${range.start}-${range.end}-${callerId}`} lead={selected} range={range} callerName={callerName} />
           ) : (
@@ -460,7 +460,7 @@ function LeadWorkspace({
 
   return (
     <>
-      <header className="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-[#f0ece4]">
+      <header className="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-[#f0ece4] lg:shrink-0">
         <span className="w-12 h-12 rounded-full bg-primary text-white grid place-items-center font-heading text-lg font-extrabold">
           {initial(lead.name || lead.phone)}
         </span>
@@ -493,7 +493,7 @@ function LeadWorkspace({
         </Link>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
         <div className="p-4 flex flex-col gap-3 min-w-0 xl:border-r border-[#f0ece4]">
           <p className={EYEBROW}>Calls in this range</p>
           {loading ? (
