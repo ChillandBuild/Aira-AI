@@ -27,6 +27,7 @@ from app.routes import brain
 from app.routes import brain_sandbox
 from app.routes import operator_brain
 from app.routes import lead_details_share
+from app.routes import auto_messages
 
 # Configure logging
 logging.basicConfig(
@@ -61,6 +62,7 @@ _heartbeats = {
     "crm-cutoff-sweep": None,
     "call-alert-summary": None,
     "brain-weekly-digest": None,
+    "auto-messages": None,
 }
 
 
@@ -329,6 +331,18 @@ async def _sweep_stale_intake_sessions() -> None:
         logger.error(f"Intake staleness sweep scheduler error: {e}")
 
 
+async def _process_auto_messages() -> None:
+    """APScheduler job: send Auto-Messages whose delay is up. See services/auto_messages.py."""
+    _heartbeats["auto-messages"] = datetime.now(timezone.utc)
+    try:
+        from app.services.auto_messages import process_due_sends
+        count = await process_due_sends()
+        if count:
+            logger.info(f"Auto-messages scheduler: sent {count} message(s)")
+    except Exception as e:
+        logger.error(f"Auto-messages scheduler error: {e}")
+
+
 async def _sweep_crm_cutoff() -> None:
     _heartbeats["crm-cutoff-sweep"] = datetime.now(timezone.utc)
     try:
@@ -495,6 +509,8 @@ async def lifespan(app: FastAPI):
         id="intake-staleness-sweep",
         replace_existing=True,
     )
+    _scheduler.add_job(_process_auto_messages, trigger="interval", minutes=1, id="auto-messages",
+                       replace_existing=True)
     _scheduler.add_job(_sweep_crm_cutoff, trigger="interval", minutes=10, id="crm-cutoff-sweep",
                        replace_existing=True, max_instances=1, coalesce=True)
     _scheduler.add_job(_send_call_alert_summaries, trigger="cron", hour=MORNING_SUMMARY_HOUR_IST, minute=0,
@@ -509,9 +525,9 @@ async def lifespan(app: FastAPI):
     _scheduler_started_at = datetime.now(timezone.utc)
     _scheduler.start(paused=not settings.scheduler_enabled)
     if settings.scheduler_enabled:
-        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
+        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + auto-messages(1m) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
     else:
-        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 16 jobs registered but PAUSED; nothing will run")
+        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 17 jobs registered but PAUSED; nothing will run")
 
     yield
 
@@ -677,6 +693,8 @@ app.include_router(marketplace_intake.router, prefix="/api/v1/marketplace", tags
 app.include_router(deals.router, prefix="/api/v1/deals", tags=["deals"], dependencies=_auth)
 app.include_router(business_details.router, prefix="/api/v1/business-details", tags=["business-details"], dependencies=_auth)
 app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags=["marketplace-webhook"])
+app.include_router(auto_messages.public_router, prefix="/api/v1/auto-messages", tags=["auto-messages-webhook"])
+app.include_router(auto_messages.router, prefix="/api/v1/auto-messages", tags=["auto-messages"], dependencies=_auth)
 # Legacy prefix. Razorpay's dashboard has /api/v1/expert-handoff/razorpay-webhook
 # registered externally; remove these two lines only after updating it there.
 app.include_router(intake_public_router, prefix="/api/v1/expert-handoff", tags=["intake-webhook-legacy"])

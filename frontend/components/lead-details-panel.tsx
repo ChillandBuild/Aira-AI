@@ -101,6 +101,13 @@ function SourceBadge({ source }: { source: string }) {
       </span>
     );
   }
+  if (source === "website" || source === "api" || source === "store") {
+    return (
+      <span className="inline-flex items-center gap-1 text-primary font-semibold font-label text-xs">
+        {source === "website" ? "🌐 Website form" : source === "api" ? "🔗 App / API" : "🏬 Shop counter"}
+      </span>
+    );
+  }
   if (source === "indiamart" || source === "justdial") {
     return (
       <span className="inline-flex items-center gap-1 text-amber-700 font-semibold font-label text-xs">

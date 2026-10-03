@@ -38,6 +38,7 @@ SECRET_SETTING_KEYS = frozenset({
     "astro_bridge_secret",
     "indiamart_ingest_token",
     "justdial_ingest_token",
+    "auto_messages_ingest_token",
 })
 
 

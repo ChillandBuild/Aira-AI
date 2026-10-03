@@ -468,6 +468,73 @@ export interface MarketplaceStatus {
   leads_this_month: number;
 }
 
+export type AutoMessageEvent = "interested" | "signed_up" | "purchased";
+export type AutoMessageVarSource =
+  | "first_name" | "full_name" | "product" | "price" | "product_url" | "phone" | "extra" | "text";
+
+export interface AutoMessageVariable {
+  source: AutoMessageVarSource;
+  key?: string | null;
+  value?: string | null;
+  fallback?: string | null;
+}
+
+export interface AutoMessageRule {
+  id: string;
+  event: AutoMessageEvent;
+  catalog_item_id: string | null;
+  template_id: string;
+  delay_minutes: number;
+  variables: AutoMessageVariable[];
+  button_param: AutoMessageVariable | null;
+  enabled: boolean;
+  created_at: string;
+}
+
+export interface AutoMessageTemplate {
+  id: string;
+  name: string;
+  category: string | null;
+  language: string | null;
+  body_text: string;
+  header_media_type: string | null;
+  variable_count: number;
+  has_dynamic_button: boolean;
+  buttons: string[];
+}
+
+export interface AutoMessageProduct {
+  id: string;
+  name: string;
+  aliases: string[];
+  price_paise: number | null;
+}
+
+export interface AutoMessageSend {
+  id: string;
+  lead_id: string | null;
+  phone: string;
+  name: string | null;
+  event: AutoMessageEvent;
+  source: "website" | "api" | "store";
+  product_raw: string | null;
+  product_name: string | null;
+  template_name: string | null;
+  status: "queued" | "sending" | "sent" | "failed" | "skipped";
+  reason: string | null;
+  send_at: string;
+  sent_at: string | null;
+  created_at: string;
+}
+
+export interface AutoMessageResult {
+  status: string;
+  event: AutoMessageEvent;
+  matched_product: string | null;
+  message_status: AutoMessageSend["status"];
+  reason: string | null;
+}
+
 export interface WabaTemplate {
   id: string;
   name: string;
@@ -646,8 +713,8 @@ export interface AnalyticsOverview {
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
   by_segment_today: Record<"A" | "B" | "C" | "D", number>;
-  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
-  channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
+  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number; website?: number; api?: number; store?: number };
+  channel_breakdown_today: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number; website?: number; api?: number; store?: number };
   total_leads: number;
   ad_attributed_leads: number;
   ad_attributed_leads_today: number;
@@ -918,7 +985,7 @@ export interface AnalyticsOverviewExtended {
   converted_today: number;
   ai_handled_today: number;
   by_segment: Record<"A" | "B" | "C" | "D", number>;
-  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
+  channel_breakdown: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number; website?: number; api?: number; store?: number };
   total_leads: number;
 }
 
@@ -987,7 +1054,7 @@ export interface TelecallingAnalyticsExtended {
 export interface FunnelAnalyticsExtended {
   total_leads: number;
   by_segment: { A: number; B: number; C: number; D: number };
-  by_source: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number };
+  by_source: { whatsapp: number; instagram: number; facebook: number; telegram: number; upload: number; manual: number; indiamart?: number; justdial?: number; website?: number; api?: number; store?: number };
   leads_this_week: number;
   avg_score: number | null;
   score_histogram: { range: string; count: number }[];
@@ -2569,6 +2636,32 @@ export const api = {
       const res = await apiFetch<{ data: WabaTemplate[] }>("/api/v1/templates/");
       return res.data || [];
     },
+  },
+  autoMessages: {
+    setup: () =>
+      apiFetch<{ ingest_url: string | null; form_script_url: string | null }>("/api/v1/auto-messages/setup"),
+    rotateToken: () =>
+      apiFetch<{ ingest_url: string; form_script_url: string }>("/api/v1/auto-messages/setup/token", { method: "POST" }),
+    rules: () => apiFetch<{ rules: AutoMessageRule[] }>("/api/v1/auto-messages/rules"),
+    createRule: (data: Omit<AutoMessageRule, "id" | "created_at">) =>
+      apiFetch<AutoMessageRule>("/api/v1/auto-messages/rules", { method: "POST", body: JSON.stringify(data) }),
+    updateRule: (id: string, data: Partial<Omit<AutoMessageRule, "id" | "created_at" | "event" | "catalog_item_id">>) =>
+      apiFetch<AutoMessageRule>(`/api/v1/auto-messages/rules/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    deleteRule: (id: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/v1/auto-messages/rules/${id}`, { method: "DELETE" }),
+    templates: () => apiFetch<{ templates: AutoMessageTemplate[] }>("/api/v1/auto-messages/templates"),
+    products: () => apiFetch<{ products: AutoMessageProduct[] }>("/api/v1/auto-messages/products"),
+    setAliases: (itemId: string, aliases: string[]) =>
+      apiFetch<{ id: string; aliases: string[] }>(`/api/v1/auto-messages/products/${itemId}/aliases`, {
+        method: "PUT",
+        body: JSON.stringify({ aliases }),
+      }),
+    quickAdd: (data: { name?: string; phone: string; event: AutoMessageEvent; catalog_item_id?: string | null; product?: string }) =>
+      apiFetch<AutoMessageResult>("/api/v1/auto-messages/quick-add", { method: "POST", body: JSON.stringify(data) }),
+    counterProducts: () => apiFetch<{ products: AutoMessageProduct[] }>("/api/v1/auto-messages/quick-add/products"),
+    counterRecent: () => apiFetch<{ sends: AutoMessageSend[] }>("/api/v1/auto-messages/quick-add/recent"),
+    sends: (status?: string) =>
+      apiFetch<{ sends: AutoMessageSend[] }>(`/api/v1/auto-messages/sends${status ? `?status=${status}` : ""}`),
   },
   marketplace: {
     status: () => apiFetch<Record<"indiamart" | "justdial", MarketplaceStatus>>("/api/v1/marketplace/status"),

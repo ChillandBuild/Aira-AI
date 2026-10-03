@@ -6,7 +6,8 @@ import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import {
   LayoutDashboard, MessageSquare, Users, Phone,
-  BarChart2, Upload, BookOpen, Layers, FileCheck, StickyNote, Package, ShoppingBag,
+  BarChart2, Upload, BookOpen, Layers, FileCheck,
+  Zap, StickyNote, Package, ShoppingBag,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
   Settings, Brain,
 } from "lucide-react";
@@ -405,6 +406,16 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
+        {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
+        {isSubscribed && canAny(["settings.view", "settings.manage", "leads.manage"]) && outboundOn && (
+          <CollapsedNavItem
+            href="/dashboard/auto-messages"
+            active={pathname.startsWith("/dashboard/auto-messages")}
+            icon={Zap}
+            label="Auto-Messages"
+          />
+        )}
+
         {/* TOP LEVEL: Numbers Pool */}
         {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
           <CollapsedNavItem
@@ -717,6 +728,16 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             active={pathname.startsWith("/dashboard/templates")}
             icon={FileCheck}
             label="Templates"
+          />
+        )}
+
+        {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
+        {isSubscribed && canAny(["settings.view", "settings.manage", "leads.manage"]) && outboundOn && (
+          <MainNavItem
+            href="/dashboard/auto-messages"
+            active={pathname.startsWith("/dashboard/auto-messages")}
+            icon={Zap}
+            label="Auto-Messages"
           />
         )}
 

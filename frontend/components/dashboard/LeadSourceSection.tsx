@@ -9,6 +9,9 @@ const CHANNEL_LABELS: Record<string, string> = {
   manual: "Manual",
   indiamart: "IndiaMART",
   justdial: "JustDial",
+  website: "Website form",
+  api: "App / API",
+  store: "Shop counter",
 };
 
 export function LeadSourceSection({ overview }: { overview: AnalyticsOverview }) {
