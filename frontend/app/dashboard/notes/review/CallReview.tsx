@@ -78,6 +78,13 @@ function formatDuration(seconds: number | null): string {
 function callWhen(iso: string): string {
   return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 }
+/** "25 Sep 26, 14:30" — date plus 24-hour time. */
+function noteWhen(iso: string): string {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${date}, ${time}`;
+}
 function initial(name: string | null | undefined): string {
   return (name || "?").trim().charAt(0).toUpperCase() || "?";
 }
@@ -631,7 +638,7 @@ function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: st
                 {initial(author(n))}
               </span>
               <b className="text-[#292524] truncate">{author(n)}</b>
-              <span className="shrink-0">{n.created_at ? timeAgo(n.created_at) : ""}</span>
+              <span className="shrink-0">{n.created_at ? noteWhen(n.created_at) : ""}</span>
               {n.is_pinned && <Pin size={11} className="ml-auto text-amber-600 shrink-0" aria-label="Pinned" />}
             </div>
             <p className="font-body text-xs text-[#57534e] whitespace-pre-wrap break-words">{n.content}</p>

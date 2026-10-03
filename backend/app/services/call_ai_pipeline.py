@@ -257,16 +257,6 @@ async def _process(db, row: dict, appid_override: str | None) -> None:
     }).eq("id", call_log_id).execute()
     logger.info(f"Call {call_log_id} sorted as {sorting.group} ({len(sorting.signs)} signs)")
 
-    if sorting.summary.get("next_action") and row.get("lead_id"):
-        note_row = {
-            "lead_id": row["lead_id"], "call_log_id": call_log_id,
-            "content": f"AI Summary: {sorting.summary['next_action']}",
-            "structured": sorting.summary, "is_pinned": False,
-        }
-        if tenant_id:
-            note_row["tenant_id"] = tenant_id
-        db.table("lead_notes").insert(note_row).execute()
-
 
 async def run_call_ai(call_log_id: str, appid_override: str | None = None) -> None:
     async with _CALL_AI_SEMAPHORE:
