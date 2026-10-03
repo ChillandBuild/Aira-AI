@@ -982,3 +982,12 @@ Catalogue was removed from the Nira config on 2026-09-06 for this reason.
 - **`mark_lost(..., only_from=...)`**: the webhook path passes ("quoted","awaiting_payment") so a late event can't flip a won deal to lost.
 - **Idle sweep reads the setting strictly** (`get_setting_strict`). If the read fails, it skips that tenant and never falls back to a default. A DB blip must never mass-close deals.
 - **Eval harness:** `backend/evals/conversations/` (`run_aira.py --files scenarios_returning.json`, score with `python -m evals.conversations.returning`). `write_guard.py` makes it refuse DB writes. It needs a tenant key and explicit user OK to spend it.
+
+## WhatsApp menus and links — how a reply gets buttons (2026-10-04)
+
+- **Where:** `services/choices.py` (rules, limits, labels, link split, classifier), `deal_turn._attach_choices` / `_classify_choices` / `_label_list` / `send_menu` / `send_link`, `meta_cloud.send_interactive_buttons|send_list_message|send_cta_url_message` (validate every Meta limit before sending, raise `ValueError`).
+- **Order a reply is checked:** package menu from `show_options` → `offer_choices` tool / `CHOICES:` line / typed list → package names laid out (no `?` needed) → detail field options → inline options → yes/no → classifier safety net. First hit wins.
+- **Diagnose a missing menu from the DB:** outbound text with `[Title]  [Title]` = sent; with `• Title` lines = Meta rejected, fell back to text; neither = never attempted (detection miss). `reply_source='knowledge'` only means KB context was used.
+- **Limits that bite:** reply button title 20, list row title 24 (cut + full text into description), row description 72, list bar label 20, id 256 (buttons) / 200 (rows), 10 rows, one URL per interactive message, URL button cannot coexist with reply buttons. Typed-list backstop deliberately does NOT treat emoji bullets (🔹) as list items — it would strip the package descriptions out of the message.
+- **Links:** `strip_unverified_links` runs on every draft; only URLs present in the prompt/business details/catalog/config survive. System-attached payment links are appended after and are exempt. `ai_reply` turns exactly one https link (no menu, not a quoted reply) into a URL button via `choices.split_link`; saved `messages.content` keeps the raw URL.
+- **Windows gotcha:** `python3` on this box is the Store stub, so lefthook's `backend-syntax` fails; commit with a venv-python `python3` shim on PATH, never `--no-verify`. `make` and `lefthook`/`gitleaks` are not on the Git Bash PATH either.

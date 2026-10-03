@@ -656,3 +656,11 @@ first review that has already been applied.
 - **Astro intake session `1ae8883a-...` is stuck**: astro_bridge refuses every 5 min (`place_of_birh` key + no gender). Same typo as the deal-lifecycle note above; the session needs a manual fix or close once the form key is corrected.
 - **Astro Tamil ads (`act_905982549234446`) have not delivered since 2026-08-25** though two are ACTIVE in Meta — user-side check in Ads Manager (budget/end date/payment). Old account `act_4306295769588787` creatives remain in `ad_creatives` (hidden by account filter; harmless).
 - **Render MCP returned `unauthorized` this session** — logs had to be pasted by the user. Re-auth via `/mcp`.
+
+## WhatsApp menu follow-ups (2026-10-04)
+
+- **Real Play Store link missing** — 3 knowledge chunks say "always use {{PLAY_STORE_LINK}}", which nothing fills. Until the real address replaces it, the guard makes the AI say "the team will share the link". Needs the real URL from the user.
+- **Review the translated labels** (`choices.LIST_LABELS` / `LINK_LABELS`) with a native Tamil/Hindi/etc. speaker; Latin-script non-English languages get an English link label.
+- **Local commits `50859f73` + `38cdc740` are not pushed.** Next: `make dev-backend` + real WhatsApp check on the UI test tenant, then push on the user's word.
+- **Not yet on the new builder:** `intake.py` package/add-on tap handling, auto-messages, broadcasts.
+- **`tests/test_returning_eval.py::test_shipped_scenarios_expand...` fails on `main` too** — Windows cp1252 `UnicodeDecodeError` reading a scenario file; open it with `encoding="utf-8"`.
