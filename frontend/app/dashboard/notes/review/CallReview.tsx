@@ -76,7 +76,10 @@ function formatDuration(seconds: number | null): string {
   return m ? `${m}m ${seconds % 60}s` : `${seconds % 60}s`;
 }
 function callWhen(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  const d = new Date(iso);
+  const dateStr = d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+  const timeStr = d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase();
+  return `${dateStr}, ${timeStr}`;
 }
 /** "25 Sep 26, 14:30" — date plus 24-hour time. */
 function noteWhen(iso: string): string {
@@ -204,142 +207,131 @@ export default function CallReview() {
   const selectedCaller = callers.find((c) => c.id === callerId);
 
   return (
-    <div className="flex flex-col gap-4 p-4 md:p-6 min-h-full">
-      {/* Filter bar */}
-      <div className={cn(CARD, "sticky top-0 z-10 p-2.5 shadow-sm flex flex-wrap items-center gap-2")}>
-        <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setPreset(p.id)}
-              aria-pressed={preset === p.id}
-              className={cn(
-                "px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all",
-                preset === p.id ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
-              )}
+    <div className="flex flex-col gap-3 p-2 sm:p-3 md:p-4 pt-0 sm:pt-0 md:pt-0 -mt-2 sm:-mt-3 md:-mt-4 min-h-full">
+      {/* Locked Sticky Header: Filter bar + KPI Cards */}
+      <div className="sticky top-14 md:top-16 z-20 space-y-2 pb-2 pt-1.5 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 -mx-2 px-2 sm:-mx-3 sm:px-3 md:-mx-4 md:px-4">
+        {/* Filter bar */}
+        <div className={cn(CARD, "p-2.5 shadow-sm flex flex-wrap items-center gap-2 bg-white/90 backdrop-blur-sm")}>
+          <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPreset(p.id)}
+                aria-pressed={preset === p.id}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all",
+                  preset === p.id ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {preset === "custom" && (
+            <div className="flex items-center gap-1.5">
+              <input
+                id="review-from"
+                type="date"
+                value={from}
+                max={to}
+                onChange={(e) => setFrom(e.target.value)}
+                aria-label="From date"
+                className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+              />
+              <span className="font-label text-xs text-[#a8a29e]">to</span>
+              <input
+                id="review-to"
+                type="date"
+                value={to}
+                min={from}
+                onChange={(e) => setTo(e.target.value)}
+                aria-label="To date"
+                className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+              />
+            </div>
+          )}
+          <label htmlFor="review-caller" className="relative flex items-center h-9 pl-2 pr-7 gap-2 rounded-xl border border-[#e8e3db] bg-white">
+            <span className="w-6 h-6 rounded-full bg-primary text-white grid place-items-center font-label text-[10px] font-extrabold shrink-0">
+              {selectedCaller ? initial(selectedCaller.name) : <Users size={12} />}
+            </span>
+            <select
+              id="review-caller"
+              value={callerId}
+              onChange={(e) => {
+                setCallerId(e.target.value);
+                setSelectedId(null);
+              }}
+              className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer max-w-[180px] truncate"
             >
-              {p.label}
-            </button>
+              <option value="">All telecallers</option>
+              {callers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+          </label>
+          <label htmlFor="review-search" className="flex-1 min-w-[200px] flex items-center h-9 px-3 gap-2 rounded-xl border border-[#e8e3db] bg-white">
+            <Search size={14} className="text-[#a8a29e] shrink-0" />
+            <input
+              id="review-search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search lead name or phone"
+              className="w-full bg-transparent font-body text-xs focus:outline-none"
+            />
+          </label>
+          <label htmlFor="review-score" className="relative flex items-center h-9 pl-3 pr-7 rounded-xl border border-[#e8e3db] bg-white">
+            <select
+              id="review-score"
+              value={scoreBand}
+              onChange={(e) => {
+                setScoreBand(e.target.value as ScoreBand | "");
+                setSelectedId(null);
+              }}
+              className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer"
+            >
+              <option value="">Any score</option>
+              {SCORE_BANDS.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+          </label>
+        </div>
+
+        {/* KPI Cards (Locked with Filter bar) */}
+        <div className={cn(CARD, "grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 overflow-hidden shadow-sm bg-white")}>
+          {[
+            { label: "Calls", value: kpi.calls, sub: `${kpi.leadsCalled} lead${kpi.leadsCalled === 1 ? "" : "s"}` },
+            { label: "Connected", value: kpi.connected, sub: kpi.connectRate == null ? "—" : `${kpi.connectRate}% of calls` },
+            { label: "Talk time", value: formatTalk(kpi.talk), sub: "connected calls" },
+            { label: "Avg score", value: kpi.avg, sub: `${kpi.scored} scored call${kpi.scored === 1 ? "" : "s"}` },
+            { label: "Early exits", value: kpi.earlyExits, sub: "not scored" },
+            {
+              label: "Notes saved",
+              value: kpi.notes,
+              sub: callerId ? `${kpi.uncalled} assigned lead${kpi.uncalled === 1 ? "" : "s"} not called` : "in this range",
+            },
+          ].map((k) => (
+            <div key={k.label} className="px-3.5 py-2.5 border-[#f0ece4] border-l border-t -ml-px -mt-px min-w-0">
+              <p className={EYEBROW}>{k.label}</p>
+              <p className="font-heading text-xl sm:text-2xl font-extrabold text-[#292524] tabular-nums mt-0.5 truncate">
+                {loading ? <span className="inline-block w-10 h-6 rounded bg-[#f0ece4] animate-pulse align-middle" /> : k.value}
+              </p>
+              <p className="font-label text-[11px] text-[#78716c] truncate">{k.sub}</p>
+            </div>
           ))}
         </div>
-        {preset === "custom" && (
-          <div className="flex items-center gap-1.5">
-            <input
-              id="review-from"
-              type="date"
-              value={from}
-              max={to}
-              onChange={(e) => setFrom(e.target.value)}
-              aria-label="From date"
-              className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
-            />
-            <span className="font-label text-xs text-[#a8a29e]">to</span>
-            <input
-              id="review-to"
-              type="date"
-              value={to}
-              min={from}
-              onChange={(e) => setTo(e.target.value)}
-              aria-label="To date"
-              className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
-            />
-          </div>
-        )}
-        <label htmlFor="review-caller" className="relative flex items-center h-9 pl-2 pr-7 gap-2 rounded-xl border border-[#e8e3db] bg-white">
-          <span className="w-6 h-6 rounded-full bg-primary text-white grid place-items-center font-label text-[10px] font-extrabold shrink-0">
-            {selectedCaller ? initial(selectedCaller.name) : <Users size={12} />}
-          </span>
-          <select
-            id="review-caller"
-            value={callerId}
-            onChange={(e) => {
-              setCallerId(e.target.value);
-              setSelectedId(null);
-            }}
-            className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer max-w-[180px] truncate"
-          >
-            <option value="">All telecallers</option>
-            {callers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
-        </label>
-        <label htmlFor="review-search" className="flex-1 min-w-[200px] flex items-center h-9 px-3 gap-2 rounded-xl border border-[#e8e3db] bg-white">
-          <Search size={14} className="text-[#a8a29e] shrink-0" />
-          <input
-            id="review-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search lead name or phone"
-            className="w-full bg-transparent font-body text-xs focus:outline-none"
-          />
-        </label>
-        <label htmlFor="review-score" className="relative flex items-center h-9 pl-3 pr-7 rounded-xl border border-[#e8e3db] bg-white">
-          <select
-            id="review-score"
-            value={scoreBand}
-            onChange={(e) => {
-              setScoreBand(e.target.value as ScoreBand | "");
-              setSelectedId(null);
-            }}
-            className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer"
-          >
-            <option value="">Any score</option>
-            {SCORE_BANDS.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
-        </label>
-      </div>
-
-      {/* Scope + KPIs */}
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-label text-xs text-[#78716c]">
-        <span className={EYEBROW}>Showing</span>
-        <b className="text-[#292524]">{selectedCaller?.name ?? "All telecallers"}</b>·<b className="text-[#292524]">{window_.label}</b>
-        {search.trim() && (
-          <>
-            ·<span>matching “{search.trim()}”</span>
-          </>
-        )}
-        {scoreBand && (
-          <>
-            ·<span>score {SCORE_BANDS.find((b) => b.id === scoreBand)?.label.toLowerCase()}</span>
-          </>
-        )}
-        {truncated && <span className="text-amber-700 font-bold">· Too many calls to total exactly, so narrow the dates</span>}
-      </div>
-      <div className={cn(CARD, "grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 overflow-hidden")}>
-        {[
-          { label: "Calls", value: kpi.calls, sub: `${kpi.leadsCalled} lead${kpi.leadsCalled === 1 ? "" : "s"}` },
-          { label: "Connected", value: kpi.connected, sub: kpi.connectRate == null ? "—" : `${kpi.connectRate}% of calls` },
-          { label: "Talk time", value: formatTalk(kpi.talk), sub: "connected calls" },
-          { label: "Avg score", value: kpi.avg, sub: `${kpi.scored} scored call${kpi.scored === 1 ? "" : "s"}` },
-          { label: "Early exits", value: kpi.earlyExits, sub: "not scored" },
-          {
-            label: "Notes saved",
-            value: kpi.notes,
-            sub: callerId ? `${kpi.uncalled} assigned lead${kpi.uncalled === 1 ? "" : "s"} not called` : "in this range",
-          },
-        ].map((k) => (
-          <div key={k.label} className="px-4 py-3 border-[#f0ece4] border-l border-t -ml-px -mt-px min-w-0">
-            <p className={EYEBROW}>{k.label}</p>
-            <p className="font-heading text-2xl font-extrabold text-[#292524] tabular-nums mt-0.5 truncate">
-              {loading ? <span className="inline-block w-10 h-6 rounded bg-[#f0ece4] animate-pulse align-middle" /> : k.value}
-            </p>
-            <p className="font-label text-[11px] text-[#78716c] truncate">{k.sub}</p>
-          </div>
-        ))}
+        {truncated && <div className="text-amber-700 font-bold text-xs px-1">· Too many calls to total exactly, so narrow the dates</div>}
       </div>
 
       {/* Panes */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start">
-        <aside className={cn(CARD, "flex flex-col lg:sticky lg:top-20 lg:max-h-[calc(100vh-7rem)] min-w-0")}>
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start pt-1">
+        <aside className={cn(CARD, "flex flex-col lg:sticky lg:top-[16.5rem] lg:max-h-[calc(100vh-17.5rem)] min-w-0")}>
           <div className="flex flex-wrap gap-1 p-3 border-b border-[#f0ece4]">
             {tabs.map((t) => (
               <button
@@ -521,11 +513,11 @@ function LeadWorkspace({
                     onClick={() => setActiveId(c.id)}
                     aria-pressed={call?.id === c.id}
                     className={cn(
-                      "shrink-0 min-w-[150px] text-left rounded-xl border px-3 py-2 transition-all",
+                      "shrink-0 min-w-[175px] text-left rounded-xl border px-3 py-2 transition-all",
                       call?.id === c.id ? "border-primary ring-2 ring-[var(--primary-100)]" : "border-[#e8e3db] hover:bg-[#faf8f5]",
                     )}
                   >
-                    <span className="block font-body text-[11px] font-bold text-[#292524]">{callWhen(c.created_at)}</span>
+                    <span className="block font-body text-[11px] font-bold text-[#292524] whitespace-nowrap">{callWhen(c.created_at)}</span>
                     <span className="block font-label text-[10px] text-[#a8a29e] mt-0.5 mb-1.5 truncate">
                       {formatDuration(c.duration_seconds)} · {callerName(c.caller_id)}
                     </span>
