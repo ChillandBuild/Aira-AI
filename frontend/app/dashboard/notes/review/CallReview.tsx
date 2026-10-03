@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronDown, Loader2, Phone, Pin, Search, StickyNote, Users } from "lucide-react";
+import { ChevronDown, Loader2, Phone, Pin, Search, StickyNote, Users, X } from "lucide-react";
 import { api, type Caller, type CallLog, type ReviewLead, type ReviewRange } from "@/lib/api";
 import { cn, formatPhone, timeAgo } from "@/lib/utils";
 import { useCallers, useNotes } from "@/hooks/useApi";
@@ -27,6 +27,19 @@ const SCORE_BANDS: { id: ScoreBand; label: string; test: (avg: number | null) =>
   { id: "mid", label: "60 to 79", test: (a) => a != null && a >= 60 && a < 80 },
   { id: "low", label: "Under 60", test: (a) => a != null && a < 60 },
   { id: "none", label: "Not scored", test: (a) => a == null },
+];
+type SortKey = "recent" | "high" | "low" | "calls";
+const SORTS: { id: SortKey; label: string }[] = [
+  { id: "recent", label: "Latest activity" },
+  { id: "high", label: "Highest score" },
+  { id: "low", label: "Lowest score" },
+  { id: "calls", label: "Most calls" },
+];
+const SEGMENTS: { id: "A" | "B" | "C" | "D"; label: string }[] = [
+  { id: "A", label: "Hot" },
+  { id: "B", label: "Warm" },
+  { id: "C", label: "Cold" },
+  { id: "D", label: "Not interested" },
 ];
 const PROCESSING_POLL_MS = 10_000;
 const CARD = "bg-white border border-[#e8e3db] rounded-2xl";
@@ -105,6 +118,53 @@ function StatusPill({ call }: { call: Pick<CallLog, "score" | "score_status" | "
   return null;
 }
 
+/** A dropdown styled as a pill. Without anyLabel there is no "any" choice (used for sorting). */
+function FilterSelect({
+  id,
+  label,
+  value,
+  onChange,
+  anyLabel,
+  options,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  anyLabel?: string;
+  options: { id: string; label: string }[];
+}) {
+  const active = !!anyLabel && value !== "";
+  return (
+    <label
+      htmlFor={id}
+      className={cn(
+        "relative flex items-center h-9 pl-3 pr-7 rounded-xl border bg-white transition-colors",
+        active ? "border-[var(--primary-200)] bg-[var(--primary-50)]" : "border-[#e8e3db]",
+      )}
+    >
+      <span className="sr-only">{label}</span>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(
+          "appearance-none bg-transparent font-body text-xs font-bold focus:outline-none cursor-pointer",
+          active ? "text-primary" : "text-[#292524]",
+        )}
+      >
+        {anyLabel && <option value="">{anyLabel}</option>}
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+    </label>
+  );
+}
+
 export default function CallReview() {
   const { data: callersData } = useCallers();
   const callers = useMemo<Caller[]>(() => {
@@ -123,6 +183,8 @@ export default function CallReview() {
   const [callerId, setCallerId] = useState<string>("");
   const [search, setSearch] = useState("");
   const [scoreBand, setScoreBand] = useState<ScoreBand | "">("");
+  const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | "">("");
+  const [sort, setSort] = useState<SortKey>("recent");
   const [tab, setTab] = useState<Tab>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -155,16 +217,26 @@ export default function CallReview() {
     };
   }, [range]);
 
+  const filtersActive = !!(search.trim() || scoreBand || segment);
   const searched = useMemo(() => {
     const q = search.trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     const band = SCORE_BANDS.find((b) => b.id === scoreBand);
-    return rows.filter(
+    const matched = rows.filter(
       (r) =>
         (!q || (r.name ?? "").toLowerCase().includes(q) || (!!digits && (r.phone ?? "").replace(/\D/g, "").includes(digits))) &&
-        (!band || band.test(r.scored > 0 ? r.avg_score : null)),
+        (!band || band.test(r.scored > 0 ? r.avg_score : null)) &&
+        (!segment || r.segment === segment),
     );
-  }, [rows, search, scoreBand]);
+    const when = (r: ReviewLead) => Date.parse(r.last_activity_at ?? r.last_call_at ?? "") || 0;
+    const byScore = (r: ReviewLead, missing: number) => (r.scored > 0 && r.avg_score != null ? r.avg_score : missing);
+    return [...matched].sort((a, b) =>
+      sort === "high" ? byScore(b, -1) - byScore(a, -1)
+      : sort === "low" ? byScore(a, 101) - byScore(b, 101)
+      : sort === "calls" ? b.calls - a.calls
+      : when(b) - when(a),
+    );
+  }, [rows, search, scoreBand, segment, sort]);
 
   const inTab = useCallback((r: ReviewLead, t: Tab) => {
     if (t === "called") return r.calls > 0;
@@ -282,25 +354,48 @@ export default function CallReview() {
               className="w-full bg-transparent font-body text-xs focus:outline-none"
             />
           </label>
-          <label htmlFor="review-score" className="relative flex items-center h-9 pl-3 pr-7 rounded-xl border border-[#e8e3db] bg-white">
-            <select
-              id="review-score"
-              value={scoreBand}
-              onChange={(e) => {
-                setScoreBand(e.target.value as ScoreBand | "");
+          <FilterSelect
+            id="review-score"
+            label="Score"
+            value={scoreBand}
+            onChange={(v) => {
+              setScoreBand(v as ScoreBand | "");
+              setSelectedId(null);
+            }}
+            anyLabel="Any score"
+            options={SCORE_BANDS}
+          />
+          <FilterSelect
+            id="review-segment"
+            label="Segment"
+            value={segment}
+            onChange={(v) => {
+              setSegment(v as "A" | "B" | "C" | "D" | "");
+              setSelectedId(null);
+            }}
+            anyLabel="Any segment"
+            options={SEGMENTS}
+          />
+          <FilterSelect
+            id="review-sort"
+            label="Sort"
+            value={sort}
+            onChange={(v) => setSort(v as SortKey)}
+            options={SORTS}
+          />
+          {filtersActive && (
+            <button
+              onClick={() => {
+                setSearch("");
+                setScoreBand("");
+                setSegment("");
                 setSelectedId(null);
               }}
-              className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer"
+              className="inline-flex items-center gap-1 h-9 px-3 rounded-xl font-label text-xs font-bold text-primary hover:bg-[var(--primary-50)] transition-colors"
             >
-              <option value="">Any score</option>
-              {SCORE_BANDS.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
-          </label>
+              <X size={13} /> Clear
+            </button>
+          )}
         </div>
 
         {/* KPI Cards (Locked with Filter bar) */}
