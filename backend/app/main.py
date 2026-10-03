@@ -93,6 +93,7 @@ async def _check_token_health() -> None:
     """APScheduler daily job: validate Meta tokens for all tenants, create incidents if invalid."""
     import httpx
     from app.db.supabase import get_supabase
+    from app.services.incidents import create_token_incident as _create_token_incident, is_token_auth_failure
 
     db = get_supabase()
     rows = (
@@ -128,7 +129,7 @@ async def _check_token_health() -> None:
                         params={"fields": "display_phone_number", "access_token": wa_token},
                     )
                     data = r.json()
-                    if "error" in data:
+                    if is_token_auth_failure(data.get("error")):
                         _create_token_incident(db, tenant_id, "whatsapp", data["error"].get("message", "Token invalid"))
                 except Exception as e:
                     logger.warning(f"Token health check error tenant={tenant_id} channel=whatsapp: {e}")
@@ -139,10 +140,10 @@ async def _check_token_health() -> None:
                 try:
                     r = await client.get(
                         "https://graph.facebook.com/v21.0/me",
-                        params={"fields": "name", "access_token": ig_token},
+                        params={"fields": "id", "access_token": ig_token},
                     )
                     data = r.json()
-                    if "error" in data:
+                    if is_token_auth_failure(data.get("error")):
                         _create_token_incident(db, tenant_id, "instagram", data["error"].get("message", "Token invalid"))
                 except Exception as e:
                     logger.warning(f"Token health check error tenant={tenant_id} channel=instagram: {e}")
@@ -153,39 +154,15 @@ async def _check_token_health() -> None:
                 try:
                     r = await client.get(
                         "https://graph.facebook.com/v21.0/me",
-                        params={"fields": "name", "access_token": fb_token},
+                        params={"fields": "id", "access_token": fb_token},
                     )
                     data = r.json()
-                    if "error" in data:
+                    if is_token_auth_failure(data.get("error")):
                         _create_token_incident(db, tenant_id, "facebook", data["error"].get("message", "Token invalid"))
                 except Exception as e:
                     logger.warning(f"Token health check error tenant={tenant_id} channel=facebook: {e}")
 
     logger.info(f"Token health check complete for {len(tenant_cfg)} tenant(s)")
-
-
-def _create_token_incident(db, tenant_id: str, channel: str, error_msg: str) -> None:
-    try:
-        from datetime import datetime, timezone, timedelta
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=23)).isoformat()
-        existing = (
-            db.table("incidents")
-            .select("id")
-            .eq("tenant_id", tenant_id)
-            .eq("type", "token_invalid")
-            .gte("created_at", cutoff)
-            .execute()
-        )
-        if existing.data:
-            return
-        db.table("incidents").insert({
-            "tenant_id": tenant_id,
-            "type": "token_invalid",
-            "detail": {"channel": channel, "error": error_msg},
-        }).execute()
-        logger.warning(f"Token invalid incident created: tenant={tenant_id} channel={channel}")
-    except Exception as e:
-        logger.error(f"Failed to create token incident: {e}")
 
 
 async def _process_reengagement_rules() -> None:

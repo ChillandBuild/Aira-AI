@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 _TOKEN_INCIDENT_DEDUP_HOURS = 23
 
 
+def is_token_auth_failure(error: dict | None) -> bool:
+    """True only when Meta says the token itself is dead (error code 190: expired,
+    revoked, password changed). Permission errors like #100/#10/#200 mean the probe
+    asked for something the token isn't scoped for, not that the token is broken."""
+    return bool(error) and (error or {}).get("code") == 190
+
+
 def create_token_incident(db, tenant_id: str, channel: str, error_msg: str) -> None:
     """Record a `token_invalid` incident, deduped per (tenant, channel) per 23h.
 
