@@ -28,13 +28,6 @@ const SCORE_BANDS: { id: ScoreBand; label: string; test: (avg: number | null) =>
   { id: "low", label: "Under 60", test: (a) => a != null && a < 60 },
   { id: "none", label: "Not scored", test: (a) => a == null },
 ];
-type SortKey = "recent" | "high" | "low" | "calls";
-const SORTS: { id: SortKey; label: string }[] = [
-  { id: "recent", label: "Latest activity" },
-  { id: "high", label: "Highest score" },
-  { id: "low", label: "Lowest score" },
-  { id: "calls", label: "Most calls" },
-];
 const SEGMENTS: { id: "A" | "B" | "C" | "D"; label: string }[] = [
   { id: "A", label: "Hot" },
   { id: "B", label: "Warm" },
@@ -118,7 +111,7 @@ function StatusPill({ call }: { call: Pick<CallLog, "score" | "score_status" | "
   return null;
 }
 
-/** A dropdown styled as a pill. Without anyLabel there is no "any" choice (used for sorting). */
+/** A dropdown styled as a pill; the first choice ("any") means no filter. */
 function FilterSelect({
   id,
   label,
@@ -131,10 +124,10 @@ function FilterSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  anyLabel?: string;
+  anyLabel: string;
   options: { id: string; label: string }[];
 }) {
-  const active = !!anyLabel && value !== "";
+  const active = value !== "";
   return (
     <label
       htmlFor={id}
@@ -153,7 +146,7 @@ function FilterSelect({
           active ? "text-primary" : "text-[#292524]",
         )}
       >
-        {anyLabel && <option value="">{anyLabel}</option>}
+        <option value="">{anyLabel}</option>
         {options.map((o) => (
           <option key={o.id} value={o.id}>
             {o.label}
@@ -184,7 +177,6 @@ export default function CallReview() {
   const [search, setSearch] = useState("");
   const [scoreBand, setScoreBand] = useState<ScoreBand | "">("");
   const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | "">("");
-  const [sort, setSort] = useState<SortKey>("recent");
   const [tab, setTab] = useState<Tab>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -222,21 +214,13 @@ export default function CallReview() {
     const q = search.trim().toLowerCase();
     const digits = q.replace(/\D/g, "");
     const band = SCORE_BANDS.find((b) => b.id === scoreBand);
-    const matched = rows.filter(
+    return rows.filter(
       (r) =>
         (!q || (r.name ?? "").toLowerCase().includes(q) || (!!digits && (r.phone ?? "").replace(/\D/g, "").includes(digits))) &&
         (!band || band.test(r.scored > 0 ? r.avg_score : null)) &&
         (!segment || r.segment === segment),
     );
-    const when = (r: ReviewLead) => Date.parse(r.last_activity_at ?? r.last_call_at ?? "") || 0;
-    const byScore = (r: ReviewLead, missing: number) => (r.scored > 0 && r.avg_score != null ? r.avg_score : missing);
-    return [...matched].sort((a, b) =>
-      sort === "high" ? byScore(b, -1) - byScore(a, -1)
-      : sort === "low" ? byScore(a, 101) - byScore(b, 101)
-      : sort === "calls" ? b.calls - a.calls
-      : when(b) - when(a),
-    );
-  }, [rows, search, scoreBand, segment, sort]);
+  }, [rows, search, scoreBand, segment]);
 
   const inTab = useCallback((r: ReviewLead, t: Tab) => {
     if (t === "called") return r.calls > 0;
@@ -375,13 +359,6 @@ export default function CallReview() {
             }}
             anyLabel="Any segment"
             options={SEGMENTS}
-          />
-          <FilterSelect
-            id="review-sort"
-            label="Sort"
-            value={sort}
-            onChange={(v) => setSort(v as SortKey)}
-            options={SORTS}
           />
           {filtersActive && (
             <button

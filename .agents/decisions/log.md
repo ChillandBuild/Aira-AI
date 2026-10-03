@@ -1556,3 +1556,9 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Note author comes from the signed-in user, never the request body.** `CreateNote.caller_id` was removed; `create_lead_note` stamps `ctx["caller_id"]`. Before this no client ever sent it, so every note had a null author.
 - **Dialer Recent tab:** rows show only lead name + "by <telecaller>"; time/length/outcome/score moved into the expanded row. Callers already only see their own calls server-side (`calls.py` `/recent`).
 - **CI backend tests had failed on nearly every push since 2026-09-30** — one test, `test_latest_version_reads_version_json_and_caches`. Root cause in `_latest_sim_app_version`: see subsystem-notes (SIM call tracking). CI green again on `d9920815`.
+
+### 2026-10-03 — Call Review: filters, manual-only notes, full-bleed layout (`ae62ba63` and follow-ups)
+
+- **Notes rail shows only typed notes** (no `AI Summary:` rows, no empty ones) with "25 Sep 26, 14:30" timestamps. **`call_ai_pipeline.py` stopped inserting `AI Summary:` notes** — the next step is already on `call_logs.ai_summary.next_action`, shown per call. Seven legacy rows (4 linked to a call, 3 from 19 Sep unlinked) were left in `lead_notes`; the Supabase MCP declined the delete, so the user must run `delete from lead_notes where content like 'AI Summary:%' and caller_id is null;` if wanted. They still appear in the dialer/conversation notes lists until then.
+- **Filters added:** score band (80+, 60–79, under 60, not scored — by the lead's average over scored calls) and segment, plus a Clear button. A sort dropdown was built and then removed at the user's request; the list keeps server order.
+- **"Author not recorded"** = note with null `caller_id` (saved before authors were recorded). New notes get the signed-in caller's name.
