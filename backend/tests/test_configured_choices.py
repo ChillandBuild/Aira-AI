@@ -51,8 +51,8 @@ def test_legacy_package_choices_use_saved_labels_and_ids(monkeypatch, source):
     draft = body + "\nCHOICES: " + " | ".join(labels) if source == "marker" else ""
     calls = [call(message=body, options=labels)] if source == "tool" else []
     text, _, outcome = run_turn(monkeypatch, draft, calls)
-    assert outcome.menu["kind"] == "buttons"
-    assert outcome.menu["buttons"] == [
+    assert outcome.menu["kind"] == "list"  # three options are a list, only two are reply buttons
+    assert outcome.menu["sections"][0]["rows"] == [
         {"id": p["key"], "title": p["button_label"]} for p in PACKAGES
     ]
     assert "One Question" in text and "Detailed Question" in text and "Marriage Compatibility" in text

@@ -82,6 +82,10 @@ class TemplateContentExistsError(HTTPException):
 # ships a mangled label to the customer with nothing logged anywhere.
 BUTTON_TITLE_MAX = 20
 BUTTON_COUNT_MAX = 3
+BUTTON_ID_MAX = 256
+INTERACTIVE_BODY_MAX = 1024
+INTERACTIVE_FOOTER_MAX = 60
+CTA_URL_MAX = 2000
 
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
 _BUSINESS_LOGIN_GRAPH_BASE = "https://graph.facebook.com/v25.0"
@@ -588,21 +592,38 @@ async def send_cta_url_message(
     phone_number_id: Optional[str] = None,
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
+    footer_text: Optional[str] = None,
 ) -> dict:
+    """One URL button under a message. Meta allows exactly one URL per interactive message and
+    cannot combine it with reply buttons. Validated before _creds(), like the other senders."""
+    if not body_text or not body_text.strip():
+        raise ValueError("A URL button message needs body text")
+    if len(body_text) > INTERACTIVE_BODY_MAX:
+        raise ValueError(f"URL button body exceeds {INTERACTIVE_BODY_MAX} characters")
+    if not button_text or not button_text.strip() or len(button_text) > BUTTON_TITLE_MAX:
+        raise ValueError(f"URL button label {button_text!r} must be 1-{BUTTON_TITLE_MAX} characters")
+    if not button_url.lower().startswith("https://") or len(button_url) > CTA_URL_MAX or any(c.isspace() for c in button_url):
+        raise ValueError(f"URL button needs one https:// address of at most {CTA_URL_MAX} characters, got {button_url[:60]!r}")
+    if footer_text and len(footer_text) > INTERACTIVE_FOOTER_MAX:
+        raise ValueError(f"URL button footer exceeds {INTERACTIVE_FOOTER_MAX} characters")
+
     pid, tok = _creds(phone_number_id, access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{pid}/messages"
+    interactive: dict = {
+        "type": "cta_url",
+        "body": {"text": body_text},
+        "action": {
+            "name": "cta_url",
+            "parameters": {"display_text": button_text, "url": button_url},
+        },
+    }
+    if footer_text:
+        interactive["footer"] = {"text": footer_text}
     payload = {
         "messaging_product": "whatsapp",
         "to": to_number,
         "type": "interactive",
-        "interactive": {
-            "type": "cta_url",
-            "body": {"text": body_text},
-            "action": {
-                "name": "cta_url",
-                "parameters": {"display_text": button_text, "url": button_url},
-            },
-        },
+        "interactive": interactive,
     }
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.post(url, json=payload, headers={"Authorization": f"Bearer {tok}"})
@@ -628,12 +649,22 @@ async def send_interactive_buttons(
         raise ValueError("send_interactive_buttons needs at least one button")
     if len(buttons) > BUTTON_COUNT_MAX:
         raise ValueError(f"WhatsApp allows at most {BUTTON_COUNT_MAX} buttons, got {len(buttons)}")
+    if not body_text or not body_text.strip() or len(body_text) > INTERACTIVE_BODY_MAX:
+        raise ValueError(f"Button message body must be 1-{INTERACTIVE_BODY_MAX} characters")
+    seen_titles: set[str] = set()
     for b in buttons:
+        if not b["title"].strip():
+            raise ValueError("Button titles cannot be empty")
         if len(b["title"]) > BUTTON_TITLE_MAX:
             raise ValueError(
                 f"Button title {b['title']!r} exceeds {BUTTON_TITLE_MAX} characters — "
                 "WhatsApp truncates silently, so callers must shorten it first"
             )
+        if not b["id"] or len(b["id"]) > BUTTON_ID_MAX:
+            raise ValueError(f"Button id for {b['title']!r} must be 1-{BUTTON_ID_MAX} characters")
+        if b["title"].casefold() in seen_titles:
+            raise ValueError(f"Button titles must be unique, {b['title']!r} repeats")
+        seen_titles.add(b["title"].casefold())
 
     pid, tok = _creds(phone_number_id, access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{pid}/messages"
@@ -684,6 +715,9 @@ LIST_ROW_COUNT_MAX = 10
 LIST_ROW_TITLE_MAX = 24
 LIST_ROW_DESCRIPTION_MAX = 72
 LIST_SECTION_TITLE_MAX = 24
+LIST_SECTION_COUNT_MAX = 10
+LIST_ROW_ID_MAX = 200
+LIST_BODY_MAX = 1024  # Meta allows 4096; the app keeps one body limit for every menu
 
 
 async def send_list_message(
@@ -702,19 +736,33 @@ async def send_list_message(
     Validates before _creds(), same reasoning as send_interactive_buttons: an invalid
     payload should fail loudly and locally, not silently truncate (WhatsApp truncates
     over-long titles with no error) or fail after a network round trip."""
-    if len(button_text) > BUTTON_TITLE_MAX:
-        raise ValueError(f"List button label {button_text!r} exceeds {BUTTON_TITLE_MAX} characters")
+    if not button_text or not button_text.strip() or len(button_text) > BUTTON_TITLE_MAX:
+        raise ValueError(f"List button label {button_text!r} must be 1-{BUTTON_TITLE_MAX} characters")
+    if not body_text or not body_text.strip() or len(body_text) > LIST_BODY_MAX:
+        raise ValueError(f"List body must be 1-{LIST_BODY_MAX} characters")
     total_rows = sum(len(s.get("rows") or []) for s in sections)
     if total_rows == 0:
         raise ValueError("send_list_message needs at least one row")
     if total_rows > LIST_ROW_COUNT_MAX:
         raise ValueError(f"WhatsApp allows at most {LIST_ROW_COUNT_MAX} rows total, got {total_rows}")
+    if len(sections) > LIST_SECTION_COUNT_MAX:
+        raise ValueError(f"WhatsApp allows at most {LIST_SECTION_COUNT_MAX} sections, got {len(sections)}")
+    row_ids: set[str] = set()
     for s in sections:
+        if len(sections) > 1 and not (s.get("title") or "").strip():
+            raise ValueError("Every section needs a title when a list has more than one section")
         if "title" in s and len(s["title"]) > LIST_SECTION_TITLE_MAX:
             raise ValueError(f"Section title {s['title']!r} exceeds {LIST_SECTION_TITLE_MAX} characters")
         for row in s.get("rows") or []:
+            if not row["title"].strip():
+                raise ValueError("Row titles cannot be empty")
             if len(row["title"]) > LIST_ROW_TITLE_MAX:
                 raise ValueError(f"Row title {row['title']!r} exceeds {LIST_ROW_TITLE_MAX} characters")
+            if not row["id"] or len(row["id"]) > LIST_ROW_ID_MAX:
+                raise ValueError(f"Row id for {row['title']!r} must be 1-{LIST_ROW_ID_MAX} characters")
+            if row["id"] in row_ids:
+                raise ValueError(f"Row ids must be unique, {row['id']!r} repeats")
+            row_ids.add(row["id"])
             if len(row.get("description", "")) > LIST_ROW_DESCRIPTION_MAX:
                 raise ValueError(f"Row description for {row['title']!r} exceeds {LIST_ROW_DESCRIPTION_MAX} characters")
     if header_text and len(header_text) > 60:

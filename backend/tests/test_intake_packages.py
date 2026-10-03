@@ -527,11 +527,11 @@ class TapModeTests(unittest.TestCase):
     def test_one_option_is_text(self):
         self.assertEqual(_tap_mode([_leaf("a", "A")]), "text")
 
-    def test_two_to_three_short_labels_is_buttons(self):
+    def test_two_short_labels_is_buttons(self):
         self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B")]), "buttons")
-        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B"), _leaf("c", "C")]), "buttons")
 
-    def test_four_to_ten_short_labels_is_list(self):
+    def test_three_to_ten_short_labels_is_list(self):
+        self.assertEqual(_tap_mode([_leaf("a", "A"), _leaf("b", "B"), _leaf("c", "C")]), "list")
         level = [_leaf(f"k{i}", f"Option {i}") for i in range(4)]
         self.assertEqual(_tap_mode(level), "list")
         level10 = [_leaf(f"k{i}", f"Option {i}") for i in range(10)]

@@ -2102,13 +2102,23 @@ async def generate_reply(
                 )
                 reply_text = deal_turn.menu_record(reply_text, deal_outcome.menu, tappable=tappable)
             else:
-                sid = await send_whatsapp(
-                    _wa_phone,
-                    reply_text,
-                    tenant_id=lead_data.get("tenant_id"),
-                    phone_number_id=phone_number_id,
-                    reply_to_message_id=reply_to_message_id,
-                )
+                from app.services import choices, deal_turn
+                # One https link in the reply goes out as a URL button instead of a raw address.
+                # A quoted reply stays plain text: the button message cannot quote.
+                link = None if reply_to_message_id else choices.split_link(reply_text)
+                if link:
+                    sid, _tappable = await deal_turn.send_link(
+                        _wa_phone, link, tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id, original=reply_text,
+                    )
+                else:
+                    sid = await send_whatsapp(
+                        _wa_phone,
+                        reply_text,
+                        tenant_id=lead_data.get("tenant_id"),
+                        phone_number_id=phone_number_id,
+                        reply_to_message_id=reply_to_message_id,
+                    )
 
         # Send catalog recommendation images as follow-up WhatsApp media
         if _wa_phone and sid and catalog_images_to_send:

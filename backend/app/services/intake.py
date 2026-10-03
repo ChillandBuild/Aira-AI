@@ -551,14 +551,14 @@ def _short_label(node: dict, limit: int) -> str | None:
 
 def _tap_mode(level: list[dict]) -> str:
     """Pure Python, no LLM -- same rule as prices never being LLM-authored.
-    Returns "buttons", "list", or "text". Buttons need a clean fit (2-3 options,
-    every title <=20 chars) -- WhatsApp's real cap, kept as-is. Any other count
-    from 2-10 falls to a list, which always renders (see _row_title's truncation
-    fallback) rather than ever giving up on tappability over label length alone.
+    Returns "buttons", "list", or "text". Buttons are for exactly two options whose
+    titles are <=20 chars (WhatsApp's real cap, same rule as choices.build_menu). Any
+    other count from 2-10 falls to a list, which always renders (see _row_title's
+    truncation fallback) rather than ever giving up on tappability over label length alone.
     Only outside 2-10 -- zero/one option, or more than WhatsApp's 10-row list cap
     -- is genuinely unfixable in code and stays "text"."""
     n = len(level)
-    if 2 <= n <= 3 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
+    if n == 2 and all(_short_label(item, _BUTTON_TITLE_MAX) for item in level):
         return "buttons"
     if 2 <= n <= 10:
         return "list"

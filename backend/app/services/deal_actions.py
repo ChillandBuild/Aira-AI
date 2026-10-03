@@ -33,7 +33,7 @@ from app.services.astro_normalize import (
 
 logger = logging.getLogger(__name__)
 
-MENU_BUTTON_TEXT = "Choose"
+MENU_BUTTON_TEXT = "Options"  # English default; deal_turn._label_list swaps in the customer's language
 
 
 @dataclass(frozen=True)

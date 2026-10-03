@@ -520,9 +520,9 @@ class TestGstInThePrompt:
 
 
 class TestShowOptions:
-    def test_top_level_packages_become_buttons(self, world):
+    def test_three_top_level_packages_become_a_list(self, world):
         out = run([call("show_options", of="packages")])
-        assert out.menu["kind"] == "buttons"
+        assert out.menu["kind"] == "list"
         assert out.menu["options"] == ["49 Rs", "99Rs", "Marriage 99Rs"]
 
     def test_only_one_menu_per_turn(self, world):

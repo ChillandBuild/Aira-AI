@@ -285,6 +285,28 @@ async def send_menu(phone: str, body: str, menu: dict, *, tenant_id: str, phone_
         return sid, False
 
 
+async def send_link(
+    phone: str, link: choices.Link, *, tenant_id: str, phone_number_id: str | None = None, original: str | None = None,
+) -> tuple[str | None, bool]:
+    """Send the message with its one link as a URL button and return the message ID and whether
+    it went as a button. If Meta refuses, the customer gets the original text, link included."""
+    from app.services import meta_cloud
+    from app.services.ai_reply import send_whatsapp
+
+    try:
+        data = await meta_cloud.send_cta_url_message(
+            to_number=phone, body_text=link.body or CHOICE_BODY_FALLBACK, button_text=link.label,
+            button_url=link.url, tenant_id=tenant_id, phone_number_id=phone_number_id,
+        )
+        return (data.get("messages") or [{}])[0].get("id"), True
+    except Exception:
+        logger.exception("URL button send failed -- falling back to plain text")
+        sid = await send_whatsapp(
+            phone, original or f"{link.body}\n{link.url}".strip(), tenant_id=tenant_id, phone_number_id=phone_number_id,
+        )
+        return sid, False
+
+
 def menu_as_text(body: str, menu: dict) -> str:
     return body + "\n\n" + "\n".join(f"• {title}" for title in menu["options"])
 
@@ -675,12 +697,40 @@ async def converse_once(
         deal_actions.open_handover(ctx, TEAM_CLAIM_REASON)
         attached.handover = True
     text = _attach_choices(text, ctx, attached, offered, last_text, customer_message, choice_args)
+    if not refusals:
+        await _classify_choices(text, ctx, attached, customer_message, llm, tenant_id)
+    _label_list(attached, text, customer_message, choice_args)
     if attached.link and append_link:
         text = f"{text}\n{attached.link}".strip()
     return text, all_calls, attached.outcome(refusals)
 
 
 CHOICE_BODY_FALLBACK = "👇"
+CHOICE_CLASSIFY_TIMEOUT = 2.5  # seconds; the safety net never holds a reply longer than this
+
+
+async def _classify_choices(
+    text: str, ctx: deal_actions.DealContext, attached: _Attached, customer_message: str, llm, tenant_id: str,
+) -> None:
+    """The safety net: a reply that asks a question but matched no choice pattern is read by one
+    small timed call, so a pick written in any language still gets its buttons. Statements,
+    replies that already carry a menu or a payment link, and channels without buttons skip it."""
+    if (attached.menu or attached.link or attached.quote or attached.handover or not ctx.buttons_enabled
+            or not choices.might_offer_choice(text)):
+        return
+    found = await choices.classify(text, customer_message, llm, tenant_id, timeout=CHOICE_CLASSIFY_TIMEOUT)
+    if found:
+        options, label = found
+        attached.menu = choices.build_menu(options, label)
+
+
+def _label_list(attached: _Attached, text: str, customer_message: str, choice_args: dict) -> None:
+    """The bar that opens a list says "View options" in the customer's language: the model's own
+    wording when it gave one, else by script or Tanglish, else English."""
+    menu = attached.menu
+    if menu and menu.get("kind") == "list":
+        hint = choice_args.get("list_label") or (menu["button_text"] if menu.get("label_from_model") else "")
+        menu["button_text"] = choices.list_label_for(f"{customer_message}\n{text}", hint=hint)
 
 
 def _attach_choices(
@@ -962,25 +1012,27 @@ def _last_question(text: str) -> str:
 def _package_menu(
     text: str, ctx: deal_actions.DealContext, last_text: str, customer_message: str = "",
 ) -> tuple[dict | None, bool]:
-    """(menu, just_shown). A closing question that names two or more of the offerings, or asks
-    whether to show them, gets them as buttons -- only while nothing is chosen yet, and not
-    when that very menu was just sent and the customer's reply was vague (just_shown)."""
+    """(menu, just_shown). A message that lays out two or more of the offerings, or a question
+    that asks whether to show them, gets them as buttons -- only while nothing is chosen yet,
+    and not when that very menu was just sent and the customer's reply was vague (just_shown)."""
     question = _last_question(text)
     comparing_now = bool(_COMPARE_RE.search(customer_message or ""))
-    if not ctx.offerings_enabled or not (question or comparing_now):
+    if not ctx.offerings_enabled:
         return None, False
-    comparing = bool(_COMPARE_RE.search(customer_message or ""))
+    # Two or more offerings laid out, by name or by price: the customer can only answer "which
+    # one?". No question mark and no "which" word is required -- the model says it a different way
+    # every time ("Edhu venum-nu sollunga", "எதை..."), often as a request rather than a question,
+    # and a price reads the same in every language even when the model translates the names.
+    listed = _listed_level(text, ctx)
+    if not (question or comparing_now or listed is not None):
+        return None, False
+    comparing = comparing_now
     session = _open_session(ctx)
     if session.get("package_key") and session.get("status") != deal_engine.PAID_STATUS and not comparing:
         return None, False  # mid-booking: the question is about a detail, not the packages
-    # Two or more offerings laid out, by name or by price, and a question to close: that
-    # question can only be "which one?". No "which" word is required -- the model says it a
-    # different way every time ("Edhula...", "Enthe...", "எதை..."), and a price reads the same
-    # in every language even when the model translates the package names.
-    listed = _listed_level(text, ctx)
     if listed is not None and question and _asks_for_detail(question, ctx):
         return None, False  # "Basic is ₹999, Pro ₹1,999 -- may I have your full name?"
-    if listed is not None and (comparing or question):  # "what's the difference between 49 and 99?"
+    if listed is not None:  # "what's the difference between 49 and 99?", or just the packages laid out
         menu = deal_actions.build_level_menu(listed)
     elif _OFFER_QUESTION_RE.search(question):
         _level, menu = deal_actions.top_level_menu(ctx)
