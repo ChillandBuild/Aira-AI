@@ -207,9 +207,9 @@ export default function CallReview() {
   const selectedCaller = callers.find((c) => c.id === callerId);
 
   return (
-    <div className="flex flex-col gap-3 p-2 sm:p-3 md:p-4 pt-0 sm:pt-0 md:pt-0 -mt-2 sm:-mt-3 md:-mt-4 min-h-full">
+    <div className="flex flex-col gap-3 pb-6 min-h-full">
       {/* Locked Sticky Header: Filter bar + KPI Cards */}
-      <div className="sticky top-14 md:top-16 z-20 space-y-2 pb-2 pt-1.5 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 -mx-2 px-2 sm:-mx-3 sm:px-3 md:-mx-4 md:px-4">
+      <div className="sticky top-14 md:top-16 z-20 space-y-2 pb-2 pt-2 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 px-2 sm:px-3 md:px-4">
         {/* Filter bar */}
         <div className={cn(CARD, "p-2.5 shadow-sm flex flex-wrap items-center gap-2 bg-white/90 backdrop-blur-sm")}>
           <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
@@ -330,7 +330,7 @@ export default function CallReview() {
       </div>
 
       {/* Panes */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start pt-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start pt-1 px-2 sm:px-3 md:px-4">
         <aside className={cn(CARD, "flex flex-col lg:sticky lg:top-[16.5rem] lg:max-h-[calc(100vh-17.5rem)] min-w-0")}>
           <div className="flex flex-wrap gap-1 p-3 border-b border-[#f0ece4]">
             {tabs.map((t) => (

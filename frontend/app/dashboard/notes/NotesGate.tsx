@@ -16,5 +16,9 @@ export function NotesGate({ fallbackLeads }: { fallbackLeads: { data: Lead[] } |
     );
   }
   if (role === "owner" || permissions.includes("team.manage")) return <CallReview />;
-  return <NotesClient fallbackLeads={fallbackLeads} />;
+  return (
+    <div className="w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7">
+      <NotesClient fallbackLeads={fallbackLeads} />
+    </div>
+  );
 }

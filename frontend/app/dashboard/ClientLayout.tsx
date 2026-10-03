@@ -65,6 +65,8 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [subStatus, setSubStatus] = useState<"loading" | "none" | "pending_approval" | "active">("loading");
   const pathname = usePathname();
   const isMetaAds = pathname === "/dashboard/meta-ads";
+  // Call Review fills the whole pane (its filter bar and KPIs lock to the top); NotesGate pads the telecaller view itself.
+  const isCallReviewPage = pathname === "/dashboard/notes";
   // The conversations route renders its own thin inbox rail (Bulkwise-style) and
   // fills the viewport, so we suppress the labeled sidebar + app header there.
   const isInbox = pathname?.startsWith("/dashboard/conversations") ?? false;
@@ -151,7 +153,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                   <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
                 </Suspense>
                 <ClaimBanner />
-                <div className={isMetaAds
+                <div className={isCallReviewPage
+                  ? "w-full min-w-0 max-w-none"
+                  : isMetaAds
                   ? "w-full min-w-0 max-w-none overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:px-5 md:py-5"
                   : "w-full min-w-0 max-w-[1400px] overflow-x-hidden px-3 py-4 pb-28 sm:px-4 md:p-7"}>
                   {children}
