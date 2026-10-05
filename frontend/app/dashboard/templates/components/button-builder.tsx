@@ -379,7 +379,7 @@ export default function ButtonBuilder({
                       samples={{ 1: btn.url_example ?? "" }}
                       onChange={(next) => update(i, "url_example", next[1] ?? "")}
                       idPrefix={`btn-urlsample-${i}-`}
-                      label="Sample value"
+                      label="Variable sample"
                       chipLabel={() => "Link {{1}}"}
                     />
                     <FieldMessages

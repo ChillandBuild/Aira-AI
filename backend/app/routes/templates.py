@@ -21,6 +21,7 @@ from app.services.meta_cloud import (
     build_core_components,
 )
 from app.services import template_rules
+from app.config import settings as env_settings
 from app.config_dynamic import get_setting
 from app.services.meta_webhook_verify import verify_meta_signature
 
@@ -328,29 +329,44 @@ async def delete_template(
     _ctx: dict = Depends(require_templates_manage),
 ):
     db = get_supabase()
-    # Fetch the template first so we can delete from Meta too
     row = db.table("message_templates").select("name,meta_template_id,meta_waba_id").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
     if not row.data:
         raise HTTPException(status_code=404, detail="Template not found")
 
     template_name = row.data[0].get("name", "")
+    meta_template_id = row.data[0].get("meta_template_id")
 
-    # Delete from local DB
-    db.table("message_templates").delete().eq("id", template_id).eq("tenant_id", tenant_id).execute()
-
-    # Best-effort: also delete from Meta
-    try:
-        waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
-        if waba_id and template_name:
+    # Delete on Meta first. If Meta refuses, keep our copy so the client can see
+    # the template is still live on WhatsApp and try again later.
+    waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
+    if meta_template_id and waba_id and template_name:
+        try:
             await delete_template_from_meta(
                 template_name=template_name,
                 waba_id=waba_id,
                 tenant_id=tenant_id,
+                hsm_id=meta_template_id,
             )
-    except Exception as e:
-        logger.warning(f"Best-effort Meta template delete failed for '{template_name}': {e}")
+        except Exception as e:
+            detail = str(getattr(e, "detail", e))
+            if not _meta_says_template_missing(detail):
+                logger.warning(f"Meta template delete failed for '{template_name}': {detail}")
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Couldn't delete this template on WhatsApp, so it was kept here. "
+                        "Please try again in a few minutes."
+                    ),
+                )
 
+    db.table("message_templates").delete().eq("id", template_id).eq("tenant_id", tenant_id).execute()
     return {"deleted": True}
+
+
+def _meta_says_template_missing(detail: str) -> bool:
+    """Meta has no such template any more (deleted in WhatsApp Manager): safe to drop ours."""
+    text = detail.lower()
+    return "not found" in text or "does not exist" in text
 
 
 @router.post("/{template_id}/sync")
@@ -719,11 +735,15 @@ async def upload_template_media(
     if not access_token:
         raise HTTPException(status_code=400, detail="meta_access_token not configured in Settings")
 
-    app_id = get_setting("meta_app_id", tenant_id=tenant_id)
+    # Meta's upload API needs the id of the app that issued the access token. Clients
+    # connect through Aira's own Meta app (Embedded Signup), so that is the default;
+    # a client who set up their own app can still override it in app_settings.
+    app_id = get_setting("meta_app_id", tenant_id=tenant_id) or env_settings.meta_app_id
     if not app_id:
+        logger.error("Template media upload: no Meta app id (env META_APP_ID is unset)")
         raise HTTPException(
-            status_code=400,
-            detail="meta_app_id not configured in Settings. Add it under Settings → Meta App ID.",
+            status_code=503,
+            detail="Media upload isn't set up on the server yet. Please contact Aira support.",
         )
 
     file_bytes = await file.read()

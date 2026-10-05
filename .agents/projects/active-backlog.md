@@ -664,3 +664,13 @@ first review that has already been applied.
 - **Local commits `50859f73` + `38cdc740` are not pushed.** Next: `make dev-backend` + real WhatsApp check on the UI test tenant, then push on the user's word.
 - **Not yet on the new builder:** `intake.py` package/add-on tap handling, auto-messages, broadcasts.
 - **`tests/test_returning_eval.py::test_shipped_scenarios_expand...` fails on `main` too** — Windows cp1252 `UnicodeDecodeError` reading a scenario file; open it with `encoding="utf-8"`.
+
+## Template follow-ups (2026-10-05)
+
+- **`e2f87419` (media preview fix) is committed locally, NOT pushed** — push on the user's word.
+- **Escalation WhatsApp alert still fills variables by fixed position** (name, phone, reason, link, source in `whatsapp_notify._build_escalation_components`): a template with no variables never sends, 6+ variables is rejected by Meta yet the alert is marked `sent`. Agreed next: per-variable picker (reuse auto-messages' `VariableRow`), send variable-less templates as is, mark Meta rejections `failed`. Same fixed order in the segment-change alert.
+- **AI-written handover reason** (`deal_actions._hand_to_human`) reaches `{{3}}` without flattening newlines — one-line fix.
+- **Meta submission errors are swallowed:** `create_template` saves the row as `REJECTED` and only logs Meta's message; the client never sees why.
+- **Authentication templates:** Meta's body text is fixed, but the builder lets the client type one.
+- **Carousel preview** doesn't show sample values (separate preview code).
+- **gitleaks isn't installed on this machine** — `second-brain-close` only runs 4 fallback credential patterns.

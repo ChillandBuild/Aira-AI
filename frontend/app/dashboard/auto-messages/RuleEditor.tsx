@@ -1,26 +1,21 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import {
   api,
   type AutoMessageEvent,
-  type AutoMessageProduct,
   type AutoMessageRule,
   type AutoMessageTemplate,
   type AutoMessageVariable,
 } from "@/lib/api";
 import { DELAYS, EVENT_LABEL, VAR_SOURCES, inputCls, primaryBtn, splitBody } from "./shared";
 
-const ANY = "__any__";
-
 function defaultVariables(count: number): AutoMessageVariable[] {
-  const defaults: AutoMessageVariable[] = [
-    { source: "first_name", fallback: "there" },
-    { source: "product", fallback: "our products" },
-  ];
-  return Array.from({ length: count }, (_, i) => defaults[i] ?? { source: "text", value: "" });
+  return Array.from({ length: count }, (_, i): AutoMessageVariable =>
+    i === 0 ? { source: "first_name", fallback: "there" } : { source: "text", value: "" }
+  );
 }
 
 function VariableRow({
@@ -82,36 +77,22 @@ function VariableRow({
 export function RuleEditor({
   event,
   rule,
-  rules,
   templates,
-  products,
-  canEditAliases,
   onClose,
   onSaved,
 }: {
   event: AutoMessageEvent;
   rule: AutoMessageRule | null;
-  rules: AutoMessageRule[];
   templates: AutoMessageTemplate[];
-  products: AutoMessageProduct[];
-  canEditAliases: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const used = useMemo(
-    () => new Set(rules.filter((r) => r.event === event && r.id !== rule?.id).map((r) => r.catalog_item_id ?? ANY)),
-    [rules, event, rule]
-  );
-  const firstFree = used.has(ANY) ? products.find((p) => !used.has(p.id))?.id ?? ANY : ANY;
-  const [productId, setProductId] = useState<string>(rule ? rule.catalog_item_id ?? ANY : firstFree);
   const [templateId, setTemplateId] = useState<string>(rule?.template_id ?? "");
   const [delay, setDelay] = useState<number>(rule?.delay_minutes ?? (event === "interested" ? 5 : 0));
   const [variables, setVariables] = useState<AutoMessageVariable[]>(rule?.variables ?? []);
   const [buttonParam, setButtonParam] = useState<AutoMessageVariable>(
-    rule?.button_param ?? { source: "product", fallback: "" }
+    rule?.button_param ?? { source: "text", value: "" }
   );
-  const product = products.find((p) => p.id === productId) ?? null;
-  const [aliases, setAliases] = useState<string>((product?.aliases ?? []).join(", "));
   const [saving, setSaving] = useState(false);
 
   const template = templates.find((t) => t.id === templateId) ?? null;
@@ -120,11 +101,6 @@ export function RuleEditor({
       ? variables
       : [...variables, ...defaultVariables(template.variable_count)].slice(0, template.variable_count)
     : [];
-
-  function pickProduct(id: string) {
-    setProductId(id);
-    setAliases((products.find((p) => p.id === id)?.aliases ?? []).join(", "));
-  }
 
   function pickTemplate(id: string) {
     setTemplateId(id);
@@ -148,16 +124,7 @@ export function RuleEditor({
       if (rule) {
         await api.autoMessages.updateRule(rule.id, payload);
       } else {
-        await api.autoMessages.createRule({
-          ...payload,
-          event,
-          catalog_item_id: productId === ANY ? null : productId,
-          enabled: true,
-        });
-      }
-      if (product && canEditAliases) {
-        const next = aliases.split(",").map((a) => a.trim()).filter(Boolean);
-        if (next.join("|") !== product.aliases.join("|")) await api.autoMessages.setAliases(product.id, next);
+        await api.autoMessages.createRule({ ...payload, event, enabled: true });
       }
       toast.success("Saved");
       onSaved();
@@ -182,47 +149,9 @@ export function RuleEditor({
         </div>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-          {/* 1. Product */}
+          {/* 1. Template */}
           <section className="space-y-2">
-            <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">1 · For which product?</label>
-            <select
-              value={productId}
-              disabled={!!rule}
-              onChange={(e) => pickProduct(e.target.value)}
-              className={inputCls}
-            >
-              <option value={ANY} disabled={used.has(ANY)}>
-                Any other product (default){used.has(ANY) ? " — already set up" : ""}
-              </option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id} disabled={used.has(p.id)}>
-                  {p.name}
-                  {used.has(p.id) ? " — already set up" : ""}
-                </option>
-              ))}
-            </select>
-            <p className="font-body text-xs text-ink-muted">
-              {productId === ANY
-                ? "Goes to everyone whose product has no message of its own, including names Aira doesn't recognise."
-                : "Only people interested in this product get this message."}
-            </p>
-            {product && canEditAliases && (
-              <div className="space-y-1 pt-1">
-                <label className="font-body text-xs font-semibold text-ink">Other names customers might use</label>
-                <input
-                  value={aliases}
-                  onChange={(e) => setAliases(e.target.value)}
-                  placeholder={`e.g. ${product.name.toLowerCase()} s, new ${product.name.toLowerCase()}`}
-                  className={inputCls}
-                />
-                <p className="font-body text-[11px] text-ink-muted">Separate with commas. Spelling and capitals don&apos;t matter.</p>
-              </div>
-            )}
-          </section>
-
-          {/* 2. Template */}
-          <section className="space-y-2">
-            <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">2 · Which WhatsApp template?</label>
+            <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">1 · Which WhatsApp template?</label>
             {templates.length === 0 ? (
               <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 font-body text-xs text-amber-800">
                 You have no approved templates yet.{" "}
@@ -247,11 +176,7 @@ export function RuleEditor({
                 <div className="max-w-[92%] rounded-xl rounded-tl-sm bg-white px-3 py-2 shadow-sm">
                   {template.header_media_type && (
                     <div className="mb-2 flex h-20 items-center justify-center rounded-lg bg-surface-mid font-body text-[11px] text-ink-muted">
-                      {template.header_media_type === "IMAGE"
-                        ? product
-                          ? `Photo of ${product.name} from Products`
-                          : "Product photo (or the template's image)"
-                        : `Template ${template.header_media_type.toLowerCase()}`}
+                      {`The template's ${template.header_media_type.toLowerCase()}`}
                     </div>
                   )}
                   <p className="whitespace-pre-wrap font-body text-[13px] leading-relaxed text-ink">
@@ -279,10 +204,10 @@ export function RuleEditor({
             )}
           </section>
 
-          {/* 3. Fill-ins */}
+          {/* 2. Fill-ins */}
           {template && (vars.length > 0 || template.has_dynamic_button) && (
             <section className="space-y-2">
-              <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">3 · Fill in the blanks</label>
+              <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">2 · Fill in the blanks</label>
               {vars.map((v, i) => (
                 <VariableRow
                   key={i}
@@ -300,10 +225,10 @@ export function RuleEditor({
             </section>
           )}
 
-          {/* 4. Timing */}
+          {/* 3. Timing */}
           <section className="space-y-2">
             <label className="font-label text-xs font-bold uppercase tracking-wide text-ink-secondary">
-              {template && (vars.length > 0 || template.has_dynamic_button) ? "4" : "3"} · When to send
+              {template && (vars.length > 0 || template.has_dynamic_button) ? "3" : "2"} · When to send
             </label>
             <div className="flex flex-wrap gap-2">
               {DELAYS.map((d) => (

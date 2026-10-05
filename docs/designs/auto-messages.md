@@ -6,6 +6,11 @@ Repo: ChillandBuild/Aira-AI
 Status: DRAFT
 Mode: Startup (intrapreneurship, existing product)
 
+> **2026-10-05: product matching was removed.** Each event now has one message that goes to everyone; there is
+> no product picker, catalog matching, alias list or product photo. The product sections below are history,
+> kept for the reasoning. Current behaviour: `.agents/decisions/log.md` (Auto-Messages, 2026-10-05) and
+> migration 216.
+
 ## Problem Statement
 When a customer leaves their number with a business, the business should send them a WhatsApp message automatically and quickly. The message must be about the exact product the customer looked at or bought. Two real-world references:
 - **Ather Energy:** sign up on the website while browsing Konarc. About 5 minutes later, a WhatsApp template arrives with Konarc details and "Book Test Ride" / "Find Experience Center" buttons.

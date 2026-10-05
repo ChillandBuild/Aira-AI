@@ -69,7 +69,6 @@ export function ActivityTab() {
           {rows.map((s) => {
             const style = STATUS_STYLE[s.status];
             const why = reasonText(s.status, s.reason);
-            const unmatched = !s.product_name && s.product_raw;
             return (
               <li key={s.id} className="grid gap-2 px-5 py-3.5 sm:grid-cols-[1.2fr_1.4fr_auto] sm:items-center sm:gap-4">
                 <div className="min-w-0">
@@ -82,15 +81,6 @@ export function ActivityTab() {
                 <div className="min-w-0 font-body text-xs text-ink-secondary">
                   <p className="truncate">
                     <span className="font-semibold text-ink">{EVENT_LABEL[s.event]}</span>
-                    {s.product_name && <> · {s.product_name}</>}
-                    {unmatched && (
-                      <>
-                        {" · "}&ldquo;{s.product_raw}&rdquo;{" "}
-                        <span className="rounded bg-amber-50 px-1 text-[10px] font-semibold text-amber-800" title="Add it as another name for one of your products">
-                          not matched
-                        </span>
-                      </>
-                    )}
                   </p>
                   <p className="truncate text-ink-muted">
                     {why ?? (s.template_name ? <span className="font-mono text-[11px]">{s.template_name}</span> : null)}

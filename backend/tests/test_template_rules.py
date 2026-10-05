@@ -180,3 +180,131 @@ async def test_create_refuses_duplicate_body_and_footer():
             await create_template(payload, tenant_id="t1")
     assert exc.value.status_code == 409 and "old_visit" in exc.value.detail
     submit.assert_not_called()
+
+
+# ── delete: Meta first, keep the template when Meta refuses ──────────────────
+
+def _delete_db(row):
+    db = MagicMock()
+    db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [row] if row else []
+    return db
+
+
+@pytest.mark.asyncio
+async def test_delete_keeps_template_when_meta_delete_fails():
+    from app.routes.templates import delete_template
+
+    db = _delete_db({"name": "visit", "meta_template_id": "m-1", "meta_waba_id": "waba-1"})
+    failing = MagicMock(side_effect=HTTPException(status_code=500, detail='{"error":{"message":"Service unavailable"}}'))
+
+    async def fail(**kwargs):
+        failing(**kwargs)
+
+    with patch("app.routes.templates.get_setting", return_value="waba-1"), \
+         patch("app.routes.templates.get_supabase", return_value=db), \
+         patch("app.routes.templates.delete_template_from_meta", side_effect=fail):
+        with pytest.raises(HTTPException) as exc:
+            await delete_template("row-1", tenant_id="t1")
+    assert exc.value.status_code == 502
+    assert "try again" in exc.value.detail
+    db.table.return_value.delete.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_removes_only_this_language_on_meta_then_locally():
+    from app.routes.templates import delete_template
+
+    db = _delete_db({"name": "visit", "meta_template_id": "m-1", "meta_waba_id": "waba-1"})
+    calls = []
+
+    async def ok(**kwargs):
+        calls.append(kwargs)
+        return {"success": True}
+
+    with patch("app.routes.templates.get_setting", return_value="waba-1"), \
+         patch("app.routes.templates.get_supabase", return_value=db), \
+         patch("app.routes.templates.delete_template_from_meta", side_effect=ok):
+        assert await delete_template("row-1", tenant_id="t1") == {"deleted": True}
+    assert calls[0]["hsm_id"] == "m-1" and calls[0]["template_name"] == "visit"
+    db.table.return_value.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_treats_already_gone_on_meta_as_success():
+    from app.routes.templates import delete_template
+
+    db = _delete_db({"name": "visit", "meta_template_id": "m-1", "meta_waba_id": "waba-1"})
+
+    async def gone(**kwargs):
+        raise HTTPException(status_code=400, detail='{"error":{"message":"Message template not found","code":100}}')
+
+    with patch("app.routes.templates.get_setting", return_value="waba-1"), \
+         patch("app.routes.templates.get_supabase", return_value=db), \
+         patch("app.routes.templates.delete_template_from_meta", side_effect=gone):
+        assert await delete_template("row-1", tenant_id="t1") == {"deleted": True}
+    db.table.return_value.delete.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_local_only_template_skips_meta():
+    from app.routes.templates import delete_template
+
+    db = _delete_db({"name": "draft", "meta_template_id": None, "meta_waba_id": None})
+    meta = MagicMock()
+    with patch("app.routes.templates.get_setting", return_value="waba-1"), \
+         patch("app.routes.templates.get_supabase", return_value=db), \
+         patch("app.routes.templates.delete_template_from_meta", meta):
+        assert await delete_template("row-1", tenant_id="t1") == {"deleted": True}
+    meta.assert_not_called()
+    db.table.return_value.delete.assert_called_once()
+
+
+# ── media header upload uses Aira's own Meta app when the client has none ────
+
+@pytest.mark.asyncio
+async def test_media_upload_falls_back_to_platform_app_id():
+    from app.routes import templates
+
+    upload = MagicMock()
+    file = MagicMock()
+    file.content_type = "image/png"
+
+    async def read():
+        return b"png-bytes"
+
+    async def fake_upload(**kwargs):
+        upload(**kwargs)
+        return "4::handle"
+
+    file.read = read
+    settings = {"meta_access_token": "tok"}
+    with patch("app.routes.templates.get_setting", side_effect=lambda k, **kw: settings.get(k)), \
+         patch.object(templates.env_settings, "meta_app_id", "aira-app", create=True), \
+         patch("app.routes.templates.upload_media_for_template", side_effect=fake_upload):
+        out = await templates.upload_template_media(file=file, tenant_id="t1")
+    assert out == {"header_handle": "4::handle"}
+    assert upload.call_args.kwargs["app_id"] == "aira-app"
+
+
+@pytest.mark.asyncio
+async def test_media_upload_prefers_clients_own_app_id():
+    from app.routes import templates
+
+    captured = {}
+    file = MagicMock()
+    file.content_type = "video/mp4"
+
+    async def read():
+        return b"mp4"
+
+    async def fake_upload(**kwargs):
+        captured.update(kwargs)
+        return "4::h"
+
+    file.read = read
+    settings = {"meta_access_token": "tok", "meta_app_id": "client-app"}
+    with patch("app.routes.templates.get_setting", side_effect=lambda k, **kw: settings.get(k)), \
+         patch.object(templates.env_settings, "meta_app_id", "aira-app", create=True), \
+         patch("app.routes.templates.upload_media_for_template", side_effect=fake_upload):
+        await templates.upload_template_media(file=file, tenant_id="t1")
+    assert captured["app_id"] == "client-app"

@@ -1,10 +1,9 @@
-"""Auto-Messages: a customer's number + an event + a product arrives (website
-form, API call, shop counter) and the tenant's matching approved template goes
-out once, optionally after a delay. See docs/designs/auto-messages.md.
+"""Auto-Messages: a customer's number + an event arrives (website form, API
+call, shop counter) and the tenant's approved template for that event goes out
+once, optionally after a delay. See docs/designs/auto-messages.md.
 
-Flow: parse -> lead (create_inbound_lead) -> match product to catalog_items ->
-pick rule (product rule beats the event's default rule) -> duplicate check ->
-auto_message_sends row (queued) -> sent now (delay 0) or by the scheduler
+Flow: parse -> lead (create_inbound_lead) -> the event's rule -> duplicate
+check -> auto_message_sends row (queued) -> sent now (delay 0) or by the scheduler
 (process_due_sends). Every outcome, including "no rule" and "duplicate", is a
 row in auto_message_sends so the owner can see why someone got nothing.
 """
@@ -32,15 +31,14 @@ _EVENT_ALIASES = {
 }
 _PHONE_KEYS = ("phone", "mobile", "phone_number", "mobile_number", "whatsapp", "whatsapp_number", "contact", "number")
 _NAME_KEYS = ("name", "full_name", "customer_name", "your_name")
-_PRODUCT_KEYS = ("product", "product_name", "model", "item", "interest", "interested_in", "service")
-_URL_KEYS = ("product_url", "url", "link", "page_url")
+_URL_KEYS = ("page_url", "url", "link")
 _EVENT_KEYS = ("event", "type", "trigger")
-_RESERVED = set(_PHONE_KEYS + _NAME_KEYS + _PRODUCT_KEYS + _URL_KEYS + _EVENT_KEYS + ("first_name", "last_name"))
+_RESERVED = set(_PHONE_KEYS + _NAME_KEYS + _URL_KEYS + _EVENT_KEYS + ("first_name", "last_name"))
 _MAX_EXTRA_KEYS = 20
 _MAX_FIELD_CHARS = 200
 
 VAR_RE = re.compile(r"\{\{\s*(\d+)\s*\}\}")
-# Anything that looks like a link. Names, products and extra fields come from a
+# Anything that looks like a link. Names and extra fields come from a
 # public form, so a link there would be sent inside the tenant's own template.
 _LINK_RE = re.compile(
     r"(https?://|www\.|\b[a-z0-9-]+\.(com|in|net|org|io|co|xyz|link|ly|me|info|biz|app|site|online|shop|top|club|live)\b)",
@@ -93,72 +91,27 @@ def parse_payload(payload: dict) -> dict:
         "phone": _first(payload, _PHONE_KEYS),
         "name": name,
         "event_raw": _first(payload, _EVENT_KEYS),
-        "product": _first(payload, _PRODUCT_KEYS),
-        "product_url": _first(payload, _URL_KEYS),
+        "page_url": _first(payload, _URL_KEYS),
         "extra": extra,
     }
 
 
-def _norm(value: str) -> str:
-    return _NON_ALNUM.sub(" ", (value or "").lower()).strip()
-
-
-def match_product(items: list[dict], product_raw: str) -> dict | None:
-    """Exact name/alias match first; otherwise the longest name/alias that
-    appears as whole words inside what was sent ("Ather Konarc S 161 km" ->
-    "Konarc S" beats "Konarc")."""
-    wanted = _norm(product_raw)
-    if not wanted:
-        return None
-    best: tuple[int, dict] | None = None
-    for item in items:
-        for label in [item.get("name") or ""] + list(item.get("aliases") or []):
-            label_n = _norm(label)
-            if not label_n:
-                continue
-            if label_n == wanted:
-                return item
-            if f" {label_n} " in f" {wanted} " and (best is None or len(label_n) > best[0]):
-                best = (len(label_n), item)
-    return best[1] if best else None
-
-
-def tenant_catalog(db, tenant_id: str) -> list[dict]:
-    return (
-        db.table("catalog_items").select("id, name, aliases, price_paise, status")
-        .eq("tenant_id", tenant_id).limit(2000).execute()
-    ).data or []
-
-
-def pick_rule(db, tenant_id: str, event: str, catalog_item_id: str | None) -> dict | None:
+def pick_rule(db, tenant_id: str, event: str) -> dict | None:
     rows = (
         db.table("auto_message_rules").select("*")
-        .eq("tenant_id", tenant_id).eq("event", event).eq("enabled", True).execute()
+        .eq("tenant_id", tenant_id).eq("event", event).eq("enabled", True).limit(1).execute()
     ).data or []
-    if catalog_item_id:
-        for r in rows:
-            if r.get("catalog_item_id") == catalog_item_id:
-                return r
-    for r in rows:
-        if not r.get("catalog_item_id"):
-            return r
-    return None
+    return rows[0] if rows else None
 
 
-def _is_duplicate(db, tenant_id: str, phone: str, event: str, catalog_item_id: str | None, product_raw: str) -> bool:
+def _is_duplicate(db, tenant_id: str, phone: str, event: str) -> bool:
     since = (datetime.now(timezone.utc) - DUPLICATE_WINDOW).isoformat()
     rows = (
-        db.table("auto_message_sends").select("catalog_item_id, product_raw")
+        db.table("auto_message_sends").select("id")
         .eq("tenant_id", tenant_id).eq("phone", phone).eq("event", event)
-        .in_("status", ["queued", "sending", "sent"]).gte("created_at", since).limit(50).execute()
+        .in_("status", ["queued", "sending", "sent"]).gte("created_at", since).limit(1).execute()
     ).data or []
-    for r in rows:
-        if catalog_item_id or r.get("catalog_item_id"):
-            if r.get("catalog_item_id") == catalog_item_id:
-                return True
-        elif _norm(r.get("product_raw") or "") == _norm(product_raw):
-            return True
-    return False
+    return bool(rows)
 
 
 def _add_note(db, tenant_id: str, lead_id: str, content: str) -> None:
@@ -170,7 +123,7 @@ def _add_note(db, tenant_id: str, lead_id: str, content: str) -> None:
         logger.warning(f"auto_messages: note insert failed for lead {lead_id}: {e}")
 
 
-_EVENT_LABEL = {"interested": "Interested in", "signed_up": "Signed up for", "purchased": "Purchased"}
+_EVENT_LABEL = {"interested": "Interested", "signed_up": "Signed up", "purchased": "Purchased"}
 _SOURCE_LABEL = {"website": "website form", "api": "API", "store": "shop counter"}
 
 
@@ -196,22 +149,17 @@ async def handle_event(tenant_id: str, source: str, data: dict, db=None) -> dict
     if not lead_id:
         return {"status": "ignored", "detail": "missing or invalid phone"}
 
-    product_raw = data.get("product") or ""
-    item = match_product(tenant_catalog(db, tenant_id), product_raw) if product_raw else None
-    catalog_item_id = item["id"] if item else None
-    product_label = (item or {}).get("name") or product_raw
-    note = f"{_EVENT_LABEL[event]} {product_label or 'a product'} (via {_SOURCE_LABEL[source]})"
-    _add_note(db, tenant_id, lead_id, note)
+    _add_note(db, tenant_id, lead_id, f"{_EVENT_LABEL[event]} (via {_SOURCE_LABEL[source]})")
 
-    rule = pick_rule(db, tenant_id, event, catalog_item_id)
+    rule = pick_rule(db, tenant_id, event)
     row = {
         "tenant_id": tenant_id, "lead_id": lead_id, "phone": phone, "name": data.get("name") or None,
-        "event": event, "source": source, "product_raw": product_raw or None, "catalog_item_id": catalog_item_id,
-        "extra": {**(data.get("extra") or {}), **({"product_url": data["product_url"]} if data.get("product_url") else {})},
+        "event": event, "source": source,
+        "extra": {**(data.get("extra") or {}), **({"page_url": data["page_url"]} if data.get("page_url") else {})},
     }
     if not rule:
         row.update(status="skipped", reason="no_rule")
-    elif _is_duplicate(db, tenant_id, phone, event, catalog_item_id, product_raw):
+    elif _is_duplicate(db, tenant_id, phone, event):
         row.update(status="skipped", reason="duplicate", rule_id=rule["id"], template_id=rule["template_id"])
     else:
         send_at = datetime.now(timezone.utc) + timedelta(minutes=rule.get("delay_minutes") or 0)
@@ -227,29 +175,11 @@ async def handle_event(tenant_id: str, source: str, data: dict, db=None) -> dict
         if refreshed:
             send.update(refreshed[0])
     return {
-        "status": "ok", "lead_id": lead_id, "event": event, "matched_product": product_label if item else None,
-        "message_status": send.get("status"), "reason": send.get("reason"),
+        "status": "ok", "lead_id": lead_id, "event": event, "message_status": send.get("status"), "reason": send.get("reason"),
     }
 
 
 # ---------------------------------------------------------------- sending
-
-def format_inr(paise) -> str:
-    if paise is None:
-        return ""
-    rupees = int(paise) // 100
-    s = str(rupees)
-    if len(s) > 3:
-        head, tail = s[:-3], s[-3:]
-        groups = []
-        while len(head) > 2:
-            groups.insert(0, head[-2:])
-            head = head[:-2]
-        if head:
-            groups.insert(0, head)
-        s = ",".join(groups) + "," + tail
-    return f"₹{s}"
-
 
 def _clean(value) -> str:
     """Meta rejects text parameters with newlines, tabs or long runs of spaces."""
@@ -257,7 +187,7 @@ def _clean(value) -> str:
 
 
 # Customer-supplied sources: a link in any of these is dropped (the fallback is used instead).
-_UNTRUSTED = {"first_name", "full_name", "product", "extra"}
+_UNTRUSTED = {"first_name", "full_name", "extra"}
 
 
 def _resolve(spec: dict | None, ctx: dict, default_source: str) -> str:
@@ -276,53 +206,38 @@ def _resolve(spec: dict | None, ctx: dict, default_source: str) -> str:
 
 
 def build_components(template: dict, rule: dict, ctx: dict) -> list[dict]:
-    """Body variables in {{n}} order from rule.variables (defaults: name, then
-    product), an image/video/document header, a {{1}} header text, and the
-    suffix of a dynamic URL button."""
+    """Body variables in {{n}} order from rule.variables (default: first name),
+    the template's own image/video/document header, a {{1}} header text (the
+    customer's first name), and the suffix of a dynamic URL button."""
     components: list[dict] = []
 
     media_type = (template.get("header_media_type") or "").upper()
     if media_type in ("IMAGE", "VIDEO", "DOCUMENT"):
-        link = (ctx.get("product_image") if media_type == "IMAGE" else None) or template.get("header_media_url")
+        link = template.get("header_media_url")
         if link:
             components.append({"type": "header", "parameters": [{"type": media_type.lower(), media_type.lower(): {"link": link}}]})
     elif VAR_RE.search(template.get("header_text") or ""):
-        components.append({"type": "header", "parameters": [{"type": "text", "text": ctx.get("product") or "-"}]})
+        text = _resolve({"source": "first_name", "fallback": "there"}, ctx, "first_name")
+        components.append({"type": "header", "parameters": [{"type": "text", "text": text}]})
 
     var_count = len(set(VAR_RE.findall(template.get("body_text") or "")))
     if var_count:
         specs = list(rule.get("variables") or [])
-        defaults = ["first_name", "product"]
         params = []
         for i in range(var_count):
             spec = specs[i] if i < len(specs) else None
-            params.append({"type": "text", "text": _resolve(spec, ctx, defaults[i] if i < len(defaults) else "text")})
+            params.append({"type": "text", "text": _resolve(spec, ctx, "first_name" if i == 0 else "text")})
         components.append({"type": "body", "parameters": params})
 
     for index, btn in enumerate(template.get("buttons") or []):
         if (btn.get("type") or "").upper() == "URL" and VAR_RE.search(btn.get("url") or ""):
             # The suffix is pasted into the template's URL, so it must be URL-safe.
-            suffix = quote(_resolve(rule.get("button_param"), ctx, "product"), safe="/?=&-_.~")
+            suffix = quote(_resolve(rule.get("button_param"), ctx, "text"), safe="/?=&-_.~")
             components.append({
                 "type": "button", "sub_type": "url", "index": str(index),
                 "parameters": [{"type": "text", "text": suffix}],
             })
     return components
-
-
-def _product_image(db, catalog_item_id: str | None) -> str | None:
-    if not catalog_item_id:
-        return None
-    rows = (
-        db.table("catalog_media").select("storage_path").eq("catalog_item_id", catalog_item_id)
-        .order("sort_order").limit(1).execute()
-    ).data or []
-    if not rows:
-        return None
-    try:
-        return db.storage.from_("catalog-media").get_public_url(rows[0]["storage_path"])
-    except Exception:
-        return None
 
 
 def _finish(db, send_id: str, status: str, reason: str | None = None) -> None:
@@ -375,25 +290,14 @@ async def send_one(db, send: dict) -> bool:
         return False
     template = template_rows[0]
 
-    item = None
-    if send.get("catalog_item_id"):
-        rows = (
-            db.table("catalog_items").select("id, name, price_paise")
-            .eq("id", send["catalog_item_id"]).eq("tenant_id", tenant_id).limit(1).execute()
-        ).data or []
-        item = rows[0] if rows else None
-
     full_name = (send.get("name") or (lead or {}).get("name") or "").strip()
     extra = dict(send.get("extra") or {})
     ctx = {
         "first_name": full_name.split(" ")[0] if full_name else "",
         "full_name": full_name,
-        "product": (item or {}).get("name") or send.get("product_raw") or "",
-        "price": format_inr((item or {}).get("price_paise")),
-        "product_url": extra.get("product_url", ""),
+        "page_url": extra.get("page_url", ""),
         "phone": send.get("phone") or "",
         "extra": extra,
-        "product_image": _product_image(db, send.get("catalog_item_id")),
     }
 
     try:

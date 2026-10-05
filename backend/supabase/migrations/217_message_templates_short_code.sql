@@ -1,4 +1,4 @@
--- 216_message_templates_short_code.sql
+-- 217_message_templates_short_code.sql
 -- "Aira ID": a 6-digit code per WhatsApp template, unique within a tenant. A
 -- partner app (AstroTamil's Django admin) stores this code instead of a Meta
 -- template name and sends through POST /api/v1/intake/partner/send-template.

@@ -134,7 +134,7 @@ export default function TemplatesPage() {
       setError("Read-only role: deleting templates is disabled.");
       return;
     }
-    if (!confirm("Are you sure you want to delete this template?")) return;
+    if (!confirm("Delete this template here and on WhatsApp? If it was approved, Meta won't let you reuse its name for 30 days.")) return;
     try {
       const authHeaders = await getAuthHeaders();
       const res = await fetch(`${API_URL}/api/v1/templates/${id}`, {
@@ -147,7 +147,8 @@ export default function TemplatesPage() {
           setSelectedTemplate(null);
         }
       } else {
-        throw new Error("Failed to delete template");
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "Failed to delete template");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");

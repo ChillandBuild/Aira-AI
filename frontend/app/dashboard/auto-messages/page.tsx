@@ -25,7 +25,6 @@ export default function AutoMessagesPage() {
   const canManage = has("settings.manage");
   const canView = canManage || has("settings.view");
   const canCounter = has("leads.manage");
-  const canEditAliases = has("catalog.manage");
 
   const visible = TABS.filter((t) => (t.needs === "settings" ? canView : canCounter));
   const raw = searchParams.get("tab");
@@ -52,8 +51,8 @@ export default function AutoMessagesPage() {
       <header className="space-y-1">
         <h1 className="font-display text-2xl font-bold text-ink">Auto-Messages</h1>
         <p className="max-w-2xl font-body text-sm text-ink-secondary">
-          When someone leaves their number on your website, in your app or at your shop, Aira sends them the right
-          WhatsApp message for the product they picked.
+          When someone leaves their number on your website, in your app or at your shop, Aira sends them your WhatsApp
+          message for that moment.
         </p>
       </header>
 
@@ -72,7 +71,7 @@ export default function AutoMessagesPage() {
         ))}
       </nav>
 
-      {tab === "messages" && <MessagesTab canManage={canManage} canEditAliases={canEditAliases} />}
+      {tab === "messages" && <MessagesTab canManage={canManage} />}
       {tab === "connect" && <ConnectTab canManage={canManage} />}
       {tab === "counter" && <CounterTab />}
       {tab === "activity" && <ActivityTab />}
