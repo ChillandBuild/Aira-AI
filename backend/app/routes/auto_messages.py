@@ -133,19 +133,23 @@ async def ingest(token: str, request: Request):
     tenant_id = _resolve_tenant(db, token)
     if not tenant_id:
         return _public(401, {"error": "Unauthorized", "code": "unauthorized"})
-    if not _per_ip.allow(f"{token}:{_client_ip(request)}") or not _per_tenant.allow(tenant_id):
-        return _public(429, {"error": "Too many requests, try again later", "code": "rate_limited"})
-
     try:
         payload = await _read_payload(request)
     except HTTPException as e:
         return _public(400, {"error": e.detail, "code": "bad_request"})
+    source = "website" if payload.get("_src") == "form" else "api"
+    # The per-IP limit is for the website form (one visitor = one IP). An app or
+    # billing server sends every customer from the same IP, so API calls are
+    # held only by the per-tenant cap.
+    ip_ok = source != "website" or _per_ip.allow(f"{token}:{_client_ip(request)}")
+    if not ip_ok or not _per_tenant.allow(tenant_id):
+        return _public(429, {"error": "Too many requests, try again later", "code": "rate_limited"})
+
     # Hidden honeypot field on the website form: bots fill it, people can't see it.
     honeypot = payload.get("_hp")
     if isinstance(honeypot, str) and honeypot.strip():
         return _public(200, {"status": "ok"})
 
-    source = "website" if payload.get("_src") == "form" else "api"
     data = svc.parse_payload(payload)
     result = await svc.handle_event(tenant_id, source, data, db=db)
     if result["status"] != "ok":

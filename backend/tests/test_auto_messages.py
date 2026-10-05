@@ -306,8 +306,19 @@ def test_ingest_bad_input_and_rate_limit(client):
     assert client.post("/api/v1/auto-messages/in/tok-123", json={"phone": "1"}).status_code == 422
     assert client.post("/api/v1/auto-messages/in/tok-123", content="not json",
                        headers={"content-type": "application/json"}).status_code == 400
-    codes = [client.post("/api/v1/auto-messages/in/tok-123", json={"phone": "1"}).status_code for _ in range(10)]
-    assert codes[-1] == 429
+    form = [client.post("/api/v1/auto-messages/in/tok-123", data={"phone": "1", "_src": "form"}).status_code for _ in range(11)]
+    assert form[-1] == 429
+
+
+def test_app_server_sending_many_customers_from_one_ip_is_not_throttled(client, db, send):
+    """An app/billing backend posts every customer from the same IP; only the
+    website form is limited per IP."""
+    _rule(db, "signed_up", _template(db, "welcome"))
+    codes = [
+        client.post("/api/v1/auto-messages/in/tok-123", json={"phone": f"98765{i:05d}", "event": "signup"}).status_code
+        for i in range(30)
+    ]
+    assert codes == [200] * 30 and send.call_count == 30
 
 
 def test_form_script_embeds_endpoint_and_this_tenants_products_only(client, db):
