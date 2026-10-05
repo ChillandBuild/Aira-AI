@@ -19,9 +19,9 @@ import { LANGUAGES, CATEGORIES, detectVariables } from "../types";
 import type { Button } from "../types";
 import {
   UTILITY_TIP,
-  blockerSummary,
   bodyBlockers,
   buttonBlockers,
+  cleanFooter,
   cleanHeader,
   footerBlockers,
   headerBlockers,
@@ -91,8 +91,8 @@ export default function NewTemplatePage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to upload media");
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "Couldn't upload the file. Please try again.");
       }
 
       const data = await res.json();
@@ -429,7 +429,7 @@ export default function NewTemplatePage() {
                             samples={{ 1: headerSample }}
                             onChange={(next) => setHeaderSample(next[1] ?? "")}
                             idPrefix="template-header-sample-"
-                            label="Sample value"
+                            label="Variable sample"
                             chipLabel={() => "Header {{1}}"}
                           />
                           <FieldMessages
@@ -521,14 +521,18 @@ export default function NewTemplatePage() {
                   <input
                     id="template-footer"
                     value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
+                    onChange={(e) => {
+                    const cleaned = cleanFooter(e.target.value);
+                    show("footer", cleaned.note);
+                    setFooterText(cleaned.text);
+                  }}
                     maxLength={60}
                     placeholder="e.g. Reply STOP to opt out"
                     aria-describedby="template-footer-messages"
                     aria-invalid={footerBlockers(footerText, "template-footer").length > 0}
                     className="input"
                   />
-                  <FieldMessages id="template-footer-messages" blockers={footerBlockers(footerText, "template-footer")} />
+                  <FieldMessages id="template-footer-messages" note={notes.footer} blockers={footerBlockers(footerText, "template-footer")} />
                 </div>
               ) : (
                 <div>
@@ -538,13 +542,17 @@ export default function NewTemplatePage() {
                   <input
                     id="template-footer"
                     value={footerText}
-                    onChange={(e) => setFooterText(e.target.value)}
+                    onChange={(e) => {
+                    const cleaned = cleanFooter(e.target.value);
+                    show("footer", cleaned.note);
+                    setFooterText(cleaned.text);
+                  }}
                     maxLength={60}
                     aria-describedby="template-footer-messages"
                     aria-invalid={footerBlockers(footerText, "template-footer").length > 0}
                     className="input"
                   />
-                  <FieldMessages id="template-footer-messages" blockers={footerBlockers(footerText, "template-footer")} />
+                  <FieldMessages id="template-footer-messages" note={notes.footer} blockers={footerBlockers(footerText, "template-footer")} />
                 </div>
               )}
             </div>
@@ -646,7 +654,7 @@ export default function NewTemplatePage() {
             )}
 
             <div className="flex items-center gap-4 flex-wrap justify-end">
-            <BlockedReason blockers={currentBlockers} label={blockerSummary(currentBlockers)} />
+            <BlockedReason blockers={currentBlockers} />
             {currentStep < 4 ? (
               <button
                 type="button"

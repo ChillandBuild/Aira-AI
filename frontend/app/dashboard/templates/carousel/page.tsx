@@ -7,7 +7,6 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import { LANGUAGES, detectVariables } from "../types";
 import type { Button } from "../types";
 import {
-  blockerSummary,
   bodyBlockers,
   buttonBlockers,
   cleanButtonLabel,
@@ -367,7 +366,7 @@ export default function CarouselTemplateBuilderPage() {
                         samples={{ 1: btn.url_example ?? "" }}
                         onChange={(next) => updateButton(i, bi, { url_example: next[1] ?? "" })}
                         idPrefix={`card-${i}-btn-urlsample-${bi}-`}
-                        label="Sample value"
+                        label="Variable sample"
                         chipLabel={() => "Link {{1}}"}
                       />
                     )}
@@ -385,7 +384,7 @@ export default function CarouselTemplateBuilderPage() {
           )}
 
           <div className="flex gap-3 justify-end items-center flex-wrap pt-2">
-            <BlockedReason blockers={allBlockers} label={blockerSummary(allBlockers)} />
+            <BlockedReason blockers={allBlockers} />
             <Link href="/dashboard/templates" className="btn-ghost px-6">Cancel</Link>
             <button
               onClick={handleSubmit}

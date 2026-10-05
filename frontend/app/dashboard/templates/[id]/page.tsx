@@ -23,9 +23,9 @@ import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
 import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 import {
-  blockerSummary,
   bodyBlockers,
   buttonBlockers,
+  cleanFooter,
   cleanHeader,
   footerBlockers,
   headerBlockers,
@@ -155,7 +155,7 @@ export default function TemplateDetailsPage() {
       setError("Read-only role: deleting templates is disabled.");
       return;
     }
-    if (!confirm("Are you sure you want to delete this template from your dashboard and Meta?")) return;
+    if (!confirm("Delete this template here and on WhatsApp? If it was approved, Meta won't let you reuse its name for 30 days.")) return;
     setDeleting(true);
     try {
       const authHeaders = await getAuthHeaders();
@@ -163,7 +163,10 @@ export default function TemplateDetailsPage() {
         method: "DELETE",
         headers: authHeaders,
       });
-      if (!res.ok) throw new Error("Failed to delete template");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "Failed to delete template");
+      }
       router.push("/dashboard/templates");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
@@ -191,8 +194,8 @@ export default function TemplateDetailsPage() {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Failed to upload media");
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || "Couldn't upload the file. Please try again.");
       }
 
       const data = await res.json();
@@ -458,7 +461,7 @@ export default function TemplateDetailsPage() {
                             samples={{ 1: headerSample }}
                             onChange={(next) => setHeaderSample(next[1] ?? "")}
                             idPrefix="template-header-sample-"
-                            label="Sample value"
+                            label="Variable sample"
                             chipLabel={() => "Header {{1}}"}
                           />
                           <FieldMessages
@@ -545,14 +548,18 @@ export default function TemplateDetailsPage() {
                 <input
                   id="template-footer"
                   value={footerText}
-                  onChange={(e) => setFooterText(e.target.value)}
+                  onChange={(e) => {
+                    const cleaned = cleanFooter(e.target.value);
+                    show("footer", cleaned.note);
+                    setFooterText(cleaned.text);
+                  }}
                   maxLength={60}
                   placeholder="e.g. Reply STOP to unsubscribe"
                   aria-describedby="template-footer-messages"
                   aria-invalid={footerBlockers(footerText, "template-footer").length > 0}
                   className="input"
                 />
-                <FieldMessages id="template-footer-messages" blockers={footerBlockers(footerText, "template-footer")} />
+                <FieldMessages id="template-footer-messages" note={notes.footer} blockers={footerBlockers(footerText, "template-footer")} />
               </div>
 
               {/* Buttons */}
@@ -567,7 +574,7 @@ export default function TemplateDetailsPage() {
 
               {/* Save or Cancel */}
               <div className="flex items-center gap-3 pt-6 border-t border-border-subtle justify-end flex-wrap">
-                <BlockedReason blockers={editBlockers} label={blockerSummary(editBlockers)} />
+                <BlockedReason blockers={editBlockers} />
                 <button
                   onClick={() => setEditMode(false)}
                   className="btn-ghost px-5 text-sm"

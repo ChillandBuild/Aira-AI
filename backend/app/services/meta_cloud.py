@@ -1203,17 +1203,23 @@ async def delete_template_from_meta(
     waba_id: str,
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
+    hsm_id: Optional[str] = None,
 ) -> dict:
     """
-    Delete a template from Meta by name.
-    Calls DELETE https://graph.facebook.com/v21.0/{waba_id}/message_templates?name={template_name}
+    Delete a template from Meta.
+
+    With `hsm_id` only that template (one language) is deleted; by name alone Meta
+    deletes every language version that shares the name.
     """
     _, tok = _creds("placeholder", access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{waba_id}/message_templates"
+    params = {"name": template_name}
+    if hsm_id:
+        params["hsm_id"] = hsm_id
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.delete(
             url,
-            params={"name": template_name},
+            params=params,
             headers={"Authorization": f"Bearer {tok}"},
         )
     if not resp.is_success:

@@ -37,12 +37,21 @@ export function tidyVariables(text: string): Fixed {
 
 /** Headers can't hold emoji or formatting symbols (* _ ~ `). */
 export function cleanHeader(text: string): Fixed {
+  return cleanPlainText(text, "headers");
+}
+
+/** Footers are plain text too: no emoji or formatting symbols. */
+export function cleanFooter(text: string): Fixed {
+  return cleanPlainText(text, "footers");
+}
+
+function cleanPlainText(text: string, where: string): Fixed {
   const hadEmoji = hasEmoji(text);
   const hadSymbols = /[*_~`]/.test(text);
   if (!hadEmoji && !hadSymbols) return { text, note: null };
   const fixed = text.replace(EMOJI, "").replace(/[*_~`]/g, "").replace(/ {2,}/g, " ");
   const what = [hadSymbols && "formatting symbols", hadEmoji && "emoji"].filter(Boolean).join(" and ");
-  return { text: fixed, note: `Removed ${what}. WhatsApp doesn't allow them in headers.` };
+  return { text: fixed, note: `Removed ${what}. WhatsApp doesn't allow them in ${where}.` };
 }
 
 /** Button labels: letters, numbers and spaces only. */
@@ -177,9 +186,3 @@ export function shortTemplateTip(text: string): string | null {
 
 export const UTILITY_TIP =
   "Utility templates must not contain offers or promotions. If they do, Meta moves them to Marketing, which costs more.";
-
-/** Wording for the line beside a disabled Continue/Submit button. */
-export function blockerSummary(blockers: Blocker[]): string {
-  if (blockers.length === 1 && !blockers[0].inline) return blockers[0].message;
-  return `Fix ${blockers.length} thing${blockers.length === 1 ? "" : "s"}`;
-}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Lightbulb } from "lucide-react";
+import { AlertCircle, ArrowUp, CheckCircle2, Lightbulb } from "lucide-react";
 import type { Blocker } from "../template-rules";
 
 /** Auto-fix notes ("Removed emoji…") show for a few seconds, then fade. */
@@ -97,7 +97,7 @@ export function SampleInputs({
   samples,
   onChange,
   idPrefix,
-  label = "Sample values",
+  label = "Variable samples",
   chipLabel = (n: number) => `{{${n}}}`,
 }: {
   variables: number[];
@@ -110,9 +110,13 @@ export function SampleInputs({
   if (!variables.length) return null;
   return (
     <div className="mt-2 rounded-xl border border-border-subtle bg-surface-subtle p-3 space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="font-body text-xs font-medium text-ink">{label}</p>
-        <p className="font-body text-[11px] text-ink-muted">Meta&apos;s reviewer sees these. Use realistic values.</p>
+      <div className="space-y-0.5">
+        <p className="font-body text-xs font-semibold text-ink">{label}</p>
+        <p className="font-body text-[11px] leading-relaxed text-ink-muted">
+          Add a sample for each variable so that Meta can review your template. Samples are only used for
+          review and won&apos;t be sent to your customers. Don&apos;t include real customer details, to protect
+          their privacy.
+        </p>
       </div>
       {variables.map((n) => {
         const value = samples[n] ?? "";
@@ -149,19 +153,32 @@ export function focusFirst(blockers: Blocker[]) {
   (el as HTMLElement).focus({ preventScroll: true });
 }
 
-/** The line beside a disabled Continue/Submit button. */
-export function BlockedReason({ blockers, label }: { blockers: Blocker[]; label: string }) {
+/** Beside a disabled Continue/Submit button: what is left to fix; clicking jumps to the first one. */
+export function BlockedReason({ blockers }: { blockers: Blocker[] }) {
   if (!blockers.length) return null;
+  const single = blockers.length === 1 && !blockers[0].inline;
+  const text = single ? blockers[0].message : `${blockers.length === 1 ? "thing" : "things"} to fix`;
   return (
-    <p className="font-body text-xs text-ink-secondary" aria-live="polite">
-      <button
-        type="button"
-        onClick={() => focusFirst(blockers)}
-        className="font-semibold text-red-600 underline underline-offset-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
-      >
-        {label}
-      </button>{" "}
-      to continue
-    </p>
+    <button
+      type="button"
+      onClick={() => focusFirst(blockers)}
+      aria-live="polite"
+      title="Show me"
+      className="group inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 py-1.5 pl-1.5 pr-3 font-body text-xs font-semibold text-red-700 transition-colors hover:border-red-300 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+    >
+      {single ? (
+        <AlertCircle size={16} className="shrink-0 text-red-600" aria-hidden="true" />
+      ) : (
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold tabular-nums text-white">
+          {blockers.length}
+        </span>
+      )}
+      <span>{text}</span>
+      <ArrowUp
+        size={13}
+        className="shrink-0 opacity-60 transition-transform group-hover:-translate-y-0.5 group-hover:opacity-100 motion-reduce:transition-none"
+        aria-hidden="true"
+      />
+    </button>
   );
 }
