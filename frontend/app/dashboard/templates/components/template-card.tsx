@@ -95,12 +95,9 @@ export default function TemplateCard({
       {/* ── Info section ──────────────────────────── */}
       <div className="px-4 py-3 flex-1 flex flex-col gap-2">
         {/* Name */}
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="font-label font-semibold text-ink text-sm leading-tight truncate">
-            {t.name}
-          </p>
-          <AiraId code={t.short_code} />
-        </div>
+        <p className="font-label font-semibold text-ink text-sm leading-tight truncate">
+          {t.name}
+        </p>
 
         {/* Category + language badges */}
         <div className="flex items-center gap-1.5 flex-wrap">
@@ -114,6 +111,14 @@ export default function TemplateCard({
           </span>
         </div>
       </div>
+
+      {/* ── Aira ID: sits above the hover overlay so it stays readable and
+             copyable while the action buttons are showing ─────────────── */}
+      {t.short_code && (
+        <div className="relative z-30 px-4 pb-3">
+          <AiraId code={t.short_code} size="lg" className="w-full justify-between" />
+        </div>
+      )}
 
       {/* ── Bottom: status + date ─────────────────── */}
       <div className="px-4 pb-3 flex items-center justify-between">

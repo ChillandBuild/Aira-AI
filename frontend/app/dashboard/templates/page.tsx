@@ -215,8 +215,11 @@ export default function TemplatesPage() {
 
   // Filter Logic
   const filteredTemplates = templates.filter((t) => {
-    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.body_text.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.trim().toLowerCase();
+    const matchesSearch = !q ||
+      t.name.toLowerCase().includes(q) ||
+      t.body_text.toLowerCase().includes(q) ||
+      (t.short_code ?? "").includes(q);
     const matchesCategory = selectedCategory === "ALL" || t.category === selectedCategory;
     const matchesStatus = selectedStatus === "ALL" || t.status === selectedStatus;
     return matchesSearch && matchesCategory && matchesStatus;
@@ -449,13 +452,13 @@ export default function TemplatesPage() {
                 <div key={t.id} className="rounded-2xl border border-border-subtle bg-white p-4 shadow-sm" onClick={() => setSelectedTemplate(t)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <p className="truncate font-mono text-sm font-semibold text-ink">{t.name}</p>
-                        <AiraId code={t.short_code} />
-                      </div>
+                      <p className="truncate font-mono text-sm font-semibold text-ink">{t.name}</p>
                       <p className="mt-1 text-xs text-ink-secondary">
                         {t.category} · {LANGUAGES.find((l) => l.code === t.language)?.label || t.language}
                       </p>
+                      <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                        <AiraId code={t.short_code} size="lg" />
+                      </div>
                     </div>
                     <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-semibold ${statusColors.bg} ${statusColors.text}`}>
                       <span className={`h-1 w-1 rounded-full ${statusColors.dot}`} />
@@ -478,6 +481,7 @@ export default function TemplatesPage() {
               <thead className="sticky top-0 z-10 bg-surface-subtle">
                 <tr className="bg-surface-subtle border-b border-border-subtle text-ink-muted text-[11px] font-bold uppercase tracking-wider">
                   <th className="px-5 py-3.5">Template Name</th>
+                  <th className="px-5 py-3.5">Aira ID</th>
                   <th className="px-5 py-3.5">Category</th>
                   <th className="px-5 py-3.5">Language</th>
                   <th className="px-5 py-3.5">Status</th>
@@ -494,10 +498,10 @@ export default function TemplatesPage() {
                       className="hover:bg-surface-subtle/40 transition-colors cursor-pointer"
                     >
                       <td className="px-5 py-4 font-mono font-medium text-ink max-w-[280px]">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate">{t.name}</span>
-                          <AiraId code={t.short_code} />
-                        </div>
+                        <span className="block truncate">{t.name}</span>
+                      </td>
+                      <td className="px-5 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                        <AiraId code={t.short_code} size="lg" />
                       </td>
                       <td className="px-5 py-4 text-ink-secondary">
                         {t.category}
@@ -575,10 +579,7 @@ export default function TemplatesPage() {
             <div className="flex items-center justify-between p-5 border-b border-border-subtle bg-surface-subtle">
               <div className="min-w-0">
                 <p className="font-body text-[10px] text-ink-muted uppercase font-bold tracking-wider">Template Detail</p>
-                <div className="flex min-w-0 items-center gap-2 mt-0.5">
-                  <h2 className="font-mono text-sm font-semibold text-ink truncate max-w-lg">{selectedTemplate.name}</h2>
-                  <AiraId code={selectedTemplate.short_code} />
-                </div>
+                <h2 className="font-mono text-sm font-semibold text-ink truncate max-w-lg mt-0.5">{selectedTemplate.name}</h2>
               </div>
               <button
                 onClick={() => setSelectedTemplate(null)}
@@ -592,6 +593,17 @@ export default function TemplatesPage() {
             <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
               {/* Left Column: Metadata */}
               <div className="md:col-span-6 space-y-4">
+                {selectedTemplate.short_code && (
+                  <div className="flex items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50/60 p-4">
+                    <div className="min-w-0">
+                      <p className="font-body text-[10px] text-primary-700 uppercase font-bold tracking-wider">Aira ID</p>
+                      <p className="font-body text-xs text-ink-secondary mt-0.5">
+                        Paste this number in adminweb → WhatsApp Templates to send this template from AstroTamil.
+                      </p>
+                    </div>
+                    <AiraId code={selectedTemplate.short_code} size="lg" className="shrink-0" />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4 bg-surface-subtle/40 p-4 rounded-2xl border border-border-subtle">
                   <div>
                     <p className="font-body text-[10px] text-ink-muted uppercase font-bold tracking-wider">Category</p>

@@ -21,6 +21,7 @@ import type { Button, Template } from "../types";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
+import AiraId from "../components/aira-id";
 import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 import {
   bodyBlockers,
@@ -309,6 +310,7 @@ export default function TemplateDetailsPage() {
             <ArrowLeft size={14} /> Back to Templates
           </Link>
           <div className="h-6 w-[1px] bg-[#e8e3db]" />
+          <div className="flex items-center gap-4">
           <div>
             <h1 className="font-mono text-sm font-semibold text-ink-secondary leading-tight truncate max-w-md">
               {template.name}
@@ -325,6 +327,8 @@ export default function TemplateDetailsPage() {
                 • {template.category}
               </span>
             </div>
+          </div>
+          <AiraId code={template.short_code} size="lg" className="shrink-0" />
           </div>
         </div>
 
