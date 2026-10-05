@@ -7,6 +7,9 @@ type WhatsAppPreviewProps = {
   headerType?: 'NONE' | 'TEXT' | 'IMAGE' | 'VIDEO' | 'DOCUMENT';
   headerText?: string;
   headerMediaUrl?: string;
+  /** Local copy of the chosen file (blob: URL) — Meta's upload handle can't be displayed. */
+  headerMediaPreview?: string;
+  headerMediaName?: string;
   bodyText: string;
   /** Sample values shown in place of {{n}}, the way Meta's reviewer reads them. */
   bodySamples?: Record<number, string>;
@@ -61,6 +64,8 @@ export default function WhatsAppPreview({
   headerType = "NONE",
   headerText,
   headerMediaUrl,
+  headerMediaPreview,
+  headerMediaName,
   bodyText,
   bodySamples,
   headerSample,
@@ -70,6 +75,8 @@ export default function WhatsAppPreview({
 }: WhatsAppPreviewProps) {
   const shownHeader = headerText && headerSample?.trim() ? headerText.replace(/\{\{1\}\}/, headerSample.trim()) : headerText;
   const carouselRef = useRef<HTMLDivElement>(null);
+  const mediaSrc =
+    headerMediaPreview || (headerMediaUrl && /^(https?:|blob:)/.test(headerMediaUrl) ? headerMediaUrl : undefined);
 
   const hasMedia = headerType !== "NONE" && headerType !== "TEXT";
   const [showAllOptions, setShowAllOptions] = useState(false);
@@ -138,10 +145,10 @@ export default function WhatsAppPreview({
               {hasMedia && (
                 <div className="rounded-t-lg overflow-hidden">
                   {headerType === "IMAGE" && (
-                    headerMediaUrl ? (
+                    mediaSrc ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img
-                        src={headerMediaUrl}
+                        src={mediaSrc}
                         alt="Header"
                         loading="lazy"
                         decoding="async"
@@ -156,14 +163,13 @@ export default function WhatsAppPreview({
 
                   {headerType === "VIDEO" && (
                     <div className="w-full h-36 bg-gray-800 flex items-center justify-center relative">
-                      {headerMediaUrl && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={headerMediaUrl}
-                          alt=""
-                          loading="lazy"
-                          decoding="async"
-                          className="absolute inset-0 w-full h-full object-cover opacity-60"
+                      {mediaSrc && (
+                        <video
+                          src={mediaSrc}
+                          muted
+                          playsInline
+                          preload="metadata"
+                          className="absolute inset-0 w-full h-full object-cover opacity-70"
                         />
                       )}
                       <div className="relative w-12 h-12 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
@@ -175,8 +181,8 @@ export default function WhatsAppPreview({
                   {headerType === "DOCUMENT" && (
                     <div className="w-full h-20 bg-gray-200 flex items-center justify-center gap-2">
                       <FileText size={22} className="text-gray-500" />
-                      <span className="text-gray-500 text-xs font-medium">
-                        document.pdf
+                      <span className="text-gray-500 text-xs font-medium truncate max-w-[80%]">
+                        {headerMediaName || "document.pdf"}
                       </span>
                     </div>
                   )}

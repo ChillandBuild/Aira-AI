@@ -54,6 +54,9 @@ export default function TemplateDetailsPage() {
   const [headerType, setHeaderType] = useState<"NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT">("NONE");
   const [headerText, setHeaderText] = useState("");
   const [headerMediaUrl, setHeaderMediaUrl] = useState("");
+  // Local copy of the chosen file for the preview; Meta's handle can't be displayed.
+  const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview.url); }, [mediaPreview]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [footerText, setFooterText] = useState("");
   const [buttons, setButtons] = useState<Button[]>([]);
@@ -180,6 +183,7 @@ export default function TemplateDetailsPage() {
       setError("Read-only role: media upload is disabled.");
       return;
     }
+    setMediaPreview({ url: URL.createObjectURL(file), name: file.name });
     setUploadingMedia(true);
     setError(null);
     try {
@@ -201,6 +205,7 @@ export default function TemplateDetailsPage() {
       const data = await res.json();
       setHeaderMediaUrl(data.header_handle);
     } catch (e) {
+      setMediaPreview(null);
       setError(e instanceof Error ? e.message : "Media upload failed");
     } finally {
       setUploadingMedia(false);
@@ -215,6 +220,7 @@ export default function TemplateDetailsPage() {
   }
 
   function clearMedia() {
+    setMediaPreview(null);
     setHeaderMediaUrl("");
   }
 
@@ -685,6 +691,8 @@ export default function TemplateDetailsPage() {
             }
             headerText={editMode ? (headerType === "TEXT" ? headerText : undefined) : template.header_text || undefined}
             headerMediaUrl={editMode ? headerMediaUrl || undefined : template.header_media_url || undefined}
+            headerMediaPreview={editMode ? mediaPreview?.url : undefined}
+            headerMediaName={editMode ? mediaPreview?.name : undefined}
             bodyText={editMode ? bodyText : template.body_text}
             bodySamples={editMode ? bodySamples : undefined}
             headerSample={editMode ? headerSample : undefined}

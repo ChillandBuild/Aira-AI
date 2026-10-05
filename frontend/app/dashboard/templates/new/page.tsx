@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -51,6 +51,9 @@ export default function NewTemplatePage() {
   const [headerType, setHeaderType] = useState<"NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT">("NONE");
   const [headerText, setHeaderText] = useState("");
   const [headerMediaUrl, setHeaderMediaUrl] = useState("");
+  // Local copy of the chosen file for the preview; Meta's handle can't be displayed.
+  const [mediaPreview, setMediaPreview] = useState<{ url: string; name: string } | null>(null);
+  useEffect(() => () => { if (mediaPreview) URL.revokeObjectURL(mediaPreview.url); }, [mediaPreview]);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [bodyText, setBodyText] = useState("");
   const [footerText, setFooterText] = useState("");
@@ -77,6 +80,7 @@ export default function NewTemplatePage() {
       setError("Read-only role: media upload is disabled.");
       return;
     }
+    setMediaPreview({ url: URL.createObjectURL(file), name: file.name });
     setUploadingMedia(true);
     setError(null);
     try {
@@ -100,6 +104,7 @@ export default function NewTemplatePage() {
       const handle = data.header_handle;
       setHeaderMediaUrl(handle);
     } catch (e) {
+      setMediaPreview(null);
       setError(e instanceof Error ? e.message : "Media upload failed");
     } finally {
       setUploadingMedia(false);
@@ -114,6 +119,7 @@ export default function NewTemplatePage() {
   }
 
   function clearMedia() {
+    setMediaPreview(null);
     setHeaderMediaUrl("");
   }
 
@@ -687,6 +693,8 @@ export default function NewTemplatePage() {
             headerType={headerType === "NONE" || headerType === "TEXT" ? undefined : headerType}
             headerText={headerType === "TEXT" ? headerText : undefined}
             headerMediaUrl={headerMediaUrl || undefined}
+            headerMediaPreview={mediaPreview?.url}
+            headerMediaName={mediaPreview?.name}
             bodyText={bodyText}
             bodySamples={bodySamples}
             headerSample={headerSample}
