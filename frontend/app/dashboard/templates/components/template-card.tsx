@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Template } from "../types";
 import { STATUS_COLORS, CATEGORY_COLORS, LANGUAGES } from "../types";
+import AiraId from "./aira-id";
 
 type TemplateCardProps = {
   template: Template;
@@ -94,9 +95,12 @@ export default function TemplateCard({
       {/* ── Info section ──────────────────────────── */}
       <div className="px-4 py-3 flex-1 flex flex-col gap-2">
         {/* Name */}
-        <p className="font-label font-semibold text-ink text-sm leading-tight truncate">
-          {t.name}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="font-label font-semibold text-ink text-sm leading-tight truncate">
+            {t.name}
+          </p>
+          <AiraId code={t.short_code} />
+        </div>
 
         {/* Category + language badges */}
         <div className="flex items-center gap-1.5 flex-wrap">

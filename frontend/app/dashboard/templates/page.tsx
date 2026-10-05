@@ -26,6 +26,7 @@ import type { Template } from "./types";
 import TemplateCard from "./components/template-card";
 import WhatsAppPreview from "./components/whatsapp-preview";
 import { useAuthRole } from "../contexts/AuthRoleContext";
+import AiraId from "./components/aira-id";
 
 export default function TemplatesPage() {
   const router = useRouter();
@@ -447,7 +448,10 @@ export default function TemplatesPage() {
                 <div key={t.id} className="rounded-2xl border border-border-subtle bg-white p-4 shadow-sm" onClick={() => setSelectedTemplate(t)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-mono text-sm font-semibold text-ink">{t.name}</p>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate font-mono text-sm font-semibold text-ink">{t.name}</p>
+                        <AiraId code={t.short_code} />
+                      </div>
                       <p className="mt-1 text-xs text-ink-secondary">
                         {t.category} · {LANGUAGES.find((l) => l.code === t.language)?.label || t.language}
                       </p>
@@ -488,8 +492,11 @@ export default function TemplatesPage() {
                       onClick={() => setSelectedTemplate(t)}
                       className="hover:bg-surface-subtle/40 transition-colors cursor-pointer"
                     >
-                      <td className="px-5 py-4 font-mono font-medium text-ink truncate max-w-[200px]">
-                        {t.name}
+                      <td className="px-5 py-4 font-mono font-medium text-ink max-w-[280px]">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="truncate">{t.name}</span>
+                          <AiraId code={t.short_code} />
+                        </div>
                       </td>
                       <td className="px-5 py-4 text-ink-secondary">
                         {t.category}
@@ -567,7 +574,10 @@ export default function TemplatesPage() {
             <div className="flex items-center justify-between p-5 border-b border-border-subtle bg-surface-subtle">
               <div className="min-w-0">
                 <p className="font-body text-[10px] text-ink-muted uppercase font-bold tracking-wider">Template Detail</p>
-                <h2 className="font-mono text-sm font-semibold text-ink truncate max-w-lg mt-0.5">{selectedTemplate.name}</h2>
+                <div className="flex min-w-0 items-center gap-2 mt-0.5">
+                  <h2 className="font-mono text-sm font-semibold text-ink truncate max-w-lg">{selectedTemplate.name}</h2>
+                  <AiraId code={selectedTemplate.short_code} />
+                </div>
               </div>
               <button
                 onClick={() => setSelectedTemplate(null)}
