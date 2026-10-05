@@ -6,3 +6,14 @@ Frontend: cd frontend && npm run dev
 Console	URL	Email	Password
 Client dashboard	http://localhost:3000/aira/login	owner@astrotamil.test	Aira@12345
 Operator console	http://localhost:3000/aira/operator/login	developer@airaai.com	Aira@12345
+
+
+
+Astro bridge settings (Aira side, per tenant — production values)
+astro_bridge_url=https://astrotamilbackend-e8o3o.ondigitalocean.app
+astro_bridge_api_key=aira-live-f8d680ee93b460f3cff1f798a1ad8790d06e84ae
+astro_bridge_secret=iSsDAHGU_IB2Ok2knEp4GbuUUV3x2QhurHZriybeZUM
+
+Still needed on the astro DigitalOcean deployment (env vars, for replies to reach Aira)
+AIRA_BRIDGE_URL=https://aira-ai-5tfr.onrender.com/api/v1/expert-handoff/astro-reply
+AIRA_BRIDGE_SECRET=iSsDAHGU_IB2Ok2knEp4GbuUUV3x2QhurHZriybeZUM
