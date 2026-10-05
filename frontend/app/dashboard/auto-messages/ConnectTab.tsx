@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Code2, Globe, RefreshCw, Send, Webhook } from "lucide-react";
 import { toast } from "sonner";
-import { api, type AutoMessageProduct } from "@/lib/api";
+import { api } from "@/lib/api";
 import { CopyButton } from "@/app/dashboard/settings/connect-channels/ui";
 import { ghostBtn, inputCls, primaryBtn, reasonText, STATUS_STYLE } from "./shared";
 
@@ -43,16 +43,14 @@ function FormPreview() {
       <p className="text-[15px] font-semibold text-[#1a1a1a]">Get details on WhatsApp</p>
       <div className="rounded-lg border border-[#cfcfcf] px-3 py-2 text-[13px] text-[#9a9a9a]">Your name</div>
       <div className="rounded-lg border border-[#cfcfcf] px-3 py-2 text-[13px] text-[#9a9a9a]">WhatsApp number</div>
-      <div className="rounded-lg border border-[#cfcfcf] px-3 py-2 text-[13px] text-[#9a9a9a]">Which product? ▾</div>
       <div className="rounded-lg bg-[#25d366] py-2 text-center text-[13px] font-semibold text-white">Send me details</div>
       <p className="text-[11px] text-[#666]">We&apos;ll send you updates on WhatsApp.</p>
     </div>
   );
 }
 
-function TryIt({ ingestUrl, products }: { ingestUrl: string; products: AutoMessageProduct[] }) {
+function TryIt({ ingestUrl }: { ingestUrl: string }) {
   const [phone, setPhone] = useState("");
-  const [product, setProduct] = useState("");
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<{ status: keyof typeof STATUS_STYLE; text: string } | null>(null);
 
@@ -63,21 +61,20 @@ function TryIt({ ingestUrl, products }: { ingestUrl: string; products: AutoMessa
       const res = await fetch(ingestUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, name: "Test", product, event: "interested" }),
+        body: JSON.stringify({ phone, name: "Test", event: "interested" }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Rejected (HTTP ${res.status})`);
       const status = body.message_status as keyof typeof STATUS_STYLE;
-      const matched = body.matched_product ? `Matched “${body.matched_product}”. ` : product ? "No product matched, so the default message was used. " : "";
       const why = reasonText(status, body.reason);
       setResult({
         status,
         text:
           status === "sent"
-            ? `${matched}Sent. Check WhatsApp on that number.`
+            ? "Sent. Check WhatsApp on that number."
             : status === "queued"
-              ? `${matched}Scheduled. It goes out after the wait you set.`
-              : `${matched}${why ?? "Not sent."}`,
+              ? "Scheduled. It goes out after the wait you set."
+              : why ?? "Not sent.",
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "The test didn't go through");
@@ -89,16 +86,8 @@ function TryIt({ ingestUrl, products }: { ingestUrl: string; products: AutoMessa
   return (
     <div className="space-y-3 rounded-2xl border border-primary/15 bg-primary/[0.03] p-4">
       <p className="font-body text-sm font-semibold text-ink">Try it on your own phone</p>
-      <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your WhatsApp number" inputMode="tel" className={inputCls} />
-        <select value={product} onChange={(e) => setProduct(e.target.value)} className={inputCls}>
-          <option value="">No product</option>
-          {products.map((p) => (
-            <option key={p.id} value={p.name}>
-              {p.name}
-            </option>
-          ))}
-        </select>
         <button type="button" onClick={run} disabled={sending || phone.replace(/\D/g, "").length < 10} className={primaryBtn}>
           <Send size={13} /> {sending ? "Sending…" : "Send test"}
         </button>
@@ -113,7 +102,6 @@ function TryIt({ ingestUrl, products }: { ingestUrl: string; products: AutoMessa
 
 export function ConnectTab({ canManage }: { canManage: boolean }) {
   const [links, setLinks] = useState<Links | null>(null);
-  const [products, setProducts] = useState<AutoMessageProduct[]>([]);
   const [forbidden, setForbidden] = useState(false);
   const [rotating, setRotating] = useState(false);
 
@@ -125,10 +113,6 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
         if (err.status === 403) setForbidden(true);
         setLinks({ ingest_url: null, form_script_url: null });
       });
-    api.autoMessages
-      .products()
-      .then((r) => setProducts(r.products))
-      .catch(() => setProducts([]));
   }, []);
 
   async function rotate() {
@@ -171,9 +155,8 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
   }
 
   const snippet = `<div data-aira-form></div>\n<script src="${links.form_script_url}" async></script>`;
-  const productSnippet = `<div data-aira-form data-product="${products[0]?.name ?? "Product name"}"></div>`;
   const sample = JSON.stringify(
-    { phone: "9876543210", name: "Priya", event: "purchased", product: products[0]?.name ?? "Product name", order_id: "INV-1042" },
+    { phone: "9876543210", name: "Priya", event: "purchased", order_id: "INV-1042" },
     null,
     2
   );
@@ -185,11 +168,6 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
           <div className="min-w-0 space-y-3">
             <CodeBlock code={snippet} />
             <div className="space-y-1.5 font-body text-xs text-ink-secondary">
-              <p>
-                <span className="font-semibold text-ink">On a product page</span>, add the product name so customers
-                don&apos;t have to pick it. Keep the script line as it is:
-              </p>
-              <CodeBlock code={productSnippet} />
               <p className="text-ink-muted">
                 Works on WordPress, Wix, Shopify and plain HTML. In WordPress, use a &ldquo;Custom HTML&rdquo; block.
               </p>
@@ -225,7 +203,6 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
               ["phone", "Required. Any format: 98765 43210, +91…, 919876…"],
               ["name", "Optional. Customer's name."],
               ["event", "interested (default), signed_up or purchased."],
-              ["product", "Optional. Matched to your Products, including other names you add."],
               ["anything else", "Kept with the customer and usable in the message, like order_id."],
             ].map(([k, v]) => (
               <div key={k} className="grid grid-cols-[96px_1fr] gap-2">
@@ -235,7 +212,7 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
             ))}
           </dl>
         </div>
-        <TryIt ingestUrl={links.ingest_url} products={products} />
+        <TryIt ingestUrl={links.ingest_url} />
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3 px-1">

@@ -10,9 +10,9 @@ export const EVENTS: {
   {
     id: "interested",
     label: "Interested",
-    when: "Someone leaves their number to know more about a product",
+    when: "Someone leaves their number to know more",
     nobody: "People who show interest get nothing from you.",
-    hint: "Use a Marketing template: product details, price and a link button.",
+    hint: "Use a Marketing template: your offer and a link button.",
   },
   {
     id: "signed_up",
@@ -39,9 +39,7 @@ export const EVENT_LABEL: Record<AutoMessageEvent, string> = {
 export const VAR_SOURCES: { id: AutoMessageVarSource; label: string }[] = [
   { id: "first_name", label: "Customer's first name" },
   { id: "full_name", label: "Customer's full name" },
-  { id: "product", label: "Product name" },
-  { id: "price", label: "Product price" },
-  { id: "product_url", label: "Page they came from" },
+  { id: "page_url", label: "Page they came from" },
   { id: "phone", label: "Customer's number" },
   { id: "extra", label: "A field you send (e.g. order_id)" },
   { id: "text", label: "Fixed text" },

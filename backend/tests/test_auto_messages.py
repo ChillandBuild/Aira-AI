@@ -1,7 +1,6 @@
 """Auto-Messages end to end against the in-memory Supabase fake: payload parsing,
-product matching (the "Konarc gets the Konarc template" requirement), rule
-priority, duplicates, delays, failures, template components, and the public /
-dashboard routes."""
+one message per event, duplicates, delays, failures, template components, and
+the public / dashboard routes."""
 import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -27,7 +26,6 @@ def _now_stamp():
 def db():
     d = FakeSupabase()
     d._stamp = _now_stamp
-    d.storage.from_.return_value.get_public_url.side_effect = lambda path: f"https://cdn.example/{path}"
     return d
 
 
@@ -61,20 +59,15 @@ def _template(db, name, tenant=T, status="APPROVED", **kw):
                   body_text=kw.pop("body_text", "Hi {{1}}, here are the details on {{2}}."), **kw)["id"]
 
 
-def _item(db, name, tenant=T, **kw):
-    return db.add("catalog_items", tenant_id=tenant, name=name, status=kw.pop("status", "ready"), aliases=kw.pop("aliases", []), **kw)["id"]
-
-
-def _rule(db, event, template_id, item_id=None, tenant=T, **kw):
-    return db.add("auto_message_rules", tenant_id=tenant, event=event, catalog_item_id=item_id,
-                  template_id=template_id, delay_minutes=kw.pop("delay_minutes", 0), enabled=kw.pop("enabled", True),
+def _rule(db, event, template_id, tenant=T, **kw):
+    return db.add("auto_message_rules", tenant_id=tenant, event=event, template_id=template_id, delay_minutes=kw.pop("delay_minutes", 0), enabled=kw.pop("enabled", True),
                   variables=kw.pop("variables", []), button_param=kw.pop("button_param", None), **kw)["id"]
 
 
 def _event(db, source="api", **data):
     data.setdefault("phone", "9876543210")
     data.setdefault("extra", {})
-    data.setdefault("product_url", "")
+    data.setdefault("page_url", "")
     return asyncio.run(svc.handle_event(T, source, data, db=db))
 
 
@@ -88,8 +81,9 @@ def test_parse_accepts_common_field_names_and_keeps_extras():
     p = svc.parse_payload({"Mobile": "+91 98765 43210", "first_name": "Priya", "last_name": "R",
                            "Product_Name": "Konarc", "page_url": "https://x.in/konarc", "order_id": 991, "_hp": ""})
     assert p["phone"] == "+91 98765 43210" and p["name"] == "Priya R"
-    assert p["product"] == "Konarc" and p["product_url"] == "https://x.in/konarc"
-    assert p["extra"] == {"order_id": "991"}
+    assert p["page_url"] == "https://x.in/konarc"
+    # a product field is just another extra field now
+    assert p["extra"] == {"product_name": "Konarc", "order_id": "991"}
 
 
 def test_events_normalise_and_unknown_is_rejected():
@@ -99,68 +93,34 @@ def test_events_normalise_and_unknown_is_rejected():
     assert svc.normalize_event("refund") is None
 
 
-# ---------------------------------------------------------------- matching
+# ---------------------------------------------------------------- one message per event
 
-ITEMS = [
-    {"id": "konarc", "name": "Konarc", "aliases": []},
-    {"id": "konarc-s", "name": "Konarc S", "aliases": ["konarcs"]},
-    {"id": "rizta", "name": "Rizta", "aliases": ["ather rizta"]},
-]
+def test_everyone_gets_the_events_message_with_their_first_name(db, send):
+    _rule(db, "interested", _template(db, "thanks_for_interest", body_text="Hi {{1}}, thanks!"))
+    _rule(db, "purchased", _template(db, "thank_you"))
 
+    r1 = _event(db, phone="9876500001", name="Priya Raman", extra={"product": "Konarc"})
+    r2 = _event(db, phone="9876500002", name="Arun")
 
-@pytest.mark.parametrize("sent,expected", [
-    ("konarc", "konarc"),
-    ("  KONARC S ", "konarc-s"),
-    ("konarcs", "konarc-s"),
-    ("Ather Konarc S 161 km", "konarc-s"),   # longest whole-word match wins
-    ("I want the Ather Rizta", "rizta"),
-    ("kon", None),                           # partial words never match
-    ("Apex", None),
-])
-def test_match_product(sent, expected):
-    item = svc.match_product(ITEMS, sent)
-    assert (item or {}).get("id") == expected
-
-
-# ---------------------------------------------------------------- the Konarc requirement
-
-def test_each_product_gets_its_own_template_and_unknown_gets_default(db, send):
-    konarc_t = _template(db, "konarc_details")
-    rizta_t = _template(db, "rizta_details")
-    default_t = _template(db, "thanks_for_interest")
-    konarc = _item(db, "Konarc")
-    rizta = _item(db, "Rizta")
-    _rule(db, "interested", konarc_t, konarc)
-    _rule(db, "interested", rizta_t, rizta)
-    _rule(db, "interested", default_t)
-
-    r1 = _event(db, phone="9876500001", name="Priya", product="Ather Konarc")
-    r2 = _event(db, phone="9876500002", name="Arun", product="rizta")
-    r3 = _event(db, phone="9876500003", name="Meena", product="Some new scooter")
-
-    assert r1["matched_product"] == "Konarc" and r2["matched_product"] == "Rizta" and r3["matched_product"] is None
-    sent_templates = [c.args[1] for c in send.call_args_list]
-    assert sent_templates == ["konarc_details", "rizta_details", "thanks_for_interest"]
-    assert [s["status"] for s in _sends(db)] == ["sent", "sent", "sent"]
-    # body variables default to first name then product
+    assert r1["message_status"] == r2["message_status"] == "sent"
+    assert [c.args[1] for c in send.call_args_list] == ["thanks_for_interest", "thanks_for_interest"]
     body = send.call_args_list[0].kwargs["components"][-1]
-    assert [p["text"] for p in body["parameters"]] == ["Priya", "Konarc"]
+    assert [p["text"] for p in body["parameters"]] == ["Priya"]
+    assert db.rows("lead_notes")[0]["content"] == "Interested (via API)"
 
 
-def test_other_tenants_rules_and_products_are_never_used(db, send):
-    their_t = _template(db, "theirs", tenant=OTHER)
-    _rule(db, "interested", their_t, _item(db, "Konarc", tenant=OTHER), tenant=OTHER)
-    r = _event(db, product="Konarc")
-    assert r["matched_product"] is None and r["message_status"] == "skipped" and r["reason"] == "no_rule"
+def test_other_tenants_rules_are_never_used(db, send):
+    _rule(db, "interested", _template(db, "theirs", tenant=OTHER), tenant=OTHER)
+    r = _event(db)
+    assert r["message_status"] == "skipped" and r["reason"] == "no_rule"
     send.assert_not_called()
 
 
 def test_event_without_rule_is_logged_not_sent(db, send):
     _rule(db, "purchased", _template(db, "thanks"))
-    r = _event(db, event_raw="interested", product="x")
+    r = _event(db, event_raw="interested")
     assert (r["message_status"], r["reason"]) == ("skipped", "no_rule")
     send.assert_not_called()
-    assert db.rows("lead_notes")[0]["content"] == "Interested in x (via API)"
 
 
 def test_unknown_event_and_bad_phone_are_ignored(db, send):
@@ -169,23 +129,22 @@ def test_unknown_event_and_bad_phone_are_ignored(db, send):
     assert _sends(db) == []
 
 
-def test_same_person_same_product_within_24h_is_sent_once(db, send):
-    t = _template(db, "konarc_details")
-    _rule(db, "interested", t, _item(db, "Konarc"))
-    _rule(db, "interested", _template(db, "default"))
-    _event(db, product="Konarc")
-    second = _event(db, product="konarc")
-    other_product = _event(db, product="Something else")
+def test_same_person_same_event_within_24h_is_sent_once(db, send):
+    _rule(db, "interested", _template(db, "details"))
+    _rule(db, "purchased", _template(db, "thanks"))
+    _event(db)
+    second = _event(db)
+    other_event = _event(db, event_raw="purchased")
     assert (second["message_status"], second["reason"]) == ("skipped", "duplicate")
-    assert other_product["message_status"] == "sent"
+    assert other_event["message_status"] == "sent"
     assert send.call_count == 2
 
 
 def test_duplicate_window_expires(db, send):
     _rule(db, "interested", _template(db, "t"))
-    _event(db, product="A")
+    _event(db)
     _sends(db)[0]["created_at"] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
-    assert _event(db, product="A")["message_status"] == "sent"
+    assert _event(db)["message_status"] == "sent"
 
 
 def test_delayed_message_waits_for_scheduler(db, send):
@@ -238,31 +197,29 @@ def test_unapproved_template_and_meta_error_are_failures_with_reason(db, send):
 # ---------------------------------------------------------------- components
 
 def test_components_image_header_variables_fallbacks_and_dynamic_button(db, send):
-    t = _template(db, "konarc_card", header_media_type="IMAGE", header_media_url="https://x/default.jpg",
-                  body_text="Hi {{1}}, {{2}} starts at {{3}}. Order {{4}}.",
+    t = _template(db, "offer_card", header_media_type="IMAGE", header_media_url="https://x/offer.jpg",
+                  body_text="Hi {{1}}, you came from {{2}}. Order {{3}}.",
                   buttons=[{"type": "QUICK_REPLY", "text": "Call me"},
                            {"type": "URL", "text": "Book Test Ride", "url": "https://ather.example/{{1}}"}])
-    item = _item(db, "Konarc", price_paise=9999900)
-    db.add("catalog_media", tenant_id=T, catalog_item_id=item, storage_path="t/konarc-2.jpg", sort_order=2)
-    db.add("catalog_media", tenant_id=T, catalog_item_id=item, storage_path="t/konarc-1.jpg", sort_order=1)
-    _rule(db, "interested", t, item, variables=[
+    _rule(db, "interested", t, variables=[
         {"source": "first_name", "fallback": "there"},
-        {"source": "product"},
-        {"source": "price", "fallback": "a great price"},
+        {"source": "page_url", "fallback": "our site"},
         {"source": "extra", "key": "order_id", "fallback": "soon"},
-    ], button_param={"source": "text", "value": "konarc/test-ride"})
+    ], button_param={"source": "text", "value": "test-ride"})
 
-    _event(db, name="", product="Konarc")
+    _event(db, name="", page_url="https://x.in/offer")
     comps = send.call_args.kwargs["components"]
-    assert comps[0] == {"type": "header", "parameters": [{"type": "image", "image": {"link": "https://cdn.example/t/konarc-1.jpg"}}]}
-    assert [p["text"] for p in comps[1]["parameters"]] == ["there", "Konarc", "₹99,999", "soon"]
+    # the template's own approved image goes in the header
+    assert comps[0] == {"type": "header", "parameters": [{"type": "image", "image": {"link": "https://x/offer.jpg"}}]}
+    assert [p["text"] for p in comps[1]["parameters"]] == ["there", "https://x.in/offer", "soon"]
     assert comps[2] == {"type": "button", "sub_type": "url", "index": "1",
-                        "parameters": [{"type": "text", "text": "konarc/test-ride"}]}
+                        "parameters": [{"type": "text", "text": "test-ride"}]}
 
 
-@pytest.mark.parametrize("paise,text", [(None, ""), (50000, "₹500"), (9999900, "₹99,999"), (12345678900, "₹12,34,56,789")])
-def test_format_inr(paise, text):
-    assert svc.format_inr(paise) == text
+def test_header_text_variable_is_the_first_name(db, send):
+    _rule(db, "signed_up", _template(db, "welcome", header_text="Welcome {{1}}", body_text="Glad you joined."))
+    _event(db, event_raw="signup", name="Meena K")
+    assert send.call_args.kwargs["components"][0] == {"type": "header", "parameters": [{"type": "text", "text": "Meena"}]}
 
 
 # ---------------------------------------------------------------- routes
@@ -321,29 +278,27 @@ def test_app_server_sending_many_customers_from_one_ip_is_not_throttled(client, 
     assert codes == [200] * 30 and send.call_count == 30
 
 
-def test_form_script_embeds_endpoint_and_this_tenants_products_only(client, db):
-    _item(db, "Konarc")
-    _item(db, "Old model", status="draft")
-    _item(db, "Secret", tenant=OTHER)
+def test_form_script_embeds_endpoint_and_has_no_product_picker(client, db):
     js = client.get("/api/v1/auto-messages/in/tok-123/form.js")
     assert js.status_code == 200 and "javascript" in js.headers["content-type"]
     assert '/api/v1/auto-messages/in/tok-123";' in js.text
-    assert '["Konarc"]' in js.text and "Secret" not in js.text and "Old model" not in js.text
+    assert "product" not in js.text.lower()
     assert "no longer valid" in client.get("/api/v1/auto-messages/in/bad/form.js").text
 
 
-def test_rules_crud_validates_template_and_one_rule_per_product(client, db):
+def test_rules_crud_validates_template_and_one_rule_per_event(client, db):
     approved, pending = _template(db, "ok"), _template(db, "pending", status="PENDING")
-    item = _item(db, "Konarc")
     base = "/api/v1/auto-messages/rules"
     assert client.post(base, json={"event": "interested", "template_id": pending}).status_code == 400
     assert client.post(base, json={"event": "interested", "template_id": _template(db, "x", tenant=OTHER)}).status_code == 404
     assert client.post(base, json={"event": "nope", "template_id": approved}).status_code == 422
-    created = client.post(base, json={"event": "interested", "template_id": approved, "catalog_item_id": item,
+    assert client.post(base, json={"event": "interested", "template_id": approved,
+                                   "variables": [{"source": "price"}]}).status_code == 422
+    created = client.post(base, json={"event": "interested", "template_id": approved,
                                       "delay_minutes": 5, "variables": [{"source": "first_name", "fallback": "there"}]})
     assert created.status_code == 200
-    assert client.post(base, json={"event": "interested", "template_id": approved, "catalog_item_id": item}).status_code == 409
-    assert client.post(base, json={"event": "interested", "template_id": approved}).status_code == 200  # default rule
+    assert client.post(base, json={"event": "interested", "template_id": approved}).status_code == 409
+    assert client.post(base, json={"event": "purchased", "template_id": approved}).status_code == 200
     rid = created.json()["id"]
     assert client.patch(f"{base}/{rid}", json={"enabled": False}).json()["enabled"] is False
     assert client.delete(f"{base}/{rid}").status_code == 200
@@ -351,23 +306,18 @@ def test_rules_crud_validates_template_and_one_rule_per_product(client, db):
 
 
 def test_quick_add_from_shop_counter(client, db, send):
-    t = _template(db, "thanks_for_buying")
-    item = _item(db, "Konarc")
-    _rule(db, "purchased", t, item)
-    r = client.post("/api/v1/auto-messages/quick-add", json={"name": "Ravi", "phone": "98765 43210", "catalog_item_id": item})
+    _rule(db, "purchased", _template(db, "thanks_for_buying"))
+    r = client.post("/api/v1/auto-messages/quick-add", json={"name": "Ravi", "phone": "98765 43210"})
     assert r.status_code == 200 and r.json()["message_status"] == "sent"
     assert _sends(db)[0]["source"] == "store" and db.rows("leads")[0]["opt_in_source"] == "offline_event"
     assert client.post("/api/v1/auto-messages/quick-add", json={"phone": "123456"}).status_code == 400
 
 
-def test_aliases_and_send_log(client, db, send):
-    item = _item(db, "Konarc")
-    r = client.put(f"/api/v1/auto-messages/products/{item}/aliases", json={"aliases": [" konarc s ", "Konarc S", ""]})
-    assert r.json()["aliases"] == ["konarc s"]
-    _rule(db, "interested", _template(db, "konarc_details"), item)
-    client.post("/api/v1/auto-messages/in/tok-123", json={"phone": "9876543210", "product": "Konarc S"})
+def test_send_log_names_the_template(client, db, send):
+    _rule(db, "interested", _template(db, "details"))
+    client.post("/api/v1/auto-messages/in/tok-123", json={"phone": "9876543210"})
     log = client.get("/api/v1/auto-messages/sends").json()["sends"]
-    assert log[0]["product_name"] == "Konarc" and log[0]["template_name"] == "konarc_details"
+    assert log[0]["template_name"] == "details" and log[0]["status"] == "sent"
 
 
 def test_templates_endpoint_lists_only_approved_with_variable_info(client, db):
@@ -384,18 +334,18 @@ def test_templates_endpoint_lists_only_approved_with_variable_info(client, db):
 def test_links_from_customers_never_reach_the_template_and_whitespace_is_flattened(db, send):
     _rule(db, "interested", _template(db, "t", body_text="Hi {{1}}, about {{2}}: {{3}}"), variables=[
         {"source": "first_name", "fallback": "there"},
-        {"source": "product", "fallback": "our products"},
+        {"source": "extra", "key": "topic", "fallback": "our offers"},
         {"source": "extra", "key": "note", "fallback": "see you"},
     ])
-    _event(db, name="win.com prize", product="free at https://evil.example", extra={"note": "line1\n\tline2   end"})
+    _event(db, name="win.com prize", extra={"topic": "free at https://evil.example", "note": "line1\n\tline2   end"})
     params = [p["text"] for p in send.call_args.kwargs["components"][-1]["parameters"]]
-    assert params == ["there", "our products", "line1 line2 end"]
+    assert params == ["there", "our offers", "line1 line2 end"]
 
 
 def test_button_suffix_is_url_encoded(db, send):
     t = _template(db, "t", body_text="Hi", buttons=[{"type": "URL", "text": "Book", "url": "https://x.example/{{1}}"}])
-    _rule(db, "interested", t, _item(db, "Konarc S"))
-    _event(db, product="Konarc S")
+    _rule(db, "interested", t, button_param={"source": "extra", "key": "model"})
+    _event(db, extra={"model": "Konarc S"})
     assert send.call_args.kwargs["components"][-1]["parameters"][0]["text"] == "Konarc%20S"
 
 
@@ -421,14 +371,10 @@ def test_counter_staff_without_settings_access_can_use_the_counter(db, send):
     app = FastAPI()
     app.include_router(routes.router, prefix="/api/v1/auto-messages")
     app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": T, "role": "telecaller", "permissions": ["leads.manage"]}
-    _item(db, "Konarc")
-    _item(db, "Draft thing", status="draft")
     with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
         c = TestClient(app)
-        assert [p["name"] for p in c.get("/api/v1/auto-messages/quick-add/products").json()["products"]] == ["Konarc"]
         assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 200
         assert len(c.get("/api/v1/auto-messages/quick-add/recent").json()["sends"]) == 1
-        assert c.get("/api/v1/auto-messages/products").status_code == 403
         assert c.get("/api/v1/auto-messages/sends").status_code == 403
 
 

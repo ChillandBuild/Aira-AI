@@ -2,16 +2,14 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Store } from "lucide-react";
 import { toast } from "sonner";
-import { api, type AutoMessageEvent, type AutoMessageProduct, type AutoMessageSend } from "@/lib/api";
+import { api, type AutoMessageEvent, type AutoMessageSend } from "@/lib/api";
 import { EVENT_LABEL, STATUS_STYLE, formatWhen, inputCls, primaryBtn, reasonText } from "./shared";
 
 /** Built for a phone at the billing counter: big inputs, one tap to save. */
 export function CounterTab() {
-  const [products, setProducts] = useState<AutoMessageProduct[]>([]);
   const [recent, setRecent] = useState<AutoMessageSend[]>([]);
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
-  const [productId, setProductId] = useState("");
   const [event, setEvent] = useState<AutoMessageEvent>("purchased");
   const [saving, setSaving] = useState(false);
   const [last, setLast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -24,10 +22,6 @@ export function CounterTab() {
   }
 
   useEffect(() => {
-    api.autoMessages
-      .counterProducts()
-      .then((r) => setProducts(r.products))
-      .catch(() => setProducts([]));
     loadRecent();
   }, []);
 
@@ -45,7 +39,6 @@ export function CounterTab() {
         phone,
         name: name.trim() || undefined,
         event,
-        catalog_item_id: productId || null,
       });
       const why = reasonText(r.message_status, r.reason);
       setLast({
@@ -115,19 +108,6 @@ export function CounterTab() {
           </span>
           <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" className={`${inputCls} py-2.5`} />
         </label>
-        <label className="block space-y-1">
-          <span className="font-body text-xs font-semibold text-ink">
-            Product <span className="font-normal text-ink-muted">(optional)</span>
-          </span>
-          <select value={productId} onChange={(e) => setProductId(e.target.value)} className={`${inputCls} py-2.5`}>
-            <option value="">—</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </label>
 
         <button type="submit" disabled={saving || digits.length < 10} className={`${primaryBtn} w-full py-3 text-sm`}>
           {saving ? "Saving…" : "Save & send WhatsApp"}
@@ -158,8 +138,7 @@ export function CounterTab() {
                   <p className="truncate font-body text-sm font-semibold text-ink">{s.name || s.phone}</p>
                   <p className="truncate font-body text-xs text-ink-muted">
                     {s.name ? `${s.phone} · ` : ""}
-                    {EVENT_LABEL[s.event]}
-                    {s.product_raw ? ` · ${s.product_raw}` : ""} · {formatWhen(s.created_at)}
+                    {EVENT_LABEL[s.event]} · {formatWhen(s.created_at)}
                   </p>
                 </div>
                 <span className={`shrink-0 rounded-full border px-2 py-0.5 font-label text-[10px] font-bold ${STATUS_STYLE[s.status].cls}`}>

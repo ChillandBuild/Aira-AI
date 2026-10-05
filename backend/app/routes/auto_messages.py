@@ -8,7 +8,7 @@ per tenant. It can never read data.
   POST /in/{token}          JSON or form fields (website form, Zapier, Pabbly, apps, billing software)
   GET  /in/{token}/form.js  the copy-paste website form
 
-Authenticated: setup (URL + snippet), rules, product aliases, shop quick-add, send log.
+Authenticated: setup (URL + snippet), rules, shop quick-add, send log.
 """
 import json
 import logging
@@ -35,7 +35,6 @@ router = APIRouter()
 require_settings_manage = require_permission("settings.manage")
 require_settings_view = require_permission("settings.view")
 require_leads_manage = require_permission("leads.manage")
-require_catalog_manage = require_permission("catalog.manage")
 
 TOKEN_KEY = "auto_messages_ingest_token"
 _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
@@ -154,7 +153,7 @@ async def ingest(token: str, request: Request):
     result = await svc.handle_event(tenant_id, source, data, db=db)
     if result["status"] != "ok":
         return _public(422, {"error": result.get("detail"), "code": "ignored"})
-    return _public(200, {k: result.get(k) for k in ("status", "event", "matched_product", "message_status", "reason")})
+    return _public(200, {k: result.get(k) for k in ("status", "event", "message_status", "reason")})
 
 
 @public_router.get("/in/{token}/form.js")
@@ -164,27 +163,21 @@ def form_script(token: str):
     if not tenant_id:
         return Response("/* Aira: this form link is no longer valid. Copy the new snippet from Aira. */",
                         media_type="application/javascript", headers=_PUBLIC_HEADERS)
-    # Only finished ("ready") products are offered to the public; drafts still match by name.
-    products = sorted({i["name"] for i in svc.tenant_catalog(db, tenant_id) if i.get("name") and i.get("status") == "ready"})
-    script = _FORM_JS.replace("__ENDPOINT__", json.dumps(_urls(token)["ingest_url"])).replace(
-        "__PRODUCTS__", json.dumps(products[:300])
-    )
+    script = _FORM_JS.replace("__ENDPOINT__", json.dumps(_urls(token)["ingest_url"]))
     return Response(script, media_type="application/javascript",
                     headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"})
 
 
 # The website form. Renders into every <div data-aira-form>. Options on the div:
-#   data-product="Konarc"   fixed product (product page) -> no product dropdown
 #   data-event="signed_up"  default "interested"
 #   data-title, data-button, data-success  text overrides
 # Plain DOM, no dependencies, styles scoped under .aira-f so it can't break the host page.
 _FORM_JS = r"""(function () {
   var ENDPOINT = __ENDPOINT__;
-  var PRODUCTS = __PRODUCTS__;
   var css = ".aira-f{font-family:inherit;max-width:380px;display:grid;gap:10px;padding:18px;border:1px solid #e3e3e3;border-radius:12px;background:#fff;color:#1a1a1a;box-sizing:border-box}" +
     ".aira-f *{box-sizing:border-box}.aira-f h3{margin:0 0 2px;font-size:17px;font-weight:600}" +
-    ".aira-f input,.aira-f select{width:100%;padding:10px 12px;border:1px solid #cfcfcf;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:inherit}" +
-    ".aira-f input:focus,.aira-f select:focus{outline:2px solid #25d366;outline-offset:1px;border-color:#25d366}" +
+    ".aira-f input{width:100%;padding:10px 12px;border:1px solid #cfcfcf;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:inherit}" +
+    ".aira-f input:focus{outline:2px solid #25d366;outline-offset:1px;border-color:#25d366}" +
     ".aira-f button{padding:11px 14px;border:0;border-radius:8px;background:#25d366;color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer}" +
     ".aira-f button[disabled]{opacity:.6;cursor:default}.aira-f .aira-n{font-size:12px;color:#666;margin:0}" +
     ".aira-f .aira-e{font-size:13px;color:#c0392b;margin:0}.aira-f .aira-ok{font-size:15px;margin:0;padding:6px 0}" +
@@ -198,19 +191,11 @@ _FORM_JS = r"""(function () {
   function render(host) {
     if (host.getAttribute("data-aira-ready")) return;
     host.setAttribute("data-aira-ready", "1");
-    var fixed = host.getAttribute("data-product") || "";
     var form = el("form", { "class": "aira-f", novalidate: "" });
     form.appendChild(el("h3", {}, host.getAttribute("data-title") || "Get details on WhatsApp"));
     var name = el("input", { name: "name", placeholder: "Your name", autocomplete: "name", maxlength: "80" });
     var phone = el("input", { name: "phone", placeholder: "WhatsApp number", type: "tel", autocomplete: "tel", inputmode: "tel", maxlength: "16", required: "" });
     form.appendChild(name); form.appendChild(phone);
-    var product = null;
-    if (!fixed && PRODUCTS.length) {
-      product = el("select", { name: "product" });
-      product.appendChild(el("option", { value: "" }, "Which product?"));
-      PRODUCTS.forEach(function (p) { product.appendChild(el("option", { value: p }, p)); });
-      form.appendChild(product);
-    }
     var hp = el("div", { "class": "aira-hp", "aria-hidden": "true" });
     hp.appendChild(el("input", { name: "_hp", tabindex: "-1", autocomplete: "off" }));
     form.appendChild(hp);
@@ -223,13 +208,11 @@ _FORM_JS = r"""(function () {
       err.textContent = "";
       var digits = (phone.value || "").replace(/[^0-9]/g, "");
       if (digits.length < 10 || digits.length > 13) { err.textContent = "Please enter a valid WhatsApp number."; phone.focus(); return; }
-      if (product && !product.value) { err.textContent = "Please choose a product."; product.focus(); return; }
       btn.disabled = true;
       var body = new URLSearchParams();
       body.set("name", name.value.trim()); body.set("phone", phone.value.trim());
-      body.set("product", fixed || (product ? product.value : ""));
       body.set("event", host.getAttribute("data-event") || "interested");
-      body.set("product_url", location.href); body.set("_src", "form");
+      body.set("page_url", location.href); body.set("_src", "form");
       body.set("_hp", form.querySelector("[name=_hp]").value);
       fetch(ENDPOINT, { method: "POST", body: body }).then(function (r) {
         if (r.status === 429) throw new Error("Too many tries. Please wait a few minutes.");
@@ -270,7 +253,7 @@ def rotate_token(ctx: dict = Depends(require_settings_manage)):
 # ---------------------------------------------------------------- rules
 
 class VariableSpec(BaseModel):
-    source: str = Field(pattern="^(first_name|full_name|product|price|product_url|phone|extra|text)$")
+    source: str = Field(pattern="^(first_name|full_name|page_url|phone|extra|text)$")
     key: str | None = Field(default=None, max_length=50)
     value: str | None = Field(default=None, max_length=200)
     fallback: str | None = Field(default=None, max_length=200)
@@ -278,7 +261,6 @@ class VariableSpec(BaseModel):
 
 class RuleIn(BaseModel):
     event: str = Field(pattern="^(interested|signed_up|purchased)$")
-    catalog_item_id: str | None = None
     template_id: str
     delay_minutes: int = Field(default=0, ge=0, le=10080)
     variables: list[VariableSpec] = Field(default_factory=list, max_length=20)
@@ -305,14 +287,6 @@ def _check_template(db, tenant_id: str, template_id: str) -> None:
         raise HTTPException(status_code=400, detail="Pick a template that Meta has approved")
 
 
-def _check_item(db, tenant_id: str, item_id: str) -> None:
-    rows = (
-        db.table("catalog_items").select("id").eq("id", item_id).eq("tenant_id", tenant_id).limit(1).execute()
-    ).data or []
-    if not rows:
-        raise HTTPException(status_code=404, detail="Product not found")
-
-
 @router.get("/rules")
 def list_rules(ctx: dict = Depends(require_settings_view)):
     rows = (
@@ -327,12 +301,12 @@ def create_rule(payload: RuleIn, ctx: dict = Depends(require_settings_manage)):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     _check_template(db, tenant_id, payload.template_id)
-    if payload.catalog_item_id:
-        _check_item(db, tenant_id, payload.catalog_item_id)
-    q = db.table("auto_message_rules").select("id").eq("tenant_id", tenant_id).eq("event", payload.event)
-    q = q.eq("catalog_item_id", payload.catalog_item_id) if payload.catalog_item_id else q.is_("catalog_item_id", "null")
-    if (q.limit(1).execute().data or []):
-        raise HTTPException(status_code=409, detail="There is already a message for this event and product")
+    existing = (
+        db.table("auto_message_rules").select("id").eq("tenant_id", tenant_id).eq("event", payload.event)
+        .limit(1).execute()
+    ).data or []
+    if existing:
+        raise HTTPException(status_code=409, detail="There is already a message for this event")
     row = {
         **payload.model_dump(exclude={"variables", "button_param"}),
         "variables": [v.model_dump() for v in payload.variables],
@@ -383,29 +357,6 @@ def delete_rule(rule_id: str, ctx: dict = Depends(require_settings_manage)):
     return {"deleted": True}
 
 
-# ---------------------------------------------------------------- product aliases
-
-class AliasesIn(BaseModel):
-    aliases: list[str] = Field(default_factory=list, max_length=30)
-
-
-@router.put("/products/{item_id}/aliases")
-def set_aliases(item_id: str, payload: AliasesIn, ctx: dict = Depends(require_catalog_manage)):
-    cleaned, seen = [], set()
-    for a in payload.aliases:
-        a = (a or "").strip()[:80]
-        if a and a.lower() not in seen:
-            seen.add(a.lower())
-            cleaned.append(a)
-    updated = (
-        get_supabase().table("catalog_items").update({"aliases": cleaned})
-        .eq("id", item_id).eq("tenant_id", ctx["tenant_id"]).execute()
-    ).data or []
-    if not updated:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return {"id": item_id, "aliases": cleaned}
-
-
 @router.get("/templates")
 def list_templates(ctx: dict = Depends(require_settings_view)):
     """Approved templates with what the rule editor needs: the body's {{n}}
@@ -432,61 +383,30 @@ def list_templates(ctx: dict = Depends(require_settings_view)):
     return {"templates": sorted(out, key=lambda t: t["name"])}
 
 
-@router.get("/products")
-def list_products(ctx: dict = Depends(require_settings_view)):
-    items = svc.tenant_catalog(get_supabase(), ctx["tenant_id"])
-    return {"products": [
-        {"id": i["id"], "name": i["name"], "aliases": i.get("aliases") or [], "price_paise": i.get("price_paise")}
-        for i in sorted(items, key=lambda i: (i.get("name") or "").lower())
-    ]}
-
-
 # ---------------------------------------------------------------- shop quick-add
 
 class QuickAddIn(BaseModel):
     name: str | None = Field(default=None, max_length=120)
     phone: str = Field(min_length=6, max_length=20)
     event: str = Field(default="purchased", pattern="^(interested|signed_up|purchased)$")
-    catalog_item_id: str | None = None
-    product: str | None = Field(default=None, max_length=200)
 
 
 @router.post("/quick-add")
 async def quick_add(payload: QuickAddIn, ctx: dict = Depends(require_leads_manage)):
-    db = get_supabase()
-    product = (payload.product or "").strip()
-    if payload.catalog_item_id:
-        rows = (
-            db.table("catalog_items").select("name").eq("id", payload.catalog_item_id)
-            .eq("tenant_id", ctx["tenant_id"]).limit(1).execute()
-        ).data or []
-        if not rows:
-            raise HTTPException(status_code=404, detail="Product not found")
-        product = rows[0]["name"]
     result = await svc.handle_event(ctx["tenant_id"], "store", {
         "phone": payload.phone, "name": (payload.name or "").strip(), "event_raw": payload.event,
-        "product": product, "product_url": "", "extra": {},
-    }, db=db)
+        "page_url": "", "extra": {},
+    }, db=get_supabase())
     if result["status"] != "ok":
         raise HTTPException(status_code=400, detail="Enter a valid mobile number")
     return result
-
-
-@router.get("/quick-add/products")
-def quick_add_products(ctx: dict = Depends(require_leads_manage)):
-    """Product picker for counter staff, who usually have leads.manage but not settings.view."""
-    items = svc.tenant_catalog(get_supabase(), ctx["tenant_id"])
-    return {"products": [
-        {"id": i["id"], "name": i["name"], "aliases": [], "price_paise": i.get("price_paise")}
-        for i in sorted(items, key=lambda i: (i.get("name") or "").lower()) if i.get("status") == "ready"
-    ]}
 
 
 @router.get("/quick-add/recent")
 def quick_add_recent(ctx: dict = Depends(require_leads_manage)):
     rows = (
         get_supabase().table("auto_message_sends")
-        .select("id, phone, name, event, source, product_raw, catalog_item_id, status, reason, send_at, sent_at, created_at")
+        .select("id, phone, name, event, source, status, reason, send_at, sent_at, created_at")
         .eq("tenant_id", ctx["tenant_id"]).eq("source", "store").order("created_at", desc=True).limit(10).execute()
     ).data or []
     return {"sends": rows}
@@ -500,26 +420,19 @@ def list_sends(status: str | None = None, limit: int = 100, ctx: dict = Depends(
     tenant_id = ctx["tenant_id"]
     q = (
         db.table("auto_message_sends")
-        .select("id, lead_id, phone, name, event, source, product_raw, catalog_item_id, template_id, status, reason, send_at, sent_at, created_at")
+        .select("id, lead_id, phone, name, event, source, template_id, status, reason, send_at, sent_at, created_at")
         .eq("tenant_id", tenant_id)
     )
     if status:
         q = q.eq("status", status)
     rows = q.order("created_at", desc=True).limit(max(1, min(limit, 500))).execute().data or []
 
-    item_ids = list({r["catalog_item_id"] for r in rows if r.get("catalog_item_id")})
     template_ids = list({r["template_id"] for r in rows if r.get("template_id")})
-    items = {
-        i["id"]: i["name"] for i in (
-            db.table("catalog_items").select("id, name").eq("tenant_id", tenant_id).in_("id", item_ids).execute().data or []
-        )
-    } if item_ids else {}
     templates = {
         t["id"]: t["name"] for t in (
             db.table("message_templates").select("id, name").eq("tenant_id", tenant_id).in_("id", template_ids).execute().data or []
         )
     } if template_ids else {}
     for r in rows:
-        r["product_name"] = items.get(r.get("catalog_item_id"))
         r["template_name"] = templates.get(r.get("template_id"))
     return {"sends": rows}
