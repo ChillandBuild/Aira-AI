@@ -10,6 +10,7 @@ from fastapi import HTTPException
 
 from app.config import settings as env_settings
 from app.config_dynamic import get_setting
+from app.services import template_rules
 
 logger = logging.getLogger(__name__)
 
@@ -895,14 +896,44 @@ async def send_template_message(
     return data
 
 
-def _extract_variable_examples(body_text: str) -> list[str]:
-    """Return placeholder example values for every {{N}} variable in the body."""
-    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", body_text)))
-    examples = ["Sample text"] * len(indices)
-    # Use a descriptive placeholder for {{1}} which is almost always the customer name
-    if indices and indices[0] == 1:
-        examples[0] = "Rajan Kumar"
-    return examples
+def build_core_components(
+    body_text: str,
+    body_examples: list[str] | None = None,
+    header_text: Optional[str] = None,
+    header_example: Optional[str] = None,
+    header_media_type: Optional[str] = None,
+    header_media_url: Optional[str] = None,
+    footer_text: Optional[str] = None,
+) -> list[dict]:
+    """BODY, HEADER and FOOTER components with the client's own sample values.
+
+    Meta requires a sample for every variable; template_rules.samples_for raises a
+    ValueError naming the first one that is missing.
+    """
+    body_component: dict = {"type": "BODY", "text": body_text}
+    body_samples = template_rules.samples_for(body_text, body_examples, "message body")
+    if body_samples:
+        body_component["example"] = {"body_text": [body_samples]}
+    components: list[dict] = [body_component]
+
+    if header_media_type and header_media_type != "NONE":
+        header_component: dict = {"type": "HEADER", "format": header_media_type.upper()}
+        if header_media_url:
+            header_component["example"] = {"header_handle": [header_media_url]}
+        components.append(header_component)
+    elif header_text and header_text.strip():
+        clean_header = _sanitize_header_or_footer(header_text)
+        header_component = {"type": "HEADER", "format": "TEXT", "text": clean_header}
+        header_samples = template_rules.samples_for(
+            clean_header, [header_example] if header_example else None, "header"
+        )
+        if header_samples:
+            header_component["example"] = {"header_text": header_samples}
+        components.append(header_component)
+
+    if footer_text and footer_text.strip():
+        components.append({"type": "FOOTER", "text": _sanitize_header_or_footer(footer_text)})
+    return components
 
 
 def _build_button_components(buttons: list[dict], max_btn: int, category: Optional[str] = None) -> list[dict]:
@@ -928,8 +959,9 @@ def _build_button_components(buttons: list[dict], max_btn: int, category: Option
         if btn_type == "QUICK_REPLY":
             out.append({"type": "QUICK_REPLY", "text": btn_text})
         elif btn_type == "URL":
-            url_val = btn.get("url", "")
-            out.append({"type": "URL", "text": btn_text, "url": url_val, "example": [url_val]})
+            url_val = (btn.get("url") or "").strip()
+            example = template_rules.url_with_sample(url_val, btn.get("url_example"))
+            out.append({"type": "URL", "text": btn_text, "url": url_val, "example": [example]})
         elif btn_type in ("PHONE_NUMBER", "WHATSAPP_CALL"):
             phone = btn.get("phone", "")
             country = btn.get("country", "+1")
@@ -972,38 +1004,16 @@ async def submit_template(
     carousel_cards: list[dict] | None = None,  # 2-10 cards for CAROUSEL templates
     access_token: Optional[str] = None,
     tenant_id: Optional[str] = None,
+    body_examples: list[str] | None = None,
+    header_example: Optional[str] = None,
 ) -> dict:
     _, tok = _creds("placeholder", access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{waba_id}/message_templates"
 
-    body_component: dict = {"type": "BODY", "text": body_text}
-    examples = _extract_variable_examples(body_text)
-    if examples:
-        body_component["example"] = {"body_text": [examples]}
-
-    components: list[dict] = [body_component]
-
-    # Handle header (text or media)
-    if header_media_type and header_media_type != "NONE":
-        # Media header
-        media_format = header_media_type.upper()
-        header_component: dict = {"type": "HEADER", "format": media_format}
-        if header_media_url:
-            header_component["example"] = {"header_handle": [header_media_url]}
-        components.append(header_component)
-    elif header_text and header_text.strip():
-        # Text header
-        components.append({
-            "type": "HEADER",
-            "format": "TEXT",
-            "text": _sanitize_header_or_footer(header_text)
-        })
-
-    if footer_text and footer_text.strip():
-        components.append({
-            "type": "FOOTER",
-            "text": _sanitize_header_or_footer(footer_text)
-        })
+    components = build_core_components(
+        body_text, body_examples, header_text, header_example,
+        header_media_type, header_media_url, footer_text,
+    )
 
     if buttons:
         max_btn = 1 if category == "AUTHENTICATION" else 10
@@ -1029,7 +1039,11 @@ async def submit_template(
                 })
             c_body = (card.get("body_text") or "").strip()
             if c_body:
-                card_components.append({"type": "BODY", "text": c_body})
+                c_body_component: dict = {"type": "BODY", "text": c_body}
+                c_samples = template_rules.samples_for(c_body, card.get("body_examples"), "card text")
+                if c_samples:
+                    c_body_component["example"] = {"body_text": [c_samples]}
+                card_components.append(c_body_component)
             c_buttons = [b for b in (card.get("buttons") or []) if b.get("type") in ("URL", "QUICK_REPLY")]
             if c_buttons:
                 card_btn_components = _build_button_components(c_buttons, 2)

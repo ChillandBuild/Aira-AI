@@ -2,16 +2,22 @@
 
 import { useRef, useMemo } from "react";
 import { Plus } from "lucide-react";
-import { detectVariables, validateTemplateBody, templateBodyWarning } from "../types";
+import { detectVariables } from "../types";
+import { bodyBlockers, renumberVariables, shortTemplateTip, sampleBlockers, tidyVariables } from "../template-rules";
+import FieldMessages, { SampleInputs, useFixNotes } from "./field-messages";
 
 type VariableInserterProps = {
   value: string;
   onChange: (value: string) => void;
+  samples: Record<number, string>;
+  onSamplesChange: (samples: Record<number, string>) => void;
   placeholder?: string;
   maxLength?: number;
   rows?: number;
   label: string;
   helperText?: string;
+  /** id of the textarea; sample inputs are `${id}-sample-${n}` */
+  id?: string;
 };
 
 /* ── helpers ─────────────────────────────────────────────────── */
@@ -27,20 +33,40 @@ function nextVariableNumber(text: string): number {
 export default function VariableInserter({
   value,
   onChange,
+  samples,
+  onSamplesChange,
   placeholder = "Type your message here…",
   maxLength = 1024,
   rows = 4,
   label,
   helperText,
+  id = "template-body",
 }: VariableInserterProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { notes, show } = useFixNotes();
 
   const variables = useMemo(() => detectVariables(value), [value]);
-  const validationError = useMemo(() => validateTemplateBody(value), [value]);
-  const validationWarning = useMemo(
-    () => (validationError ? null : templateBodyWarning(value)),
-    [value, validationError]
-  );
+  const blockers = useMemo(() => bodyBlockers(value, id).filter((b) => b.inline), [value, id]);
+  const tip = useMemo(() => (blockers.length ? null : shortTemplateTip(value)), [value, blockers]);
+  const missingSamples = useMemo(() => sampleBlockers(value, samples, `${id}-sample-`), [value, samples, id]);
+  const messagesId = `${id}-messages`;
+
+  function handleChange(next: string) {
+    const tidied = tidyVariables(next);
+    show("body", tidied.note);
+    onChange(tidied.text);
+  }
+
+  function renumber() {
+    const { text, moved } = renumberVariables(value);
+    const nextSamples: Record<number, string> = {};
+    Object.entries(moved).forEach(([oldN, newN]) => {
+      nextSamples[newN] = samples[Number(oldN)] ?? "";
+    });
+    onChange(text);
+    onSamplesChange(nextSamples);
+    show("body", "Renumbered the variables in order. Your samples moved with them.");
+  }
 
   function insertVariable() {
     const el = textareaRef.current;
@@ -65,7 +91,7 @@ export default function VariableInserter({
   return (
     <div>
       {/* Label */}
-      <label className="font-body text-sm font-medium text-ink mb-1.5 block">
+      <label htmlFor={id} className="font-body text-sm font-medium text-ink mb-1.5 block">
         {label}
       </label>
 
@@ -86,24 +112,19 @@ export default function VariableInserter({
 
       {/* Textarea */}
       <textarea
+        id={id}
         ref={textareaRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}
+        aria-describedby={messagesId}
+        aria-invalid={blockers.length > 0}
         className={`input resize-y min-h-[100px] text-sm ${
-          validationError ? "border-red-400 focus:border-red-500" : ""
+          blockers.length ? "border-red-400 focus:border-red-500" : ""
         }`}
       />
-
-      {/* Meta template rule violation / advisory */}
-      {validationError && (
-        <p className="font-body text-[11px] text-red-600 mt-1">{validationError}</p>
-      )}
-      {!validationError && validationWarning && (
-        <p className="font-body text-[11px] text-amber-600 mt-1">{validationWarning}</p>
-      )}
 
       {/* Footer: char count + detected vars */}
       <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">
@@ -139,6 +160,26 @@ export default function VariableInserter({
           </div>
         )}
       </div>
+
+      <FieldMessages
+        id={messagesId}
+        note={notes.body}
+        blockers={blockers}
+        tip={tip}
+        onFix={(fix) => fix === "renumber" && renumber()}
+      />
+
+      {blockers.length === 0 && (
+        <>
+          <SampleInputs
+            variables={variables}
+            samples={samples}
+            onChange={onSamplesChange}
+            idPrefix={`${id}-sample-`}
+          />
+          <FieldMessages id={`${id}-sample-messages`} blockers={missingSamples} />
+        </>
+      )}
     </div>
   );
 }

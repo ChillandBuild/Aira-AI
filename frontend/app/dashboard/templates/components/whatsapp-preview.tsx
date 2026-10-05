@@ -8,6 +8,9 @@ type WhatsAppPreviewProps = {
   headerText?: string;
   headerMediaUrl?: string;
   bodyText: string;
+  /** Sample values shown in place of {{n}}, the way Meta's reviewer reads them. */
+  bodySamples?: Record<number, string>;
+  headerSample?: string;
   footerText?: string;
   buttons?: Array<{ type: string; text: string; url?: string; phone?: string }>;
   carouselCards?: Array<{
@@ -19,7 +22,7 @@ type WhatsAppPreviewProps = {
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
-function renderBody(text: string) {
+function renderBody(text: string, samples?: Record<number, string>) {
   const parts = text.split(/(\{\{\d+\}\})/g);
   return parts.map((part, i) =>
     /\{\{\d+\}\}/.test(part) ? (
@@ -28,7 +31,7 @@ function renderBody(text: string) {
         className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold"
         style={{ background: "#DCF8C6", color: "#075E54" }}
       >
-        {part}
+        {samples?.[Number(part.slice(2, -2))]?.trim() || part}
       </span>
     ) : (
       <span key={i}>{part}</span>
@@ -59,10 +62,13 @@ export default function WhatsAppPreview({
   headerText,
   headerMediaUrl,
   bodyText,
+  bodySamples,
+  headerSample,
   footerText,
   buttons,
   carouselCards,
 }: WhatsAppPreviewProps) {
+  const shownHeader = headerText && headerSample?.trim() ? headerText.replace(/\{\{1\}\}/, headerSample.trim()) : headerText;
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const hasMedia = headerType !== "NONE" && headerType !== "TEXT";
@@ -186,12 +192,12 @@ export default function WhatsAppPreview({
                 {/* Text header */}
                 {headerType === "TEXT" && headerText && (
                   <p className="text-sm font-bold mb-1" style={{ color: "#111B21" }}>
-                    {headerText}
+                    {shownHeader}
                   </p>
                 )}
                 {headerType !== "TEXT" && headerText && (
                   <p className="text-sm font-bold mb-1" style={{ color: "#111B21" }}>
-                    {headerText}
+                    {shownHeader}
                   </p>
                 )}
 
@@ -200,7 +206,7 @@ export default function WhatsAppPreview({
                   className="text-[13.5px] whitespace-pre-wrap break-words leading-relaxed"
                   style={{ color: "#111B21" }}
                 >
-                  {bodyText ? renderBody(bodyText) : (
+                  {bodyText ? renderBody(bodyText, bodySamples) : (
                     <span className="text-gray-400 italic">
                       Your message will appear here…
                     </span>

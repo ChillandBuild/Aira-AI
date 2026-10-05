@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,17 +15,24 @@ import {
   Lock,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { LANGUAGES, CATEGORIES, validateTemplateBody } from "../types";
+import { LANGUAGES, CATEGORIES, detectVariables } from "../types";
 import type { Button } from "../types";
+import {
+  UTILITY_TIP,
+  blockerSummary,
+  bodyBlockers,
+  buttonBlockers,
+  cleanHeader,
+  footerBlockers,
+  headerBlockers,
+  sampleBlockers,
+} from "../template-rules";
+import type { Blocker } from "../template-rules";
+import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import { useAuthRole } from "../../contexts/AuthRoleContext";
-
-function hasEmoji(str: string): boolean {
-  const emojiRegex = /[\u2600-\u27BF]|[\uD83C-\uD83E][\uDC00-\uDFFF]/;
-  return emojiRegex.test(str);
-}
 
 export default function NewTemplatePage() {
   const router = useRouter();
@@ -47,6 +54,11 @@ export default function NewTemplatePage() {
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const [bodyText, setBodyText] = useState("");
   const [footerText, setFooterText] = useState("");
+
+  // Sample values Meta's reviewer sees for each variable
+  const [bodySamples, setBodySamples] = useState<Record<number, string>>({});
+  const [headerSample, setHeaderSample] = useState("");
+  const { notes, show } = useFixNotes();
 
   // Buttons State
   const [buttons, setButtons] = useState<Button[]>([]);
@@ -105,43 +117,37 @@ export default function NewTemplatePage() {
     setHeaderMediaUrl("");
   }
 
+  // Meta's rules, per step. Continue stays disabled until the current step is clear.
+  const headerVars = headerType === "TEXT" ? detectVariables(headerText) : [];
+  const stepBlockers = useMemo(() => {
+    const info: Blocker[] = generatedName
+      ? []
+      : [{ fieldId: "template-name", message: "Add a template name", inline: false }];
+    const content: Blocker[] = [];
+    if (headerType === "TEXT") {
+      if (!headerText.trim()) content.push({ fieldId: "template-header", message: "Add the header text", inline: false });
+      content.push(...headerBlockers(headerText, "template-header"));
+      if (headerVars.length === 1 && !headerSample.trim()) {
+        content.push({ fieldId: "template-header-sample-1", message: "Add a sample for the header variable.", inline: true });
+      }
+    } else if (headerType !== "NONE" && !headerMediaUrl) {
+      content.push({ fieldId: "template-header-upload", message: "Upload the header file", inline: false });
+    }
+    const body = bodyBlockers(bodyText, "template-body");
+    content.push(...body);
+    if (!body.length) content.push(...sampleBlockers(bodyText, bodySamples, "template-body-sample-"));
+    content.push(...footerBlockers(footerText, "template-footer"));
+    const btns = buttonBlockers(buttons);
+    return { 1: info, 2: content, 3: btns, 4: [...info, ...content, ...btns] } as Record<number, Blocker[]>;
+  }, [generatedName, headerType, headerText, headerVars.length, headerSample, headerMediaUrl, bodyText, bodySamples, footerText, buttons]);
+  const currentBlockers = stepBlockers[currentStep] ?? [];
+
   // Next / Prev step navigation
   const nextStep = () => {
     setError(null);
-    if (currentStep === 1) {
-      if (!name.trim()) {
-        setError("Please enter a template name.");
-        return;
-      }
-    } else if (currentStep === 2) {
-      if (!bodyText.trim()) {
-        setError("Message body text cannot be empty.");
-        return;
-      }
-      const bodyError = validateTemplateBody(bodyText);
-      if (bodyError) {
-        setError(bodyError);
-        return;
-      }
-      if (headerType === "TEXT" && !headerText.trim()) {
-        setError("Please enter header text.");
-        return;
-      }
-      if (headerType === "TEXT" && hasEmoji(headerText)) {
-        setError("Emojis are not allowed in the header text.");
-        return;
-      }
-      if (headerType !== "NONE" && headerType !== "TEXT" && !headerMediaUrl) {
-        setError("Please upload a media file or provide a handle.");
-        return;
-      }
-    } else if (currentStep === 3) {
-      const trimmedTexts = buttons.map((b) => b.text.trim().toLowerCase()).filter(Boolean);
-      const uniqueTexts = new Set(trimmedTexts);
-      if (uniqueTexts.size < trimmedTexts.length) {
-        setError("You can't enter the same text for multiple buttons.");
-        return;
-      }
+    if (currentBlockers.length) {
+      focusFirst(currentBlockers);
+      return;
     }
     setCurrentStep((prev) => Math.min(prev + 1, 4));
   };
@@ -160,16 +166,9 @@ export default function NewTemplatePage() {
     setLoading(true);
     setError(null);
     try {
-      if (headerType === "TEXT" && hasEmoji(headerText)) {
-        throw new Error("Emojis are not allowed in the header text.");
-      }
-      const bodyError = validateTemplateBody(bodyText);
-      if (bodyError) {
-        throw new Error(bodyError);
-      }
-      const trimmedTexts = buttons.map((b) => b.text.trim().toLowerCase()).filter(Boolean);
-      if (new Set(trimmedTexts).size < trimmedTexts.length) {
-        throw new Error("You can't enter the same text for multiple buttons.");
+      if (stepBlockers[4].length) {
+        focusFirst(stepBlockers[4]);
+        throw new Error("Fix the highlighted fields before submitting.");
       }
       const authHeaders = await getAuthHeaders();
       const payload = {
@@ -177,7 +176,9 @@ export default function NewTemplatePage() {
         category,
         language,
         body_text: bodyText.trim(),
+        body_examples: detectVariables(bodyText).map((n) => (bodySamples[n] ?? "").trim()),
         header_text: headerType === "TEXT" ? headerText.trim() : null,
+        header_example: headerVars.length === 1 ? headerSample.trim() : null,
         header_media_type: headerType !== "NONE" && headerType !== "TEXT" ? headerType : null,
         header_media_url: headerType !== "NONE" && headerType !== "TEXT" ? headerMediaUrl : null,
         footer_text: footerText.trim() || null,
@@ -294,6 +295,7 @@ export default function NewTemplatePage() {
                   Template Title
                 </label>
                 <input
+                  id="template-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Spring Sale Announcement"
@@ -347,6 +349,7 @@ export default function NewTemplatePage() {
                     );
                   })}
                 </div>
+                {category === "UTILITY" && <FieldMessages id="category-messages" tip={UTILITY_TIP} />}
               </div>
 
               {/* Language */}
@@ -399,13 +402,43 @@ export default function NewTemplatePage() {
                   </select>
 
                   {headerType === "TEXT" && (
-                    <input
-                      value={headerText}
-                      onChange={(e) => setHeaderText(e.target.value)}
-                      maxLength={60}
-                      placeholder="e.g. Limited Time Offer"
-                      className="input"
-                    />
+                    <>
+                      <input
+                        id="template-header"
+                        value={headerText}
+                        onChange={(e) => {
+                          const cleaned = cleanHeader(e.target.value);
+                          show("header", cleaned.note);
+                          setHeaderText(cleaned.text);
+                        }}
+                        maxLength={60}
+                        placeholder="e.g. Limited Time Offer"
+                        aria-describedby="template-header-messages"
+                        aria-invalid={headerBlockers(headerText, "template-header").length > 0}
+                        className="input"
+                      />
+                      <FieldMessages
+                        id="template-header-messages"
+                        note={notes.header}
+                        blockers={headerBlockers(headerText, "template-header")}
+                      />
+                      {headerVars.length === 1 && (
+                        <>
+                          <SampleInputs
+                            variables={[1]}
+                            samples={{ 1: headerSample }}
+                            onChange={(next) => setHeaderSample(next[1] ?? "")}
+                            idPrefix="template-header-sample-"
+                            label="Sample value"
+                            chipLabel={() => "Header {{1}}"}
+                          />
+                          <FieldMessages
+                            id="template-header-sample-messages"
+                            blockers={headerSample.trim() ? [] : stepBlockers[2].filter((b) => b.fieldId === "template-header-sample-1")}
+                          />
+                        </>
+                      )}
+                    </>
                   )}
 
                   {/* Media uploads */}
@@ -440,7 +473,8 @@ export default function NewTemplatePage() {
                                     : ".pdf,.doc,.docx"
                               }
                               onChange={handleFileSelect}
-                              className="hidden"
+                              id="template-header-upload"
+                              className="sr-only"
                             />
                             <Upload size={24} className="mx-auto text-ink-muted mb-2" />
                             <p className="font-body text-xs text-ink-secondary font-medium">
@@ -470,6 +504,8 @@ export default function NewTemplatePage() {
                   label="Message Body"
                   value={bodyText}
                   onChange={setBodyText}
+                  samples={bodySamples}
+                  onSamplesChange={setBodySamples}
                   rows={6}
                   maxLength={1024}
                   placeholder="Enter template message body here..."
@@ -483,12 +519,16 @@ export default function NewTemplatePage() {
                     Footer Text <span className="text-ink-muted font-normal">(optional, max 60 chars)</span>
                   </label>
                   <input
+                    id="template-footer"
                     value={footerText}
                     onChange={(e) => setFooterText(e.target.value)}
                     maxLength={60}
                     placeholder="e.g. Reply STOP to opt out"
+                    aria-describedby="template-footer-messages"
+                    aria-invalid={footerBlockers(footerText, "template-footer").length > 0}
                     className="input"
                   />
+                  <FieldMessages id="template-footer-messages" blockers={footerBlockers(footerText, "template-footer")} />
                 </div>
               ) : (
                 <div>
@@ -496,11 +536,15 @@ export default function NewTemplatePage() {
                     Footer Text <span className="text-ink-muted font-normal">(optional, max 60 chars)</span>
                   </label>
                   <input
+                    id="template-footer"
                     value={footerText}
                     onChange={(e) => setFooterText(e.target.value)}
                     maxLength={60}
+                    aria-describedby="template-footer-messages"
+                    aria-invalid={footerBlockers(footerText, "template-footer").length > 0}
                     className="input"
                   />
+                  <FieldMessages id="template-footer-messages" blockers={footerBlockers(footerText, "template-footer")} />
                 </div>
               )}
             </div>
@@ -601,11 +645,14 @@ export default function NewTemplatePage() {
               <div />
             )}
 
+            <div className="flex items-center gap-4 flex-wrap justify-end">
+            <BlockedReason blockers={currentBlockers} label={blockerSummary(currentBlockers)} />
             {currentStep < 4 ? (
               <button
                 type="button"
                 onClick={nextStep}
-                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors"
+                disabled={currentBlockers.length > 0}
+                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:blur-[0.5px] disabled:cursor-not-allowed disabled:hover:bg-emerald-600"
               >
                 Continue
                 <ChevronRight size={16} />
@@ -614,13 +661,14 @@ export default function NewTemplatePage() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading || !name.trim() || !bodyText.trim() || !canManageTemplates}
+                disabled={loading || currentBlockers.length > 0 || !canManageTemplates}
                 title={canManageTemplates ? "Submit template to WhatsApp" : "Read-only role: submit is disabled"}
                 className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 font-medium text-sm text-white transition-colors disabled:opacity-50 disabled:blur-[0.5px]"
               >
                 {loading ? "Submitting..." : "Submit to WhatsApp"}
               </button>
             )}
+            </div>
           </div>
         </div>
 
@@ -632,6 +680,8 @@ export default function NewTemplatePage() {
             headerText={headerType === "TEXT" ? headerText : undefined}
             headerMediaUrl={headerMediaUrl || undefined}
             bodyText={bodyText}
+            bodySamples={bodySamples}
+            headerSample={headerSample}
             footerText={footerText || undefined}
             buttons={buttons.map((b) => ({
               type: b.type,

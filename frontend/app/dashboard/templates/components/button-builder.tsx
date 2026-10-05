@@ -8,10 +8,12 @@ import {
   Phone,
   Copy,
   MessageSquare,
-  AlertTriangle,
   ChevronDown,
   PhoneCall,
 } from "lucide-react";
+import type { Button } from "../types";
+import { buttonBlockers, cleanButtonLabel, cleanPhone, fixUrl, groupQuickReplies } from "../template-rules";
+import FieldMessages, { SampleInputs, useFixNotes } from "./field-messages";
 
 type ButtonConfig = {
   type: 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'WHATSAPP_CALL' | 'COPY_CODE' | 'ONE_TAP';
@@ -24,6 +26,7 @@ type ButtonConfig = {
   autofill_text?: string;
   package_name?: string;
   signature_hash?: string;
+  url_example?: string;
 };
 
 type ButtonBuilderProps = {
@@ -93,13 +96,6 @@ const COUNTRY_CODES = [
 
 /* ── helpers ─────────────────────────────────────────────────── */
 
-function hasMixedTypes(buttons: ButtonConfig[]): boolean {
-  if (buttons.length < 2) return false;
-  const hasQR = buttons.some((b) => b.type === "QUICK_REPLY");
-  const hasCTA = buttons.some((b) => b.type !== "QUICK_REPLY");
-  return hasQR && hasCTA;
-}
-
 function typeLabel(type: string) {
   return BUTTON_TYPES.find((t) => t.type === type)?.label ?? type;
 }
@@ -138,6 +134,18 @@ export default function ButtonBuilder({
     ? BUTTON_TYPES.filter((t) => t.type === "QUICK_REPLY" || t.type === "URL")
     : BUTTON_TYPES;
 
+  const { notes, show, clearAll } = useFixNotes();
+  const blockers = buttonBlockers(buttons as Button[]);
+  const blockersFor = (fieldId: string) => blockers.filter((b) => b.fieldId === fieldId);
+
+  /** Keeps quick replies side by side (Meta rejects them split by other buttons). */
+  function commit(next: ButtonConfig[]) {
+    const grouped = groupQuickReplies(next as Button[]);
+    if (grouped.note) clearAll(); // per-button notes are keyed by position, which just changed
+    show("group", grouped.note);
+    onChange(grouped.buttons as ButtonConfig[]);
+  }
+
   function addButton(type: ButtonConfig["type"]) {
     if (buttons.length >= maxButtons) return;
     const newBtn: ButtonConfig = { type, text: "" };
@@ -157,7 +165,7 @@ export default function ButtonBuilder({
       newBtn.package_name = "";
       newBtn.signature_hash = "";
     }
-    onChange([...buttons, newBtn]);
+    commit([...buttons, newBtn]);
     setShowPicker(false);
   }
 
@@ -169,7 +177,7 @@ export default function ButtonBuilder({
   }
 
   function remove(index: number) {
-    onChange(buttons.filter((_, i) => i !== index));
+    commit(buttons.filter((_, i) => i !== index));
   }
 
   const urlCount = buttons.filter((b) => b.type === "URL").length;
@@ -185,10 +193,6 @@ export default function ButtonBuilder({
     return false;
   };
 
-  const trimmedTexts = buttons.map((b) => b.text.trim().toLowerCase()).filter(Boolean);
-  const hasDuplicates = new Set(trimmedTexts).size < trimmedTexts.length;
-
-  const mixed = hasMixedTypes(buttons);
 
   return (
     <div>
@@ -217,25 +221,7 @@ export default function ButtonBuilder({
         )}
       </div>
 
-      {/* Mixed-type warning */}
-      {mixed && (
-        <div className="mb-3 flex items-start gap-2 p-3 rounded-xl bg-primary-50 border border-primary-200">
-          <AlertTriangle size={15} className="text-primary-600 shrink-0 mt-0.5" />
-          <p className="font-body text-xs text-primary-800 leading-relaxed">
-            Mixing Quick Reply and Call-to-Action buttons is fully supported by Meta, but note that users on older WhatsApp Desktop clients may be prompted to view this message on their phone.
-          </p>
-        </div>
-      )}
-
-      {/* Duplicate warning */}
-      {hasDuplicates && (
-        <div className="mb-3 flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200">
-          <AlertTriangle size={15} className="text-red-600 shrink-0 mt-0.5" />
-          <p className="font-body text-xs text-red-800 leading-relaxed">
-            You can&apos;t enter the same text for multiple buttons. Meta will reject this template.
-          </p>
-        </div>
-      )}
+      <FieldMessages id="buttons-messages" note={notes.group} />
 
       {/* Add-button picker dropdown */}
       {showPicker && buttons.length < maxButtons && (
@@ -333,8 +319,15 @@ export default function ButtonBuilder({
                 </div>
               ) : (
                 <input
+                  id={`btn-label-${i}`}
                   value={btn.text}
-                  onChange={(e) => update(i, "text", e.target.value.slice(0, 25))}
+                  onChange={(e) => {
+                    const cleaned = cleanButtonLabel(e.target.value);
+                    show(`label-${i}`, cleaned.note);
+                    update(i, "text", cleaned.text.slice(0, 25));
+                  }}
+                  aria-describedby={`btn-label-${i}-messages`}
+                  aria-invalid={blockersFor(`btn-label-${i}`).length > 0}
                   placeholder={
                     btn.type === "QUICK_REPLY"
                       ? "e.g. Book Now"
@@ -346,6 +339,11 @@ export default function ButtonBuilder({
                   className="input text-sm"
                 />
               )}
+              <FieldMessages
+                id={`btn-label-${i}-messages`}
+                note={notes[`label-${i}`]}
+                blockers={blockersFor(`btn-label-${i}`)}
+              />
             </div>
 
             {/* URL field */}
@@ -355,11 +353,41 @@ export default function ButtonBuilder({
                   Website URL
                 </p>
                 <input
+                  id={`btn-url-${i}`}
                   value={btn.url || ""}
                   onChange={(e) => update(i, "url", e.target.value)}
+                  onBlur={(e) => {
+                    const fixed = fixUrl(e.target.value);
+                    show(`url-${i}`, fixed.note);
+                    if (fixed.text !== (btn.url || "")) update(i, "url", fixed.text);
+                  }}
+                  maxLength={2000}
                   placeholder="https://www.example.com"
+                  aria-describedby={`btn-url-${i}-messages`}
+                  aria-invalid={blockersFor(`btn-url-${i}`).some((b) => b.inline)}
                   className="input text-sm"
                 />
+                <FieldMessages
+                  id={`btn-url-${i}-messages`}
+                  note={notes[`url-${i}`]}
+                  blockers={blockersFor(`btn-url-${i}`)}
+                />
+                {/\{\{\d+\}\}$/.test((btn.url || "").trim()) && (
+                  <>
+                    <SampleInputs
+                      variables={[1]}
+                      samples={{ 1: btn.url_example ?? "" }}
+                      onChange={(next) => update(i, "url_example", next[1] ?? "")}
+                      idPrefix={`btn-urlsample-${i}-`}
+                      label="Sample value"
+                      chipLabel={() => "Link {{1}}"}
+                    />
+                    <FieldMessages
+                      id={`btn-urlsample-${i}-messages`}
+                      blockers={blockersFor(`btn-urlsample-${i}-1`)}
+                    />
+                  </>
+                )}
               </div>
             )}
 
@@ -385,8 +413,11 @@ export default function ButtonBuilder({
                     Phone number
                   </p>
                   <input
+                    id={`btn-phone-${i}`}
                     value={btn.phone || ""}
-                    onChange={(e) => update(i, "phone", e.target.value)}
+                    onChange={(e) => update(i, "phone", cleanPhone(e.target.value))}
+                    inputMode="numeric"
+                    maxLength={15}
                     placeholder="9876543210"
                     className="input text-sm"
                   />

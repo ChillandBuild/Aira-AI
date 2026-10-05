@@ -1,21 +1,35 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Trash2, ArrowLeft, AlertCircle, Image as ImageIcon } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { LANGUAGES } from "../types";
+import { LANGUAGES, detectVariables } from "../types";
+import type { Button } from "../types";
+import {
+  blockerSummary,
+  bodyBlockers,
+  buttonBlockers,
+  cleanButtonLabel,
+  fixUrl,
+  sampleBlockers,
+  tidyVariables,
+} from "../template-rules";
+import type { Blocker } from "../template-rules";
+import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 
 type CardButton = {
   type: "QUICK_REPLY" | "URL";
   text: string;
   url?: string;
+  url_example?: string;
 };
 
 type Card = {
   header_media_type: "IMAGE" | "VIDEO";
   header_media_url: string;
   body_text: string;
+  body_samples: Record<number, string>;
   buttons: CardButton[];
 };
 
@@ -23,8 +37,21 @@ const emptyCard = (): Card => ({
   header_media_type: "IMAGE",
   header_media_url: "",
   body_text: "",
+  body_samples: {},
   buttons: [],
 });
+
+/** Meta's rules for one card; field ids are prefixed with the card so "Fix N things" finds them. */
+function cardBlockers(card: Card, i: number): Blocker[] {
+  if (!card.body_text.trim()) return [];
+  const body = bodyBlockers(card.body_text, `card-${i}-body`).filter((b) => b.inline);
+  const samples = body.length ? [] : sampleBlockers(card.body_text, card.body_samples, `card-${i}-body-sample-`);
+  const buttons = buttonBlockers(card.buttons as Button[]).map((b) => ({
+    ...b,
+    fieldId: b.fieldId.replace("btn-", `card-${i}-btn-`),
+  }));
+  return [...body, ...samples, ...buttons];
+}
 
 function toTemplateName(title: string): string {
   return title.toLowerCase().replace(/[^a-z0-9\s_]/g, "").trim().replace(/\s+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
@@ -35,14 +62,25 @@ export default function CarouselTemplateBuilderPage() {
   const [title, setTitle] = useState("");
   const [language, setLanguage] = useState("en");
   const [bodyText, setBodyText] = useState("");
+  const [bodySamples, setBodySamples] = useState<Record<number, string>>({});
+  const { notes, show } = useFixNotes();
   const [cards, setCards] = useState<Card[]>([emptyCard(), emptyCard()]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generatedName = toTemplateName(title);
   const validCardCount = cards.filter(c => c.header_media_url.trim() && c.body_text.trim()).length;
+  const introBlockers = useMemo(() => {
+    if (!bodyText.trim()) return [];
+    const body = bodyBlockers(bodyText, "carousel-body").filter((b) => b.inline);
+    return body.length ? body : sampleBlockers(bodyText, bodySamples, "carousel-body-sample-");
+  }, [bodyText, bodySamples]);
+  const allBlockers = useMemo(
+    () => [...introBlockers, ...cards.flatMap((c, i) => cardBlockers(c, i))],
+    [introBlockers, cards],
+  );
   const canSubmit =
-    title.trim() && bodyText.trim() && validCardCount >= 2 && validCardCount <= 10;
+    title.trim() && bodyText.trim() && validCardCount >= 2 && validCardCount <= 10 && allBlockers.length === 0;
 
   function updateCard(i: number, patch: Partial<Card>) {
     setCards(prev => prev.map((c, idx) => idx === i ? { ...c, ...patch } : c));
@@ -75,6 +113,10 @@ export default function CarouselTemplateBuilderPage() {
   }
 
   async function handleSubmit() {
+    if (allBlockers.length) {
+      focusFirst(allBlockers);
+      return;
+    }
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
@@ -88,12 +130,14 @@ export default function CarouselTemplateBuilderPage() {
           category: "MARKETING",
           language,
           body_text: bodyText.trim(),
+          body_examples: detectVariables(bodyText).map((n) => (bodySamples[n] ?? "").trim()),
           carousel_cards: cards
             .filter(c => c.header_media_url.trim() && c.body_text.trim())
             .map(c => ({
               header_media_type: c.header_media_type,
               header_media_url: c.header_media_url.trim(),
               body_text: c.body_text.trim(),
+              body_examples: detectVariables(c.body_text).map((n) => (c.body_samples[n] ?? "").trim()),
               buttons: c.buttons.filter(b => b.text.trim()).length > 0
                 ? c.buttons.filter(b => b.text.trim())
                 : undefined,
@@ -155,12 +199,38 @@ export default function CarouselTemplateBuilderPage() {
             <div>
               <label className="font-body text-sm font-medium text-ink mb-1.5 block">Intro message (shown above carousel)</label>
               <textarea
+                id="carousel-body"
                 value={bodyText}
-                onChange={e => setBodyText(e.target.value)}
+                onChange={e => {
+                  const tidied = tidyVariables(e.target.value);
+                  show("intro", tidied.note);
+                  setBodyText(tidied.text);
+                }}
                 rows={3}
                 placeholder="Check out our new collection — swipe through to explore."
+                aria-describedby="carousel-body-messages"
+                aria-invalid={introBlockers.some((b) => b.fieldId === "carousel-body")}
                 className="input resize-y min-h-[80px]"
               />
+              <FieldMessages
+                id="carousel-body-messages"
+                note={notes.intro}
+                blockers={introBlockers.filter((b) => b.fieldId === "carousel-body")}
+              />
+              {!introBlockers.some((b) => b.fieldId === "carousel-body") && (
+                <>
+                  <SampleInputs
+                    variables={detectVariables(bodyText)}
+                    samples={bodySamples}
+                    onChange={setBodySamples}
+                    idPrefix="carousel-body-sample-"
+                  />
+                  <FieldMessages
+                    id="carousel-body-sample-messages"
+                    blockers={introBlockers.filter((b) => b.fieldId.startsWith("carousel-body-sample-"))}
+                  />
+                </>
+              )}
             </div>
           </div>
 
@@ -201,12 +271,37 @@ export default function CarouselTemplateBuilderPage() {
               <div className="mb-4">
                 <label className="text-xs text-ink-muted mb-1 block">Card body text</label>
                 <textarea
+                  id={`card-${i}-body`}
                   value={card.body_text}
-                  onChange={e => updateCard(i, { body_text: e.target.value })}
+                  onChange={e => {
+                    const tidied = tidyVariables(e.target.value);
+                    show(`card-${i}`, tidied.note);
+                    updateCard(i, { body_text: tidied.text });
+                  }}
                   rows={2}
                   placeholder="Product name + short pitch"
+                  aria-describedby={`card-${i}-body-messages`}
                   className="input text-sm resize-y min-h-[60px]"
                 />
+                <FieldMessages
+                  id={`card-${i}-body-messages`}
+                  note={notes[`card-${i}`]}
+                  blockers={cardBlockers(card, i).filter((b) => b.fieldId === `card-${i}-body`)}
+                />
+                {!cardBlockers(card, i).some((b) => b.fieldId === `card-${i}-body`) && (
+                  <>
+                    <SampleInputs
+                      variables={detectVariables(card.body_text)}
+                      samples={card.body_samples}
+                      onChange={(next) => updateCard(i, { body_samples: next })}
+                      idPrefix={`card-${i}-body-sample-`}
+                    />
+                    <FieldMessages
+                      id={`card-${i}-body-sample-messages`}
+                      blockers={cardBlockers(card, i).filter((b) => b.fieldId.startsWith(`card-${i}-body-sample-`))}
+                    />
+                  </>
+                )}
               </div>
 
               <div>
@@ -228,19 +323,31 @@ export default function CarouselTemplateBuilderPage() {
                 <p className="font-body text-xs text-amber-600 mb-2">Phone, Copy Code, and WhatsApp Call buttons are not supported in carousels by Meta.</p>
                 <div className="space-y-2">
                   {card.buttons.map((btn, bi) => (
-                    <div key={bi} className="flex items-center gap-2 p-2 rounded-xl bg-surface-subtle">
+                    <div key={bi}>
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-surface-subtle">
                       <span className="text-xs text-ink-muted px-2 font-medium">{btn.type === "URL" ? "URL" : "Reply"}</span>
                       <input
+                        id={`card-${i}-btn-label-${bi}`}
                         value={btn.text}
-                        onChange={e => updateButton(i, bi, { text: e.target.value.slice(0, 25) })}
+                        onChange={e => {
+                          const cleaned = cleanButtonLabel(e.target.value);
+                          show(`card-${i}-label-${bi}`, cleaned.note);
+                          updateButton(i, bi, { text: cleaned.text.slice(0, 25) });
+                        }}
                         placeholder="Button text"
                         maxLength={25}
                         className="flex-1 px-2 py-1.5 rounded-lg text-sm bg-white border border-border-subtle"
                       />
                       {btn.type === "URL" && (
                         <input
+                          id={`card-${i}-btn-url-${bi}`}
                           value={btn.url || ""}
                           onChange={e => updateButton(i, bi, { url: e.target.value })}
+                          onBlur={e => {
+                            const fixed = fixUrl(e.target.value);
+                            show(`card-${i}-url-${bi}`, fixed.note);
+                            if (fixed.text !== (btn.url || "")) updateButton(i, bi, { url: fixed.text });
+                          }}
                           placeholder="https://..."
                           className="flex-[1.5] px-2 py-1.5 rounded-lg text-sm bg-white border border-border-subtle"
                         />
@@ -248,6 +355,22 @@ export default function CarouselTemplateBuilderPage() {
                       <button onClick={() => removeButton(i, bi)} className="p-1 rounded hover:bg-red-50 text-ink-muted hover:text-red-500">
                         <Trash2 size={13} />
                       </button>
+                    </div>
+                    <FieldMessages
+                      id={`card-${i}-btn-${bi}-messages`}
+                      note={notes[`card-${i}-label-${bi}`] ?? notes[`card-${i}-url-${bi}`]}
+                      blockers={cardBlockers(card, i).filter((b) => b.fieldId.startsWith(`card-${i}-btn-`) && (b.fieldId.endsWith(`-${bi}`) || b.fieldId === `card-${i}-btn-urlsample-${bi}-1`))}
+                    />
+                    {btn.type === "URL" && /\{\{\d+\}\}$/.test((btn.url || "").trim()) && (
+                      <SampleInputs
+                        variables={[1]}
+                        samples={{ 1: btn.url_example ?? "" }}
+                        onChange={(next) => updateButton(i, bi, { url_example: next[1] ?? "" })}
+                        idPrefix={`card-${i}-btn-urlsample-${bi}-`}
+                        label="Sample value"
+                        chipLabel={() => "Link {{1}}"}
+                      />
+                    )}
                     </div>
                   ))}
                 </div>
@@ -261,7 +384,8 @@ export default function CarouselTemplateBuilderPage() {
             </button>
           )}
 
-          <div className="flex gap-3 justify-end pt-2">
+          <div className="flex gap-3 justify-end items-center flex-wrap pt-2">
+            <BlockedReason blockers={allBlockers} label={blockerSummary(allBlockers)} />
             <Link href="/dashboard/templates" className="btn-ghost px-6">Cancel</Link>
             <button
               onClick={handleSubmit}

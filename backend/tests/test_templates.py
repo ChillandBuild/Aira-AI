@@ -10,7 +10,7 @@ async def test_create_template_uses_waba_id_not_phone_number_id():
     """create_template must read meta_waba_id, not meta_phone_number_id."""
     from app.routes.templates import create_template, CreateTemplate
 
-    payload = CreateTemplate(name="test_template", category="UTILITY", language="en", body_text="Hello {{1}}, welcome!")
+    payload = CreateTemplate(name="test_template", category="UTILITY", language="en", body_text="Hello {{1}}, welcome!", body_examples=["Priya"])
 
     captured_waba_id = []
 
@@ -93,7 +93,7 @@ async def test_create_template_rejected_when_no_waba_connected():
     from app.routes.templates import create_template, CreateTemplate
     from fastapi import HTTPException
 
-    payload = CreateTemplate(name="orphan", category="UTILITY", language="en", body_text="Hi {{1}}, welcome!")
+    payload = CreateTemplate(name="orphan", category="UTILITY", language="en", body_text="Hi {{1}}, welcome!", body_examples=["Priya"])
 
     mock_db = MagicMock()
     mock_db.table.return_value.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = []
@@ -128,7 +128,7 @@ async def test_create_template_resets_lifecycle_on_stale_row_reuse():
     from app.routes.templates import create_template, CreateTemplate
 
     payload = CreateTemplate(
-        name="escalation_alert", category="UTILITY", language="en", body_text="Lead {{1}} needs an agent"
+        name="escalation_alert", category="UTILITY", language="en", body_text="Lead {{1}} needs an agent", body_examples=["Priya"]
     )
 
     captured: dict = {}

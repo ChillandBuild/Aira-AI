@@ -16,11 +16,11 @@ from app.services.meta_cloud import (
     update_template_on_meta,
     upload_media_for_template,
     TemplateContentExistsError,
-    _sanitize_header_or_footer,
-    _extract_variable_examples,
     _build_button_components,
     _strip_emojis,
+    build_core_components,
 )
+from app.services import template_rules
 from app.config_dynamic import get_setting
 from app.services.meta_webhook_verify import verify_meta_signature
 
@@ -43,6 +43,7 @@ class Button(BaseModel):
     autofill_text: str | None = None
     package_name: str | None = None
     signature_hash: str | None = None
+    url_example: str | None = None  # sample for a {{1}} at the end of a URL button's link
 
 
 class CarouselCard(BaseModel):
@@ -50,6 +51,7 @@ class CarouselCard(BaseModel):
     header_media_url: str
     body_text: str
     buttons: list[Button] | None = None  # 1-2 per card
+    body_examples: list[str] | None = None
 
 
 _SUPPORTED_TEMPLATE_LANGUAGES = {"en", "en_US", "en_IN", "hi", "kn", "ml", "ta", "te"}
@@ -90,24 +92,57 @@ def _filter_templates_for_waba(templates: list[dict], current_waba_id: str | Non
 
 
 def _validate_body_variables(body_text: str) -> str:
-    """Mirrors Meta's hard template rules (subcode 2388299: leading/trailing
-    variables; sequential numbering) so bad submissions fail fast with a
-    clear message instead of round-tripping to the Graph API."""
-    trimmed = body_text.strip()
-    if not trimmed:
-        return body_text
-    if re.match(r"^\{\{\d+\}\}", trimmed):
-        raise ValueError("Variables can't be at the start of the template.")
-    if re.search(r"\{\{\d+\}\}$", trimmed):
-        raise ValueError("Variables can't be at the end of the template.")
-
-    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", trimmed)))
-    if indices and indices != list(range(1, len(indices) + 1)):
-        raise ValueError(
-            f"Variables must be numbered sequentially starting from {{1}} with no gaps "
-            f"(found {', '.join('{{' + str(i) + '}}' for i in indices)})."
-        )
+    """Meta's body rules (template_rules.body_problems), raised as one message."""
+    problems = template_rules.body_problems(body_text)
+    if problems:
+        raise ValueError(" ".join(problems))
     return body_text
+
+
+def _check_against_meta_rules(
+    *,
+    body_text: str,
+    body_examples: list[str] | None,
+    header_text: str | None,
+    header_example: str | None,
+    header_media_type: str | None,
+    footer_text: str | None,
+    buttons: list[dict] | None,
+    carousel_cards: list[dict] | None = None,
+) -> None:
+    """Refuse, with a clear 400, anything Meta would reject, before it is sent.
+
+    Sample values are checked here too: a missing sample used to be replaced by an
+    invented one ("Sample text"), a common reason for Meta to reject a template.
+    """
+    problems: list[str] = []
+    if not (header_media_type and header_media_type != "NONE"):
+        problems += template_rules.header_problems(header_text)
+    problems += template_rules.footer_problems(footer_text)
+    try:
+        build_core_components(
+            body_text, body_examples, header_text, header_example,
+            header_media_type, None, footer_text,
+        )
+    except ValueError as e:
+        problems.append(str(e))
+    all_buttons = list(buttons or [])
+    for card in carousel_cards or []:
+        problems += template_rules.body_problems(card.get("body_text") or "")
+        try:
+            template_rules.samples_for(card.get("body_text"), card.get("body_examples"), "card text")
+        except ValueError as e:
+            problems.append(str(e))
+        all_buttons += card.get("buttons") or []
+    for btn in all_buttons:
+        if btn.get("type") == "URL":
+            problems += template_rules.url_problems(btn.get("url"))
+            try:
+                template_rules.url_with_sample((btn.get("url") or "").strip(), btn.get("url_example"))
+            except ValueError as e:
+                problems.append(str(e))
+    if problems:
+        raise HTTPException(status_code=400, detail=" ".join(dict.fromkeys(problems)))
 
 
 class CreateTemplate(BaseModel):
@@ -121,6 +156,8 @@ class CreateTemplate(BaseModel):
     footer_text: str | None = None
     buttons: list[Button] | None = None
     carousel_cards: list[CarouselCard] | None = None
+    body_examples: list[str] | None = None
+    header_example: str | None = None
 
     @field_validator("language")
     @classmethod
@@ -164,6 +201,26 @@ async def create_template(
         if len(btn_texts) != len(set(btn_texts)):
             raise HTTPException(status_code=400, detail="You can't enter the same text for multiple buttons.")
 
+    buttons_dict = [b.model_dump() for b in payload.buttons] if payload.buttons else None
+    carousel_dict = None
+    if payload.carousel_cards:
+        carousel_dict = []
+        for c in payload.carousel_cards:
+            raw = c.model_dump()
+            if c.buttons:
+                raw["buttons"] = [b.model_dump() for b in c.buttons]
+            carousel_dict.append(raw)
+    _check_against_meta_rules(
+        body_text=payload.body_text,
+        body_examples=payload.body_examples,
+        header_text=payload.header_text,
+        header_example=payload.header_example,
+        header_media_type=payload.header_media_type,
+        footer_text=payload.footer_text,
+        buttons=buttons_dict,
+        carousel_cards=carousel_dict,
+    )
+
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
     if not waba_id:
         # Saving locally would strand the template: it never reaches Meta, and the
@@ -177,18 +234,31 @@ async def create_template(
         raise HTTPException(status_code=409, detail=f"Template '{name}' already exists")
     stale_existing_id = existing_rows[0]["id"] if existing_rows else None
 
+    # Meta rejects a template whose body and footer match an existing one
+    # (authentication templates excepted).
+    if category != "AUTHENTICATION":
+        same_body = (
+            db.table("message_templates")
+            .select("name,footer_text,meta_template_id,meta_waba_id,status")
+            .eq("tenant_id", tenant_id)
+            .eq("body_text", payload.body_text)
+            .execute()
+        )
+        for row in same_body.data or []:
+            if row.get("name") == name or not _belongs_to_current_waba(row, waba_id):
+                continue
+            if (row.get("footer_text") or "").strip() == (payload.footer_text or "").strip():
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Template '{row.get('name')}' already has this exact message and footer. "
+                        "Meta rejects duplicates, so change the wording."
+                    ),
+                )
+
     meta_template_id = None
     status = "PENDING"
     try:
-        buttons_dict = [b.model_dump() for b in payload.buttons] if payload.buttons else None
-        carousel_dict = None
-        if payload.carousel_cards:
-            carousel_dict = []
-            for c in payload.carousel_cards:
-                raw = c.model_dump()
-                if c.buttons:
-                    raw["buttons"] = [b.model_dump() for b in c.buttons]
-                carousel_dict.append(raw)
         meta_response = await submit_template(
             waba_id=waba_id,
             name=name,
@@ -202,6 +272,8 @@ async def create_template(
             buttons=buttons_dict,
             carousel_cards=carousel_dict,
             tenant_id=tenant_id,
+            body_examples=payload.body_examples,
+            header_example=payload.header_example,
         )
         meta_template_id = str(meta_response.get("id", ""))
     except TemplateContentExistsError:
@@ -531,6 +603,8 @@ class UpdateTemplate(BaseModel):
     header_media_url: Optional[str] = None
     footer_text: Optional[str] = None
     buttons: Optional[list[Button]] = None
+    body_examples: Optional[list[str]] = None
+    header_example: Optional[str] = None
 
     @field_validator("body_text")
     @classmethod
@@ -600,29 +674,19 @@ async def update_template(
         merged_footer_text = updates.get("footer_text", template.get("footer_text"))
         merged_buttons = updates.get("buttons", template.get("buttons"))
 
-        body_component: dict = {"type": "BODY", "text": merged_body}
-        examples = _extract_variable_examples(merged_body)
-        if examples:
-            body_component["example"] = {"body_text": [examples]}
-        components: list[dict] = [body_component]
-
-        if merged_header_media_type and merged_header_media_type != "NONE":
-            header_comp: dict = {"type": "HEADER", "format": merged_header_media_type.upper()}
-            if merged_header_media_url:
-                header_comp["example"] = {"header_handle": [merged_header_media_url]}
-            components.append(header_comp)
-        elif merged_header_text and merged_header_text.strip():
-            components.append({
-                "type": "HEADER",
-                "format": "TEXT",
-                "text": _sanitize_header_or_footer(merged_header_text),
-            })
-
-        if merged_footer_text and merged_footer_text.strip():
-            components.append({
-                "type": "FOOTER",
-                "text": _sanitize_header_or_footer(merged_footer_text),
-            })
+        _check_against_meta_rules(
+            body_text=merged_body,
+            body_examples=payload.body_examples,
+            header_text=merged_header_text,
+            header_example=payload.header_example,
+            header_media_type=merged_header_media_type,
+            footer_text=merged_footer_text,
+            buttons=merged_buttons,
+        )
+        components = build_core_components(
+            merged_body, payload.body_examples, merged_header_text, payload.header_example,
+            merged_header_media_type, merged_header_media_url, merged_footer_text,
+        )
 
         if merged_buttons:
             button_components = _build_button_components(merged_buttons, 3)
