@@ -2636,10 +2636,15 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
         return _partner_error(400, "unsupported_template", "Only templates with body variables can be sent")
     body_text = template.get("body_text") or ""
     expected = len(variable_indices(body_text))
-    if len(variables) != expected:
+    if len(variables) < expected:
         return _partner_error(
             400, "variables_mismatch", f"Template expects {expected} variable(s), got {len(variables)}",
         )
+    # The partner always sends its full fixed set ({{1}} customer name, {{2}}
+    # service name) and does not know how many placeholders a given template
+    # uses, so extra values are dropped rather than rejected. Too few is still
+    # an error: Meta would reject the send anyway.
+    variables = variables[:expected]
 
     name = template.get("name") or ""
     lang = template.get("language") or "en"
