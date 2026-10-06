@@ -43,6 +43,11 @@ const DEFAULT_PATHS: PartnerConfig["paths"] = {
   legacy_prefix: "/api/v1/expert-handoff",
 };
 
+// A localhost base means the page is being read on a developer's own machine
+// against a local Aira, not the real service. Say so, or a junior reading the
+// page copies "http://localhost:8001" into production config.
+const IS_LOCAL_API = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?/i.test(API_URL);
+
 /* ── small UI pieces ─────────────────────────────────────────────── */
 
 function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
@@ -323,6 +328,16 @@ export default function DeveloperPage() {
         </nav>
       </div>
 
+      {IS_LOCAL_API && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>Local test setup.</strong> This dashboard is talking to a copy of Aira on this machine ({API_URL}). Every URL on this page
+            points there. The contract is the same on production; only the base URL changes, and your Aira contact gives you that one.
+          </span>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <AlertTriangle size={14} /> Could not load your connection details ({error}). The contract below is still correct.
@@ -333,7 +348,13 @@ export default function DeveloperPage() {
       <Section id="connection" icon={KeyRound} title="Your connection" intro="Three things identify your app to Aira. Two are shown here; the third is a secret that Aira's operations team gives you directly.">
         <div className="grid gap-3 md:grid-cols-2">
           <Value label="Tenant ID" value={tenantId || "loading…"} hint="Goes in every request body as tenant_id. It is your account's id inside Aira and is safe to keep in config." />
-          <Value label="API base URL" value={API_URL} hint="Prefix for every path on this page." />
+          <Value
+            label={IS_LOCAL_API ? "API base URL — local test setup only" : "API base URL"}
+            value={API_URL}
+            hint={IS_LOCAL_API
+              ? "This is a copy of Aira running on this machine, for testing only. It does not exist on production. For the live URL, ask your Aira contact; it looks like https://….aira…"
+              : "Prefix for every path on this page. This is the live service."}
+          />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {[
@@ -489,6 +510,11 @@ export default function DeveloperPage() {
           ))}
         </div>
         <Code copy>{code[tab]}</Code>
+        {IS_LOCAL_API && (
+          <p className="text-xs text-amber-800">
+            The URL in this sample is a local test copy of Aira. Replace it with the live base URL from your Aira contact before deploying.
+          </p>
+        )}
         <p className="text-xs">
           Call it from a background job or a thread, never on the request that your own user is waiting on: a slow network to Aira must not slow your app down.
           Keep a log row per send with your <code className="font-mono">reference</code>, the returned <code className="font-mono">message_id</code> and any error.
