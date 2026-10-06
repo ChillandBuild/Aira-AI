@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type { Template } from "../types";
 import { STATUS_COLORS, CATEGORY_COLORS, LANGUAGES } from "../types";
+import AiraId from "./aira-id";
 
 type TemplateCardProps = {
   template: Template;
@@ -110,6 +111,14 @@ export default function TemplateCard({
           </span>
         </div>
       </div>
+
+      {/* ── Aira ID: sits above the hover overlay so it stays readable and
+             copyable while the action buttons are showing ─────────────── */}
+      {t.short_code && (
+        <div className="relative z-30 px-4 pb-3">
+          <AiraId code={t.short_code} size="lg" className="w-full justify-between" />
+        </div>
+      )}
 
       {/* ── Bottom: status + date ─────────────────── */}
       <div className="px-4 pb-3 flex items-center justify-between">

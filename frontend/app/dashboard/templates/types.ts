@@ -34,6 +34,7 @@ export type Template = {
   carousel_cards?: CarouselCard[];
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED';
   meta_template_id?: string;
+  short_code?: string;
   rejection_reason?: string;
   submitted_at?: string;
   approved_at?: string;

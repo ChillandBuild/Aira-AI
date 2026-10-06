@@ -2,6 +2,7 @@ import csv
 import io
 import logging
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -21,6 +22,8 @@ from app.services.intake import (
     get_intake_config,
     get_session_tenant_id,
     notify_payment_failed,
+    partner_send_template,
+    partner_send_text,
     record_astro_bridge_ids,
     report_extra_deal_payment,
 )
@@ -366,6 +369,61 @@ async def astro_reply(request: Request):
         return _astro_unauthorized()
 
     return await deliver_astro_reply(payload, tenant_id)
+
+
+async def _partner_request(request: Request) -> tuple[dict, str] | JSONResponse:
+    """Parse and authenticate a signed partner call. Returns (payload, tenant_id),
+    or the response to send back."""
+    raw_body = await request.body()
+    signature = request.headers.get("x-astro-signature", "")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = None
+    if not isinstance(payload, dict):
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON", "code": "invalid_json"})
+
+    tenant_id = payload.get("tenant_id")
+    # get_setting falls back to the default tenant for an empty id, so a missing
+    # tenant_id must never reach the secret lookup.
+    try:
+        tenant_id = str(uuid.UUID(str(tenant_id))) if tenant_id else None
+    except ValueError:
+        tenant_id = None
+    if not tenant_id:
+        return _astro_unauthorized()
+
+    secret = astro_bridge.get_bridge_secret(tenant_id)
+    if not astro_bridge.verify_astro_signature(raw_body, signature, secret):
+        logger.warning(f"Partner send: rejected signature for tenant {tenant_id}")
+        return _astro_unauthorized()
+    return payload, tenant_id
+
+
+@public_router.post("/partner/send-template")
+async def partner_send_template_route(request: Request):
+    """An approved template, by its Aira ID, sent from the tenant's WhatsApp number
+    on behalf of the AstroTamil app. Wire contract — see subsystem-notes.md,
+    AstroTamil consultation bridge."""
+    parsed = await _partner_request(request)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+    payload, tenant_id = parsed
+    status, body = await partner_send_template(payload, tenant_id)
+    return JSONResponse(status_code=status, content=body)
+
+
+@public_router.post("/partner/send-text")
+async def partner_send_text_route(request: Request):
+    """Free text from the tenant's number; Meta delivers it only inside the 24h
+    window. Wire contract — see subsystem-notes.md, AstroTamil consultation bridge."""
+    parsed = await _partner_request(request)
+    if isinstance(parsed, JSONResponse):
+        return parsed
+    payload, tenant_id = parsed
+    status, body = await partner_send_text(payload, tenant_id)
+    return JSONResponse(status_code=status, content=body)
 
 
 def _fetch_session_gst(session_id: str, tenant_id: str) -> dict:

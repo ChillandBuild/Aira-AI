@@ -10,6 +10,8 @@ import re
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from fastapi import HTTPException
+
 from app.config_dynamic import SettingReadError
 from app.services.gemini_client import gemini_chat_completion_json
 from app.services.intake_copy import (
@@ -2534,3 +2536,170 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
     resolve_intake_session(session_id, tenant_id, db=db)
 
     return {"ok": True, "nudged": True, "via": via}
+
+
+# ---------------------------------------------------------------- partner sends
+# A partner app (AstroTamil's Django backend) sends WhatsApp messages to its own
+# users through the tenant's number. Signature is verified by the route.
+
+_PARTNER_TEXT_MAX = 4096
+_PARTNER_REFERENCE_MAX = 120
+
+
+def _partner_error(status: int, code: str, error: str) -> tuple[int, dict]:
+    return status, {"ok": False, "code": code, "error": error}
+
+
+def _partner_reference(payload: dict) -> str:
+    return str(payload.get("reference") or "")[:_PARTNER_REFERENCE_MAX]
+
+
+def _log_partner_message(db, tenant_id: str, phone: str, content: str, mid: str) -> None:
+    """Shows the send in the lead's chat when the number is already a lead. A
+    lead is never created here: that would hand the partner's app users to the
+    tenant's assignment and re-engagement automations."""
+    try:
+        lead_row = (
+            db.table("leads")
+            .select("id")
+            .eq("tenant_id", tenant_id)
+            .eq("phone", phone)
+            .maybe_single()
+            .execute()
+        )
+        lead_id = ((lead_row.data if lead_row else None) or {}).get("id")
+        if not lead_id:
+            return
+        db.table("messages").insert({
+            "lead_id": lead_id,
+            "tenant_id": tenant_id,
+            "direction": "outbound",
+            "channel": "whatsapp",
+            "content": content,
+            "is_ai_generated": False,
+            "meta_message_id": mid,
+            "reply_source": "automation",
+            "delivery_status": "sent",
+        }).execute()
+    except Exception as e:
+        logger.warning(f"Partner send {mid} for tenant {tenant_id}: chat log failed: {e}")
+
+
+def _has_dynamic_header_or_url(template: dict) -> bool:
+    if "{{" in (template.get("header_text") or ""):
+        return True
+    for button in template.get("buttons") or []:
+        if not isinstance(button, dict):
+            continue
+        if str(button.get("type") or "").upper() == "URL" and "{{" in str(button.get("url") or ""):
+            return True
+    return False
+
+
+async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple[int, dict]:
+    from app.services.astro_normalize import normalize_phone
+    from app.services.meta_cloud import send_template_message
+    from app.services.template_rules import VAR_RE, variable_indices
+
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    code = str(payload.get("template_code") or "").strip()
+    variables = payload.get("variables")
+    if variables is None:
+        variables = []
+    if not code or not isinstance(variables, list):
+        return _partner_error(400, "invalid_request", "template_code is required and variables must be a list")
+    variables = [str(v) for v in variables]
+
+    row = (
+        db.table("message_templates")
+        .select("name,language,status,body_text,header_text,buttons")
+        .eq("tenant_id", tenant_id)
+        .eq("short_code", code)
+        .limit(1)
+        .execute()
+    )
+    template = (row.data or [None])[0] if row else None
+    if not template:
+        return _partner_error(404, "template_not_found", f"No template with Aira ID {code}")
+    status = str(template.get("status") or "")
+    if status != "APPROVED":
+        return _partner_error(409, "template_not_approved", f"Template status is {status or 'unknown'}")
+
+    phone = normalize_phone(payload.get("phone"))
+    if not phone:
+        return _partner_error(400, "invalid_phone", "phone is not a valid mobile number")
+
+    if _has_dynamic_header_or_url(template):
+        return _partner_error(400, "unsupported_template", "Only templates with body variables can be sent")
+    body_text = template.get("body_text") or ""
+    expected = len(variable_indices(body_text))
+    if len(variables) != expected:
+        return _partner_error(
+            400, "variables_mismatch", f"Template expects {expected} variable(s), got {len(variables)}",
+        )
+
+    name = template.get("name") or ""
+    lang = template.get("language") or "en"
+    reference = _partner_reference(payload)
+    components = [{"type": "body", "parameters": [{"type": "text", "text": v} for v in variables]}] if variables else None
+    try:
+        data = await send_template_message(
+            to_number=phone,
+            template_name=name,
+            lang_code=lang,
+            components=components,
+            tenant_id=tenant_id,
+            phone_number_id=_astro_phone_number_id(tenant_id, db),
+        )
+    except HTTPException as e:
+        logger.error(f"Partner template {code} ({reference}) for tenant {tenant_id} rejected by Meta: {e.detail}")
+        return _partner_error(502, "meta_error", str(e.detail))
+    except Exception as e:
+        logger.error(f"Partner template {code} ({reference}) for tenant {tenant_id} failed: {e}")
+        return _partner_error(502, "meta_error", str(e))
+    mid = ((data or {}).get("messages") or [{}])[0].get("id")
+    if not mid:
+        return _partner_error(502, "meta_error", "no message id")
+
+    content = VAR_RE.sub(
+        lambda m: variables[int(m.group(1)) - 1] if 0 < int(m.group(1)) <= len(variables) else m.group(0),
+        body_text,
+    )
+    _log_partner_message(db, tenant_id, phone, content, mid)
+    logger.info(f"Partner template {code} ({reference}) sent for tenant {tenant_id}: {mid}")
+    return 200, {"ok": True, "message_id": mid, "template": {"code": code, "name": name, "language": lang}}
+
+
+async def partner_send_text(payload: dict, tenant_id: str, db=None) -> tuple[int, dict]:
+    from app.services.ai_reply import get_last_send_error, send_whatsapp
+    from app.services.astro_normalize import normalize_phone
+
+    if db is None:
+        from app.db.supabase import get_supabase
+        db = get_supabase()
+
+    raw_text = payload.get("text")
+    text = raw_text.strip() if isinstance(raw_text, str) else ""
+    if not text or len(text) > _PARTNER_TEXT_MAX:
+        return _partner_error(400, "invalid_request", f"text must be 1 to {_PARTNER_TEXT_MAX} characters")
+
+    phone = normalize_phone(payload.get("phone"))
+    if not phone:
+        return _partner_error(400, "invalid_phone", "phone is not a valid mobile number")
+
+    reference = _partner_reference(payload)
+    try:
+        mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=_astro_phone_number_id(tenant_id, db))
+    except Exception as e:
+        logger.error(f"Partner text ({reference}) for tenant {tenant_id} failed: {e}")
+        return _partner_error(502, "meta_error", str(e))
+    if not mid:
+        # Outside the 24h window Meta refuses free text; its reason is kept by send_whatsapp.
+        return _partner_error(502, "meta_error", get_last_send_error() or "no message id")
+
+    _log_partner_message(db, tenant_id, phone, text, mid)
+    logger.info(f"Partner text ({reference}) sent for tenant {tenant_id}: {mid}")
+    return 200, {"ok": True, "message_id": mid}
