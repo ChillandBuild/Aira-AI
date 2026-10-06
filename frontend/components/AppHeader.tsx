@@ -155,6 +155,16 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "Configure global parameters, voice calling and AI behavior.",
     };
   }
+  if (pathname === "/dashboard/auto-messages") {
+    let tabLabel = "Messages";
+    if (tab === "connect") tabLabel = "Website & apps";
+    if (tab === "counter") tabLabel = "Shop counter";
+    if (tab === "activity") tabLabel = "Activity";
+    return {
+      title: `Auto-Messages / ${tabLabel}`,
+      description: "Send instant WhatsApp templates when leads come from your website, apps or shop.",
+    };
+  }
   if (pathname === "/dashboard/templates") {
     return {
       title: "WhatsApp Message Templates",

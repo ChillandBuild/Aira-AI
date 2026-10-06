@@ -48,14 +48,6 @@ export default function AutoMessagesPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6">
-      <header className="space-y-1">
-        <h1 className="font-display text-2xl font-bold text-ink">Auto-Messages</h1>
-        <p className="max-w-2xl font-body text-sm text-ink-secondary">
-          When someone leaves their number on your website, in your app or at your shop, Aira sends them your WhatsApp
-          message for that moment.
-        </p>
-      </header>
-
       <nav className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-surface-subtle p-1 sm:flex sm:w-fit">
         {visible.map(({ id, label }) => (
           <button
