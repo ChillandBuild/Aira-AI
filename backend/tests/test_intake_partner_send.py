@@ -204,6 +204,24 @@ def test_variable_count_mismatch_is_400():
     send.assert_not_awaited()
 
 
+def test_extra_variables_are_dropped_to_the_template_count():
+    # The partner always sends its fixed set ({{1}} name, {{2}} service) without
+    # knowing how many placeholders the template uses — extras are not an error.
+    tpl = dict(APPROVED, body_text="Hi {{1}}, your astrologer has replied.")
+    res, send, _ = _post(TEMPLATE_URL, _template_body(variables=["Rajan", "Free Question"]), _db(tpl))
+    assert res.status_code == 200
+    assert send.await_args.kwargs["components"] == [
+        {"type": "body", "parameters": [{"type": "text", "text": "Rajan"}]},
+    ]
+
+
+def test_variables_sent_to_a_template_without_placeholders_are_ignored():
+    tpl = dict(APPROVED, body_text="Your astrologer has replied.")
+    res, send, _ = _post(TEMPLATE_URL, _template_body(variables=["Rajan", "Free Question"]), _db(tpl))
+    assert res.status_code == 200
+    assert send.await_args.kwargs["components"] is None
+
+
 def test_header_variable_template_is_unsupported():
     tpl = dict(APPROVED, header_text="Hello {{1}}")
     res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(tpl))
