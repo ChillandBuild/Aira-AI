@@ -507,16 +507,6 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Developer — how another app connects to this account */}
-        {isSubscribed && canSettings && (
-          <CollapsedNavItem
-            href="/dashboard/developer"
-            active={pathname.startsWith("/dashboard/developer")}
-            icon={Code2}
-            label="Developer"
-          />
-        )}
-
         {/* GROUP: Telecalling */}
         {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
           <div className="group relative">
@@ -842,16 +832,6 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Developer — how another app connects to this account */}
-        {isSubscribed && canSettings && (
-          <MainNavItem
-            href="/dashboard/developer"
-            active={pathname.startsWith("/dashboard/developer")}
-            icon={Code2}
-            label="Developer"
-          />
-        )}
-
         {/* GROUP: Telecalling */}
         {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
           <div className="space-y-0.5">
@@ -950,6 +930,29 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             </div>
           )}
         </>
+      )}
+
+      {/* Pinned footer: Developer. Kept out of the scrolling lists so it sits at
+          the bottom whatever page or group is open — it is reference material
+          for a partner's developer, not a daily destination. */}
+      {isSubscribed && canSettings && (
+        <div className={cn("shrink-0 border-t border-[#e8e3db]", collapsed ? "py-2 flex flex-col items-center" : "px-3 py-2")}>
+          {collapsed ? (
+            <CollapsedNavItem
+              href="/dashboard/developer"
+              active={pathname.startsWith("/dashboard/developer")}
+              icon={Code2}
+              label="Developer"
+            />
+          ) : (
+            <MainNavItem
+              href="/dashboard/developer"
+              active={pathname.startsWith("/dashboard/developer")}
+              icon={Code2}
+              label="Developer"
+            />
+          )}
+        </div>
       )}
     </aside>
   );
