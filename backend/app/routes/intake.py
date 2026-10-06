@@ -175,6 +175,32 @@ def export_intake_sessions_csv(
     )
 
 
+require_settings_view = require_permission("settings.view")
+
+
+@router.get("/partner/config")
+def partner_config(ctx: dict = Depends(require_settings_view)):
+    """What a partner developer needs before calling the partner send API: the
+    tenant id that goes in every request body, the paths, and whether the shared
+    secret is on file. The secret itself is never returned here; ops issue it
+    (operator console → client → Astro Bridge) and hand it to the partner."""
+    from app.config_dynamic import get_setting
+
+    tenant_id = ctx["tenant_id"]
+    return {
+        "tenant_id": tenant_id,
+        "secret_set": bool(get_setting("astro_bridge_secret", tenant_id=tenant_id)),
+        "bridge_url_set": bool(get_setting("astro_bridge_url", tenant_id=tenant_id)),
+        "api_key_set": bool(get_setting("astro_bridge_api_key", tenant_id=tenant_id)),
+        "paths": {
+            "send_template": "/api/v1/intake/partner/send-template",
+            "send_text": "/api/v1/intake/partner/send-text",
+            "reply_callback": "/api/v1/intake/astro-reply",
+            "legacy_prefix": "/api/v1/expert-handoff",
+        },
+    }
+
+
 @router.get("/stats")
 def intake_stats(ctx: dict = Depends(require_conversations_view)):
     """Intake dashboard: message totals, answer progress and a 14-day trend for

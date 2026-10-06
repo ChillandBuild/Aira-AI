@@ -9,7 +9,7 @@ import {
   BarChart2, Upload, BookOpen, Layers, FileCheck,
   Zap, StickyNote, Package, ShoppingBag,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
-  Settings, Brain,
+  Settings, Brain, Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -507,6 +507,16 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
+        {/* TOP LEVEL: Developer — how another app connects to this account */}
+        {isSubscribed && canSettings && (
+          <CollapsedNavItem
+            href="/dashboard/developer"
+            active={pathname.startsWith("/dashboard/developer")}
+            icon={Code2}
+            label="Developer"
+          />
+        )}
+
         {/* GROUP: Telecalling */}
         {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
           <div className="group relative">
@@ -829,6 +839,16 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             active={pathname.startsWith("/dashboard/roles")}
             icon={ShieldCheck}
             label="Roles"
+          />
+        )}
+
+        {/* TOP LEVEL: Developer — how another app connects to this account */}
+        {isSubscribed && canSettings && (
+          <MainNavItem
+            href="/dashboard/developer"
+            active={pathname.startsWith("/dashboard/developer")}
+            icon={Code2}
+            label="Developer"
           />
         )}
 
