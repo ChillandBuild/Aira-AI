@@ -35,6 +35,8 @@ def test_config_reports_tenant_paths_and_which_credentials_are_on_file():
     assert body["secret_set"] is True
     assert body["bridge_url_set"] is True
     assert body["api_key_set"] is False
+    assert body["signature_header"] == "X-Aira-Signature"
+    assert body["legacy_signature_header"] == "X-Astro-Signature"
     assert body["paths"] == {
         "send_template": "/api/v1/intake/partner/send-template",
         "send_text": "/api/v1/intake/partner/send-text",

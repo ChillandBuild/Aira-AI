@@ -202,7 +202,7 @@ function SignatureCalculator({ tenantId }: { tenantId: string }) {
         </label>
       </div>
       <div className="mt-3">
-        <span className="text-[11px] font-semibold text-ink">X-Astro-Signature</span>
+        <span className="text-[11px] font-semibold text-ink">X-Aira-Signature</span>
         <div className="mt-1 flex items-center gap-2">
           <code className="min-w-0 flex-1 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-ink">
             {sig ? `sha256=${sig}` : "sha256=<enter the secret above>"}
@@ -222,7 +222,7 @@ function samples(base: string, tenantId: string, path: string) {
 SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$AIRA_SECRET" | sed 's/^.* //')
 curl -X POST "${base}${path}" \\
   -H "Content-Type: application/json" \\
-  -H "X-Astro-Signature: sha256=$SIG" \\
+  -H "X-Aira-Signature: sha256=$SIG" \\
   --data "$BODY"`;
 
   const python = `import hmac, hashlib, json, requests
@@ -244,7 +244,7 @@ def send_template(phone, template_code, variables=(), reference=""):
         AIRA_BASE + "${path}",
         data=body,
         headers={"Content-Type": "application/json",
-                 "X-Astro-Signature": f"sha256={sig}"},
+                 "X-Aira-Signature": f"sha256={sig}"},
         timeout=20,
     )
     return r.status_code, r.json()
@@ -268,7 +268,7 @@ export async function sendTemplate(phone, templateCode, variables = [], referenc
   const sig = crypto.createHmac("sha256", SECRET).update(body).digest("hex");
   const res = await fetch(AIRA_BASE + "${path}", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Astro-Signature": \`sha256=\${sig}\` },
+    headers: { "Content-Type": "application/json", "X-Aira-Signature": \`sha256=\${sig}\` },
     body,
   });
   return [res.status, await res.json()];
@@ -363,8 +363,11 @@ export default function DeveloperPage() {
           <li>Build the JSON body, including <code className="font-mono">tenant_id</code>.</li>
           <li>Serialise it to bytes once. Sign <strong>those exact bytes</strong>; re-serialising on the way out, or pretty-printing, changes the signature.</li>
           <li>Compute HMAC-SHA256 with the shared secret as the key, hex-encoded, lower case.</li>
-          <li>Send it as <code className="font-mono">X-Astro-Signature: sha256=&lt;hex&gt;</code> with <code className="font-mono">Content-Type: application/json</code>.</li>
+          <li>Send it as <code className="font-mono">X-Aira-Signature: sha256=&lt;hex&gt;</code> with <code className="font-mono">Content-Type: application/json</code>.</li>
         </ol>
+        <p className="text-xs">
+          Integrations built before this page used the header name <code className="font-mono">X-Astro-Signature</code>. It is still accepted; new code should use <code className="font-mono">X-Aira-Signature</code>.
+        </p>
         <p className="text-xs">
           A wrong signature, a missing header, an unknown tenant or no secret on file all return the <strong>same 401</strong>
           <code className="ml-1 font-mono">{`{"error":"Unauthorized","code":"unauthorized"}`}</code>. That is deliberate: it stops anyone probing which tenants exist.
@@ -419,8 +422,8 @@ export default function DeveloperPage() {
           <li>Values must not contain new lines or tabs, and WhatsApp limits each to 1024 characters. Collapse whitespace before sending.</li>
         </ul>
         <p className="text-xs">
-          Example of a fixed set: the AstroTamil app always sends <code className="font-mono">[customer name, service name, &quot;AstroTamil&quot;]</code>.
-          A template written as &ldquo;Hi <code className="font-mono">{"{{1}}"}</code>, your <code className="font-mono">{"{{2}}"}</code> answer is ready&rdquo; uses the first two; one with no placeholders uses none. Same code, no per-template logic.
+          A good pattern: decide one fixed set for your whole app, for example <code className="font-mono">[customer name, order or service name, your brand]</code>, and send it on every call.
+          A template written as &ldquo;Hi <code className="font-mono">{"{{1}}"}</code>, your <code className="font-mono">{"{{2}}"}</code> is ready&rdquo; uses the first two; one with no placeholders uses none. Same code, no per-template logic.
         </p>
       </Section>
 
@@ -454,19 +457,19 @@ export default function DeveloperPage() {
       </Section>
 
       {/* 8. Callbacks */}
-      <Section id="callbacks" icon={Reply} title="What Aira sends to your app" intro="Only needed if Aira also sells consultations for you on WhatsApp. Skip this section if your app only sends notifications.">
+      <Section id="callbacks" icon={Reply} title="Expert hand-off: what Aira sends to your app" intro="An optional feature, switched on by Aira operations. Skip this section if your app only sends notifications.">
         <p>
-          When a customer pays for a consultation inside WhatsApp, Aira pushes it to your app so your own experts can answer it, and your app tells Aira when the answer is ready so the customer is notified.
+          With hand-off on, when a customer pays inside WhatsApp for a question that your own experts answer, Aira pushes that paid request to your app. When your expert has answered, your app tells Aira, and Aira notifies the customer on WhatsApp.
         </p>
         <Table
           head={["Direction", "Call", "Auth"]}
           rows={[
-            ["Aira → your app", <>POST <code className="font-mono">{"<your app URL>"}/api/astrologer-welcome/bridge/consultation/</code> with the paid question, the person&apos;s birth details and <code className="font-mono">external_ref</code> (the idempotency key). Reply <code className="font-mono">{`{success:true, question_id, …}`}</code>.</>, "X-API-Key: your app's API key"],
-            ["Your app → Aira", <>POST <code className="font-mono">{API_URL}{paths.reply_callback}</code> with <code className="font-mono">external_ref</code>, <code className="font-mono">reply_text</code>, <code className="font-mono">astrologer_name</code>, <code className="font-mono">replied_at</code>. Aira notifies the customer. A repeat of the same reply returns <code className="font-mono">duplicate:true</code>; do not retry.</>, "X-Astro-Signature, same as above"],
+            ["Aira → your app", <>POST to your hand-off endpoint (its URL is on file with operations) with the paid request: <code className="font-mono">external_ref</code> (the idempotency key, so one request is never two records), <code className="font-mono">phone</code>, <code className="font-mono">customer_name</code>, the details the customer entered (<code className="font-mono">person_*</code> fields), <code className="font-mono">question_text</code>, <code className="font-mono">amount</code>, <code className="font-mono">tenant_id</code>. Reply <code className="font-mono">{`{success:true, question_id, …}`}</code>.</>, "X-API-Key: your app's API key"],
+            ["Your app → Aira", <>POST <code className="font-mono">{API_URL}{paths.reply_callback}</code> with <code className="font-mono">external_ref</code>, <code className="font-mono">reply_text</code>, the expert&apos;s name as <code className="font-mono">astrologer_name</code>, and <code className="font-mono">replied_at</code>. Aira notifies the customer. A repeat of the same reply returns <code className="font-mono">duplicate:true</code>; do not retry.</>, "X-Aira-Signature, same as above"],
           ]}
         />
         <p className="text-xs">
-          Aira operations enter your app&apos;s URL and API key on their side (the two &ldquo;On file&rdquo; badges at the top). The paths above and the
+          Operations enter your app&apos;s URL and API key on their side (the two &ldquo;On file&rdquo; badges at the top). The paths above and the
           legacy prefix <code className="font-mono">{paths.legacy_prefix}</code> are kept stable; an existing integration on the old prefix keeps working.
         </p>
       </Section>

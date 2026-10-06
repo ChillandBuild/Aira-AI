@@ -192,6 +192,8 @@ def partner_config(ctx: dict = Depends(require_settings_view)):
         "secret_set": bool(get_setting("astro_bridge_secret", tenant_id=tenant_id)),
         "bridge_url_set": bool(get_setting("astro_bridge_url", tenant_id=tenant_id)),
         "api_key_set": bool(get_setting("astro_bridge_api_key", tenant_id=tenant_id)),
+        "signature_header": SIGNATURE_HEADER,
+        "legacy_signature_header": LEGACY_SIGNATURE_HEADER,
         "paths": {
             "send_template": "/api/v1/intake/partner/send-template",
             "send_text": "/api/v1/intake/partner/send-text",
@@ -370,7 +372,7 @@ async def astro_reply(request: Request):
     Signed with HMAC-SHA256 over the raw body using this tenant's
     astro_bridge_secret. Wire contract — see subsystem-notes.md, AstroTamil consultation bridge."""
     raw_body = await request.body()
-    signature = request.headers.get("x-astro-signature", "")
+    signature = _signature_header(request)
 
     try:
         payload = await request.json()
@@ -397,11 +399,24 @@ async def astro_reply(request: Request):
     return await deliver_astro_reply(payload, tenant_id)
 
 
+SIGNATURE_HEADER = "X-Aira-Signature"
+# AstroTamil's Django was integrated under the old name; it keeps working.
+LEGACY_SIGNATURE_HEADER = "X-Astro-Signature"
+
+
+def _signature_header(request: Request) -> str:
+    """The HMAC header, under its current or its original name."""
+    return (
+        request.headers.get(SIGNATURE_HEADER.lower(), "")
+        or request.headers.get(LEGACY_SIGNATURE_HEADER.lower(), "")
+    )
+
+
 async def _partner_request(request: Request) -> tuple[dict, str] | JSONResponse:
     """Parse and authenticate a signed partner call. Returns (payload, tenant_id),
     or the response to send back."""
     raw_body = await request.body()
-    signature = request.headers.get("x-astro-signature", "")
+    signature = _signature_header(request)
 
     try:
         payload = await request.json()
