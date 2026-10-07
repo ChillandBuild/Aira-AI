@@ -21,12 +21,14 @@ from fastapi.responses import StreamingResponse
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 from app.db.supabase import get_supabase
-from app.dependencies.tenant import get_tenant_id
+from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.inbound_leads_logic import INBOUND_SOURCES
 from app.services.google_ads_attribution import build_tracked_wa_link, slugify_campaign
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+require_meta_ads_view = require_permission("meta_ads.view")
+require_meta_ads_manage = require_permission("meta_ads.manage")
 
 CHANNEL_LABELS = {
     "whatsapp": "WhatsApp",
@@ -365,7 +367,7 @@ async def export_inbound_leads(
     )
 
 
-@router.get("/ad-filters")
+@router.get("/ad-filters", dependencies=[Depends(require_meta_ads_view)])
 async def ad_filters(tenant_id: str = Depends(get_tenant_id)):
     """Campaign -> adset -> creative option tree for the cascading dropdowns."""
     from app.services.ad_performance import build_ad_filter_tree
@@ -373,7 +375,7 @@ async def ad_filters(tenant_id: str = Depends(get_tenant_id)):
     return build_ad_filter_tree(db, tenant_id)
 
 
-@router.post("/ad-tracking-code")
+@router.post("/ad-tracking-code", dependencies=[Depends(require_meta_ads_manage)])
 async def generate_meta_ad_tracking_code(
     payload: MetaAdTrackingCodeRequest,
     tenant_id: str = Depends(get_tenant_id),
@@ -422,7 +424,7 @@ async def generate_meta_ad_tracking_code(
     }
 
 
-@router.get("/ad-performance")
+@router.get("/ad-performance", dependencies=[Depends(require_meta_ads_view)])
 async def ad_performance(
     campaign_id: str | None = Query(None),
     adset_id: str | None = Query(None),
@@ -485,7 +487,7 @@ def _budget_label(row: dict) -> str:
     return ""
 
 
-@router.get("/ad-performance/export")
+@router.get("/ad-performance/export", dependencies=[Depends(require_meta_ads_view)])
 async def ad_performance_export(
     campaign_id: str | None = Query(None),
     adset_id: str | None = Query(None),
@@ -519,7 +521,7 @@ async def ad_performance_export(
     )
 
 
-@router.post("/ad-sync-now")
+@router.post("/ad-sync-now", dependencies=[Depends(require_meta_ads_manage)])
 async def ad_sync_now(tenant_id: str = Depends(get_tenant_id)):
     """Manually trigger the Meta Ads Insights sync for this tenant, returning
     a diagnostic result instead of waiting on the 6h scheduled job."""

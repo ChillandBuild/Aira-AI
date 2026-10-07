@@ -114,16 +114,33 @@ def get_owner_tenant_id(ctx: dict = Depends(require_owner)) -> str:
     return ctx["tenant_id"]
 
 
+def _has_permission(ctx: dict, permission: str) -> bool:
+    permissions = set(ctx.get("permissions") or [])
+    manage_permission = f"{permission[:-5]}.manage" if permission.endswith(".view") else None
+    reply_implies_view = permission == "conversations.view" and "conversations.reply" in permissions
+    return ctx.get("role") == "owner" or permission in permissions or manage_permission in permissions or reply_implies_view
+
+
 def require_permission(permission: str):
     def _dependency(ctx: dict = Depends(get_tenant_and_role)) -> dict:
-        permissions = set(ctx.get("permissions") or [])
-        manage_permission = f"{permission[:-5]}.manage" if permission.endswith(".view") else None
-        reply_implies_view = permission == "conversations.view" and "conversations.reply" in permissions
-        if ctx.get("role") == "owner" or permission in permissions or manage_permission in permissions or reply_implies_view:
+        if _has_permission(ctx, permission):
             return ctx
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Permission required: {permission}",
+        )
+    return _dependency
+
+
+def require_any_permission(*permissions: str):
+    """Passes when the caller holds at least one of `permissions` (same
+    view-implied-by-manage rules as require_permission)."""
+    def _dependency(ctx: dict = Depends(get_tenant_and_role)) -> dict:
+        if any(_has_permission(ctx, p) for p in permissions):
+            return ctx
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Permission required: one of {', '.join(permissions)}",
         )
     return _dependency
 

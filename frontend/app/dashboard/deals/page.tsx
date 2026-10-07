@@ -30,8 +30,8 @@ export default function DealsPage() {
   const [openDealId, setOpenDealId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
-  const canManage = role === "owner" || permissions.includes("leads.manage");
-  const canView = role === "owner" || permissions.includes("leads.view") || canManage;
+  const canManage = role === "owner" || permissions.includes("deals.manage");
+  const canView = role === "owner" || permissions.includes("deals.view") || canManage;
 
   const visibleTabs = TABS.filter((t) => t.id !== "forms" || intakeEnabled);
   const tab = (visibleTabs.some((t) => t.id === rawTab) ? rawTab : "board") as DealsTab;

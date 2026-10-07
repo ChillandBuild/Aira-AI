@@ -430,16 +430,36 @@ def test_lead_schema_accepts_the_new_sources():
         assert LeadBase(source=source).source == source
 
 
-def test_counter_staff_without_settings_access_can_use_the_counter(db, send):
-    routes._per_ip.reset()
+def _auto_messages_client(perms):
     app = FastAPI()
     app.include_router(routes.router, prefix="/api/v1/auto-messages")
-    app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": T, "role": "telecaller", "permissions": ["leads.manage"]}
+    app.dependency_overrides[get_tenant_and_role] = lambda: {"tenant_id": T, "role": "telecaller", "permissions": perms}
+    return TestClient(app)
+
+
+def test_auto_messages_manage_can_use_the_counter(db, send):
+    routes._per_ip.reset()
     with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
-        c = TestClient(app)
+        c = _auto_messages_client(["auto_messages.manage"])
         assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 200
         assert len(c.get("/api/v1/auto-messages/quick-add/recent").json()["sends"]) == 1
+
+
+def test_auto_messages_view_can_read_but_not_send_or_edit(db, send):
+    routes._per_ip.reset()
+    with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
+        c = _auto_messages_client(["auto_messages.view"])
+        assert c.get("/api/v1/auto-messages/sends").status_code == 200
+        assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 403
+        assert c.post("/api/v1/auto-messages/rules", json={}).status_code == 403
+
+
+def test_old_settings_and_leads_keys_no_longer_open_auto_messages(db, send):
+    routes._per_ip.reset()
+    with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
+        c = _auto_messages_client(["settings.manage", "leads.manage"])
         assert c.get("/api/v1/auto-messages/sends").status_code == 403
+        assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 403
 
 
 def test_rate_limit_key_ignores_client_supplied_forwarded_for():

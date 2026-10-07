@@ -4,7 +4,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SwitchPill } from "@/components/ui/controls";
 import { ConflictsLink } from "@/components/brain/ConflictsLink";
-import { useSettingsForm } from "../settings/SettingsFormContext";
+import { useAuthRole } from "../contexts/AuthRoleContext";
 import { SaveButton, SaveStatus } from "../settings/SettingsSection";
 import { slugify } from "../settings/slugify";
 import { PackageEditor, type IntakePackage } from "./PackageEditor";
@@ -52,7 +52,8 @@ function toSellConfig(data: Record<string, unknown>): SellConfig {
 }
 
 export default function ServicesPage() {
-  const { canManageSettings } = useSettingsForm();
+  const { role, permissions } = useAuthRole();
+  const canManageSettings = role === "owner" || permissions.includes("services.manage") || permissions.includes("settings.manage");
   const [saved, setSaved] = useState<SellConfig>(DEFAULT);
   const [draft, setDraft] = useState<SellConfig>(DEFAULT);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");

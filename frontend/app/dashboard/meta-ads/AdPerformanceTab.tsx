@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { api, AdPerformanceRow, AdTrackingCodeResponse } from "@/lib/api";
 import { useAdFilters, useAdPerformance } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
+import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { TickMark } from "@/components/ui/controls";
 
 type MetricKey =
@@ -308,6 +309,8 @@ function metricValue(metric: MetricKey, row: AdPerformanceRow) {
 }
 
 export function AdPerformanceTab() {
+  const { role, permissions } = useAuthRole();
+  const canManage = role === "owner" || permissions.includes("meta_ads.manage");
   const [campaignId, setCampaignId] = useState("");
   const [adsetId, setAdsetId] = useState("");
   const [creativeId, setCreativeId] = useState("");
@@ -521,8 +524,8 @@ export function AdPerformanceTab() {
             className="flex h-9 items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-primary-300 hover:text-primary-700 disabled:opacity-40">
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
           </button>
-          <button type="button" onClick={handleSyncNow} disabled={syncing}
-            title="Pull the latest Click-to-WhatsApp performance from Meta"
+          <button type="button" onClick={handleSyncNow} disabled={syncing || !canManage}
+            title={canManage ? "Pull the latest Click-to-WhatsApp performance from Meta" : "Needs Meta Ads write access"}
             className="flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
             <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync now"}
           </button>
@@ -585,8 +588,8 @@ export function AdPerformanceTab() {
             )}
           </div>
 
-          <button type="button" onClick={openTrackingModal} disabled={(filters?.creatives?.length ?? 0) === 0}
-            title="Generate a fallback ID for a Meta ad's pre-filled WhatsApp message"
+          <button type="button" onClick={openTrackingModal} disabled={!canManage || (filters?.creatives?.length ?? 0) === 0}
+            title={canManage ? "Generate a fallback ID for a Meta ad's pre-filled WhatsApp message" : "Needs Meta Ads write access"}
             className="flex h-9 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-100 disabled:opacity-40">
             <KeyRound size={12} /> Generate ID
           </button>

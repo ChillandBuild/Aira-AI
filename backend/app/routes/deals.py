@@ -19,8 +19,8 @@ from app.services.deals import DealError, format_deal_number
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-require_deals_view = require_permission("leads.view")
-require_deals_manage = require_permission("leads.manage")
+require_deals_view = require_permission("deals.view")
+require_deals_manage = require_permission("deals.manage")
 
 DEAL_SELECT = "*, leads(id, name, phone), deal_items(id, catalog_item_id, name, qty, unit_price_paise, gst_rate, line_total_paise), intake_sessions(last_activity_at, refund_needed)"
 BOARD_CARD_CAP = 100

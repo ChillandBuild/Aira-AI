@@ -33,9 +33,8 @@ logger = logging.getLogger(__name__)
 public_router = APIRouter()
 router = APIRouter()
 
-require_settings_manage = require_permission("settings.manage")
-require_settings_view = require_permission("settings.view")
-require_leads_manage = require_permission("leads.manage")
+require_auto_messages_manage = require_permission("auto_messages.manage")
+require_auto_messages_view = require_permission("auto_messages.view")
 
 TOKEN_KEY = "auto_messages_ingest_token"
 _RENDER_BASE_URL = "https://aira-ai-5tfr.onrender.com"
@@ -248,13 +247,13 @@ _FORM_JS = r"""(function () {
 # ---------------------------------------------------------------- setup
 
 @router.get("/setup")
-def get_setup(ctx: dict = Depends(require_settings_manage)):
+def get_setup(ctx: dict = Depends(require_auto_messages_manage)):
     token = get_setting(TOKEN_KEY, tenant_id=ctx["tenant_id"])
     return _urls(token) if token else {"ingest_url": None, "form_script_url": None}
 
 
 @router.post("/setup/token")
-def rotate_token(ctx: dict = Depends(require_settings_manage)):
+def rotate_token(ctx: dict = Depends(require_auto_messages_manage)):
     """(Re)generates the intake link. Rotating breaks the old link at once: the
     website snippet and any Zapier/app setup must be updated."""
     token = secrets.token_urlsafe(24)
@@ -300,7 +299,7 @@ def _check_template(db, tenant_id: str, template_id: str) -> None:
 
 
 @router.get("/rules")
-def list_rules(ctx: dict = Depends(require_settings_view)):
+def list_rules(ctx: dict = Depends(require_auto_messages_view)):
     rows = (
         get_supabase().table("auto_message_rules").select("*").eq("tenant_id", ctx["tenant_id"])
         .order("created_at").execute()
@@ -309,7 +308,7 @@ def list_rules(ctx: dict = Depends(require_settings_view)):
 
 
 @router.post("/rules")
-def create_rule(payload: RuleIn, ctx: dict = Depends(require_settings_manage)):
+def create_rule(payload: RuleIn, ctx: dict = Depends(require_auto_messages_manage)):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     _check_template(db, tenant_id, payload.template_id)
@@ -332,7 +331,7 @@ def create_rule(payload: RuleIn, ctx: dict = Depends(require_settings_manage)):
 
 
 @router.patch("/rules/{rule_id}")
-def update_rule(rule_id: str, payload: RulePatch, ctx: dict = Depends(require_settings_manage)):
+def update_rule(rule_id: str, payload: RulePatch, ctx: dict = Depends(require_auto_messages_manage)):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     patch = payload.model_dump(exclude_unset=True)
@@ -359,7 +358,7 @@ def update_rule(rule_id: str, payload: RulePatch, ctx: dict = Depends(require_se
 
 
 @router.delete("/rules/{rule_id}")
-def delete_rule(rule_id: str, ctx: dict = Depends(require_settings_manage)):
+def delete_rule(rule_id: str, ctx: dict = Depends(require_auto_messages_manage)):
     deleted = (
         get_supabase().table("auto_message_rules").delete().eq("id", rule_id).eq("tenant_id", ctx["tenant_id"])
         .execute()
@@ -370,7 +369,7 @@ def delete_rule(rule_id: str, ctx: dict = Depends(require_settings_manage)):
 
 
 @router.get("/templates")
-def list_templates(ctx: dict = Depends(require_settings_view)):
+def list_templates(ctx: dict = Depends(require_auto_messages_view)):
     """Approved templates with what the rule editor needs: the body's {{n}}
     count, the header type and whether a URL button has a {{1}} suffix."""
     rows = (
@@ -404,7 +403,7 @@ class QuickAddIn(BaseModel):
 
 
 @router.post("/quick-add")
-async def quick_add(payload: QuickAddIn, ctx: dict = Depends(require_leads_manage)):
+async def quick_add(payload: QuickAddIn, ctx: dict = Depends(require_auto_messages_manage)):
     result = await svc.handle_event(ctx["tenant_id"], "store", {
         "phone": payload.phone, "name": (payload.name or "").strip(), "event_raw": payload.event,
         "page_url": "", "extra": {},
@@ -415,7 +414,7 @@ async def quick_add(payload: QuickAddIn, ctx: dict = Depends(require_leads_manag
 
 
 @router.get("/quick-add/recent")
-def quick_add_recent(ctx: dict = Depends(require_leads_manage)):
+def quick_add_recent(ctx: dict = Depends(require_auto_messages_manage)):
     rows = (
         get_supabase().table("auto_message_sends")
         .select("id, phone, name, event, source, status, reason, send_at, sent_at, created_at")
@@ -427,7 +426,7 @@ def quick_add_recent(ctx: dict = Depends(require_leads_manage)):
 # ---------------------------------------------------------------- send log
 
 @router.get("/sends")
-def list_sends(status: str | None = None, limit: int = 100, ctx: dict = Depends(require_settings_view)):
+def list_sends(status: str | None = None, limit: int = 100, ctx: dict = Depends(require_auto_messages_view)):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     q = (
@@ -453,6 +452,6 @@ def list_sends(status: str | None = None, limit: int = 100, ctx: dict = Depends(
 # ---------------------------------------------------------------- private send
 
 @router.get("/private-send")
-def private_send_overview(ctx: dict = Depends(require_settings_view)):
+def private_send_overview(ctx: dict = Depends(require_auto_messages_view)):
     """Private Send status and the last 30 days of plug-in send counts (no lead data exists here)."""
     return private_send_svc.tenant_overview(get_supabase(), ctx["tenant_id"])
