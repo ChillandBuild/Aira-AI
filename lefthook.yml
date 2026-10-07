@@ -10,7 +10,8 @@ pre-commit:
     # Claude's PostToolUse hook already typechecks on each frontend edit).
     - name: backend-syntax
       glob: "backend/app/**/*.py"
-      run: python3 -m py_compile {staged_files}
+      # Windows ships a `python3` Store stub that exits non-zero, so fall back to `python`.
+      run: PY=python3; $PY -c pass 2>/dev/null || PY=python; $PY -m py_compile {staged_files}
       fail_text: "Python syntax error — fix before committing"
 
     - name: tenant-audit
@@ -28,7 +29,8 @@ pre-push:
 post-merge:
   jobs:
     - name: wiki-stale-reminder
-      run: |
-        if git diff-tree -r --name-only ORIG_HEAD HEAD 2>/dev/null | grep -qE '^(backend/|frontend/)'; then
-          echo "ℹ Code changed in this merge — module wiki may be stale. Refresh: make wiki-refresh"
-        fi
+      # One shell line on purpose: Windows checkouts get CRLF, and a multi-line script
+      # then fails with "syntax error: unexpected end of file". No double quotes in
+      # run commands either: on Windows lefthook wraps the command in "..." unescaped.
+      run: >-
+        git diff-tree -r --name-only ORIG_HEAD HEAD 2>/dev/null | grep -qE '^(backend/|frontend/)' && echo 'ℹ Code changed in this merge — module wiki may be stale. Refresh: make wiki-refresh' || true

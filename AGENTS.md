@@ -1,7 +1,7 @@
 # Aira AI — Codex Operating Manual
 
 ## Core Commands
-- **Backend Dev**: `cd backend && uvicorn app.main:app --reload`
+- **Backend Dev**: `make dev-backend` (safe mode: scheduler paused, outbound dry-run). Never plain `uvicorn` on a laptop — it shares the live DB, so the scheduler would message real leads.
 - **Backend Build/Deps**: `cd backend && pip install -r requirements.txt`
 - **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` fails at collection.
 - **Frontend Dev**: `cd frontend && npm run dev`
