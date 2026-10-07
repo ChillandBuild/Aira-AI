@@ -19,6 +19,7 @@ import { DataOpsView } from "./views/data-ops";
 import { AuditLogsView } from "./views/audit-logs";
 import { DeleteClientView } from "./views/delete-client";
 import { EntitlementsView } from "./views/entitlements";
+import { PrivateSendView } from "./views/private-send";
 import { TokenUsageCard } from "./views/TokenUsageCard";
 
 import type { OverviewData } from "./types";
@@ -27,7 +28,7 @@ const VALID_SECTIONS: SectionType[] = [
   "overview", "conversations", "segments", "inbound", "outbound",
   "templates", "numbers", "knowledge", "analytics", "team", "roles",
   "tc-upload", "tc-dialer", "tc-scheduled", "tc-notes",
-  "brain", "config", "entitlements", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
+  "brain", "config", "entitlements", "private-send", "token-usage", "health", "management", "data-ops", "audit-logs", "delete-client",
 ];
 
 export default function ClientDetailPage() {
@@ -145,6 +146,7 @@ export default function ClientDetailPage() {
     brain: { title: "Aira Brain", desc: "What Aira knows, what is waiting on the client, and how customers are handled (read-only)." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
     entitlements: { title: "Entitlements & Usage", desc: "Current purchased items, subscription status, and usage this cycle (read-only)." },
+    "private-send": { title: "Private Send", desc: "Client-side sending: license keys, plan cap, reply routing and usage." },
     "token-usage": { title: "Token Consumption", desc: "AI provider token usage and estimated cost, on this client's own API keys." },
     health: { title: "Health", desc: "Channel health, delivery stats, and incidents." },
     management: { title: "Management", desc: "Owner management and account actions." },
@@ -199,17 +201,18 @@ export default function ClientDetailPage() {
 
         {/* Main content */}
         <div className="px-7 py-6">
-          <SectionContent section={section} tenantId={tenantId} overview={overview} onReload={loadOverview} setError={setError} onOpenSection={setSection} />
+          <SectionContent section={section} tenantId={tenantId} overview={overview} onReload={loadOverview} setError={setError} onOpenSection={setSection} onToggleFeature={handleToggleFeature} featureUpdating={featureUpdating} />
         </div>
       </div>
     </>
   );
 }
 
-function SectionContent({ section, tenantId, overview, onReload, setError, onOpenSection }: {
+function SectionContent({ section, tenantId, overview, onReload, setError, onOpenSection, onToggleFeature, featureUpdating }: {
   section: SectionType; tenantId: string; overview: OverviewData | null;
   onReload: () => void; setError: (e: string | null) => void;
   onOpenSection: (section: SectionType) => void;
+  onToggleFeature: (feature: string) => void; featureUpdating: boolean;
 }) {
   switch (section) {
     case "overview":
@@ -248,6 +251,15 @@ function SectionContent({ section, tenantId, overview, onReload, setError, onOpe
       return <ConfigView tenantId={tenantId} />;
     case "entitlements":
       return <EntitlementsView tenantId={tenantId} />;
+    case "private-send":
+      return (
+        <PrivateSendView
+          tenantId={tenantId}
+          enabledFeatures={overview?.tenant.enabled_features || []}
+          onToggleFeature={onToggleFeature}
+          featureUpdating={featureUpdating}
+        />
+      );
     case "token-usage":
       return <TokenUsageCard tenantId={tenantId} />;
     case "health":

@@ -26,6 +26,7 @@ from app.config_dynamic import get_setting, save_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_permission
 from app.services import auto_messages as svc
+from app.services import private_send as private_send_svc
 
 logger = logging.getLogger(__name__)
 
@@ -436,3 +437,11 @@ def list_sends(status: str | None = None, limit: int = 100, ctx: dict = Depends(
     for r in rows:
         r["template_name"] = templates.get(r.get("template_id"))
     return {"sends": rows}
+
+
+# ---------------------------------------------------------------- private send
+
+@router.get("/private-send")
+def private_send_overview(ctx: dict = Depends(require_settings_view)):
+    """Private Send status and the last 30 days of plug-in send counts (no lead data exists here)."""
+    return private_send_svc.tenant_overview(get_supabase(), ctx["tenant_id"])

@@ -1,10 +1,11 @@
 import logging
 import secrets
 from typing import Literal
+from uuid import UUID
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.db.supabase import get_supabase
 from app.dependencies.auth import get_current_user
@@ -18,6 +19,7 @@ from app.services.deal_settings import (
     validate_deal_idle_close_days,
 )
 from app.services.entitlements import compute_period_key, get_billing_period
+from app.services import private_send as private_send_svc
 from app.services.token_pricing import estimate_cost, get_rates, upsert_rate
 from app.services.subscription_requests import approve_request, reject_request
 from app.services.rbac import ensure_default_roles, is_telecaller_role, normalize_permissions
@@ -779,6 +781,88 @@ def update_calling_provider(
         metadata={"old_provider": old_provider, "new_provider": payload.calling_provider},
     )
     return {"tenant_id": tenant_id, "calling_provider": payload.calling_provider}
+
+
+# ---------------------------------------------------------------- private send
+
+class PrivateSendSettingsPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reply_mode: Literal["client", "aira"] | None = None
+    offline_grace_hours: int | None = Field(default=None, ge=1, le=72)
+    monthly_cap: int | None = Field(default=None, ge=0)  # null clears the cap
+
+
+def _require_tenant(db, tenant_id: str) -> None:
+    rows = db.table("tenants").select("id").eq("id", tenant_id).limit(1).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+
+def _audit_private_send(db, admin: dict, tenant_id: str, action: str, target_id: str, metadata: dict) -> None:
+    # Never put a key in here. The full key exists only in the create response.
+    record_audit_event(
+        db,
+        tenant_id=tenant_id,
+        actor_user_id=admin.get("user_id"),
+        actor_role="system_admin",
+        action=action,
+        target_type="private_send",
+        target_id=target_id,
+        metadata=metadata,
+    )
+
+
+@router.get("/clients/{tenant_id}/private-send")
+def get_private_send(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    _require_tenant(db, tenant_id)
+    return private_send_svc.operator_overview(db, tenant_id)
+
+
+@router.post("/clients/{tenant_id}/private-send/keys")
+def create_private_send_key(tenant_id: str, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    _require_tenant(db, tenant_id)
+    try:
+        created = private_send_svc.create_key(db, tenant_id)
+    except private_send_svc.PrivateSendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    _audit_private_send(
+        db, _admin, tenant_id, "operator.private_send_key_created", created["id"],
+        {"prefix": created["key_prefix"]},
+    )
+    return created
+
+
+@router.delete("/clients/{tenant_id}/private-send/keys/{key_id}")
+def revoke_private_send_key(tenant_id: str, key_id: UUID, _admin: dict = Depends(get_system_admin)):
+    db = get_supabase()
+    try:
+        private_send_svc.revoke_key(db, tenant_id, str(key_id))
+    except private_send_svc.PrivateSendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    _audit_private_send(db, _admin, tenant_id, "operator.private_send_key_revoked", str(key_id), {})
+    return {"ok": True}
+
+
+@router.patch("/clients/{tenant_id}/private-send/settings")
+async def update_private_send_settings(
+    tenant_id: str,
+    payload: PrivateSendSettingsPayload,
+    _admin: dict = Depends(get_system_admin),
+):
+    db = get_supabase()
+    _require_tenant(db, tenant_id)
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=400, detail="Nothing to change")
+    try:
+        await private_send_svc.update_settings(db, tenant_id, changes)
+    except private_send_svc.PrivateSendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    _audit_private_send(db, _admin, tenant_id, "operator.private_send_settings_updated", tenant_id, changes)
+    return private_send_svc.operator_overview(db, tenant_id)
 
 
 @router.get("/clients/{tenant_id}/entitlements")

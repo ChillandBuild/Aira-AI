@@ -1,0 +1,1647 @@
+{
+  "description": "build_components(template, rule, ctx) -> Meta template components. Generated from the backend.",
+  "cases": [
+    {
+      "name": "body_two_vars_defaults",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}, your order {{2}} is confirmed.",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "body_one_var_default_first_name",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}, welcome!",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "body_explicit_variables_with_fallback",
+      "rule": {
+        "variables": [
+          {
+            "source": "first_name",
+            "fallback": "there"
+          },
+          {
+            "source": "text",
+            "value": "Order #42",
+            "fallback": "-"
+          },
+          {
+            "source": "extra",
+            "key": " Plan ",
+            "fallback": "basic"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}, {{2}} on {{3}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {
+          "plan": "Gold"
+        }
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "Order #42"
+            },
+            {
+              "type": "text",
+              "text": "Gold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "explicit_extra_missing_uses_fallback",
+      "rule": {
+        "variables": [
+          {
+            "source": "first_name",
+            "fallback": "there"
+          },
+          {
+            "source": "extra",
+            "key": "city",
+            "fallback": "your city"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} from {{2}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "your city"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "explicit_full_name_phone_page_url",
+      "rule": {
+        "variables": [
+          {
+            "source": "full_name",
+            "fallback": "friend"
+          },
+          {
+            "source": "phone",
+            "fallback": "-"
+          },
+          {
+            "source": "page_url",
+            "fallback": "-"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}} {{3}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "https://shop.example.com/p/9",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha Rao"
+            },
+            {
+              "type": "text",
+              "text": "+919876543210"
+            },
+            {
+              "type": "text",
+              "text": "https://shop.example.com/p/9"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "missing_name_uses_fallback",
+      "rule": {
+        "variables": [
+          {
+            "source": "first_name",
+            "fallback": "there"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "",
+        "full_name": "",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "there"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "missing_name_no_fallback_uses_dash",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "",
+        "full_name": "",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "null_variable_entry_uses_default",
+      "rule": {
+        "variables": [
+          null,
+          {
+            "source": "text",
+            "value": "X"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "X"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "spec_without_source_uses_default",
+      "rule": {
+        "variables": [
+          {
+            "fallback": "pal"
+          },
+          {
+            "value": "ignored"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "",
+        "full_name": "",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "pal"
+            },
+            {
+              "type": "text",
+              "text": "ignored"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fewer_specs_than_vars",
+      "rule": {
+        "variables": [
+          {
+            "source": "full_name",
+            "fallback": "x"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}} {{3}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha Rao"
+            },
+            {
+              "type": "text",
+              "text": "-"
+            },
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "repeated_var_counts_once",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} and again {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "non_contiguous_vars_count_distinct",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} and {{3}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "spaced_braces",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{ 1 }}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "no_variables",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Thanks for contacting us.",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": []
+    },
+    {
+      "name": "header_text_var",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Plain body",
+        "header_text": "Hello {{1}}",
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_text_var_missing_name_there",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Plain body",
+        "header_text": "Hello {{1}}",
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "",
+        "full_name": "",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "there"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_text_no_var_ignored",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Plain body",
+        "header_text": "Static header",
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": []
+    },
+    {
+      "name": "header_image",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": "IMAGE",
+        "header_media_url": "https://cdn.example.com/a.jpg",
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.example.com/a.jpg"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_video",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": "VIDEO",
+        "header_media_url": "https://cdn.example.com/a.mp4",
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "video",
+              "video": {
+                "link": "https://cdn.example.com/a.mp4"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_document",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": "DOCUMENT",
+        "header_media_url": "https://cdn.example.com/a.pdf",
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "document",
+              "document": {
+                "link": "https://cdn.example.com/a.pdf"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_media_type_lowercase",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": "image",
+        "header_media_url": "https://cdn.example.com/a.jpg",
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.example.com/a.jpg"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_media_without_url_no_header",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": "IMAGE",
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": []
+    },
+    {
+      "name": "header_media_wins_over_header_text",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": "Hi {{1}}",
+        "header_media_type": "IMAGE",
+        "header_media_url": "https://cdn.example.com/a.jpg",
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.example.com/a.jpg"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "header_media_type_none_falls_to_text",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": "Hi {{1}}",
+        "header_media_type": "NONE",
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "button_dynamic_url_text_suffix",
+      "rule": {
+        "variables": null,
+        "button_param": {
+          "source": "text",
+          "value": "ORD-42"
+        }
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "ORD-42"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "button_dynamic_url_encoded_suffix",
+      "rule": {
+        "variables": null,
+        "button_param": {
+          "source": "text",
+          "value": "order 42/ä?x=1&y=2 #frag%"
+        }
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "order%2042/%C3%A4?x=1&y=2%20%23frag%25"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "button_dynamic_url_from_extra",
+      "rule": {
+        "variables": null,
+        "button_param": {
+          "source": "extra",
+          "key": "order_id",
+          "fallback": "none"
+        }
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {
+          "order_id": "A/B 7"
+        }
+      },
+      "expected_components": [
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "A/B%207"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "button_dynamic_url_no_param_uses_dash",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "button_second_index_and_non_url_skipped",
+      "rule": {
+        "variables": null,
+        "button_param": {
+          "source": "text",
+          "value": "x"
+        }
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": [
+          {
+            "type": "QUICK_REPLY",
+            "text": "Yes"
+          },
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          },
+          {
+            "type": "URL",
+            "text": "Static",
+            "url": "https://example.com/static"
+          },
+          {
+            "type": "url",
+            "text": "Lower",
+            "url": "https://example.com/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "1",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "x"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "3",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "x"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_in_first_name_replaced_by_fallback",
+      "rule": {
+        "variables": [
+          {
+            "source": "first_name",
+            "fallback": "there"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "visit evil.com",
+        "full_name": "visit evil.com Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "there"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_in_full_name_replaced",
+      "rule": {
+        "variables": [
+          {
+            "source": "full_name",
+            "fallback": "friend"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha http://x.io/win",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "friend"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_in_extra_replaced",
+      "rule": {
+        "variables": [
+          {
+            "source": "extra",
+            "key": "note",
+            "fallback": "n/a"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {
+          "note": "see www.spam.top now"
+        }
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "n/a"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_in_default_first_name_becomes_dash",
+      "rule": {
+        "variables": null,
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Anna.co",
+        "full_name": "Anna.co Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "-"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_tld_boundary_cases",
+      "rule": {
+        "variables": [
+          {
+            "source": "extra",
+            "key": "a",
+            "fallback": "FB"
+          },
+          {
+            "source": "extra",
+            "key": "b",
+            "fallback": "FB"
+          },
+          {
+            "source": "extra",
+            "key": "c",
+            "fallback": "FB"
+          },
+          {
+            "source": "extra",
+            "key": "d",
+            "fallback": "FB"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}} {{3}} {{4}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {
+          "a": "report.pdf",
+          "b": "Dr. Smith",
+          "c": "shop.in",
+          "d": "a-b.com"
+        }
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "report.pdf"
+            },
+            {
+              "type": "text",
+              "text": "Dr. Smith"
+            },
+            {
+              "type": "text",
+              "text": "FB"
+            },
+            {
+              "type": "text",
+              "text": "FB"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "link_allowed_in_text_and_page_url",
+      "rule": {
+        "variables": [
+          {
+            "source": "text",
+            "value": "https://example.com/offer",
+            "fallback": "-"
+          },
+          {
+            "source": "page_url",
+            "fallback": "-"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} {{2}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "https://example.com/landing",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "https://example.com/offer"
+            },
+            {
+              "type": "text",
+              "text": "https://example.com/landing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "newlines_tabs_flattened",
+      "rule": {
+        "variables": [
+          {
+            "source": "full_name",
+            "fallback": "-"
+          },
+          {
+            "source": "text",
+            "value": "line1\n\nline2\tcol   gap",
+            "fallback": "-"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}} / {{2}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha\n\tRao   Kumar",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha Rao Kumar"
+            },
+            {
+              "type": "text",
+              "text": "line1 line2 col gap"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "value_truncated_to_500",
+      "rule": {
+        "variables": [
+          {
+            "source": "text",
+            "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "fallback": "-"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fallback_is_cleaned",
+      "rule": {
+        "variables": [
+          {
+            "source": "extra",
+            "key": "k",
+            "fallback": "a\n b\t c"
+          }
+        ],
+        "button_param": null
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "{{1}}",
+        "header_text": null,
+        "header_media_type": null,
+        "header_media_url": null,
+        "buttons": []
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "a b c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "full_example_header_body_button",
+      "rule": {
+        "variables": [
+          {
+            "source": "first_name",
+            "fallback": "there"
+          },
+          {
+            "source": "text",
+            "value": "INV 7"
+          }
+        ],
+        "button_param": {
+          "source": "text",
+          "value": "INV 7"
+        }
+      },
+      "template": {
+        "name": "t",
+        "language": "en",
+        "body_text": "Hi {{1}}, invoice {{2}}",
+        "header_text": null,
+        "header_media_type": "IMAGE",
+        "header_media_url": "https://cdn.example.com/h.png",
+        "buttons": [
+          {
+            "type": "URL",
+            "text": "Track",
+            "url": "https://shop.example.com/track/{{1}}"
+          }
+        ]
+      },
+      "ctx": {
+        "first_name": "Asha",
+        "full_name": "Asha Rao",
+        "page_url": "",
+        "phone": "+919876543210",
+        "extra": {}
+      },
+      "expected_components": [
+        {
+          "type": "header",
+          "parameters": [
+            {
+              "type": "image",
+              "image": {
+                "link": "https://cdn.example.com/h.png"
+              }
+            }
+          ]
+        },
+        {
+          "type": "body",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "Asha"
+            },
+            {
+              "type": "text",
+              "text": "INV 7"
+            }
+          ]
+        },
+        {
+          "type": "button",
+          "sub_type": "url",
+          "index": "0",
+          "parameters": [
+            {
+              "type": "text",
+              "text": "INV%207"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

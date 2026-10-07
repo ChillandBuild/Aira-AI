@@ -13,6 +13,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 require_subscription_manage = require_permission("subscription.manage")
 
+# Switched on by the operator only (licence + tier set in the operator console),
+# so clients never see them in the cart or request them.
+OPERATOR_ONLY_FEATURES = frozenset({"private_send"})
+
 
 @router.get("/catalog")
 def get_catalog(ctx: dict = Depends(get_tenant_and_role)):
@@ -23,7 +27,8 @@ def get_catalog(ctx: dict = Depends(get_tenant_and_role)):
     packages = db.table("plans").select(
         "id, name, monthly_price, feature_keys, discount_percent"
     ).eq("active", True).order("created_at").execute()
-    return {"catalog": catalog.data or [], "packages": packages.data or []}
+    visible = [row for row in (catalog.data or []) if row.get("feature_key") not in OPERATOR_ONLY_FEATURES]
+    return {"catalog": visible, "packages": packages.data or []}
 
 
 @router.get("/me")
@@ -84,6 +89,8 @@ class SubmitRequestPayload(BaseModel):
 def create_subscription_request(payload: SubmitRequestPayload, ctx: dict = Depends(require_subscription_manage)):
     if not payload.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
+    if any(item.feature_key in OPERATOR_ONLY_FEATURES for item in payload.items):
+        raise HTTPException(status_code=400, detail="This feature is set up by your Aira contact")
 
     db = get_supabase()
     result = submit_request(

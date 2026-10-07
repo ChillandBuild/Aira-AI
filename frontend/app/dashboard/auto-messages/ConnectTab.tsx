@@ -1,10 +1,27 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Code2, Globe, RefreshCw, Send, Webhook } from "lucide-react";
+import { Code2, Globe, Lock, RefreshCw, Send, Webhook } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { CopyButton } from "@/app/dashboard/settings/connect-channels/ui";
+import { usePrivateSend } from "./PrivateSend";
 import { ghostBtn, inputCls, primaryBtn, reasonText, STATUS_STYLE } from "./shared";
+
+const PY_SNIPPET = `pip install aira-private-send
+
+from aira_private_send import AiraPrivateSend
+
+aira = AiraPrivateSend(license_key="...", meta_token="...",
+                       phone_number_id="...", aira_public_key="...")
+aira.track("purchased", phone="+91...", name="Ravi")`;
+
+const NODE_SNIPPET = `npm install aira-private-send
+
+import { AiraPrivateSend } from "aira-private-send";
+
+const aira = new AiraPrivateSend({ licenseKey: "...", metaToken: "...",
+  phoneNumberId: "...", airaPublicKey: "..." });
+await aira.track("purchased", { phone: "+91...", name: "Ravi" });`;
 
 type Links = { ingest_url: string | null; form_script_url: string | null };
 
@@ -33,6 +50,45 @@ function Card({ icon, title, sub, children }: { icon: React.ReactNode; title: st
       </div>
       {children}
     </section>
+  );
+}
+
+function PrivateSendCard({ keyPrefix, replyMode }: { keyPrefix: string | null; replyMode: "client" | "aira" | null }) {
+  return (
+    <Card
+      icon={<Lock size={18} />}
+      title="Your server (Private Send)"
+      sub="Your own server sends the messages. Aira only receives daily counts — never names or numbers."
+    >
+      <dl className="space-y-2 font-body text-xs">
+        <div className="grid grid-cols-[96px_1fr] gap-2">
+          <dt className="font-semibold text-ink">License key</dt>
+          <dd className="min-w-0 text-ink-secondary">
+            <span className="break-all font-mono text-[11px] font-semibold text-primary">{keyPrefix ? `${keyPrefix}…` : "—"}</span>
+            <span className="block text-ink-muted">Ask your Aira contact for the full key.</span>
+          </dd>
+        </div>
+        <div className="grid grid-cols-[96px_1fr] gap-2">
+          <dt className="font-semibold text-ink">Replies</dt>
+          <dd className="text-ink-secondary">
+            {replyMode === "aira"
+              ? "Aira AI answers. Replies come to Aira's inbox."
+              : "Your system handles replies. Aira never sees them."}
+          </dd>
+        </div>
+      </dl>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="min-w-0 space-y-2">
+          <p className="font-body text-xs font-semibold text-ink">Python</p>
+          <CodeBlock code={PY_SNIPPET} />
+        </div>
+        <div className="min-w-0 space-y-2">
+          <p className="font-body text-xs font-semibold text-ink">Node</p>
+          <CodeBlock code={NODE_SNIPPET} />
+        </div>
+      </div>
+      <p className="font-body text-[11px] text-ink-muted">Aira only receives daily counts — never names or numbers.</p>
+    </Card>
   );
 }
 
@@ -104,6 +160,7 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
   const [links, setLinks] = useState<Links | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [rotating, setRotating] = useState(false);
+  const privateSend = usePrivateSend();
 
   useEffect(() => {
     api.autoMessages
@@ -138,6 +195,8 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
 
   if (!links.ingest_url || !links.form_script_url) {
     return (
+      <div className="space-y-5">
+      {privateSend && <PrivateSendCard keyPrefix={privateSend.key_prefix} replyMode={privateSend.reply_mode} />}
       <div className="rounded-[24px] border border-border-subtle bg-white p-8 text-center sm:p-12">
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Globe size={22} />
@@ -151,6 +210,7 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
           {rotating ? "Creating…" : "Create my link"}
         </button>
       </div>
+      </div>
     );
   }
 
@@ -163,6 +223,7 @@ export function ConnectTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-5">
+      {privateSend && <PrivateSendCard keyPrefix={privateSend.key_prefix} replyMode={privateSend.reply_mode} />}
       <Card icon={<Globe size={18} />} title="Website form" sub="No developer needed. Paste this where you want the form to appear.">
         <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
           <div className="min-w-0 space-y-3">

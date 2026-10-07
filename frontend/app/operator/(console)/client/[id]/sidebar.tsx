@@ -5,7 +5,7 @@ import {
   LayoutDashboard, MessageSquare, Users, RadioTower, Upload,
   FileCheck, Layers, BookOpen, BarChart2, Phone, Calendar, StickyNote,
   Wrench, Activity, Settings, Settings2, Database, ChevronDown, ChevronRight,
-  ArrowLeft, FileText, Trash2, Cpu, ShieldCheck, Brain,
+  ArrowLeft, FileText, Trash2, Cpu, ShieldCheck, Brain, Lock,
 } from "lucide-react";
 import { OperatorToggle } from "../../components/operator-toggle";
 
@@ -14,7 +14,7 @@ export type SectionType =
   | "inbound" | "outbound" | "templates" | "numbers"
   | "knowledge" | "analytics" | "team" | "roles"
   | "tc-upload" | "tc-dialer" | "tc-scheduled" | "tc-notes"
-  | "brain" | "config" | "entitlements" | "token-usage" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
+  | "brain" | "config" | "entitlements" | "private-send" | "token-usage" | "health" | "management" | "data-ops" | "audit-logs" | "delete-client";
 
 type NavItem = {
   key: SectionType;
@@ -53,6 +53,7 @@ const OPERATOR_NAV: NavItem[] = [
   { key: "brain", icon: Brain, label: "Aira Brain" },
   { key: "config", icon: Wrench, label: "Configuration" },
   { key: "entitlements", icon: Settings2, label: "Entitlements & Usage" },
+  { key: "private-send", icon: Lock, label: "Private Send" },
   { key: "token-usage", icon: Cpu, label: "Token Consumption" },
   { key: "health", icon: Activity, label: "Health" },
   { key: "management", icon: Settings, label: "Management" },

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { api, type AutoMessageSend } from "@/lib/api";
+import { PrivateSendDailyTable, usePrivateSend } from "./PrivateSend";
 import { EVENT_LABEL, SOURCE_LABEL, STATUS_STYLE, formatWhen, ghostBtn, reasonText } from "./shared";
 
 const FILTERS: { id: string; label: string }[] = [
@@ -16,6 +17,7 @@ export function ActivityTab() {
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<AutoMessageSend[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const privateSend = usePrivateSend();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -33,6 +35,8 @@ export function ActivityTab() {
   }, [load]);
 
   return (
+    <div className="space-y-5">
+    {privateSend && <PrivateSendDailyTable status={privateSend} />}
     <section className="rounded-[24px] border border-border-subtle bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-5 py-4">
         <div className="flex flex-wrap gap-1">
@@ -96,5 +100,6 @@ export function ActivityTab() {
         </ul>
       )}
     </section>
+    </div>
   );
 }

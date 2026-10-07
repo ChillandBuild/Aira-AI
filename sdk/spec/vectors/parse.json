@@ -1,0 +1,210 @@
+{
+  "description": "parse_payload(payload) -> {phone, name, event_raw, page_url, extra}. Generated from the backend.",
+  "cases": [
+    {
+      "name": "parse_0",
+      "payload": {
+        "phone": "9876543210",
+        "name": "Asha Rao",
+        "event": "purchase",
+        "page_url": "https://x.com/p"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "Asha Rao",
+        "event_raw": "purchase",
+        "page_url": "https://x.com/p",
+        "extra": {}
+      }
+    },
+    {
+      "name": "parse_1",
+      "payload": {
+        "Mobile Number": "x",
+        "mobile_number": "9876543210",
+        "Your_Name": "  Asha  ",
+        "type": "signup"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "Asha",
+        "event_raw": "signup",
+        "page_url": "",
+        "extra": {
+          "mobile number": "x"
+        }
+      }
+    },
+    {
+      "name": "parse_2",
+      "payload": {
+        "whatsapp": "9876543210",
+        "first_name": "Asha",
+        "last_name": "Rao",
+        "city": "Pune",
+        "Plan": "Gold"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "Asha Rao",
+        "event_raw": "",
+        "page_url": "",
+        "extra": {
+          "city": "Pune",
+          "plan": "Gold"
+        }
+      }
+    },
+    {
+      "name": "parse_3",
+      "payload": {
+        "contact": "9876543210",
+        "first_name": "Asha",
+        "_hidden": "x",
+        "empty": "",
+        "nested": {
+          "a": 1
+        },
+        "list": [
+          1
+        ],
+        "n": 5
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "Asha",
+        "event_raw": "",
+        "page_url": "",
+        "extra": {
+          "n": "5"
+        }
+      }
+    },
+    {
+      "name": "parse_4",
+      "payload": {
+        "number": "9876543210",
+        "name": "",
+        "full_name": "Fallback Name",
+        "url": "https://u.com",
+        "link": "https://l.com"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "Fallback Name",
+        "event_raw": "",
+        "page_url": "https://u.com",
+        "extra": {}
+      }
+    },
+    {
+      "name": "parse_5",
+      "payload": {
+        "phone": "9876543210",
+        "customer_name": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+        "event_raw": "",
+        "page_url": "",
+        "extra": {}
+      }
+    },
+    {
+      "name": "parse_6",
+      "payload": {
+        "phone": "9876543210",
+        "k00": "v0",
+        "k01": "v1",
+        "k02": "v2",
+        "k03": "v3",
+        "k04": "v4",
+        "k05": "v5",
+        "k06": "v6",
+        "k07": "v7",
+        "k08": "v8",
+        "k09": "v9",
+        "k10": "v10",
+        "k11": "v11",
+        "k12": "v12",
+        "k13": "v13",
+        "k14": "v14",
+        "k15": "v15",
+        "k16": "v16",
+        "k17": "v17",
+        "k18": "v18",
+        "k19": "v19",
+        "k20": "v20",
+        "k21": "v21",
+        "k22": "v22",
+        "k23": "v23",
+        "k24": "v24"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "",
+        "event_raw": "",
+        "page_url": "",
+        "extra": {
+          "k00": "v0",
+          "k01": "v1",
+          "k02": "v2",
+          "k03": "v3",
+          "k04": "v4",
+          "k05": "v5",
+          "k06": "v6",
+          "k07": "v7",
+          "k08": "v8",
+          "k09": "v9",
+          "k10": "v10",
+          "k11": "v11",
+          "k12": "v12",
+          "k13": "v13",
+          "k14": "v14",
+          "k15": "v15",
+          "k16": "v16",
+          "k17": "v17",
+          "k18": "v18",
+          "k19": "v19"
+        }
+      }
+    },
+    {
+      "name": "parse_7",
+      "payload": {
+        "PHONE": " 9876543210 ",
+        "Trigger": "Order",
+        "ZZkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": "long key"
+      },
+      "expected": {
+        "phone": "9876543210",
+        "name": "",
+        "event_raw": "Order",
+        "page_url": "",
+        "extra": {
+          "zzkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk": "long key"
+        }
+      }
+    },
+    {
+      "name": "parse_8",
+      "payload": {
+        "mobile": null,
+        "name": null,
+        "flag": true,
+        "zero": 0
+      },
+      "expected": {
+        "phone": "",
+        "name": "",
+        "event_raw": "",
+        "page_url": "",
+        "extra": {
+          "flag": "True",
+          "zero": "0"
+        }
+      }
+    }
+  ]
+}

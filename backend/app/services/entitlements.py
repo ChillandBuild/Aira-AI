@@ -171,7 +171,7 @@ def check_quota(
         "used, included, hard_cap"
     ).eq("tenant_id", tenant_id).eq("period", period).eq("metric", metric).maybe_single().execute()
 
-    row = period_res.data or {}
+    row = (period_res.data if period_res else None) or {}
     used = row.get("used") or 0
     included = row.get("included") or 0
     hard_cap = row.get("hard_cap")
@@ -198,7 +198,8 @@ def increment_usage(
         "tenant_id", tenant_id
     ).eq("period", period).eq("metric", metric).maybe_single().execute()
 
-    current = counter_res.data or {"used": 0, "included": 0, "hard_cap": None}
+    # maybe_single().execute() returns None (not an empty response) when no row exists yet.
+    current = (counter_res.data if counter_res else None) or {"used": 0, "included": 0, "hard_cap": None}
     used = (current.get("used") or 0) + delta
     included = current.get("included") or 0
     hard_cap = current.get("hard_cap")

@@ -502,6 +502,22 @@ export interface AutoMessageTemplate {
   buttons: string[];
 }
 
+export interface PrivateSendDay {
+  day: string;
+  event: string;
+  template_id: string | null;
+  template_name: string | null;
+  sent: number;
+  failed: number;
+}
+
+export interface PrivateSendStatus {
+  enabled: boolean;
+  key_prefix: string | null;
+  reply_mode: "client" | "aira" | null;
+  days: PrivateSendDay[];
+}
+
 export interface AutoMessageSend {
   id: string;
   lead_id: string | null;
@@ -2644,6 +2660,7 @@ export const api = {
     counterRecent: () => apiFetch<{ sends: AutoMessageSend[] }>("/api/v1/auto-messages/quick-add/recent"),
     sends: (status?: string) =>
       apiFetch<{ sends: AutoMessageSend[] }>(`/api/v1/auto-messages/sends${status ? `?status=${status}` : ""}`),
+    privateSend: () => apiFetch<PrivateSendStatus>("/api/v1/auto-messages/private-send"),
   },
   marketplace: {
     status: () => apiFetch<Record<"indiamart" | "justdial", MarketplaceStatus>>("/api/v1/marketplace/status"),
