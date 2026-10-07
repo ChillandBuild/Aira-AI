@@ -228,7 +228,7 @@ def env(monkeypatch):
     app.include_router(operator.router, prefix="/api/v1/operator")
     app.include_router(auto_messages.router, prefix="/api/v1/auto-messages")
     app.dependency_overrides[get_system_admin] = lambda: {"user_id": "admin-1"}
-    app.dependency_overrides[auto_messages.require_settings_view] = lambda: {"tenant_id": TENANT}
+    app.dependency_overrides[auto_messages.require_auto_messages_view] = lambda: {"tenant_id": TENANT}
     return SimpleNamespace(db=db, settings=settings, audit=audit, client=TestClient(app))
 
 

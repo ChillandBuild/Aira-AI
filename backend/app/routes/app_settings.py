@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.config import settings as env_settings
 from app.dependencies.auth import get_current_user
-from app.dependencies.tenant import get_tenant_id, require_permission
+from app.dependencies.tenant import get_tenant_id, require_any_permission, require_permission
 from app.services.audit_log import record_audit_event
 from app.services.incidents import clear_token_incidents
 from app.services.assignment import (
@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 require_settings_read = require_permission("settings.view")
 require_settings_manage = require_permission("settings.manage")
+# Intake config is the Services page's whole data model: Services access or
+# full Settings access can reach it.
+require_services_read = require_any_permission("services.view", "settings.view")
+require_services_manage = require_any_permission("services.manage", "settings.manage")
 
 class SettingsUpdate(BaseModel):
     updates: dict[str, str | None]
@@ -2002,7 +2006,7 @@ def _check_form_fits_astrotamil(tenant_id: str, fields: list[dict]) -> None:
 
 
 @router.get("/intake-config")
-async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
+async def get_intake_config_route(ctx: dict = Depends(require_services_read)):
     return get_intake_config(ctx["tenant_id"])
 
 
@@ -2010,7 +2014,7 @@ async def get_intake_config_route(ctx: dict = Depends(require_settings_read)):
 async def patch_intake_config(
     payload: IntakeConfigUpdate,
     background_tasks: BackgroundTasks,
-    ctx: dict = Depends(require_settings_manage),
+    ctx: dict = Depends(require_services_manage),
 ):
     tenant_id = ctx["tenant_id"]
     current = get_intake_config(tenant_id)

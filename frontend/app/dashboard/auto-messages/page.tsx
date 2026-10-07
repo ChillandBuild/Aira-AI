@@ -8,11 +8,11 @@ import { ActivityTab } from "./ActivityTab";
 
 type Tab = "messages" | "connect" | "counter" | "activity";
 
-const TABS: { id: Tab; label: string; needs: "settings" | "counter" }[] = [
-  { id: "messages", label: "Messages", needs: "settings" },
-  { id: "connect", label: "Website & apps", needs: "settings" },
-  { id: "counter", label: "Shop counter", needs: "counter" },
-  { id: "activity", label: "Activity", needs: "settings" },
+const TABS: { id: Tab; label: string; needs: "view" | "manage" }[] = [
+  { id: "messages", label: "Messages", needs: "view" },
+  { id: "connect", label: "Website & apps", needs: "view" },
+  { id: "counter", label: "Shop counter", needs: "manage" },
+  { id: "activity", label: "Activity", needs: "view" },
 ];
 
 export default function AutoMessagesPage() {
@@ -22,11 +22,10 @@ export default function AutoMessagesPage() {
 
   const isOwner = role === "owner";
   const has = (p: string) => isOwner || permissions.includes(p);
-  const canManage = has("settings.manage");
-  const canView = canManage || has("settings.view");
-  const canCounter = has("leads.manage");
+  const canManage = has("auto_messages.manage");
+  const canView = canManage || has("auto_messages.view");
 
-  const visible = TABS.filter((t) => (t.needs === "settings" ? canView : canCounter));
+  const visible = TABS.filter((t) => (t.needs === "view" ? canView : canManage));
   const raw = searchParams.get("tab");
   const tab = (visible.some((t) => t.id === raw) ? raw : visible[0]?.id) as Tab | undefined;
 

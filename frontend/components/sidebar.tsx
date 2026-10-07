@@ -204,13 +204,13 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
   const canManageTeam = role === "owner" || permissions.includes("team.manage");
-  // Same gate as the Knowledge Base entry below. Computed up here (not from
+  // Brain has its own Roles toggle (brain.view). Computed up here (not from
   // isSubscribed / canAny, which are defined after the early return) so the count
   // hook stays above it and hook order never changes between renders.
   const brainGate =
     subStatus === "active" &&
     messagingOn &&
-    (role === "owner" || permissions.includes("knowledge.view") || permissions.includes("knowledge.manage"));
+    (role === "owner" || permissions.includes("brain.view"));
   const brainCount = useBrainCount(brainGate);
 
   useEffect(() => {
@@ -282,7 +282,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
   const showTc = Boolean(expandedGroups.Telecalling);
   const canSettings = canAny(["settings.view", "settings.manage"]);
   const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures);
-  const canServices = canAny(["settings.view", "settings.manage", "catalog.view", "catalog.manage"]);
+  const canServices = canAny(["services.view", "services.manage"]);
   const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
   const showSettings = expandedGroups.Settings || isSettingsActive;
   const isConversationsPage = pathname?.startsWith("/dashboard/conversations") ?? false;
@@ -347,7 +347,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
 
         {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
             No messagingOn gate: walk-ins and calls are deals too. */}
-        {isSubscribed && can("leads.view") && (
+        {isSubscribed && canAny(["deals.view", "deals.manage"]) && (
           <CollapsedNavItem
             href="/dashboard/deals"
             active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
@@ -377,7 +377,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
         )}
 
         {/* TOP LEVEL: Meta Ads */}
-        {isSubscribed && can("inbound_leads.view") && inboundOn && (
+        {isSubscribed && canAny(["meta_ads.view", "meta_ads.manage"]) && inboundOn && (
           <CollapsedNavItem
             href="/dashboard/meta-ads"
             active={pathname.startsWith("/dashboard/meta-ads")}
@@ -407,7 +407,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
         )}
 
         {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
-        {isSubscribed && canAny(["settings.view", "settings.manage", "leads.manage"]) && outboundOn && (
+        {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
           <CollapsedNavItem
             href="/dashboard/auto-messages"
             active={pathname.startsWith("/dashboard/auto-messages")}
@@ -426,7 +426,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Aira Brain -- same gate as Knowledge Base; badge = things waiting on the client */}
+        {/* TOP LEVEL: Aira Brain -- brain.view; badge = things waiting on the client */}
         {brainGate && (
           <CollapsedNavItem
             href="/dashboard/brain"
@@ -672,7 +672,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
 
         {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
             No messagingOn gate: walk-ins and calls are deals too. */}
-        {isSubscribed && can("leads.view") && (
+        {isSubscribed && canAny(["deals.view", "deals.manage"]) && (
           <MainNavItem
             href="/dashboard/deals"
             active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
@@ -702,7 +702,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
         )}
 
         {/* TOP LEVEL: Meta Ads */}
-        {isSubscribed && can("inbound_leads.view") && inboundOn && (
+        {isSubscribed && canAny(["meta_ads.view", "meta_ads.manage"]) && inboundOn && (
           <MainNavItem
             href="/dashboard/meta-ads"
             active={pathname.startsWith("/dashboard/meta-ads")}
@@ -732,7 +732,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
         )}
 
         {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
-        {isSubscribed && canAny(["settings.view", "settings.manage", "leads.manage"]) && outboundOn && (
+        {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
           <MainNavItem
             href="/dashboard/auto-messages"
             active={pathname.startsWith("/dashboard/auto-messages")}
@@ -751,7 +751,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Aira Brain -- same gate as Knowledge Base */}
+        {/* TOP LEVEL: Aira Brain -- brain.view */}
         {brainGate && (
           <MainNavItem
             href="/dashboard/brain"

@@ -1,12 +1,12 @@
 """Anril Brain for the client dashboard: GET /api/v1/brain and GET /api/v1/brain/count
-(services/brain). Read-only; both need knowledge.view."""
+(services/brain). Read-only; both need brain.view."""
 from fastapi import APIRouter, Depends
 
 from app.dependencies.tenant import require_permission
 from app.services.brain import brain_count, build_brain
 
 router = APIRouter()
-require_read = require_permission("knowledge.view")
+require_read = require_permission("brain.view")
 
 
 @router.get("")

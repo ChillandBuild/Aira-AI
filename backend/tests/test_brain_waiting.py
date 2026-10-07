@@ -135,13 +135,13 @@ class TestRoutes:
         monkeypatch.setattr(brain_routes, "brain_count", lambda tenant_id: {"count": 3, "sort_count": 1, "consistency_count": 2})
         assert brain_routes.get_count({"tenant_id": T1}) == {"count": 3, "sort_count": 1, "consistency_count": 2}
 
-    def test_both_routes_need_knowledge_view(self):
-        no_access = {"tenant_id": T1, "role": "caller", "permissions": ["leads.view"]}
-        with pytest.raises(HTTPException) as exc:
-            brain_routes.require_read(no_access)
-        assert exc.value.status_code == 403
-        assert brain_routes.require_read({**no_access, "permissions": ["knowledge.view"]})
-        assert brain_routes.require_read({**no_access, "permissions": ["knowledge.manage"]})
+    def test_both_routes_need_brain_view(self):
+        # Brain has its own Roles toggle; Knowledge Base access alone no longer opens it.
+        for perms in (["leads.view"], ["knowledge.view"], ["knowledge.manage"]):
+            with pytest.raises(HTTPException) as exc:
+                brain_routes.require_read({"tenant_id": T1, "role": "caller", "permissions": perms})
+            assert exc.value.status_code == 403
+        assert brain_routes.require_read({"tenant_id": T1, "role": "caller", "permissions": ["brain.view"]})
 
     def test_routes_are_mounted_under_api_v1_brain(self):
         from app.main import app

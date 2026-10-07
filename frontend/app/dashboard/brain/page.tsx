@@ -54,7 +54,7 @@ export default function AiraBrainPage() {
   const router = useRouter();
   const testQuestion = (searchParams.get("question") ?? "").slice(0, 2000);
   const requestedSection = searchParams.get("section");
-  const canView = role === "owner" || permissions.includes("knowledge.view") || permissions.includes("knowledge.manage");
+  const canView = role === "owner" || permissions.includes("brain.view");
   const canManage = role === "owner" || permissions.includes("knowledge.manage");
   const isOwner = role === "owner";
 
