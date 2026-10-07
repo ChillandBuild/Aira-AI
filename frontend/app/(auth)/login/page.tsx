@@ -54,7 +54,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-[#faf8f5] relative overflow-x-hidden overflow-y-auto lg:overflow-hidden">
+    <div className="min-h-[100dvh] w-full flex flex-col lg:flex-row bg-background relative overflow-x-hidden overflow-y-auto lg:overflow-hidden">
       {/* Left Column: Visual/Branding panel (visible on desktop) */}
       <div className="hidden lg:flex lg:w-1/2 lg:h-screen lg:sticky lg:top-0 bg-gradient-to-br from-[var(--primary-950)] to-[var(--primary-800)] p-10 lg:pt-12 lg:pb-8 lg:px-16 flex-col justify-between text-white relative z-10 overflow-hidden select-none">
         {/* Subtle background glow decorative elements */}

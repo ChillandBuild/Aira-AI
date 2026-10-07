@@ -70,8 +70,8 @@ function CollapsedNavItem({
         className={cn(
           "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all duration-150 border relative",
           active
-            ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
-            : "border-transparent hover:bg-[#f0ece4]"
+            ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+            : "border-transparent hover:bg-stone-100"
         )}
       >
         {active && (
@@ -116,8 +116,8 @@ function MainNavItem({
       className={cn(
         "flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border group",
         active
-          ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
-          : "border-transparent text-[#1c1917] hover:bg-[#f0ece4] hover:text-[#1c1917]"
+          ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
+          : "border-transparent text-[#1c1917] hover:bg-stone-100 hover:text-[#1c1917]"
       )}
     >
       {active && (
@@ -516,8 +516,8 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               className={cn(
                 "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/tc border relative",
                 isTcActive
-                  ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
-                  : "border-transparent hover:bg-[#f0ece4]"
+                  ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+                  : "border-transparent hover:bg-stone-100"
               )}
               title="Telecalling"
             >
@@ -550,8 +550,8 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               className={cn(
                 "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/settings border relative",
                 isSettingsActive
-                  ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)]"
-                  : "border-transparent hover:bg-[#f0ece4]"
+                  ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
+                  : "border-transparent hover:bg-stone-100"
               )}
               title="Settings"
             >
@@ -578,7 +578,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                   setExpandedGroups((prev) => ({ ...prev, Settings: false }));
                   router.push("/dashboard");
                 }}
-                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-[#f0ece4]"
+                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-stone-100"
               >
                 <ChevronLeft size={16} />
                 <span>Settings</span>
@@ -610,8 +610,8 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                           className={cn(
                             "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
                             active
-                              ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
-                              : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                              ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
+                              : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-stone-100"
                           )}
                         >
                           {active && (
@@ -839,7 +839,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               onClick={() => toggleGroup("Telecalling")}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+                isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-stone-100"
               )}
             >
               <Phone size={16} className={isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
@@ -882,8 +882,8 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                         className={cn(
                           "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
                           active
-                            ? "bg-white border-[#e2dcce] shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_1px_rgba(0,0,0,0.02)] font-black"
-                            : "border-transparent text-[#1c1917] hover:text-[#1c1917] hover:bg-[#f0ece4]"
+                            ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
+                            : "border-transparent text-[#1c1917] hover:text-[#1c1917] hover:bg-stone-100"
                         )}
                       >
                         {active && (
@@ -919,7 +919,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                 onClick={() => toggleGroup("Settings")}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-[#f0ece4]"
+                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-stone-100"
                 )}
               >
                 <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />

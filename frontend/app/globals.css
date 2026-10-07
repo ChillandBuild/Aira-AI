@@ -3,10 +3,10 @@
 @tailwind utilities;
 
 :root {
-  --bg: #faf8f5;
+  --bg: #ffffff;
   --surface: #ffffff;
   --surface-mid: #f0ece4;
-  --surface-low: #faf8f5;
+  --surface-low: #ffffff;
   --primary: #5b21b6;
   --primary-dark: #4c1d95;
   --primary-light: #f5f3ff;
@@ -99,7 +99,7 @@ canvas {
     border-radius: var(--radius-card);
     padding: 1.5rem;
     box-shadow: var(--shadow-card);
-    border: 1px solid rgba(232,227,219,0.7);
+    border: 1px solid var(--border);
   }
   .card-hover {
     transition: box-shadow 0.25s ease, transform 0.25s ease;

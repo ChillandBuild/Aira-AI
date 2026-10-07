@@ -76,7 +76,7 @@ export default function BackgroundAnimation() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      gradient.addColorStop(0, '#faf8f5');
+      gradient.addColorStop(0, '#ffffff');
       gradient.addColorStop(1, PRIMARY[50]);
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);

@@ -21,7 +21,7 @@ import { AdSpendSection } from "@/components/dashboard/AdSpendSection";
 const SEGMENT_CONFIG: Record<"A" | "B" | "C" | "D", { label: string; tone: string; bar: string; bg: string; borderTop: string }> = {
   A: { label: "Hot", tone: "text-emerald-700", bar: "bg-emerald-500", bg: "bg-emerald-50", borderTop: "border-t-emerald-500" },
   B: { label: "Warm", tone: "text-amber-700", bar: "bg-amber-500", bg: "bg-amber-50", borderTop: "border-t-amber-500" },
-  C: { label: "Cold", tone: "text-ink-muted", bar: "bg-stone-400", bg: "bg-[#faf8f5]", borderTop: "border-t-stone-400" },
+  C: { label: "Cold", tone: "text-ink-muted", bar: "bg-stone-400", bg: "bg-stone-100", borderTop: "border-t-stone-400" },
   D: { label: "Not Interested", tone: "text-rose-600", bar: "bg-rose-400", bg: "bg-rose-50", borderTop: "border-t-rose-500" },
 };
 

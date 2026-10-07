@@ -172,7 +172,7 @@ export default function ClientDetailPage() {
       <div className="ml-[240px]">
         {/* Section header (like AppHeader) */}
         <div
-          className="sticky z-20 h-16 flex items-center justify-between gap-4 px-7 bg-[#faf8f5] border-b border-[#e8e3db]"
+          className="sticky z-20 h-16 flex items-center justify-between gap-4 px-7 bg-background border-b border-[#e8e3db]"
           style={{ top: "64px" }}
         >
           <div className="flex flex-col justify-center select-none">

@@ -149,7 +149,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               </div>
 
               <main className="flex min-h-screen min-w-0 flex-1 flex-col pt-14 md:ml-[220px] md:pt-16">
-                <Suspense fallback={<div className="fixed inset-x-0 top-0 z-40 h-14 border-b border-[#e8e3db] bg-[#faf8f5] md:left-[220px] md:h-16" />}>
+                <Suspense fallback={<div className="fixed inset-x-0 top-0 z-40 h-14 border-b border-[#e8e3db] bg-background md:left-[220px] md:h-16" />}>
                   <AppHeader onOpenCalendar={() => setIsCalendarOpen(true)} />
                 </Suspense>
                 <ClaimBanner />

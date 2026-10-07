@@ -9,11 +9,11 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#faf8f5",
+        background: "#ffffff",
         surface: "#ffffff",
         "surface-mid": "#f0ece4",
-        "surface-low": "#faf8f5",
-        "surface-subtle": "#faf8f5",
+        "surface-low": "#ffffff",
+        "surface-subtle": "#ffffff",
 
         // Full shade scale anchored on the brand primary (= violet-800 in
         // Tailwind's default palette). Added so every violet/purple/indigo
@@ -94,7 +94,7 @@ const config: Config = {
       },
       backgroundImage: {
         "brand-gradient": "linear-gradient(135deg, var(--primary-950) 0%, var(--primary-800) 100%)",
-        "warm-base": "linear-gradient(180deg, #faf8f5 0%, #f0ece4 100%)",
+        "warm-base": "linear-gradient(180deg, #ffffff 0%, #f0ece4 100%)",
       },
       zIndex: {
         // Shared stacking convention for the dashboard shell. The mobile

@@ -14,7 +14,7 @@ export function GET() {
       scope: "/anril",
       display: "standalone",
       orientation: "portrait-primary",
-      background_color: "#faf8f5",
+      background_color: "#ffffff",
       theme_color: "#5b21b6",
       categories: ["business", "productivity"],
       icons: [
