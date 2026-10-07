@@ -35,6 +35,8 @@ export type Template = {
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED';
   meta_template_id?: string;
   short_code?: string;
+  // {{n}} -> field for the WhatsApp alerts, e.g. {"1": "lead_phone"}; null = fixed order.
+  variable_map?: Record<string, string> | null;
   rejection_reason?: string;
   submitted_at?: string;
   approved_at?: string;

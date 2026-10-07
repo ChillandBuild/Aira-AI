@@ -20,7 +20,7 @@ from app.services.meta_cloud import (
     _strip_emojis,
     build_core_components,
 )
-from app.services import template_rules
+from app.services import template_fields, template_rules
 from app.config import settings as env_settings
 from app.config_dynamic import get_setting
 from app.services.meta_webhook_verify import verify_meta_signature
@@ -610,6 +610,40 @@ async def update_template_variations(
     if not result.data:
         raise HTTPException(status_code=404, detail="Template not found")
     return {"id": template_id, "variations": payload.variations}
+
+
+class VariableMapPayload(BaseModel):
+    # {"1": "lead_phone", "2": "collected:course"}; empty clears it (back to the alert's fixed order).
+    variable_map: dict[str, str]
+
+
+@router.put("/{template_id}/variable-map")
+async def update_template_variable_map(
+    template_id: str,
+    payload: VariableMapPayload,
+    tenant_id: str = Depends(get_tenant_id),
+    _ctx: dict = Depends(require_templates_manage),
+):
+    """Save which field fills each {{n}} when the WhatsApp alerts send this template.
+    Anril-only: nothing goes to Meta, so any status can be changed."""
+    db = get_supabase()
+    row = (
+        db.table("message_templates").select("id,body_text")
+        .eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
+    )
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Template not found")
+    count = template_fields.placeholder_count(row.data[0].get("body_text"))
+    clean: dict[str, str] = {}
+    for slot, field in payload.variable_map.items():
+        if not slot.isdigit() or not 1 <= int(slot) <= count:
+            raise HTTPException(status_code=400, detail=f"This template has no {{{{{slot}}}}}.")
+        field = field.strip()
+        if not template_fields.is_valid_field(field):
+            raise HTTPException(status_code=400, detail=f"Unknown field for {{{{{slot}}}}}: {field or 'empty'}")
+        clean[str(int(slot))] = field
+    db.table("message_templates").update({"variable_map": clean or None}).eq("id", template_id).eq("tenant_id", tenant_id).execute()
+    return {"id": template_id, "variable_map": clean}
 
 
 class UpdateTemplate(BaseModel):
