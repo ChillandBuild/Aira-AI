@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  basePath: "/aira",
+  basePath: "/anril",
   output: "standalone",
   reactStrictMode: true,
   compress: true,

@@ -17,7 +17,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 
 /*
   Developer — the page another company's developer reads to connect their own
-  app to this Aira account. Everything on it is either public contract (paths,
+  app to this Anril account. Everything on it is either public contract (paths,
   body shapes, error codes) or this tenant's own non-secret identifiers. The
   shared secret is never shown: ops issue it, and the page only says whether
   one is on file.
@@ -44,7 +44,7 @@ const DEFAULT_PATHS: PartnerConfig["paths"] = {
 };
 
 // A localhost base means the page is being read on a developer's own machine
-// against a local Aira, not the real service. Say so, or a junior reading the
+// against a local Anril, not the real service. Say so, or a junior reading the
 // page copies "http://localhost:8001" into production config.
 const IS_LOCAL_API = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:\d+)?/i.test(API_URL);
 
@@ -207,7 +207,7 @@ function SignatureCalculator({ tenantId }: { tenantId: string }) {
         </label>
       </div>
       <div className="mt-3">
-        <span className="text-[11px] font-semibold text-ink">X-Aira-Signature</span>
+        <span className="text-[11px] font-semibold text-ink">X-Anril-Signature</span>
         <div className="mt-1 flex items-center gap-2">
           <code className="min-w-0 flex-1 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs text-ink">
             {sig ? `sha256=${sig}` : "sha256=<enter the secret above>"}
@@ -224,32 +224,32 @@ function SignatureCalculator({ tenantId }: { tenantId: string }) {
 function samples(base: string, tenantId: string, path: string) {
   const tid = tenantId || "<tenant-id>";
   const curl = `BODY='{"tenant_id":"${tid}","template_code":"123456","phone":"+919876543210","variables":["Ansar","Free Question"],"reference":"question:42"}'
-SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$AIRA_SECRET" | sed 's/^.* //')
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$ANRIL_SECRET" | sed 's/^.* //')
 curl -X POST "${base}${path}" \\
   -H "Content-Type: application/json" \\
-  -H "X-Aira-Signature: sha256=$SIG" \\
+  -H "X-Anril-Signature: sha256=$SIG" \\
   --data "$BODY"`;
 
   const python = `import hmac, hashlib, json, requests
 
-AIRA_BASE = "${base}"
+ANRIL_BASE = "${base}"
 TENANT_ID = "${tid}"
 SECRET = "<the shared secret>"          # keep it in an env var
 
 def send_template(phone, template_code, variables=(), reference=""):
     body = json.dumps({
         "tenant_id": TENANT_ID,
-        "template_code": template_code,   # the 6-digit Aira ID
+        "template_code": template_code,   # the 6-digit Anril ID
         "phone": phone,
         "variables": list(variables),
         "reference": reference,
     }).encode()                            # sign EXACTLY these bytes
     sig = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
     r = requests.post(
-        AIRA_BASE + "${path}",
+        ANRIL_BASE + "${path}",
         data=body,
         headers={"Content-Type": "application/json",
-                 "X-Aira-Signature": f"sha256={sig}"},
+                 "X-Anril-Signature": f"sha256={sig}"},
         timeout=20,
     )
     return r.status_code, r.json()
@@ -258,22 +258,22 @@ print(send_template("+919876543210", "123456", ["Ansar", "Free Question"], "ques
 
   const node = `import crypto from "node:crypto";
 
-const AIRA_BASE = "${base}";
+const ANRIL_BASE = "${base}";
 const TENANT_ID = "${tid}";
-const SECRET = process.env.AIRA_SECRET;
+const SECRET = process.env.ANRIL_SECRET;
 
 export async function sendTemplate(phone, templateCode, variables = [], reference = "") {
   const body = JSON.stringify({
     tenant_id: TENANT_ID,
-    template_code: templateCode,   // the 6-digit Aira ID
+    template_code: templateCode,   // the 6-digit Anril ID
     phone,
     variables,
     reference,
   });                               // sign EXACTLY this string
   const sig = crypto.createHmac("sha256", SECRET).update(body).digest("hex");
-  const res = await fetch(AIRA_BASE + "${path}", {
+  const res = await fetch(ANRIL_BASE + "${path}", {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Aira-Signature": \`sha256=\${sig}\` },
+    headers: { "Content-Type": "application/json", "X-Anril-Signature": \`sha256=\${sig}\` },
     body,
   });
   return [res.status, await res.json()];
@@ -311,16 +311,16 @@ export default function DeveloperPage() {
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="font-label text-[11px] font-bold uppercase tracking-[0.14em] text-primary-600">Developer</p>
-          <h1 className="mt-1 font-display text-2xl font-bold text-ink">Connect your own app to Aira</h1>
+          <h1 className="mt-1 font-display text-2xl font-bold text-ink">Connect your own app to Anril</h1>
           <p className="mt-1 max-w-2xl font-body text-sm text-ink-secondary">
-            Everything a developer needs to send WhatsApp messages from this account and to receive what Aira sends
+            Everything a developer needs to send WhatsApp messages from this account and to receive what Anril sends
             back. Read top to bottom once; the code samples at the end are ready to paste.
           </p>
         </div>
         <nav className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-ink-secondary">
           {[
             ["connection", "Connection"], ["auth", "Signing"], ["send-template", "Send template"],
-            ["send-text", "Send text"], ["variables", "Variables"], ["aira-id", "Aira ID"],
+            ["send-text", "Send text"], ["variables", "Variables"], ["anril-id", "Anril ID"],
             ["errors", "Errors"], ["callbacks", "Callbacks"], ["samples", "Code"], ["checklist", "Go-live"],
           ].map(([id, label]) => (
             <a key={id} href={`#${id}`} className="rounded-full border border-border bg-white px-2.5 py-1 hover:border-primary-300 hover:text-ink">{label}</a>
@@ -332,8 +332,8 @@ export default function DeveloperPage() {
         <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>
-            <strong>Local test setup.</strong> This dashboard is talking to a copy of Aira on this machine ({API_URL}). Every URL on this page
-            points there. The contract is the same on production; only the base URL changes, and your Aira contact gives you that one.
+            <strong>Local test setup.</strong> This dashboard is talking to a copy of Anril on this machine ({API_URL}). Every URL on this page
+            points there. The contract is the same on production; only the base URL changes, and your Anril contact gives you that one.
           </span>
         </div>
       )}
@@ -345,22 +345,22 @@ export default function DeveloperPage() {
       )}
 
       {/* 1. Connection */}
-      <Section id="connection" icon={KeyRound} title="Your connection" intro="Three things identify your app to Aira. Two are shown here; the third is a secret that Aira's operations team gives you directly.">
+      <Section id="connection" icon={KeyRound} title="Your connection" intro="Three things identify your app to Anril. Two are shown here; the third is a secret that Anril's operations team gives you directly.">
         <div className="grid gap-3 md:grid-cols-2">
-          <Value label="Tenant ID" value={tenantId || "loading…"} hint="Goes in every request body as tenant_id. It is your account's id inside Aira and is safe to keep in config." />
+          <Value label="Tenant ID" value={tenantId || "loading…"} hint="Goes in every request body as tenant_id. It is your account's id inside Anril and is safe to keep in config." />
           <Value
             label={IS_LOCAL_API ? "API base URL — local test setup only" : "API base URL"}
             value={API_URL}
             hint={IS_LOCAL_API
-              ? "This is a copy of Aira running on this machine, for testing only. It does not exist on production. For the live URL, ask your Aira contact; it looks like https://….aira…"
+              ? "This is a copy of Anril running on this machine, for testing only. It does not exist on production. For the live URL, ask your Anril contact; it looks like https://….aira…"
               : "Prefix for every path on this page. This is the live service."}
           />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {[
-            ["Shared secret", config?.secret_set, "Signs every request you send to Aira and every callback Aira sends you."],
-            ["Your app's URL", config?.bridge_url_set, "Where Aira pushes paid consultations (only needed for the consultation flow)."],
-            ["Your app's API key", config?.api_key_set, "Aira sends it as X-API-Key when it calls your app (consultation flow only)."],
+            ["Shared secret", config?.secret_set, "Signs every request you send to Anril and every callback Anril sends you."],
+            ["Your app's URL", config?.bridge_url_set, "Where Anril pushes paid consultations (only needed for the consultation flow)."],
+            ["Your app's API key", config?.api_key_set, "Anril sends it as X-API-Key when it calls your app (consultation flow only)."],
           ].map(([label, set, hint]) => (
             <div key={String(label)} className="rounded-2xl border border-border-subtle bg-white p-4">
               <p className="font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">{label as string}</p>
@@ -373,8 +373,8 @@ export default function DeveloperPage() {
           ))}
         </div>
         <p className="text-xs">
-          The secret, your app&apos;s URL and API key are entered by Aira operations, not on this screen. If any shows
-          &ldquo;Not set&rdquo;, ask your Aira contact. Never put the secret in a browser, a repository or a chat message.
+          The secret, your app&apos;s URL and API key are entered by Anril operations, not on this screen. If any shows
+          &ldquo;Not set&rdquo;, ask your Anril contact. Never put the secret in a browser, a repository or a chat message.
         </p>
       </Section>
 
@@ -384,10 +384,10 @@ export default function DeveloperPage() {
           <li>Build the JSON body, including <code className="font-mono">tenant_id</code>.</li>
           <li>Serialise it to bytes once. Sign <strong>those exact bytes</strong>; re-serialising on the way out, or pretty-printing, changes the signature.</li>
           <li>Compute HMAC-SHA256 with the shared secret as the key, hex-encoded, lower case.</li>
-          <li>Send it as <code className="font-mono">X-Aira-Signature: sha256=&lt;hex&gt;</code> with <code className="font-mono">Content-Type: application/json</code>.</li>
+          <li>Send it as <code className="font-mono">X-Anril-Signature: sha256=&lt;hex&gt;</code> with <code className="font-mono">Content-Type: application/json</code>.</li>
         </ol>
         <p className="text-xs">
-          Integrations built before this page used the header name <code className="font-mono">X-Astro-Signature</code>. It is still accepted; new code should use <code className="font-mono">X-Aira-Signature</code>.
+          Integrations built before the Anril rename used the header names <code className="font-mono">X-Aira-Signature</code> or <code className="font-mono">X-Astro-Signature</code>. Both are still accepted; new code should use <code className="font-mono">X-Anril-Signature</code>.
         </p>
         <p className="text-xs">
           A wrong signature, a missing header, an unknown tenant or no secret on file all return the <strong>same 401</strong>
@@ -404,7 +404,7 @@ export default function DeveloperPage() {
           head={["Field", "Required", "Meaning"]}
           rows={[
             ["tenant_id", "yes", "Your Tenant ID from above."],
-            ["template_code", "yes", "The 6-digit Aira ID of an APPROVED template (see Aira ID below)."],
+            ["template_code", "yes", "The 6-digit Anril ID of an APPROVED template (see Anril ID below)."],
             ["phone", "yes", <>Recipient. <code className="font-mono">+919876543210</code>, <code className="font-mono">919876543210</code> or a bare 10-digit Indian mobile all work.</>],
             ["variables", "no", "List of strings for the body placeholders {{1}}, {{2}}… in order. Extra values are dropped; too few is a 400."],
             ["reference", "no", "Up to 120 characters, stored with the log only. Use your own id (e.g. order:42) so you can trace a send later."],
@@ -448,12 +448,12 @@ export default function DeveloperPage() {
         </p>
       </Section>
 
-      {/* 6. Aira ID */}
-      <Section id="aira-id" icon={Hash} title="Where the Aira ID comes from" intro="Every template in this account has a 6-digit Aira ID. It is what your app stores and sends as template_code.">
+      {/* 6. Anril ID */}
+      <Section id="anril-id" icon={Hash} title="Where the Anril ID comes from" intro="Every template in this account has a 6-digit Anril ID. It is what your app stores and sends as template_code.">
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Open <strong>Templates</strong> in this dashboard. Each card, table row and detail view shows the ID with a copy button. The search box also finds a template by its ID.</li>
           <li>Only an <strong>APPROVED</strong> template can be sent. A pending or rejected one returns 409 <code className="font-mono">template_not_approved</code>.</li>
-          <li>The ID is unique inside this account only. Another Aira account, or a separate test installation, gives the same WhatsApp template a different number. Always copy the ID from the account you are sending through.</li>
+          <li>The ID is unique inside this account only. Another Anril account, or a separate test installation, gives the same WhatsApp template a different number. Always copy the ID from the account you are sending through.</li>
           <li>Templates themselves are created and submitted to Meta from the Templates page. Your app never creates templates through this API.</li>
         </ul>
       </Section>
@@ -469,7 +469,7 @@ export default function DeveloperPage() {
             ["400", "invalid_phone", "Phone could not be read as a mobile number."],
             ["400", "variables_mismatch", "Fewer values than the template's placeholders."],
             ["400", "unsupported_template", "Template has a header or URL-button variable."],
-            ["404", "template_not_found", "No template in this account with that Aira ID."],
+            ["404", "template_not_found", "No template in this account with that Anril ID."],
             ["409", "template_not_approved", "Template exists but Meta has not approved it."],
             ["502", "meta_error", "WhatsApp refused the send. error carries Meta's own message, e.g. an expired access token or a number that is not on WhatsApp."],
           ]}
@@ -478,15 +478,15 @@ export default function DeveloperPage() {
       </Section>
 
       {/* 8. Callbacks */}
-      <Section id="callbacks" icon={Reply} title="Expert hand-off: what Aira sends to your app" intro="An optional feature, switched on by Aira operations. Skip this section if your app only sends notifications.">
+      <Section id="callbacks" icon={Reply} title="Expert hand-off: what Anril sends to your app" intro="An optional feature, switched on by Anril operations. Skip this section if your app only sends notifications.">
         <p>
-          With hand-off on, when a customer pays inside WhatsApp for a question that your own experts answer, Aira pushes that paid request to your app. When your expert has answered, your app tells Aira, and Aira notifies the customer on WhatsApp.
+          With hand-off on, when a customer pays inside WhatsApp for a question that your own experts answer, Anril pushes that paid request to your app. When your expert has answered, your app tells Anril, and Anril notifies the customer on WhatsApp.
         </p>
         <Table
           head={["Direction", "Call", "Auth"]}
           rows={[
-            ["Aira → your app", <>POST to your hand-off endpoint (its URL is on file with operations) with the paid request: <code className="font-mono">external_ref</code> (the idempotency key, so one request is never two records), <code className="font-mono">phone</code>, <code className="font-mono">customer_name</code>, the details the customer entered (<code className="font-mono">person_*</code> fields), <code className="font-mono">question_text</code>, <code className="font-mono">amount</code>, <code className="font-mono">tenant_id</code>. Reply <code className="font-mono">{`{success:true, question_id, …}`}</code>.</>, "X-API-Key: your app's API key"],
-            ["Your app → Aira", <>POST <code className="font-mono">{API_URL}{paths.reply_callback}</code> with <code className="font-mono">external_ref</code>, <code className="font-mono">reply_text</code>, the expert&apos;s name as <code className="font-mono">astrologer_name</code>, and <code className="font-mono">replied_at</code>. Aira notifies the customer. A repeat of the same reply returns <code className="font-mono">duplicate:true</code>; do not retry.</>, "X-Aira-Signature, same as above"],
+            ["Anril → your app", <>POST to your hand-off endpoint (its URL is on file with operations) with the paid request: <code className="font-mono">external_ref</code> (the idempotency key, so one request is never two records), <code className="font-mono">phone</code>, <code className="font-mono">customer_name</code>, the details the customer entered (<code className="font-mono">person_*</code> fields), <code className="font-mono">question_text</code>, <code className="font-mono">amount</code>, <code className="font-mono">tenant_id</code>. Reply <code className="font-mono">{`{success:true, question_id, …}`}</code>.</>, "X-API-Key: your app's API key"],
+            ["Your app → Anril", <>POST <code className="font-mono">{API_URL}{paths.reply_callback}</code> with <code className="font-mono">external_ref</code>, <code className="font-mono">reply_text</code>, the expert&apos;s name as <code className="font-mono">astrologer_name</code>, and <code className="font-mono">replied_at</code>. Anril notifies the customer. A repeat of the same reply returns <code className="font-mono">duplicate:true</code>; do not retry.</>, "X-Anril-Signature, same as above"],
           ]}
         />
         <p className="text-xs">
@@ -512,11 +512,11 @@ export default function DeveloperPage() {
         <Code copy>{code[tab]}</Code>
         {IS_LOCAL_API && (
           <p className="text-xs text-amber-800">
-            The URL in this sample is a local test copy of Aira. Replace it with the live base URL from your Aira contact before deploying.
+            The URL in this sample is a local test copy of Anril. Replace it with the live base URL from your Anril contact before deploying.
           </p>
         )}
         <p className="text-xs">
-          Call it from a background job or a thread, never on the request that your own user is waiting on: a slow network to Aira must not slow your app down.
+          Call it from a background job or a thread, never on the request that your own user is waiting on: a slow network to Anril must not slow your app down.
           Keep a log row per send with your <code className="font-mono">reference</code>, the returned <code className="font-mono">message_id</code> and any error.
         </p>
       </Section>
@@ -524,11 +524,11 @@ export default function DeveloperPage() {
       {/* 10. Checklist */}
       <Section id="checklist" icon={ListChecks} title="Go-live checklist">
         <ol className="list-decimal space-y-1.5 pl-5">
-          <li>Shared secret received from Aira operations and stored in your server&apos;s environment, not in code.</li>
+          <li>Shared secret received from Anril operations and stored in your server&apos;s environment, not in code.</li>
           <li>Tenant ID and API base URL from the top of this page in your config.</li>
           <li>Your signature matches the calculator above for the same body and secret.</li>
           <li>The templates you need exist under <strong>Templates</strong> and show <strong>APPROVED</strong>.</li>
-          <li>Each template&apos;s Aira ID is stored where your app can change it without a deploy.</li>
+          <li>Each template&apos;s Anril ID is stored where your app can change it without a deploy.</li>
           <li>One test send to your own number returns <code className="font-mono">ok:true</code> and arrives on the phone.</li>
           <li>Your app logs every send with its reference, message id and error, and switches a message off without a deploy.</li>
         </ol>

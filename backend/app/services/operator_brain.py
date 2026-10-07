@@ -1,4 +1,4 @@
-"""Aira Brain for the operator console: one client's brain, read-only, plus the operator-only
+"""Anril Brain for the operator console: one client's brain, read-only, plus the operator-only
 rows (master prompt, reply model, language, retrieval, provider keys), the decision history
 and the fallback-signals count.
 
@@ -95,7 +95,7 @@ def _master_prompt_row(db) -> dict:
     text = ((rows[0].get("value") if rows else None) or "").strip()
     if not text:
         return _row(
-            "master_prompt", "Master prompt (platform-wide)", "attention", "Empty: Aira is using the built-in fallback prompt",
+            "master_prompt", "Master prompt (platform-wide)", "attention", "Empty: Anril is using the built-in fallback prompt",
             href="/operator/prompt-template", section=None,
         )
     updated = rows[0].get("updated_at")
@@ -140,7 +140,7 @@ def operator_rows(db, tenant_id: str) -> list[dict]:
     model_row = (
         _row("reply_model", "Reply model", "ok", model, **link)
         if model
-        else _row("reply_model", "Reply model", "missing", "Not chosen: Aira cannot reply until one is set", **link)
+        else _row("reply_model", "Reply model", "missing", "Not chosen: Anril cannot reply until one is set", **link)
     )
     return [
         _master_prompt_row(db),

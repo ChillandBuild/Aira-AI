@@ -160,7 +160,7 @@ def business_detail_values(details: dict) -> dict[str, str]:
 
 def volunteered_details(reply: str, values: dict[str, str], customer_message: str) -> list[str]:
     """Business details in a reply the customer did not ask for (Business Details page is final;
-    Aira shares a detail only when asked)."""
+    Anril shares a detail only when asked)."""
     if not values or _ASKS_FOR_DETAILS_RE.search(customer_message or ""):
         return []
     text = re.sub(r"\s+", "", (reply or "").lower())
@@ -210,7 +210,7 @@ _ORDER_STAGE_TEXT = {
 
 
 def orders_block(deals: list[dict]) -> str:
-    """The lead's recent product orders, so Aira knows what was quoted, sent and paid.
+    """The lead's recent product orders, so Anril knows what was quoted, sent and paid.
     Rendered by code; never includes a link the model could copy."""
     if not deals:
         return ""

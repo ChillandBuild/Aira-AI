@@ -286,6 +286,70 @@ def test_form_script_embeds_endpoint_and_has_no_product_picker(client, db):
     assert "no longer valid" in client.get("/api/v1/auto-messages/in/bad/form.js").text
 
 
+def test_form_script_names_the_anril_style_id_and_both_form_prefixes(client, db):
+    js = client.get("/api/v1/auto-messages/in/tok-123/form.js").text
+    assert "anril-f-css" in js and '"anril", "aira"' in js and "aira-f-css" not in js
+
+
+_FAKE_DOM_RUNNER = r"""
+const fs = require("fs");
+function node(tag) {
+  const n = { tag, attrs: {}, children: [], listeners: {}, textContent: "", id: undefined,
+    setAttribute(k, v) { this.attrs[k] = String(v); if (k === "id") this.id = String(v); },
+    getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+    appendChild(c) { this.children.push(c); return c; },
+    addEventListener(e, f) { this.listeners[e] = f; },
+    querySelector() { return node("input"); } };
+  return n;
+}
+const head = node("head");
+const hosts = [];
+function host(attr) { const h = node("div"); h.attrs[attr] = ""; hosts.push(h); return h; }
+const oldHost = host("data-aira-form"), newHost = host("data-anril-form");
+global.location = { href: "https://example.com/" };
+global.URLSearchParams = URLSearchParams;
+global.document = {
+  readyState: "complete", head,
+  createElement: node,
+  getElementById(id) { return head.children.find(c => c.id === id) || null; },
+  querySelectorAll(sel) {
+    const wanted = sel.split(",").map(s => s.trim().replace(/^\[|\]$/g, ""));
+    return hosts.filter(h => wanted.some(w => w in h.attrs));
+  },
+  addEventListener() {},
+};
+eval(fs.readFileSync(process.argv[2], "utf8"));
+const formClass = h => (h.children[0] || {attrs: {}}).attrs["class"];
+console.log(JSON.stringify({
+  old_class: formClass(oldHost), new_class: formClass(newHost),
+  old_ready: oldHost.attrs["data-aira-ready"] || null, new_ready: newHost.attrs["data-anril-ready"] || null,
+  styles: head.children.map(c => c.id),
+  css: head.children.map(c => c.textContent).join(""),
+}));
+"""
+
+
+def test_form_script_runs_and_renders_into_both_old_and_new_hosts(client, db, tmp_path):
+    import json
+    import shutil
+    import subprocess
+    if not shutil.which("node"):
+        pytest.skip("node is not installed")
+    js = client.get("/api/v1/auto-messages/in/tok-123/form.js").text
+    (tmp_path / "form.js").write_text(js)
+    (tmp_path / "run.js").write_text(_FAKE_DOM_RUNNER)
+    out = subprocess.run(["node", str(tmp_path / "run.js"), str(tmp_path / "form.js")],
+                         capture_output=True, text=True, timeout=30)
+    assert out.returncode == 0, out.stderr
+    got = json.loads(out.stdout)
+    assert got["new_class"] == "anril-f" and got["new_ready"] == "1"
+    assert got["old_class"] == "aira-f" and got["old_ready"] == "1"
+    assert got["styles"] == ["anril-f-css"]
+    for cls in ("f", "n", "e", "ok", "hp"):
+        assert f".anril-{cls}" in got["css"], cls
+        assert f".aira-{cls}" in got["css"], cls
+
+
 def test_rules_crud_validates_template_and_one_rule_per_event(client, db):
     approved, pending = _template(db, "ok"), _template(db, "pending", status="PENDING")
     base = "/api/v1/auto-messages/rules"

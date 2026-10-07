@@ -13,14 +13,15 @@ from datetime import datetime, timezone
 
 _CODE_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 _TRACKING_RE = re.compile(
-    r"(?:\[AIRA:([A-Z0-9]{6,12})\]|AIRA-([A-Z0-9]{6,12}))",
+    # Ads already running carry the old AIRA tag; new ones are written as ANRIL.
+    r"(?:\[(?:ANRIL|AIRA):([A-Z0-9]{6,12})\]|(?:ANRIL|AIRA)-([A-Z0-9]{6,12}))",
     re.IGNORECASE,
 )
 _DEFAULT_GREETING = "Hi, I'm interested in this service."
 
 
 def parse_tracking_code(text: str | None) -> str | None:
-    """Return the normalized Aira ad code in an inbound message, if present."""
+    """Return the normalized Anril ad code in an inbound message, if present."""
     if not text:
         return None
     match = _TRACKING_RE.search(text)
@@ -43,8 +44,9 @@ def clean_greeting(greeting: str | None) -> str:
 
 
 def build_prefilled_message(greeting: str | None, code: str) -> str:
-    """Append one canonical tracking tag, replacing any older Aira tag."""
-    return f"{clean_greeting(greeting)}\nRef: [AIRA:{code.upper()}]"
+    """Append one canonical tracking tag, replacing any older tag
+    (the old AIRA form included)."""
+    return f"{clean_greeting(greeting)}\nRef: [ANRIL:{code.upper()}]"
 
 
 def _first(result) -> dict | None:

@@ -23,7 +23,7 @@ DESCRIPTION = (
     "Be kind."
 )
 HANDOVER = "App la irukkura support option moolama contact pannalam."
-HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+HANDOVER_HEADING = "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM"
 # Handover wording is a Description section now, so a conflict on it is a Description sentence.
 DESCRIPTION_WITH_HANDOVER = f"{DESCRIPTION}\n{HANDOVER_HEADING}\n{HANDOVER}"
 

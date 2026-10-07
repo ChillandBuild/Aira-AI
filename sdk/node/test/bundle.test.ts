@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BundleManager, loadPublicKey, loadPublicKeys } from "../src/bundle.js";
 import { BundleUnavailable, LicenseError, QuotaExceeded } from "../src/errors.js";
 import { SqliteStore } from "../src/store.js";
-import { AiraPrivateSend } from "../src/client.js";
+import { AnrilPrivateSend } from "../src/client.js";
 import { BASE, FakeClock, LICENSE_KEY, META_TOKEN, bundleData, envelope, json, makeKeys, mockFetch } from "./helpers.js";
 
 const T0 = new Date("2026-10-07T10:00:00.000Z");
@@ -25,7 +25,7 @@ describe("bundle manager", () => {
     expect(bundle.data.rules).toHaveLength(2);
     expect(calls[0]!.url).toBe(`${BASE}/api/v1/private-send/bundle`);
     expect(calls[0]!.headers.Authorization).toBe(`Bearer ${LICENSE_KEY}`);
-    expect(calls[0]!.headers["X-Aira-Plugin"]).toMatch(/^node\/\d+\.\d+\.\d+/);
+    expect(calls[0]!.headers["X-Anril-Plugin"]).toMatch(/^node\/\d+\.\d+\.\d+/);
   });
 
   it("treats a bad signature as a failed refresh and never uses the bundle", async () => {
@@ -126,12 +126,12 @@ describe("bundle manager", () => {
     const { fn } = mockFetch({
       bundle: () => json(200, envelope(keys, bundleData(T0, { limits: { monthly_cap: 10, used: 11, blocked: true } }))),
     });
-    const aira = new AiraPrivateSend({
-      licenseKey: LICENSE_KEY, metaToken: META_TOKEN, phoneNumberId: "123", airaPublicKey: keys.publicB64,
-      store: "sqlite::memory:", airaBaseUrl: BASE, fetch: fn, clock: new FakeClock(T0).read,
+    const anril = new AnrilPrivateSend({
+      licenseKey: LICENSE_KEY, metaToken: META_TOKEN, phoneNumberId: "123", anrilPublicKey: keys.publicB64,
+      store: "sqlite::memory:", anrilBaseUrl: BASE, fetch: fn, clock: new FakeClock(T0).read,
     });
-    await expect(aira.track("purchased", { phone: "9876543210" })).rejects.toBeInstanceOf(QuotaExceeded);
-    await aira.close();
+    await expect(anril.track("purchased", { phone: "9876543210" })).rejects.toBeInstanceOf(QuotaExceeded);
+    await anril.close();
   });
 
   it("rejects a public key of the wrong length", () => {
@@ -202,18 +202,18 @@ describe("tenant pin", () => {
       bundle: () => json(200, envelope(keys, bundleData(clock.read(), { tenant_id: tenant }))),
       meta: () => json(200, { messages: [{ id: "wamid.1" }] }),
     });
-    const aira = new AiraPrivateSend({
-      licenseKey: LICENSE_KEY, metaToken: META_TOKEN, phoneNumberId: "123", airaPublicKey: keys.publicB64,
-      store: "sqlite::memory:", airaBaseUrl: BASE, fetch: fn, clock: clock.read,
+    const anril = new AnrilPrivateSend({
+      licenseKey: LICENSE_KEY, metaToken: META_TOKEN, phoneNumberId: "123", anrilPublicKey: keys.publicB64,
+      store: "sqlite::memory:", anrilBaseUrl: BASE, fetch: fn, clock: clock.read,
     });
-    await aira.track("purchased", { phone: "9876543210" });
+    await anril.track("purchased", { phone: "9876543210" });
     tenant = "t2";
     clock.advance(6 * MIN);
-    await expect(aira.track("purchased", { phone: "9123456789" })).rejects.toMatchObject({
+    await expect(anril.track("purchased", { phone: "9123456789" })).rejects.toMatchObject({
       name: "LicenseError", code: "tenant_mismatch",
     });
     expect(calls.filter((c) => c.url.includes("graph.facebook"))).toHaveLength(1);
-    await aira.close();
+    await anril.close();
   });
 
   it("the pin survives a restart (same store)", async () => {

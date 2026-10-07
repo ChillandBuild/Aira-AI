@@ -1,8 +1,8 @@
 """Private Send: license keys, signed rule bundles and usage counting.
 
-The client's own server runs an Aira plug-in that downloads signed rules + templates from
-here and sends the WhatsApp templates to Meta itself, so Aira never sees a lead's name or
-number. Aira holds the license keys and counts usage for billing.
+The client's own server runs an Anril plug-in that downloads signed rules + templates from
+here and sends the WhatsApp templates to Meta itself, so Anril never sees a lead's name or
+number. Anril holds the license keys and counts usage for billing.
 Wire contract: sdk/spec/CONTRACT.md. Tables: migration 218_private_send.sql.
 """
 import base64
@@ -262,7 +262,7 @@ def _meta_rows(db, tenant_id: str, since: date) -> list[dict]:
 
 
 def _plugin_volume(meta_row: dict) -> int:
-    """Meta's volume for the day minus what Aira itself sent = what the plug-in sent."""
+    """Meta's volume for the day minus what Anril itself sent = what the plug-in sent."""
     return max(0, (meta_row.get("volume") or 0) - (meta_row.get("aira_sent") or 0))
 
 
@@ -452,7 +452,7 @@ async def fetch_meta_volume(waba_id: str, token: str, day: date) -> int:
 
 
 def count_aira_outbound(db, tenant_id: str, day: date) -> int:
-    """Outbound WhatsApp messages Aira itself sent that UTC day."""
+    """Outbound WhatsApp messages Anril itself sent that UTC day."""
     start = datetime(day.year, day.month, day.day, tzinfo=timezone.utc)
     res = (
         db.table("messages").select("id", count="exact")
@@ -464,7 +464,7 @@ def count_aira_outbound(db, tenant_id: str, day: date) -> int:
 
 
 async def reconcile_meta_volume(db, tenant_id: str, day: date) -> dict | None:
-    """Stores Meta's count and Aira's own sends for `day`. None when Meta isn't connected."""
+    """Stores Meta's count and Anril's own sends for `day`. None when Meta isn't connected."""
     token = get_setting("meta_access_token", tenant_id=tenant_id)
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
     if not token or not waba_id:
@@ -506,7 +506,7 @@ async def process_meta_reconcile(db=None) -> int:
 # ---------------------------------------------------------------- reply mode
 
 async def _call_subscribed_apps(method: str, waba_id: str, token: str) -> None:
-    """POST subscribes Aira to the WABA's webhooks, DELETE unsubscribes it. 502 on any Meta failure."""
+    """POST subscribes Anril to the WABA's webhooks, DELETE unsubscribes it. 502 on any Meta failure."""
     try:
         async with httpx.AsyncClient() as client:
             r = await client.request(
@@ -535,9 +535,9 @@ def _write_setting(db, key: str, value: str, tenant_id: str) -> None:
 
 
 async def set_reply_mode(db, tenant_id: str, mode: str) -> None:
-    """client = the plug-in's owner handles replies (Aira leaves the WABA's webhooks);
-    aira = Aira subscribes and keeps handling replies. Saved only after Meta says yes; if
-    the save then fails, the Meta change is rolled back so Meta and Aira agree."""
+    """client = the plug-in's owner handles replies (Anril leaves the WABA's webhooks);
+    aira = Anril subscribes and keeps handling replies. Saved only after Meta says yes; if
+    the save then fails, the Meta change is rolled back so Meta and Anril agree."""
     token = get_setting("meta_access_token", tenant_id=tenant_id)
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
     if not token or not waba_id:

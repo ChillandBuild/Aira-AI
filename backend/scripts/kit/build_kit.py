@@ -1,4 +1,4 @@
-"""Build the Aira Business Kit Word templates, one per industry, into
+"""Build the Anril Business Kit Word templates, one per industry, into
 frontend/public/kit/. Spec: docs/superpowers/specs/2026-09-24-aira-business-kit-design.md
 
 Each file: a "how to use" box, the blank Kit with [WRITE ...] hints, then the example
@@ -39,10 +39,10 @@ HEADINGS = [
      ["[WRITE who usually messages you, and what they ask about most]"]),
     ("HOW A CUSTOMER BUYS FROM YOU",
      ["[WRITE the steps from first message to paying, one step per line]",
-      "[WRITE Aira's goal: the one next step Aira should push every interested customer toward]"]),
-    ("HOW AIRA SHOULD SOUND",
+      "[WRITE Anril's goal: the one next step Anril should push every interested customer toward]"]),
+    ("HOW ANRIL SHOULD SOUND",
      ["[WRITE the tone, how to address customers, and how long replies should be. Optional]"]),
-    ("WHAT AIRA MUST NEVER SAY OR PROMISE",
+    ("WHAT ANRIL MUST NEVER SAY OR PROMISE",
      ["[WRITE one thing per line, for example: never promise a discount]"]),
     ("WHEN TO HAND OVER TO A PERSON",
      ["[WRITE which situations need a person, plus your phone number and working hours]"]),
@@ -58,9 +58,9 @@ HOW_TO_USE = [
     "How to use this file",
     "1. Replace every [WRITE ...] line with your own words. Plain, short lines are best.",
     "2. Copy prices, phone numbers and links exactly.",
-    "3. Not sure about something? Leave the [WRITE ...] line as it is. Aira will skip it and remind you later.",
-    "4. The example at the end shows a finished Kit. Delete it before uploading. If you forget, Aira ignores it.",
-    "5. Save, then upload this file on the Knowledge page in Aira.",
+    "3. Not sure about something? Leave the [WRITE ...] line as it is. Anril will skip it and remind you later.",
+    "4. The example at the end shows a finished Kit. Delete it before uploading. If you forget, Anril ignores it.",
+    "5. Save, then upload this file on the Knowledge page in Anril.",
 ]
 
 
@@ -101,7 +101,7 @@ def _how_to_use_box(doc) -> None:
 def build(example: dict) -> Path:
     doc = Document()
     doc.styles["Normal"].font.name = "Calibri"
-    _line(doc, "Aira Business Kit", bold=True, size=20, space_after=0)
+    _line(doc, "Anril Business Kit", bold=True, size=20, space_after=0)
     _line(doc, f"Template for: {example['industry']}", color=GREY, space_after=10)
     _how_to_use_box(doc)
 
@@ -120,7 +120,7 @@ def build(example: dict) -> Path:
             _line(doc, text)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUT_DIR / f"aira-kit-{example['slug']}.docx"
+    path = OUT_DIR / f"anril-kit-{example['slug']}.docx"
     doc.save(path)
     return path
 

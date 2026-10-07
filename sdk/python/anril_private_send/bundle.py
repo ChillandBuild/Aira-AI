@@ -22,7 +22,7 @@ from ._version import __version__
 from .errors import BundleUnavailable, LicenseError
 from .store import Store
 
-logger = logging.getLogger("aira_private_send")
+logger = logging.getLogger("anril_private_send")
 
 REFRESH_AFTER = timedelta(minutes=5)
 BUNDLE_PATH = "/api/v1/private-send/bundle"
@@ -43,12 +43,12 @@ def parse_time(value: str) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
-def aira_headers(license_key: str) -> Dict[str, str]:
-    return {"Authorization": f"Bearer {license_key}", "X-Aira-Plugin": f"python/{__version__}"}
+def anril_headers(license_key: str) -> Dict[str, str]:
+    return {"Authorization": f"Bearer {license_key}", "X-Anril-Plugin": f"python/{__version__}"}
 
 
 def raise_if_license_rejected(resp: httpx.Response) -> None:
-    """401/403 from Aira -> LicenseError(code). The body is parsed defensively and never echoed back."""
+    """401/403 from Anril -> LicenseError(code). The body is parsed defensively and never echoed back."""
     if resp.status_code not in _LICENSE_STATUSES:
         return
     code = "invalid_key" if resp.status_code == 401 else "feature_disabled"
@@ -91,21 +91,21 @@ class Bundle:
         return None
 
 
-def load_public_key(aira_public_key: str) -> Ed25519PublicKey:
-    if not isinstance(aira_public_key, str):
-        raise ValueError("aira_public_key must be the base64 of a 32-byte Ed25519 public key")
+def load_public_key(anril_public_key: str) -> Ed25519PublicKey:
+    if not isinstance(anril_public_key, str):
+        raise ValueError("anril_public_key must be the base64 of a 32-byte Ed25519 public key")
     try:
-        raw = base64.b64decode(aira_public_key, validate=True)
+        raw = base64.b64decode(anril_public_key, validate=True)
         return Ed25519PublicKey.from_public_bytes(raw)
     except (binascii.Error, ValueError) as exc:
-        raise ValueError("aira_public_key must be the base64 of a 32-byte Ed25519 public key") from exc
+        raise ValueError("anril_public_key must be the base64 of a 32-byte Ed25519 public key") from exc
 
 
-def load_public_keys(aira_public_key: Union[str, Sequence[str]]) -> List[Ed25519PublicKey]:
+def load_public_keys(anril_public_key: Union[str, Sequence[str]]) -> List[Ed25519PublicKey]:
     """One base64 key or a list of them (key rotation). A bundle is valid if any key verifies it."""
-    specs = [aira_public_key] if isinstance(aira_public_key, str) else list(aira_public_key)
+    specs = [anril_public_key] if isinstance(anril_public_key, str) else list(anril_public_key)
     if not specs:
-        raise ValueError("aira_public_key must contain at least one key")
+        raise ValueError("anril_public_key must contain at least one key")
     return [load_public_key(spec) for spec in specs]
 
 
@@ -165,19 +165,19 @@ class BundleManager:
             return fresh
         if cached and now - cached.fetched_at <= cached.grace:
             return cached
-        raise BundleUnavailable("Aira is unreachable and no verified rules bundle is within its offline grace")
+        raise BundleUnavailable("Anril is unreachable and no verified rules bundle is within its offline grace")
 
     def _refresh(self, now: datetime) -> Optional[Bundle]:
         try:
-            resp = self._http.get(self._url, headers=aira_headers(self._license_key))
+            resp = self._http.get(self._url, headers=anril_headers(self._license_key))
         except httpx.HTTPError as exc:
-            logger.warning("aira bundle refresh failed: %s", type(exc).__name__)
+            logger.warning("anril bundle refresh failed: %s", type(exc).__name__)
             return None
         if resp.status_code in _LICENSE_STATUSES:
             self.drop()
             raise_if_license_rejected(resp)
         if resp.status_code != 200:
-            logger.warning("aira bundle refresh failed: HTTP %s", resp.status_code)
+            logger.warning("anril bundle refresh failed: HTTP %s", resp.status_code)
             return None
         return self._accept(resp, now)
 
@@ -186,11 +186,11 @@ class BundleManager:
             body = resp.json()
             data = verify_envelope(self._public_keys, body["payload"], body["sig"])
         except (ValueError, KeyError, TypeError) as exc:
-            logger.warning("aira bundle rejected: %s", exc)
+            logger.warning("anril bundle rejected: %s", exc)
             return None
         bundle = Bundle(data=data, fetched_at=now)
         if bundle.expires_at <= now:
-            logger.warning("aira bundle rejected: already expired")
+            logger.warning("anril bundle rejected: already expired")
             return None
         self._check_tenant(data)
         self._cached = bundle
@@ -208,7 +208,7 @@ class BundleManager:
                 self._store.set_meta(_TENANT_KEY, tenant)
             return
         if tenant != pinned:
-            logger.warning("aira bundle rejected: tenant_id does not match the pinned tenant")
+            logger.warning("anril bundle rejected: tenant_id does not match the pinned tenant")
             raise LicenseError("tenant_mismatch", "signed bundle is for a different tenant than this store is pinned to")
 
     def _load_cached(self) -> Optional[Bundle]:

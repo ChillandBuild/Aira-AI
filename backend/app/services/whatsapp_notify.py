@@ -68,7 +68,7 @@ def _build_components(template: dict, lead: dict, to_segment: str) -> list[dict]
         lead.get("name") or "Lead",
         lead.get("phone") or "",
         label,
-        f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
+        f"https://www.bloommatrix.in/anril/dashboard/conversations?lead_id={lead['id']}",
     ]
     values = candidate_values[: len(indices)]
     return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
@@ -124,7 +124,7 @@ def _build_escalation_components(
         lead.get("name") or "Lead",
         lead.get("phone") or "",
         (reason or "")[:120],
-        f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
+        f"https://www.bloommatrix.in/anril/dashboard/conversations?lead_id={lead['id']}",
         source,
     ]
     values = candidate_values[: len(indices)]

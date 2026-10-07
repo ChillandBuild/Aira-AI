@@ -4,7 +4,7 @@ from datetime import timedelta
 
 import pytest
 
-from aira_private_send.store import PostgresStore, SqliteStore, make_store
+from anril_private_send.store import PostgresStore, SqliteStore, make_store
 from conftest import T0
 
 
@@ -38,7 +38,7 @@ def test_counter_upsert_accumulates():
 
 def test_recent_send_window_ignores_skipped_and_failed():
     store = SqliteStore(":memory:")
-    from aira_private_send.store import iso
+    from anril_private_send.store import iso
     for status in ("skipped", "failed"):
         store.insert_send({"phone": "+1", "event": "e", "status": status, "created_at": iso(T0)})
     assert store.has_recent_send("+1", "e", T0 - timedelta(hours=1)) is False
@@ -62,7 +62,7 @@ def test_postgres_store_without_psycopg_gives_clear_error(monkeypatch):
         return real_import(name, *a, **k)
 
     monkeypatch.setattr(builtins, "__import__", fake)
-    with pytest.raises(ImportError, match="aira-private-send\\[postgres\\]"):
+    with pytest.raises(ImportError, match="anril-private-send\\[postgres\\]"):
         PostgresStore("postgresql://localhost/x")
 
 

@@ -8,7 +8,7 @@ from fake_supabase import FakeSupabase
 from scripts import migrate_handover_to_description as mig
 
 T1, T2, T3 = "tenant-1", "tenant-2", "tenant-3"
-HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+HEADING = "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM"
 LINE = "Call us 10am to 6pm."
 DESCRIPTION = "ABOUT US\nWe sell sarees.\n\nHOW CUSTOMERS BUY\nOrder on WhatsApp."
 

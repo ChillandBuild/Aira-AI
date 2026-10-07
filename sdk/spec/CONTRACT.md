@@ -1,14 +1,14 @@
 # Private Send — wire contract (v1)
 
-The client's server runs the Aira plug-in (Python or Node). Aira supplies rules, templates and the
-license; the plug-in sends to Meta itself. **No lead name or phone number is ever sent to Aira.**
+The client's server runs the Anril plug-in (Python or Node). Anril supplies rules, templates and the
+license; the plug-in sends to Meta itself. **No lead name or phone number is ever sent to Anril.**
 
 Production base URL: `https://aira-ai-5tfr.onrender.com`
 
 ## Auth
 
-Every plug-in call carries `Authorization: Bearer <license key>` and `X-Aira-Plugin: <lang>/<version>`
-(e.g. `python/1.0.0`). Keys look like `aps_live_` + 32 url-safe chars. Aira stores only the sha256 hex
+Every plug-in call carries `Authorization: Bearer <license key>` and `X-Anril-Plugin: <lang>/<version>`
+(e.g. `python/1.0.0`). Keys look like `aps_live_` + 32 url-safe chars. Anril stores only the sha256 hex
 of the full key plus a display prefix (first 13 chars, e.g. `aps_live_7Hq2`).
 
 ## GET /api/v1/private-send/bundle
@@ -19,11 +19,11 @@ of the full key plus a display prefix (first 13 chars, e.g. `aps_live_7Hq2`).
 | 401 | `{"error": "...", "code": "invalid_key" \| "revoked_key"}` | stop at once, drop cached bundle |
 | 403 | `{"error": "...", "code": "feature_disabled"}` | stop at once, drop cached bundle |
 | 429 | rate limited (60/min per key) | keep last bundle, retry later |
-| 503 | `{"code": "signing_not_configured"}` or any 5xx / network error | "Aira unreachable" (see grace) |
+| 503 | `{"code": "signing_not_configured"}` or any 5xx / network error | "Anril unreachable" (see grace) |
 
 Signature: Ed25519 over the exact payload bytes (base64-decoded). No JSON canonicalisation needed.
 Server private key: env `PRIVATE_SEND_SIGNING_KEY` = base64 of the 32-byte raw seed. Plug-ins take
-the public key (base64 of 32 raw bytes) as a constructor option `aira_public_key` / `airaPublicKey`.
+the public key (base64 of 32 raw bytes) as a constructor option `anril_public_key` / `anrilPublicKey`.
 The option takes one key or a list of keys (see "Plug-in bundle rules"). `key_id` is informational only.
 
 Payload JSON:
@@ -60,7 +60,7 @@ Only enabled rules and APPROVED templates used by them are included. `rules[].va
 - 401/403 → refuse to send immediately (raise `LicenseError` with the code).
 - `limits.blocked == true` → refuse to send (`QuotaExceeded`).
 - Bad signature → treat as a failed refresh (never use an unverified bundle).
-- **Signing-key rotation.** `aira_public_key` / `airaPublicKey` accepts one base64 key or a list of
+- **Signing-key rotation.** `anril_public_key` / `anrilPublicKey` accepts one base64 key or a list of
   them. A bundle is valid if **any** listed key verifies its signature. The response's `key_id` is
   informational: never use it to choose a key (an attacker controls that field). To rotate, ship the
   new public key alongside the old one, switch the server's signing key, then drop the old key.
@@ -69,7 +69,7 @@ Only enabled rules and APPROVED templates used by them are included. `rules[].va
   failed refresh: it is not cached or used, and `track` raises `LicenseError` with code
   `tenant_mismatch`. The error message never contains either tenant id. To move a store to another
   tenant, use a new store.
-- **Transport and inputs.** The constructor rejects an `aira_base_url` / `airaBaseUrl` that is not
+- **Transport and inputs.** The constructor rejects an `anril_base_url` / `anrilBaseUrl` that is not
   `https://` (`http://localhost` and `http://127.0.0.1` are allowed for tests): `ValueError` in
   Python, `TypeError` in Node. `phone_number_id` must match `^\d+$` and `graph_version` must match
   `^v\d+\.\d+$`, because both go into the Graph URL path.
@@ -94,7 +94,7 @@ Body (unknown fields at either level → 422, so a phone can never be smuggled i
 - Rate limits: 30 requests per minute per license key, plus 120 per minute per client IP on both
   `/bundle` and `/usage` (checked before the key is looked up). Over the limit: 429
   `{"code": "rate_limited"}` with `Retry-After: 60`.
-- `limits.used` in the bundle: for a day Aira has reconciled with Meta's own count, Meta's number is
+- `limits.used` in the bundle: for a day Anril has reconciled with Meta's own count, Meta's number is
   used; the plug-in's report only counts for days not yet reconciled.
 - 200 `{"ok": true, "accepted": <n>}`. Same 401/403 codes as `/bundle`.
 - 422 with `{"code": "unknown_template"}`: a `template_id` that is not the tenant's. The plug-in logs a

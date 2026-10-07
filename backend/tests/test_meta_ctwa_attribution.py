@@ -5,8 +5,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pytest
+
 from app.services.meta_ctwa_attribution import (
     build_prefilled_message,
+    clean_greeting,
     find_creative_for_message,
     parse_tracking_code,
     record_lead_ad_attribution,
@@ -98,8 +101,21 @@ Query.insert = lambda self, payload: _insert_query(self.db, self.table, payload)
 
 def test_prefilled_message_round_trips():
     message = build_prefilled_message("Hi, tell me more", "7k2q9m")
-    assert message == "Hi, tell me more\nRef: [AIRA:7K2Q9M]"
+    assert message == "Hi, tell me more\nRef: [ANRIL:7K2Q9M]"
     assert parse_tracking_code(message) == "7K2Q9M"
+
+
+@pytest.mark.parametrize("text", [
+    "Hi [ANRIL:7K2Q9M]", "Hi ANRIL-7K2Q9M", "Hi [AIRA:7K2Q9M]", "Hi AIRA-7K2Q9M", "hi [anril:7k2q9m]",
+])
+def test_both_the_new_and_the_old_ad_tag_parse(text):
+    assert parse_tracking_code(text) == "7K2Q9M"
+
+
+def test_an_old_tag_in_the_greeting_is_replaced_by_one_new_tag():
+    message = build_prefilled_message("Hello [AIRA:AAAAAA]", "BBBBBB")
+    assert message == "Hello\nRef: [ANRIL:BBBBBB]"
+    assert clean_greeting("Hello AIRA-AAAAAA") == "Hello"
 
 
 def test_existing_code_is_replaced_instead_of_duplicated():
@@ -107,7 +123,7 @@ def test_existing_code_is_replaced_instead_of_duplicated():
         "Hello [AIRA:AAAAAA]",
         "BBBBBB",
     )
-    assert message.count("[AIRA:") == 1
+    assert message.count("[ANRIL:") == 1 and "[AIRA:" not in message
     assert parse_tracking_code(message) == "BBBBBB"
 
 

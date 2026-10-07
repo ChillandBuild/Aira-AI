@@ -73,7 +73,7 @@ async def review_leads(
             .eq("tenant_id", tenant_id)
             .gte("created_at", start_iso)
             .lt("created_at", end_iso)
-            # Aira writes an "AI Summary:" note after each scored call; only people's notes count here.
+            # Anril writes an "AI Summary:" note after each scored call; only people's notes count here.
             .not_.like("content", "AI Summary:%")
         )
         return (q.eq("caller_id", cid) if cid else q).order("created_at")

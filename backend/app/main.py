@@ -403,7 +403,7 @@ def _record_scheduler_event(event) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Aira AI backend starting up...")
+    logger.info("Anril AI backend starting up...")
     logger.info(f"Supabase: {settings.supabase_url}")
     logger.info("Voice: TeleCMI")
 
@@ -525,11 +525,11 @@ async def lifespan(app: FastAPI):
     yield
 
     _scheduler.shutdown(wait=False)
-    logger.info("Aira AI backend shutting down.")
+    logger.info("Anril AI backend shutting down.")
 
 
 app = FastAPI(
-    title="Aira AI",
+    title="Anril AI",
     version="0.1.0",
     description="B2B SaaS Lead Intelligence Platform for Education Consultancies",
     lifespan=lifespan,
@@ -599,7 +599,7 @@ def _format_uptime(uptime_s: int) -> str:
 def _base_health_payload(now: datetime) -> dict:
     uptime_s = int((now - _startup_time).total_seconds())
     return {
-        "service": "aira-ai",
+        "service": "anril-ai",
         "uptime_seconds": uptime_s,
         "uptime_human": _format_uptime(uptime_s),
         "started_at": _startup_time.isoformat(),

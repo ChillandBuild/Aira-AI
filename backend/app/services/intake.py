@@ -155,7 +155,7 @@ def _notify_owner_of_trigger_failure(tenant_id: str, error: str) -> None:
                 owner_uid,
                 "intake_trigger_failed",
                 "Paid intake trigger check is failing",
-                "Aira could not classify whether a lead's message should trigger the paid "
+                "Anril could not classify whether a lead's message should trigger the paid "
                 f"consultation offer, so no offer was made ({error}). Check the Gemini API "
                 "key and quota in Settings.",
                 db=db,
@@ -1476,7 +1476,7 @@ def alert_bridge_auth_failure(tenant_id: str, external_ref: str, db=None) -> Non
     """Tell staff the expert platform's replies are being rejected.
 
     A signature mismatch on /astro-reply is the one bridge failure with no other
-    symptom: Aira answers 401, the astrologer's screen still shows the reply as
+    symptom: Anril answers 401, the astrologer's screen still shows the reply as
     sent, and the customer who paid simply never hears back. Only reached once
     the external_ref has already resolved to a real session, so this is a
     misconfigured secret rather than someone probing the endpoint.
@@ -2212,7 +2212,7 @@ def alert_astro_push_stuck(db, session: dict, lead: dict, tenant_id: str) -> boo
     )
     reason = (
         f"AstroTamil cannot use their {', '.join(unusable)}. Ask the customer for it."
-        if unusable else "AstroTamil did not accept it (it may be down). Aira keeps retrying."
+        if unusable else "AstroTamil did not accept it (it may be down). Anril keeps retrying."
     )
     who = (lead or {}).get("name") or "A customer"
     try:
@@ -2623,7 +2623,7 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
     )
     template = (row.data or [None])[0] if row else None
     if not template:
-        return _partner_error(404, "template_not_found", f"No template with Aira ID {code}")
+        return _partner_error(404, "template_not_found", f"No template with Anril ID {code}")
     status = str(template.get("status") or "")
     if status != "APPROVED":
         return _partner_error(409, "template_not_approved", f"Template status is {status or 'unknown'}")

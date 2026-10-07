@@ -1,4 +1,4 @@
-"""Aira Brain in the operator console (services/operator_brain*). System admins only,
+"""Anril Brain in the operator console (services/operator_brain*). System admins only,
 read-only: nothing here changes a client's data."""
 from uuid import UUID
 
@@ -33,7 +33,7 @@ async def what_aira_saw(
     retrieval: bool = False,
     _admin: dict = Depends(get_system_admin),
 ):
-    """Read-only reconstruction of what Aira would see for this lead now. retrieval=true
+    """Read-only reconstruction of what Anril would see for this lead now. retrieval=true
     adds the knowledge block, which costs one embedding call. Never calls a model.
     A malformed id or a lead of another tenant is a 404, like the sibling brain route."""
     try:

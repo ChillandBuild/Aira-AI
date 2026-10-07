@@ -1,14 +1,14 @@
-const CACHE_VERSION = "aira-pwa-v1";
+const CACHE_VERSION = "anril-pwa-v1";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const OFFLINE_URL = "/aira/offline";
+const OFFLINE_URL = "/anril/offline";
 
 const PRECACHE_URLS = [
   OFFLINE_URL,
-  "/aira/favicon.ico",
-  "/aira/icons/aira-icon-192.png",
-  "/aira/icons/aira-icon-512.png",
-  "/aira/icons/aira-maskable-512.png",
+  "/anril/favicon.ico",
+  "/anril/icons/anril-icon-192.png",
+  "/anril/icons/anril-icon-512.png",
+  "/anril/icons/anril-maskable-512.png",
 ];
 
 const isHttpRequest = (request) => {
@@ -31,7 +31,7 @@ const shouldHandleRequest = (request) => {
   }
 
   const { pathname } = new URL(request.url);
-  return !pathname.startsWith("/aira/api/") && !pathname.startsWith("/aira/auth/");
+  return !pathname.startsWith("/anril/api/") && !pathname.startsWith("/anril/auth/");
 };
 
 const isStaticAsset = (request) => {
@@ -115,11 +115,11 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Aira";
   const options = {
     body: payload.body || "You have a new update.",
-    icon: "/aira/icons/aira-icon-192.png",
-    badge: "/aira/icons/aira-icon-192.png",
-    tag: payload.tag || "aira-update",
+    icon: "/anril/icons/anril-icon-192.png",
+    badge: "/anril/icons/anril-icon-192.png",
+    tag: payload.tag || "anril-update",
     data: {
-      url: payload.url || "/aira/dashboard",
+      url: payload.url || "/anril/dashboard",
       ...(payload.data || {}),
     },
   };
@@ -129,7 +129,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || "/aira/dashboard", self.location.origin).href;
+  const targetUrl = new URL(event.notification.data?.url || "/anril/dashboard", self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

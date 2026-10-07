@@ -1,6 +1,6 @@
 """Local state for the plug-in: dedupe, opt-outs, delayed queue, daily counters, bundle cache.
 Everything stays on the client's machine. SqliteStore (stdlib) is the default; PostgresStore needs
-`pip install aira-private-send[postgres]`."""
+`pip install anril-private-send[postgres]`."""
 from __future__ import annotations
 
 import json
@@ -144,7 +144,7 @@ class _SqlStore:
 
 
 class SqliteStore(_SqlStore):
-    def __init__(self, path: str = "aira_private_send.db"):
+    def __init__(self, path: str = "anril_private_send.db"):
         super().__init__()
         is_new_file = path != ":memory:" and not os.path.exists(path)
         self._conn = sqlite3.connect(path, timeout=30, isolation_level=None, check_same_thread=False)
@@ -174,7 +174,7 @@ class PostgresStore(_SqlStore):
             import psycopg
             from psycopg.rows import dict_row
         except ImportError as exc:
-            raise ImportError("PostgresStore needs psycopg: pip install 'aira-private-send[postgres]'") from exc
+            raise ImportError("PostgresStore needs psycopg: pip install 'anril-private-send[postgres]'") from exc
         self._conn = psycopg.connect(dsn, autocommit=True, row_factory=dict_row)
         self._init_schema()
 
@@ -193,7 +193,7 @@ def make_store(spec: Union[str, Store]) -> Store:
     if not isinstance(spec, str):
         return spec
     if spec.startswith("sqlite:///"):
-        return SqliteStore(spec[len("sqlite:///"):] or "aira_private_send.db")
+        return SqliteStore(spec[len("sqlite:///"):] or "anril_private_send.db")
     if spec.startswith(("postgres://", "postgresql://")):
         return PostgresStore(spec)
     raise ValueError("store must be a sqlite:/// or postgresql:// URL, or a Store object")

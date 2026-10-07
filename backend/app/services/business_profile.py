@@ -45,13 +45,15 @@ SECTIONS = [
             "Things specific to your business the assistant must never say or do.", 80),
     Section("hours_contact", "BUSINESS HOURS AND CONTACT", "Business hours and contact",
             "When you are open, and the phone number, email or address customers may be given.", 60),
-    Section("handover", "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", "What Aira says when it brings in your team",
-            "The line Aira says when a person from your team takes over, in your own words.", 50),
+    Section("handover", "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM", "What Anril says when it brings in your team",
+            "The line Anril says when a person from your team takes over, in your own words.", 50),
 ]
 
 HANDOVER_KEY = "handover"
 
 HEADING_ALIASES = {
+    # Descriptions saved before the Aira -> Anril rename carry the old heading.
+    "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM": "handover",
     "WHAT WE OFFER": "about",
     "GREETINGS AND CLOSINGS": "voice",
     "LANGUAGE": "voice",
@@ -135,7 +137,7 @@ def parse(text: str) -> ParsedProfile:
     # Clean up: strip trailing whitespace from each section and join other
     clean_sections = {k: v.strip() for k, v in sections.items() if v.strip()}
     if has_handover_heading:
-        # An empty handover heading is the owner's choice ("use Aira's default wording"),
+        # An empty handover heading is the owner's choice ("use Anril's default wording"),
         # not a missing section, so it must survive a parse/render round trip.
         clean_sections.setdefault(HANDOVER_KEY, "")
     clean_other = "\n".join(other_parts).strip()
@@ -219,12 +221,12 @@ def warnings(sections: dict[str, str]) -> list[dict]:
 
 
 def get_handover_line(tenant_id: Optional[str]) -> str:
-    """What Aira says when it brings in the team: the 8th Description section.
+    """What Anril says when it brings in the team: the 8th Description section.
 
     The one reader every consumer uses (the reply prompt, the Knowledge readiness
     route, the conflict check). The old handover_line setting is consulted only while
     the Description has no 8th heading at all. A heading with nothing under it is the
-    owner's choice: empty here, so Aira uses its default wording, and the legacy line
+    owner's choice: empty here, so Anril uses its default wording, and the legacy line
     never comes back. (scripts/migrate_handover_to_description.py copies each legacy
     line into the section and blanks the old setting.)"""
     description = get_setting("business_description", tenant_id=tenant_id) or ""
@@ -271,7 +273,7 @@ The profile has 8 sections with limits (total 700 words):
 - YOUR JOB IN EVERY CONVERSATION (120 words): Business-specific rules.
 - WHAT YOU MUST NEVER DO (80 words): Business-specific prohibitions.
 - BUSINESS HOURS AND CONTACT (60 words): Opening hours, phone/WhatsApp number, email, address customers may be given.
-- WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM (50 words): The one line said to the customer when a person from the team takes over, in the business's own words.
+- WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM (50 words): The one line said to the customer when a person from the team takes over, in the business's own words.
 
 Rules:
 1. Keep the business's own wording wherever possible; shorten only to fit limits.
@@ -294,7 +296,7 @@ Output JSON (only these keys):
     
     user_message = (
         f"Free-text description:\n{text}\n\n"
-        f"Platform master prompt (already in Aira):\n{master_prompt}"
+        f"Platform master prompt (already in Anril):\n{master_prompt}"
     )
     
     try:

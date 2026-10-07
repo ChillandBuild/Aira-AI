@@ -876,7 +876,7 @@ export function AdPerformanceTab() {
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div>
                       <p className="font-label text-[10px] font-bold uppercase tracking-wider text-emerald-700">Tracking ID</p>
-                      <p className="mt-0.5 font-mono text-base font-bold text-emerald-950">[AIRA:{trackingResult.code}]</p>
+                      <p className="mt-0.5 font-mono text-base font-bold text-emerald-950">[ANRIL:{trackingResult.code}]</p>
                     </div>
                     <button type="button" onClick={handleCopyTrackingMessage}
                       className="flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-white px-3 py-2 font-label text-xs font-bold text-emerald-700 hover:bg-emerald-50">

@@ -177,3 +177,61 @@ def test_handover_is_not_ready_when_the_eighth_heading_is_empty():
 def test_kit_heading_for_handover_stays_a_kit_heading():
     from app.services.knowledge_kit import KIT_HEADINGS
     assert KIT_HEADINGS["WHEN TO HAND OVER TO A PERSON"] == "RULE"
+
+
+# ─── Aira -> Anril: new headings are issued, old ones in uploaded files still parse ───
+
+_NEW_TO_OLD = {
+    "HOW ANRIL SHOULD SOUND": "HOW AIRA SHOULD SOUND",
+    "WHAT ANRIL MUST NEVER SAY OR PROMISE": "WHAT AIRA MUST NEVER SAY OR PROMISE",
+}
+_KIT_BODY = """{title}
+Template for: Coaching & education
+
+ABOUT YOUR BUSINESS
+Vetri NEET Academy, Madurai.
+
+HOW ANRIL SHOULD SOUND
+Warm and short.
+
+WHAT ANRIL MUST NEVER SAY OR PROMISE
+Never promise ranks.
+
+PRODUCTS, SERVICES, PRICES
+Long Term: Rs 85,000."""
+
+
+def test_the_kit_issues_the_anril_headings():
+    from app.services.knowledge_kit import KIT_HEADINGS
+    assert KIT_HEADINGS["HOW ANRIL SHOULD SOUND"] == "RULE"
+    assert KIT_HEADINGS["WHAT ANRIL MUST NEVER SAY OR PROMISE"] == "RULE"
+    assert not any("AIRA" in heading for heading in KIT_HEADINGS)
+
+
+def _old_kit(text: str) -> str:
+    for new, old in _NEW_TO_OLD.items():
+        text = text.replace(new, old)
+    return text
+
+
+def test_a_kit_with_the_old_aira_headings_splits_exactly_like_one_with_the_new_ones():
+    new = split_kit(_KIT_BODY.format(title="Anril Business Kit"))
+    old = split_kit(_old_kit(_KIT_BODY.format(title="Aira Business Kit")))
+    assert [label for label, _ in new] == ["RULE", "RULE", "RULE", "FACT"]
+    assert [label for label, _ in old] == [label for label, _ in new]
+    # The body text is identical; only the heading line keeps its canonical (new) spelling.
+    assert [text for _, text in old] == [text for _, text in new]
+    assert new[1][1] == "HOW ANRIL SHOULD SOUND\nWarm and short."
+
+
+def test_both_template_titles_are_dropped_from_the_first_chunk():
+    for title in ("Anril Business Kit", "Aira Business Kit"):
+        parts = split_kit(f"Owner notes.\n\n{title}\n" + _KIT_BODY.format(title="").split("\n", 1)[1])
+        assert parts[0] == (None, "Owner notes.")
+
+
+def test_readiness_labels_use_anril_and_old_description_headings_still_count():
+    from app.services.knowledge_kit import readiness
+    labels = {i["key"]: i["label"] for i in readiness(description="", handover_line="", facts=[])}
+    assert labels["never"] == "What Anril must never say"
+    assert labels["voice"] == "How Anril should sound"

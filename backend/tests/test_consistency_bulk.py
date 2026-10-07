@@ -262,7 +262,7 @@ class TestSectionField:
     def test_handover_sentence_gets_the_eighth_section(self):
         text = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM\nCall the app support."
         assert consistency.section_of(text, "Call the app support.") == (
-            "handover", "What Aira says when it brings in your team")
+            "handover", "What Anril says when it brings in your team")
 
     def test_run_check_stores_the_section_on_each_issue(self, monkeypatch):
         import asyncio
@@ -328,7 +328,7 @@ class TestRoutes:
         res = env.client.post("/api/v1/consistency/fix-batch", json={"issue_ids": ["p", "a", "f", "ghost"], "checked_at": CHECKED})
         assert res.status_code == 200
         assert res.json() == {"success": True, "applied": ["p", "a", "f"], "skipped": [], "failed": [
-            {"id": "ghost", "reason": "Aira no longer sees this problem. Check again.", "code": "not_found"}]}
+            {"id": "ghost", "reason": "Anril no longer sees this problem. Check again.", "code": "not_found"}]}
         assert env.background["recheck"] == ["t1"]
         assert [j[1] for j in env.background["index"]] == ["d1"]
 
@@ -360,7 +360,7 @@ class TestRoutes:
     def test_dismiss_batch_then_restore_then_get(self, env):
         res = env.client.post("/api/v1/consistency/dismiss-batch", json={"issue_ids": ["p", "ghost"], "checked_at": CHECKED})
         assert res.json() == {"success": True, "dismissed": ["p"], "skipped": [
-            {"id": "ghost", "reason": "Aira no longer sees this problem.", "code": "not_found"}]}
+            {"id": "ghost", "reason": "Anril no longer sees this problem.", "code": "not_found"}]}
         got = env.client.get("/api/v1/consistency").json()
         assert [i["id"] for i in got["issues"]] == ["a", "n", "f"]
         assert got["dismissed_issues"][0]["id"] == "p" and got["dismissed_issues"][0]["quote"] == PRICE

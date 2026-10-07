@@ -630,7 +630,7 @@ async def telecmi_cdr(request: Request, background_tasks: BackgroundTasks, path_
 
 
 # ── SIM-based Call Tracking (Android sync app) ────────────────────────
-# The Aira Sync APK reads the phone's native call log and POSTs new entries
+# The Anril Sync APK reads the phone's native call log and POSTs new entries
 # here in batches, authenticated by a per-caller sync_token. No cloud
 # telephony involved — calls are placed on the caller's own SIM.
 
@@ -681,7 +681,7 @@ def _sim_direction(call_type: int) -> str | None:
 
 
 def _parse_app_version(request: Request) -> int | None:
-    """Aira Sync build number from the X-App-Version header (None if absent/garbled)."""
+    """Anril Sync build number from the X-App-Version header (None if absent/garbled)."""
     raw = request.headers.get("X-App-Version")
     if raw and raw.isdigit():
         return int(raw)
@@ -700,14 +700,14 @@ def _touch_caller_sync(db, caller_id: str, app_version: int | None = None) -> No
 
 
 # version.json sits next to the APK in the public app-releases bucket and is the
-# single source of truth for "what is the latest Aira Sync build".
+# single source of truth for "what is the latest Anril Sync build".
 _SIM_APP_VERSION_URL = f"{settings.supabase_url}/storage/v1/object/public/app-releases/version.json"
 _SIM_APP_VERSION_TTL_S = 600
 _sim_app_version_cache: dict = {"at": 0.0, "value": None}
 
 
 async def _latest_sim_app_version() -> int | None:
-    """Latest published Aira Sync versionCode, cached; None if unreachable."""
+    """Latest published Anril Sync versionCode, cached; None if unreachable."""
     import time
     now = time.monotonic()
     # at == 0.0 means never fetched. monotonic() can itself be under the TTL right after boot.
@@ -721,7 +721,7 @@ async def _latest_sim_app_version() -> int | None:
             code = res.json().get("versionCode")
             value = int(code) if isinstance(code, int) else None
     except Exception as e:
-        logger.warning(f"could not read Aira Sync version.json: {e}")
+        logger.warning(f"could not read Anril Sync version.json: {e}")
     _sim_app_version_cache.update(at=now, value=value)
     return value
 
@@ -750,7 +750,7 @@ def _resolve_sim_caller(request: Request) -> dict:
 
 @public_router.post("/sim-cdr")
 async def sim_cdr(payload: SimCdrPayload, request: Request, background_tasks: BackgroundTasks):
-    """Ingest a batch of native call-log entries from the Aira Sync APK.
+    """Ingest a batch of native call-log entries from the Anril Sync APK.
 
     Idempotent: each entry is deduped on (caller_id, call_sid=entry_id) so
     re-syncs and WorkManager retries never create duplicate call_logs.
@@ -782,7 +782,7 @@ async def sim_lead_numbers(request: Request):
     tenant (not just the caller's assigned ones) so a call to an unassigned or
     pool lead is still tracked and owes feedback. Numbers are normalized the
     same way the ingest path normalizes them, so the device can compare directly.
-    Also the Aira Sync heartbeat: the APK calls this on every run.
+    Also the Anril Sync heartbeat: the APK calls this on every run.
     """
     caller = _resolve_sim_caller(request)
     caller_id = caller["id"]
@@ -1410,7 +1410,7 @@ async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
     """Calls still owing human feedback.
 
     SIM calls owe feedback until a human submits an outcome (`feedback_at`) or the
-    owner dismisses them — the Aira Sync upload auto-fills disposition/outcome, so
+    owner dismisses them — the Anril Sync upload auto-fills disposition/outcome, so
     those columns can't tell us. Other providers keep the original rule.
     """
     tenant_id = ctx["tenant_id"]
@@ -1448,7 +1448,7 @@ async def get_pending_wrapups(ctx: dict = Depends(get_tenant_and_role)):
 
 @router.get("/pending-wrapups/summary")
 async def pending_wrapups_summary(ctx: dict = Depends(get_tenant_and_role)):
-    """Owner view: per-telecaller pending-feedback count + Aira Sync heartbeat."""
+    """Owner view: per-telecaller pending-feedback count + Anril Sync heartbeat."""
     if ctx.get("role") != "owner":
         raise HTTPException(status_code=403, detail="Owner only")
     tenant_id = ctx["tenant_id"]

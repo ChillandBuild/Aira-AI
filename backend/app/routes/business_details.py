@@ -1,5 +1,5 @@
 """The tenant's own business details (legal name, address, GSTIN) -- printed on
-the monthly sales export so the file belongs to the client, not Aira."""
+the monthly sales export so the file belongs to the client, not Anril."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException

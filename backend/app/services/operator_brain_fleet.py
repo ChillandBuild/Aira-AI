@@ -1,4 +1,4 @@
-"""Fleet view of Aira Brain for the operator clients list: how much is waiting on each client
+"""Fleet view of Anril Brain for the operator clients list: how much is waiting on each client
 and which sorted-file approvals have been stuck too long.
 
 Computed in a fixed number of bulk queries (one per source, paged), not one round of

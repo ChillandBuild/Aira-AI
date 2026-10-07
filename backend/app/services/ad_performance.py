@@ -1,6 +1,6 @@
 """Per-creative ad performance.
 
-Meta provides delivery/click/spend. Aira counts each lead once per Meta ad from
+Meta provides delivery/click/spend. Anril counts each lead once per Meta ad from
 lead_meta_ad_attributions, so repeat messages from the same lead and ad do not
 duplicate the conversion, while the same lead may count once for another ad.
 """
@@ -75,7 +75,7 @@ def build_creative_performance(
     """One row per creative with volume/quality/money metrics.
 
     Filters:
-      campaign_id     -> ad_creatives.campaign_id (Aira ad_campaigns FK)
+      campaign_id     -> ad_creatives.campaign_id (Anril ad_campaigns FK)
       adset_id        -> ad_creatives.meta_adset_id
       ad_creative_id  -> ad_creatives.id
       date_from/to    -> bound insights and first lead/ad attribution date

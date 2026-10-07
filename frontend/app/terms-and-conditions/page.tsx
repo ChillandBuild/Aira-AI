@@ -422,7 +422,7 @@ export default function TermsAndConditionsPage() {
         <LegalList
           items={[
             "Bloom Matrix",
-            <>Website: <a href="https://bloommatrix.in/aira" className="text-primary hover:underline">https://bloommatrix.in/aira</a></>,
+            <>Website: <a href="https://bloommatrix.in/anril" className="text-primary hover:underline">https://bloommatrix.in/anril</a></>,
             <>Support Email: <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a></>,
           ]}
         />

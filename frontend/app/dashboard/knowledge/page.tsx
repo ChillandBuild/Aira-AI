@@ -42,11 +42,11 @@ interface KnowledgeDoc {
   chunk_count?: number;
   error_message?: string | null;
   campaign_tag_id?: string | null;
-  /** null = uploaded before auto-sort; Aira still reads the whole file. */
+  /** null = uploaded before auto-sort; Anril still reads the whole file. */
   sorted_at?: string | null;
   sort_state?: "sorting" | "review" | "failed" | null;
   has_pending_review?: boolean;
-  /** False when Aira can't run a vector search over this file -- it falls back
+  /** False when Anril can't run a vector search over this file -- it falls back
    *  to reading the whole file on every reply instead. */
   searchable?: boolean;
   search_issue?: null | "no_jina_key" | "not_indexed";
@@ -60,7 +60,7 @@ interface CampaignTag {
 
 // ─── Document status (Knowledge Auto-Sort) ────────────────────────────────────
 // A file is "live" once its sort was applied; "not sorted" files predate auto-sort
-// and keep working, but Aira reads all of their text, rules included.
+// and keep working, but Anril reads all of their text, rules included.
 
 type DocStatus = "sorting" | "review" | "live" | "unsorted" | "sort_failed" | "failed";
 
@@ -85,7 +85,7 @@ const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; ti
   failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
 };
 
-// A "live" (indexed) file that Aira still can't vector-search -- either this
+// A "live" (indexed) file that Anril still can't vector-search -- either this
 // account has no Jina key, or the file hasn't gone through indexing yet. The
 // text stays visible (not colour-only) since this is a real functional gap,
 // not just a status flavor.

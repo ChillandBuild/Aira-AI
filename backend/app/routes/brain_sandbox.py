@@ -1,4 +1,4 @@
-"""Test Aira: answers-only sandbox (services/brain_sandbox). Nothing is saved or sent.
+"""Test Anril: answers-only sandbox (services/brain_sandbox). Nothing is saved or sent.
 
 Two mounts share one handler: the client route runs against the caller's own tenant
 (knowledge.manage, because every call costs tokens); the operator route takes any

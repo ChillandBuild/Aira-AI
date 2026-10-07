@@ -1,6 +1,6 @@
 """The tenant's own business identity (legal name, address, GSTIN) and its GST
 pricing convention. Printed on the monthly sales export so the auditor's file
-belongs to the client, never to Aira.
+belongs to the client, never to Anril.
 
 Stored as one JSON blob in app_settings under key "business_details", same
 shape as intake_config (services/intake.py get_intake_config). Not to be confused with services/business_profile.py, which is the AI prompt's description sections."""

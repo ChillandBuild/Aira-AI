@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { syncPushSubscription } from "@/lib/push";
 
-const SERVICE_WORKER_PATH = "/aira/sw.js";
+const SERVICE_WORKER_PATH = "/anril/sw.js";
 
 export function PwaRegistrar() {
   useEffect(() => {
@@ -18,11 +18,11 @@ export function PwaRegistrar() {
     const registerServiceWorker = async () => {
       try {
         await navigator.serviceWorker.register(SERVICE_WORKER_PATH, {
-          scope: "/aira/",
+          scope: "/anril/",
         });
         void syncPushSubscription().catch(() => {});
       } catch (error) {
-        console.warn("Aira PWA service worker registration failed.", error);
+        console.warn("Anril PWA service worker registration failed.", error);
       }
     };
 

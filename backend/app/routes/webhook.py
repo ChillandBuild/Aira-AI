@@ -748,7 +748,7 @@ async def whatsapp_webhook(
                             logger.warning(f"Auto-assign failed for lead {lead_id}: {e}")
 
                     # Meta CTWA: count one lead once per ad. Meta's referral ad
-                    # id is primary; the pre-filled [AIRA:...] code is fallback.
+                    # id is primary; the pre-filled [ANRIL:...] (or old [AIRA:...]) code is fallback.
                     ad_attributed = False
                     # Which creative produced THIS message -- distinct from
                     # leads.attributed_ad_creative_id, which is intentionally not

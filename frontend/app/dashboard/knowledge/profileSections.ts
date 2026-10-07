@@ -32,7 +32,7 @@ export const SECTION_KEYS_ORDERED = [
   "handover",
 ] as const;
 
-// Key of the section that holds the "when Aira brings in your team" wording.
+// Key of the section that holds the "when Anril brings in your team" wording.
 export const HANDOVER_SECTION_KEY = "handover";
 
 // Fallback help text for the two newest sections, used when the server sends no hint.

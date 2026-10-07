@@ -1,4 +1,4 @@
-"""Aira Brain for the client dashboard: GET /api/v1/brain and GET /api/v1/brain/count
+"""Anril Brain for the client dashboard: GET /api/v1/brain and GET /api/v1/brain/count
 (services/brain). Read-only; both need knowledge.view."""
 from fastapi import APIRouter, Depends
 

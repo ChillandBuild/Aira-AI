@@ -1,5 +1,5 @@
-"""Aira Brain weekly digest: one dashboard notification per tenant owner with how many things
-are waiting and the top questions Aira could not answer. Same shape as
+"""Anril Brain weekly digest: one dashboard notification per tenant owner with how many things
+are waiting and the top questions Anril could not answer. Same shape as
 call_alerts.send_morning_summaries: per-tenant, skips quiet tenants, one failure never stops
 the rest. Reads stored data only (no model call, no gather()). Dashboard push only, no WhatsApp."""
 import logging
@@ -11,7 +11,7 @@ from app.services.notify import notify_user
 logger = logging.getLogger(__name__)
 
 DIGEST_TYPE = "brain_digest"
-DIGEST_TITLE = "Aira Brain weekly digest"
+DIGEST_TITLE = "Anril Brain weekly digest"
 DIGEST_URL = "/dashboard/brain"
 LOOKBACK_DAYS = 7
 TOP_QUESTIONS = 3
@@ -55,14 +55,14 @@ def build_digest_message(waiting_count: int, questions: list[str]) -> str | None
         return None
     if waiting_count > 0:
         noun = "thing needs" if waiting_count == 1 else "things need"
-        lead = f"Aira Brain: {waiting_count} {noun} you."
+        lead = f"Anril Brain: {waiting_count} {noun} you."
     else:
-        lead = "Aira Brain: nothing is waiting on you."
+        lead = "Anril Brain: nothing is waiting on you."
     if not questions:
         return lead
     label = "Top question" if len(questions) == 1 else "Top questions"
     quoted = "; ".join(f"'{q}'" for q in questions)
-    return f"{lead} {label} Aira couldn't answer: {quoted}"
+    return f"{lead} {label} Anril couldn't answer: {quoted}"
 
 
 def _all_tenant_ids(db) -> list[str]:

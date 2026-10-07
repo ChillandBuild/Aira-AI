@@ -399,17 +399,20 @@ async def astro_reply(request: Request):
     return await deliver_astro_reply(payload, tenant_id)
 
 
-SIGNATURE_HEADER = "X-Aira-Signature"
-# AstroTamil's Django was integrated under the old name; it keeps working.
-LEGACY_SIGNATURE_HEADER = "X-Astro-Signature"
+SIGNATURE_HEADER = "X-Anril-Signature"
+# Partners integrated under the old names; both keep working. Inbound only: this
+# backend verifies the header and never sends it.
+LEGACY_SIGNATURE_HEADERS = ("X-Aira-Signature", "X-Astro-Signature")
+LEGACY_SIGNATURE_HEADER = "X-Astro-Signature"  # the one config/docs still list as "legacy"
 
 
 def _signature_header(request: Request) -> str:
-    """The HMAC header, under its current or its original name."""
-    return (
-        request.headers.get(SIGNATURE_HEADER.lower(), "")
-        or request.headers.get(LEGACY_SIGNATURE_HEADER.lower(), "")
-    )
+    """The HMAC header, under its current name or either older one."""
+    for name in (SIGNATURE_HEADER, *LEGACY_SIGNATURE_HEADERS):
+        value = request.headers.get(name.lower(), "")
+        if value:
+            return value
+    return ""
 
 
 async def _partner_request(request: Request) -> tuple[dict, str] | JSONResponse:
@@ -444,7 +447,7 @@ async def _partner_request(request: Request) -> tuple[dict, str] | JSONResponse:
 
 @public_router.post("/partner/send-template")
 async def partner_send_template_route(request: Request):
-    """An approved template, by its Aira ID, sent from the tenant's WhatsApp number
+    """An approved template, by its Anril ID, sent from the tenant's WhatsApp number
     on behalf of the AstroTamil app. Wire contract — see subsystem-notes.md,
     AstroTamil consultation bridge."""
     parsed = await _partner_request(request)

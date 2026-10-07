@@ -1,7 +1,7 @@
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import type { BundleData } from "../src/bundle.js";
 
-export const BASE = "https://aira.test";
+export const BASE = "https://anril.test";
 export const LICENSE_KEY = "aps_live_" + "A".repeat(32);
 export const META_TOKEN = "EAAmetaTOKENsecret";
 

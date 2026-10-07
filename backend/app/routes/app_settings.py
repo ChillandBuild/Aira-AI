@@ -37,7 +37,7 @@ class SettingsUpdate(BaseModel):
 HANDOVER_LINE_KEY = "handover_line"
 HANDOVER_LINE_MOVED_MESSAGE = (
     "The handover line is now part of your Description: edit the section "
-    "'What Aira says when it brings in your team' on the Knowledge page."
+    "'What Anril says when it brings in your team' on the Knowledge page."
 )
 
 
@@ -508,7 +508,7 @@ async def update_settings(
             if channel in ("whatsapp", "instagram", "facebook"):
                 touched_meta_channel = True
 
-    # The app secret and verify token are Aira's own, identical for every tenant, and
+    # The app secret and verify token are Anril's own, identical for every tenant, and
     # only the WhatsApp form asks for them. Embedded Signup copies them in; a manual
     # save never did — so an Instagram- or Facebook-only tenant had no way to get them
     # and every inbound message was dropped as unsigned. Fill the gap here, without
@@ -592,7 +592,7 @@ async def _resolve_token_app_id(access_token: str) -> tuple[str | None, bool]:
 
     # Meta refuses to introspect a token issued by another app, and says so in
     # exactly these words. That refusal *is* the mismatch — treating it as merely
-    # inconclusive is what let a Test Aira token through on 2026-08-30 12:21.
+    # inconclusive is what let a Test Anril token through on 2026-08-30 12:21.
     error = (body or {}).get("error", {}) if isinstance(body, dict) else {}
     message = error.get("message", "no data returned")
     if "did not match the viewing app" in message.lower():
@@ -861,7 +861,7 @@ async def activate_channel(
         raise HTTPException(
             status_code=400,
             detail=(
-                f"This token belongs to {belongs_to}, but Aira verifies webhooks with app "
+                f"This token belongs to {belongs_to}, but Anril verifies webhooks with app "
                 f"{env_settings.meta_app_id}. Generate a Page access token inside app "
                 f"{env_settings.meta_app_id} and paste that one — otherwise messages arrive "
                 f"and are rejected as unsigned. Nothing was changed."
@@ -1208,7 +1208,7 @@ def _save_shared_meta_app_credentials(db, tenant_id: str, only_if_missing: bool 
     """Copy the app-level Meta secrets onto a tenant that just connected a channel.
 
     Every tenant signs up through the same Meta app, so the app secret and the
-    webhook verify token are Aira's, not theirs. Meta never returns either one —
+    webhook verify token are Anril's, not theirs. Meta never returns either one —
     the verify token in particular is a string we choose and paste into the app's
     webhook settings — but the inbound routes read both per-tenant and
     get_setting has no env fallback, so a tenant without these rows silently
@@ -1237,7 +1237,7 @@ def _save_shared_meta_app_credentials(db, tenant_id: str, only_if_missing: bool 
 
 
 def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
-    """Return only browser-safe metadata; Graph access tokens must never leave Aira."""
+    """Return only browser-safe metadata; Graph access tokens must never leave Anril."""
     return {
         "pages": [
             {
@@ -1266,7 +1266,7 @@ def _public_business_login_assets(assets: dict[str, list[dict]]) -> dict[str, li
 
 
 def _public_unified_meta_assets(assets: dict[str, list[dict]]) -> dict[str, list[dict]]:
-    """Return only the assets supported by Aira's unified setup flow."""
+    """Return only the assets supported by Anril's unified setup flow."""
     public_assets = _public_business_login_assets(assets)
     return {"pages": public_assets["pages"], "ad_accounts": public_assets["ad_accounts"]}
 
@@ -1283,7 +1283,7 @@ def _claim_business_assets(db, tenant_id: str, claims: list[dict[str, str]]) -> 
     except Exception as exc:
         logger.warning("General Meta signup asset claim failed tenant=%s: %s", tenant_id, exc)
         if "23505" in str(getattr(exc, "code", "")) or "23505" in str(exc):
-            raise HTTPException(status_code=409, detail="One of those Meta assets is already connected to another Aira workspace.") from exc
+            raise HTTPException(status_code=409, detail="One of those Meta assets is already connected to another Anril workspace.") from exc
         raise HTTPException(status_code=503, detail="Meta asset ownership could not be confirmed. Please try again.") from exc
 
 
@@ -1512,7 +1512,7 @@ async def complete_unified_meta_signup(
     if payload.page_id and not page:
         raise HTTPException(status_code=400, detail="Select a Facebook Page that was granted during this Meta signup.")
     if page and not page.get("access_token"):
-        raise HTTPException(status_code=400, detail="Meta did not issue a token for that Page. Reconnect and grant the Page to Aira.")
+        raise HTTPException(status_code=400, detail="Meta did not issue a token for that Page. Reconnect and grant the Page to Anril.")
     ad_account = ads_by_id.get(payload.ad_account_id) if payload.ad_account_id else None
     if payload.ad_account_id and not ad_account:
         raise HTTPException(status_code=400, detail="Select an ad account that was granted during this Meta signup.")
@@ -1528,7 +1528,7 @@ async def complete_unified_meta_signup(
     # maybe_single() returns None outright when the number is new, not a row with data=None.
     existing_phone_row = (existing_phone.data or {}) if existing_phone else {}
     if existing_phone_row and existing_phone_row.get("tenant_id") != tenant_id:
-        raise HTTPException(status_code=409, detail="This WhatsApp number is already connected to another Aira workspace.")
+        raise HTTPException(status_code=409, detail="This WhatsApp number is already connected to another Anril workspace.")
 
     ig_account = (page.get("instagram_business_account") or {}) if page else {}
     ig_account_id = ig_account.get("id")

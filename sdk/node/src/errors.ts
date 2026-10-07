@@ -1,14 +1,14 @@
-/** Errors raised by the Aira Private Send plug-in. None of them ever carry a key or token. */
+/** Errors raised by the Anril Private Send plug-in. None of them ever carry a key or token. */
 
-export class AiraPrivateSendError extends Error {
+export class AnrilPrivateSendError extends Error {
   constructor(message: string) {
     super(message);
     this.name = new.target.name;
   }
 }
 
-/** Aira rejected the license key (401/403). code: invalid_key | revoked_key | feature_disabled. */
-export class LicenseError extends AiraPrivateSendError {
+/** Anril rejected the license key (401/403). code: invalid_key | revoked_key | feature_disabled. */
+export class LicenseError extends AnrilPrivateSendError {
   readonly code: string;
   constructor(code: string, message = "") {
     super(message || `license rejected: ${code}`);
@@ -17,7 +17,7 @@ export class LicenseError extends AiraPrivateSendError {
 }
 
 /** The monthly cap in the bundle is reached (limits.blocked is true). */
-export class QuotaExceeded extends AiraPrivateSendError {}
+export class QuotaExceeded extends AnrilPrivateSendError {}
 
-/** No verified bundle is usable: Aira is unreachable and the cached bundle is expired or missing. */
-export class BundleUnavailable extends AiraPrivateSendError {}
+/** No verified bundle is usable: Anril is unreachable and the cached bundle is expired or missing. */
+export class BundleUnavailable extends AnrilPrivateSendError {}

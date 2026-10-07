@@ -1,5 +1,5 @@
-"""Operator "What Aira saw": a read-only RECONSTRUCTION of what Aira would see if this lead
-messaged now. Nothing here is a record of a past reply (Aira does not store the prompt it used).
+"""Operator "What Anril saw": a read-only RECONSTRUCTION of what Anril would see if this lead
+messaged now. Nothing here is a record of a past reply (Anril does not store the prompt it used).
 
 Guarantees, each pinned by tests/test_operator_what_aira_saw.py:
 - No writes. The prompt is built with persist=False (skips the tamil_locked write), and the
@@ -112,13 +112,13 @@ def build_gates(db, tenant_id: str, lead: dict) -> list[dict]:
         _gate("auto_reply_off", "Auto-reply is off for the business", _global_auto_reply_off(db, tenant_id), True,
               "The business-wide AI auto-reply switch is off, so no lead gets an auto-reply."),
         _gate("takeover", "AI is off for this lead (a person took over)", lead.get("ai_enabled") is False, True,
-              "Aira only rescores this lead. A person answers."),
+              "Anril only rescores this lead. A person answers."),
         _gate("quota_exhausted", "AI reply quota is used up", _quota_exhausted(db, tenant_id), True,
               "Only an explicit hard cap blocks replies."),
         _gate("opted_out", "Lead opted out", bool(lead.get("opted_out")), False,
               "Blocks broadcasts and automated follow-ups. It does not stop a reply to their own message."),
         _gate("needs_human_attention", "Escalated to a person", bool(lead.get("needs_human_attention")), False,
-              "Aira still replies, but as a holding presence."),
+              "Anril still replies, but as a holding presence."),
     ]
 
 
@@ -166,7 +166,7 @@ def _build_prompt(db, tenant_id: str, lead_id: str, lead: dict, message: str, ch
             campaign_name=campaign_name, context_text=context_text, persist=False,
         )
     except Exception:
-        logger.exception("What-Aira-saw prompt build failed for lead %s", lead_id)
+        logger.exception("What-Anril-saw prompt build failed for lead %s", lead_id)
         return {"system_prompt": None, "reply_language_mode": None, "intake_active": None,
                 "prompt_error": "The prompt could not be built. See the server log."}
     return {"system_prompt": prompt, "reply_language_mode": mode, "intake_active": intake_active,

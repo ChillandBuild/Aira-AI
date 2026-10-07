@@ -1,4 +1,4 @@
-"""Test Aira: an answers-only sandbox for the client hub and the operator console.
+"""Test Anril: an answers-only sandbox for the client hub and the operator console.
 
 It builds the same system prompt a real reply gets (master prompt, business description,
 knowledge excerpts, language rule) and asks the tenant's own reply model to answer the
@@ -52,7 +52,7 @@ _SYNTHETIC_LEAD = {
 }
 
 # Kill switch: a row in platform_defaults (the table the master prompt already lives in).
-# Absent row = on. Set value to "false" / "off" / "0" to switch Test Aira off for everyone
+# Absent row = on. Set value to "false" / "off" / "0" to switch Test Anril off for everyone
 # without a deploy. Cached briefly so a burst of calls does not re-read it each time.
 KILL_SWITCH_KEY = "brain_sandbox_enabled"
 _OFF_VALUES = frozenset({"false", "off", "0", "no"})
@@ -66,17 +66,17 @@ class SandboxError(Exception):
     """Base for failures the route maps to an HTTP status."""
 
     status_code = 500
-    message = "Test Aira failed"
+    message = "Test Anril failed"
 
 
 class SandboxSwitchedOff(SandboxError):
     status_code = 503
-    message = "Test Aira is switched off"
+    message = "Test Anril is switched off"
 
 
 class SandboxNotConfigured(SandboxError):
     status_code = 409
-    message = "Aira's reply model isn't set up for this business"
+    message = "Anril's reply model isn't set up for this business"
 
 
 class SandboxRateLimited(SandboxError):
@@ -86,7 +86,7 @@ class SandboxRateLimited(SandboxError):
 
 class SandboxProviderFailed(SandboxError):
     status_code = 502
-    message = "Aira couldn't answer just now. Please try again"
+    message = "Anril couldn't answer just now. Please try again"
 
 
 class _SlidingWindowLimiter:
@@ -136,7 +136,7 @@ def is_enabled() -> bool:
             .eq("key", KILL_SWITCH_KEY).limit(1).execute().data or []
         )
     except Exception:
-        logger.exception("Test Aira kill-switch read failed; leaving it on")
+        logger.exception("Test Anril kill-switch read failed; leaving it on")
         return True
     value = str((rows[0].get("value") if rows else "") or "").strip().lower()
     enabled = value not in _OFF_VALUES
@@ -150,7 +150,7 @@ def _resolve_model(tenant_id: str) -> str:
     try:
         _provider, native_model = ai_reply._resolve_provider(tenant_id)
     except RuntimeError:
-        logger.info("Test Aira: reply model or key not configured for tenant %s", tenant_id)
+        logger.info("Test Anril: reply model or key not configured for tenant %s", tenant_id)
         raise SandboxNotConfigured() from None
     return native_model
 
@@ -160,7 +160,7 @@ async def _knowledge_for(tenant_id: str, query: str) -> str:
     try:
         return await knowledge_service.get_knowledge_context(tenant_id, query=query)
     except Exception:
-        logger.warning("Test Aira: knowledge fetch failed for tenant %s", tenant_id, exc_info=True)
+        logger.warning("Test Anril: knowledge fetch failed for tenant %s", tenant_id, exc_info=True)
         return ""
 
 
@@ -174,7 +174,7 @@ async def _catalog_for(tenant_id: str, query: str) -> str:
             get_supabase(), tenant_id, query
         )
     except Exception:
-        logger.warning("Test Aira: catalog context failed for tenant %s", tenant_id, exc_info=True)
+        logger.warning("Test Anril: catalog context failed for tenant %s", tenant_id, exc_info=True)
         return ""
     return catalog_context
 
@@ -219,7 +219,7 @@ async def run_sandbox(tenant_id: str, messages: list[dict], *, source: str = "cl
             temperature=SANDBOX_TEMPERATURE,
         )
     except Exception:
-        logger.exception("Test Aira model call failed for tenant %s", tenant_id)
+        logger.exception("Test Anril model call failed for tenant %s", tenant_id)
         raise SandboxProviderFailed() from None
 
     reply = (reply or "").strip()

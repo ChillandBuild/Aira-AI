@@ -736,14 +736,14 @@ async def upload_template_media(
         raise HTTPException(status_code=400, detail="meta_access_token not configured in Settings")
 
     # Meta's upload API needs the id of the app that issued the access token. Clients
-    # connect through Aira's own Meta app (Embedded Signup), so that is the default;
+    # connect through Anril's own Meta app (Embedded Signup), so that is the default;
     # a client who set up their own app can still override it in app_settings.
     app_id = get_setting("meta_app_id", tenant_id=tenant_id) or env_settings.meta_app_id
     if not app_id:
         logger.error("Template media upload: no Meta app id (env META_APP_ID is unset)")
         raise HTTPException(
             status_code=503,
-            detail="Media upload isn't set up on the server yet. Please contact Aira support.",
+            detail="Media upload isn't set up on the server yet. Please contact Anril support.",
         )
 
     file_bytes = await file.read()

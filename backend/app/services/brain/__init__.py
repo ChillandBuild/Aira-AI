@@ -1,4 +1,4 @@
-"""Aira Brain: one read-only view of what Aira knows, what is waiting on the client, and
+"""Anril Brain: one read-only view of what Anril knows, what is waiting on the client, and
 how customers are being handled. One small module per source; build_brain() assembles them.
 
 Everything takes plain values (tenant_id, role, permissions), never a request object, so

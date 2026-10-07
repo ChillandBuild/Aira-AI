@@ -49,7 +49,7 @@ class DealContext:
     known_prices: frozenset = frozenset()  # rupee figures from the catalog and orders, for the price guard
     payment_concern: bool = False  # they say they paid / want a refund: no new link or quote this turn
     buttons_enabled: bool = False  # the channel can show tappable options (WhatsApp)
-    business_details: dict = field(default_factory=dict)  # Business Details page values Aira may share when asked
+    business_details: dict = field(default_factory=dict)  # Business Details page values Anril may share when asked
     rejected_detail_tap: bool = False
 
 

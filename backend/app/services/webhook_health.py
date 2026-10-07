@@ -1,6 +1,6 @@
 """Per-channel last inbound event plus recent token_invalid incidents for one tenant.
 
-Shared by GET /api/v1/settings/webhook-health and the Aira Brain status block, so both
+Shared by GET /api/v1/settings/webhook-health and the Anril Brain status block, so both
 apply the same 48-hour token rule."""
 from datetime import datetime, timedelta, timezone
 

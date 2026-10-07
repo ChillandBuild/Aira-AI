@@ -1,4 +1,4 @@
-"""Admin-set cost rates per (provider, model) -- migration 143. Aira funds
+"""Admin-set cost rates per (provider, model) -- migration 143. Anril funds
 every provider account (not the tenant), so cost estimation reads a rate the
 admin has entered, never a hardcoded/guessed public price list. A (provider,
 model) pair with no configured rate must surface as "unknown", never as ₹0 --

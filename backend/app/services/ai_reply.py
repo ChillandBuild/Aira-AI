@@ -1562,7 +1562,7 @@ def build_reply_system_prompt(
     collector "an intake is in progress" is noise at best, contradictory at worst.
 
     persist=False makes the build read-only (it skips the tamil_locked write) so the
-    operator "What Aira saw" reconstruction can never change a lead.
+    operator "What Anril saw" reconstruction can never change a lead.
     """
     system_prompt = _build_base_prompt(channel, tenant_id)
     if campaign_name:
@@ -1919,7 +1919,7 @@ async def generate_reply(
             campaign_name=campaign_name,
             context_text=context_text,
             catalog_context=catalog_context,
-            # A tap on a choice Aira offered in words ("choice:2") is just its title as text;
+            # A tap on a choice Anril offered in words ("choice:2") is just its title as text;
             # only a package/addon key is a tapped offering.
             tapped_option_key=None if _is_choice_tap(interactive_id) else interactive_id,
             last_seen_at=last_seen_at,

@@ -1,4 +1,4 @@
-"""'What you told Aira': five rows, one function each. A row is
+"""'What you told Anril': five rows, one function each. A row is
 {key, label, state, detail, edit_href, can_edit, reason}; state is ok | missing | off |
 attention. Rows may carry one extra key (description: sections, products: flag).
 Adding an input is one function here plus one test."""
@@ -76,12 +76,12 @@ def services_row(tenant_id: str, db, can_edit: bool) -> dict:
 
 
 def products_row(db, tenant_id: str, can_edit: bool) -> dict:
-    """Only ready items reach Aira; draft ones are a flag on this row, not their own card."""
+    """Only ready items reach Anril; draft ones are a flag on this row, not their own card."""
     ready = _count(db, "catalog_items", tenant_id, status="ready")
     drafts = _count(db, "catalog_items", tenant_id, status="draft")
     state, detail = ("ok", f"{ready} ready") if ready else ("missing", "No ready products")
     row = _row("products", "Products and AI rules", state, detail, "/dashboard/catalog", can_edit, NEEDS_MANAGE)
-    flag = f"{drafts} draft product{'s' if drafts != 1 else ''} Aira can't see yet" if drafts else None
+    flag = f"{drafts} draft product{'s' if drafts != 1 else ''} Anril can't see yet" if drafts else None
     return {**row, "flag": flag}
 
 

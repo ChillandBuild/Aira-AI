@@ -1,8 +1,8 @@
-"""One story for Aira: find where the Description (its handover section included),
+"""One story for Anril: find where the Description (its handover section included),
 knowledge files and products disagree with the Services page (packages, prices, details to
 collect), and propose a fix for each.
 
-Why: Aira reads every source before each reply. When the Description says "starts from
+Why: Anril reads every source before each reply. When the Description says "starts from
 ₹29, buy in the app, never ask for date of birth" while the Services page sells ₹49 and ₹99
 in chat and needs the date of birth, the model has to pick a side on every message. The reply
 path already settles it (deal_engine's SOURCE OF TRUTH rule and the price guard), but the
@@ -65,7 +65,7 @@ _FIELD_SYNONYMS = (
 # ─── Sources ──────────────────────────────────────────────────────────────────
 
 def gather(db, tenant_id: str) -> dict:
-    """Everything Aira reads about what this business sells."""
+    """Everything Anril reads about what this business sells."""
     from app.services import intake
 
     config = intake.get_intake_config(tenant_id, db=db)
@@ -83,7 +83,7 @@ def gather(db, tenant_id: str) -> dict:
 
 
 def _documents(db, tenant_id: str) -> list[dict]:
-    """name, id, text Aira looks up, and whether it is sorted (only sorted facts are editable)."""
+    """name, id, text Anril looks up, and whether it is sorted (only sorted facts are editable)."""
     rows = (
         db.table("knowledge_documents").select("id,name,full_text,sorted_at,status")
         .eq("tenant_id", tenant_id).eq("status", "indexed").execute()
@@ -144,7 +144,7 @@ def services_summary(src: dict) -> str:
 # ─── Deterministic checks ─────────────────────────────────────────────────────
 
 def _sources(src: dict):
-    """(where, document id, document name, editable, text) for every text Aira reads."""
+    """(where, document id, document name, editable, text) for every text Anril reads."""
     yield "description", None, None, True, src["description"]
     for doc in src["documents"]:
         yield "knowledge", doc["id"], doc["name"], doc["editable"], doc["text"]
@@ -228,8 +228,8 @@ def handover_issues(src: dict) -> list[dict]:
             continue
         out.append(_issue(
             "handover", "description", None, None, True, quote,
-            "Your handover line sends customers elsewhere, but Aira alerts your team to reply in this chat",
-            "When Aira brings a person in, your team is alerted in the inbox and replies here",
+            "Your handover line sends customers elsewhere, but Anril alerts your team to reply in this chat",
+            "When Anril brings a person in, your team is alerted in the inbox and replies here",
         ))
     return out
 
@@ -244,7 +244,7 @@ _SYSTEM = """You check a business's WhatsApp assistant setup for contradictions 
 
 The SERVICES PAGE is the truth: what is sold and paid for right in this chat, the prices, the details collected before payment, and that a person on the team replies in this chat when the assistant brings one in.
 
-Find lines in the DESCRIPTION (including its section "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", the wording Aira uses to bring a person in) and the KNOWLEDGE files that contradict it, for example: a different price, telling customers to buy or pay somewhere else for something sold in this chat, saying not to ask for a detail the Services page collects, sending customers elsewhere to reach a person. Report only real contradictions, not missing information. Also report every FLAGGED line you are given.
+Find lines in the DESCRIPTION (including its section "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM", the wording Anril uses to bring a person in) and the KNOWLEDGE files that contradict it, for example: a different price, telling customers to buy or pay somewhere else for something sold in this chat, saying not to ask for a detail the Services page collects, sending customers elsewhere to reach a person. Report only real contradictions, not missing information. Also report every FLAGGED line you are given.
 
 For each, copy the contradicting line EXACTLY as written into "quote", and write "proposed": that same line rewritten to agree with the Services page, keeping its language, tone and everything else it says; "" when the whole line should simply be removed. Never add a price, number or link that is not on the Services page or in the line itself.
 
@@ -436,7 +436,7 @@ async def run_check(db, tenant_id: str) -> dict:
     previous = load_report(tenant_id)
     report = {
         "issues": issues,
-        # Every finding should come with Aira's wording. If the model was unreachable or skipped
+        # Every finding should come with Anril's wording. If the model was unreachable or skipped
         # one, the next page open checks again instead of leaving the client to type the fix.
         "suggestions_complete": ran and all(
             i.get("proposed") is not None for i in issues if i.get("editable", True)
@@ -520,7 +520,7 @@ def _replace_line(text: str, quote: str, proposed: str) -> str:
             else:
                 lines.pop(i)
             return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
-    raise FixError("That text has changed since Aira checked. Check again to see the latest.", 409)
+    raise FixError("That text has changed since Anril checked. Check again to see the latest.", 409)
 
 
 def apply_fix(db, tenant_id: str, issue_id: str, *, user_id: str | None, is_owner: bool, text: str | None = None) -> dict:
@@ -532,7 +532,7 @@ def apply_fix(db, tenant_id: str, issue_id: str, *, user_id: str | None, is_owne
     report = load_report(tenant_id)
     issue = next((i for i in report.get("issues") or [] if i["id"] == issue_id), None)
     if not issue:
-        raise FixError("Aira no longer sees this problem. Check again.", 404)
+        raise FixError("Anril no longer sees this problem. Check again.", 404)
     proposed = (text if text is not None else issue.get("proposed"))
     if proposed is None:
         raise FixError("There is no suggested wording for this one. Type your own, or edit the source.")
@@ -701,7 +701,7 @@ def apply_fixes(db, tenant_id: str, issue_ids: list[str], checked_at: str, *, us
     for issue_id in dict.fromkeys(issue_ids):
         issue = issues.get(issue_id)
         if not issue:
-            failed.append(_entry(issue_id, "not_found", "Aira no longer sees this problem. Check again."))
+            failed.append(_entry(issue_id, "not_found", "Anril no longer sees this problem. Check again."))
             continue
         try:
             batch.plan(issue)
@@ -726,7 +726,7 @@ def dismiss_many(tenant_id: str, issue_ids: list[str], checked_at: str) -> dict:
     known = {i["id"] for i in report.get("issues") or []}
     wanted = list(dict.fromkeys(issue_ids))
     done = [i for i in wanted if i in known]
-    skipped = [_entry(i, "not_found", "Aira no longer sees this problem.") for i in wanted if i not in known]
+    skipped = [_entry(i, "not_found", "Anril no longer sees this problem.") for i in wanted if i not in known]
     if done:
         dismissed = list(dict.fromkeys([*(report.get("dismissed") or []), *done]))
         _save_report(tenant_id, {**report, "dismissed": dismissed})

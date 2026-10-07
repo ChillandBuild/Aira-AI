@@ -338,6 +338,30 @@ def test_valid_call_records_heartbeat_and_plugin_version(env, signing):
     assert row["last_seen_at"]
 
 
+def test_new_anril_plugin_header_records_the_version(env, signing):
+    key = _add_key(env)
+    res = env.client.get(f"{PUBLIC_BASE}/bundle",
+                         headers={"Authorization": f"Bearer {key}", "X-Anril-Plugin": "python/2.0.0"})
+    assert res.status_code == 200
+    assert env.db.rows("private_send_keys")[0]["plugin_version"] == "python/2.0.0"
+
+
+def test_old_aira_plugin_header_still_records_the_version(env, signing):
+    key = _add_key(env)
+    res = env.client.get(f"{PUBLIC_BASE}/bundle",
+                         headers={"Authorization": f"Bearer {key}", "X-Aira-Plugin": "python/1.0.0"})
+    assert res.status_code == 200
+    assert env.db.rows("private_send_keys")[0]["plugin_version"] == "python/1.0.0"
+
+
+def test_new_plugin_header_wins_when_both_are_sent(env, signing):
+    key = _add_key(env)
+    res = env.client.get(f"{PUBLIC_BASE}/bundle", headers={
+        "Authorization": f"Bearer {key}", "X-Anril-Plugin": "python/2.0.0", "X-Aira-Plugin": "python/1.0.0"})
+    assert res.status_code == 200
+    assert env.db.rows("private_send_keys")[0]["plugin_version"] == "python/2.0.0"
+
+
 # ------------------------------------------------------------------ bundle
 
 def test_bundle_signature_verifies_and_expires_in_15_minutes(env, signing):

@@ -1,4 +1,4 @@
-"""Permission checks for Aira Brain rows. Services take the caller's role and permission
+"""Permission checks for Anril Brain rows. Services take the caller's role and permission
 list as plain values (never a request object) so the operator route can reuse them."""
 from collections.abc import Iterable
 

@@ -162,48 +162,56 @@ def form_script(token: str):
     db = get_supabase()
     tenant_id = _resolve_tenant(db, token)
     if not tenant_id:
-        return Response("/* Aira: this form link is no longer valid. Copy the new snippet from Aira. */",
+        return Response("/* Anril: this form link is no longer valid. Copy the new snippet from Anril. */",
                         media_type="application/javascript", headers=_PUBLIC_HEADERS)
     script = _FORM_JS.replace("__ENDPOINT__", json.dumps(_urls(token)["ingest_url"]))
     return Response(script, media_type="application/javascript",
                     headers={"Access-Control-Allow-Origin": "*", "Cache-Control": "public, max-age=300"})
 
 
-# The website form. Renders into every <div data-aira-form>. Options on the div:
+# The website form. Renders into every <div data-anril-form>, and into every
+# <div data-aira-form> already on customers' pages (the old snippet keeps working:
+# the script is served from here, so it is upgraded for them). Options on the div:
 #   data-event="signed_up"  default "interested"
 #   data-title, data-button, data-success  text overrides
-# Plain DOM, no dependencies, styles scoped under .aira-f so it can't break the host page.
+# Plain DOM, no dependencies, styles scoped under .anril-f (and .aira-f for old markup)
+# so it can't break the host page.
 _FORM_JS = r"""(function () {
   var ENDPOINT = __ENDPOINT__;
-  var css = ".aira-f{font-family:inherit;max-width:380px;display:grid;gap:10px;padding:18px;border:1px solid #e3e3e3;border-radius:12px;background:#fff;color:#1a1a1a;box-sizing:border-box}" +
-    ".aira-f *{box-sizing:border-box}.aira-f h3{margin:0 0 2px;font-size:17px;font-weight:600}" +
-    ".aira-f input{width:100%;padding:10px 12px;border:1px solid #cfcfcf;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:inherit}" +
-    ".aira-f input:focus{outline:2px solid #25d366;outline-offset:1px;border-color:#25d366}" +
-    ".aira-f button{padding:11px 14px;border:0;border-radius:8px;background:#25d366;color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer}" +
-    ".aira-f button[disabled]{opacity:.6;cursor:default}.aira-f .aira-n{font-size:12px;color:#666;margin:0}" +
-    ".aira-f .aira-e{font-size:13px;color:#c0392b;margin:0}.aira-f .aira-ok{font-size:15px;margin:0;padding:6px 0}" +
-    ".aira-f .aira-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}";
+  function rules(p) {
+    var f = "." + p + "-f";
+    return f + "{font-family:inherit;max-width:380px;display:grid;gap:10px;padding:18px;border:1px solid #e3e3e3;border-radius:12px;background:#fff;color:#1a1a1a;box-sizing:border-box}" +
+      f + " *{box-sizing:border-box}" + f + " h3{margin:0 0 2px;font-size:17px;font-weight:600}" +
+      f + " input{width:100%;padding:10px 12px;border:1px solid #cfcfcf;border-radius:8px;font:inherit;font-size:15px;background:#fff;color:inherit}" +
+      f + " input:focus{outline:2px solid #25d366;outline-offset:1px;border-color:#25d366}" +
+      f + " button{padding:11px 14px;border:0;border-radius:8px;background:#25d366;color:#fff;font:inherit;font-size:15px;font-weight:600;cursor:pointer}" +
+      f + " button[disabled]{opacity:.6;cursor:default}" + f + " ." + p + "-n{font-size:12px;color:#666;margin:0}" +
+      f + " ." + p + "-e{font-size:13px;color:#c0392b;margin:0}" + f + " ." + p + "-ok{font-size:15px;margin:0;padding:6px 0}" +
+      f + " ." + p + "-hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}";
+  }
+  // New markup (anril-*) and the old markup already on customers' pages (aira-*) are both styled.
+  var css = rules("anril") + rules("aira");
   function el(tag, attrs, text) {
     var e = document.createElement(tag);
     for (var k in attrs) { if (attrs[k] !== undefined) e.setAttribute(k, attrs[k]); }
     if (text) e.textContent = text;
     return e;
   }
-  function render(host) {
-    if (host.getAttribute("data-aira-ready")) return;
-    host.setAttribute("data-aira-ready", "1");
-    var form = el("form", { "class": "aira-f", novalidate: "" });
+  function render(host, p) {
+    if (host.getAttribute("data-" + p + "-ready")) return;
+    host.setAttribute("data-" + p + "-ready", "1");
+    var form = el("form", { "class": p + "-f", novalidate: "" });
     form.appendChild(el("h3", {}, host.getAttribute("data-title") || "Get details on WhatsApp"));
     var name = el("input", { name: "name", placeholder: "Your name", autocomplete: "name", maxlength: "80" });
     var phone = el("input", { name: "phone", placeholder: "WhatsApp number", type: "tel", autocomplete: "tel", inputmode: "tel", maxlength: "16", required: "" });
     form.appendChild(name); form.appendChild(phone);
-    var hp = el("div", { "class": "aira-hp", "aria-hidden": "true" });
+    var hp = el("div", { "class": p + "-hp", "aria-hidden": "true" });
     hp.appendChild(el("input", { name: "_hp", tabindex: "-1", autocomplete: "off" }));
     form.appendChild(hp);
-    var err = el("p", { "class": "aira-e", role: "alert" });
+    var err = el("p", { "class": p + "-e", role: "alert" });
     var btn = el("button", { type: "submit" }, host.getAttribute("data-button") || "Send me details");
     form.appendChild(err); form.appendChild(btn);
-    form.appendChild(el("p", { "class": "aira-n" }, "We'll send you updates on WhatsApp."));
+    form.appendChild(el("p", { "class": p + "-n" }, "We'll send you updates on WhatsApp."));
     form.addEventListener("submit", function (ev) {
       ev.preventDefault();
       err.textContent = "";
@@ -219,15 +227,18 @@ _FORM_JS = r"""(function () {
         if (r.status === 429) throw new Error("Too many tries. Please wait a few minutes.");
         if (!r.ok) throw new Error("Please check your number and try again.");
         form.innerHTML = "";
-        form.appendChild(el("p", { "class": "aira-ok" }, host.getAttribute("data-success") || "Thanks! Check WhatsApp in a few minutes."));
+        form.appendChild(el("p", { "class": p + "-ok" }, host.getAttribute("data-success") || "Thanks! Check WhatsApp in a few minutes."));
       }).catch(function (e) { err.textContent = e.message || "Something went wrong. Please try again."; btn.disabled = false; });
     });
     host.appendChild(form);
   }
   function init() {
-    if (!document.getElementById("aira-f-css")) { var s = el("style", { id: "aira-f-css" }); s.textContent = css; document.head.appendChild(s); }
-    var hosts = document.querySelectorAll("[data-aira-form]");
-    for (var i = 0; i < hosts.length; i++) render(hosts[i]);
+    if (!document.getElementById("anril-f-css")) { var s = el("style", { id: "anril-f-css" }); s.textContent = css; document.head.appendChild(s); }
+    var prefixes = ["anril", "aira"];
+    for (var j = 0; j < prefixes.length; j++) {
+      var hosts = document.querySelectorAll("[data-" + prefixes[j] + "-form]");
+      for (var i = 0; i < hosts.length; i++) render(hosts[i], prefixes[j]);
+    }
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();

@@ -24,7 +24,7 @@ MAX_ROUNDS = 2
 REPEAT_MIN_CHARS = 25
 REPEAT_SIMILARITY = 0.9
 HANDOVER_LINE_PROBE_CHARS = 40
-REPEATED_HANDOVER_REASON = "Aira had no answer for the customer twice in a row"
+REPEATED_HANDOVER_REASON = "Anril had no answer for the customer twice in a row"
 PAYMENT_COMPLAINT_REASON = "Lead says they paid, asks about payment status, or wants a refund"
 HANDOVER_OPENED_NOTE = (
     "\n\nPAYMENT CONCERN — a person on this team has just been alerted to check this customer's "
@@ -448,9 +448,9 @@ _TEAM_ANSWERED_RE = re.compile(
     r"|(?:the|my|our) (?:team|owner|manager|staff) (?:has |have )?(?:said|says|confirmed|told me|replied|checked))\b",
     re.IGNORECASE,
 )
-TEAM_CLAIM_REASON = "Aira told the customer it is checking with the team"
+TEAM_CLAIM_REASON = "Anril told the customer it is checking with the team"
 ASKED_AGAIN_SIMILARITY = 0.6
-# How Aira says it has no answer, in the languages seen in production.
+# How Anril says it has no answer, in the languages seen in production.
 _NO_ANSWER_RE = re.compile(
     r"\b(don'?t (?:have|know)|do not (?:have|know)|not sure|no (?:information|details)|couldn'?t find|"
     r"theriyala|theriyadhu|illa(?:\s+info)?|therila)\b|தெரியவில்லை|தகவல் இல்லை",
@@ -465,7 +465,7 @@ TEAM_ALERTED_NOTE = (
 
 
 def _asked_again(messages: list[dict], handover_line: str) -> bool:
-    """The customer repeats a question Aira could not answer: a person, not a third try."""
+    """The customer repeats a question Anril could not answer: a person, not a third try."""
     users = [m.get("content") or "" for m in messages if m.get("role") == "user"]
     assistants = _earlier_assistant_texts(messages)
     if len(users) < 2 or not assistants:

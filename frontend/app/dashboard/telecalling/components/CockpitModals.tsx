@@ -41,7 +41,7 @@ export default function CockpitModals({ cockpit }: { cockpit: CallingCockpit }) 
   } = cockpit;
 
   const simHandoffUrl = simHandoffLead && typeof window !== "undefined"
-    ? `${window.location.origin}/aira/dashboard/telecalling?lead_id=${simHandoffLead.id}`
+    ? `${window.location.origin}/anril/dashboard/telecalling?lead_id=${simHandoffLead.id}`
     : "";
 
   const copySimNumber = async () => {

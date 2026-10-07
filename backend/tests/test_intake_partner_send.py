@@ -175,6 +175,18 @@ def test_the_canonical_header_name_is_accepted():
     send.assert_awaited_once()
 
 
+def test_the_anril_header_name_is_accepted():
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), header_name="x-anril-signature")
+    assert res.status_code == 200, res.text
+    send.assert_awaited_once()
+
+
+def test_a_bad_signature_under_the_anril_name_is_401():
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), secret="other", header_name="x-anril-signature")
+    assert res.status_code == 401
+    send.assert_not_awaited()
+
+
 def test_the_legacy_header_name_still_works():
     # AstroTamil's Django signs under the original name; _signed() uses it by default.
     res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), header_name="x-astro-signature")
@@ -208,6 +220,7 @@ def test_template_not_found_is_404():
     assert res.status_code == 404
     assert res.json()["code"] == "template_not_found"
     assert res.json()["ok"] is False
+    assert res.json()["error"] == "No template with Anril ID 407940"
     send.assert_not_awaited()
 
 

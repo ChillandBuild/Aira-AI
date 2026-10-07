@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from aira_private_send import AiraPrivateSend
+from anril_private_send import AnrilPrivateSend
 
 LICENSE_KEY = "aps_live_" + "A" * 32
 META_TOKEN = "EAAG-secret-meta-token"
@@ -67,7 +67,7 @@ class Clock:
         self.now = self.now + timedelta(**kwargs)
 
 
-class FakeAira:
+class FakeAnril:
     """Routes bundle / usage / Meta calls and records every request."""
 
     def __init__(self, private: Ed25519PrivateKey, clock: Clock):
@@ -123,16 +123,16 @@ def private_key():
 
 
 @pytest.fixture
-def aira(private_key, clock):
-    return FakeAira(private_key, clock)
+def anril(private_key, clock):
+    return FakeAnril(private_key, clock)
 
 
 @pytest.fixture
-def client(private_key, clock, aira):
-    http = httpx.Client(transport=httpx.MockTransport(aira))
-    c = AiraPrivateSend(
+def client(private_key, clock, anril):
+    http = httpx.Client(transport=httpx.MockTransport(anril))
+    c = AnrilPrivateSend(
         license_key=LICENSE_KEY, meta_token=META_TOKEN, phone_number_id=PHONE_NUMBER_ID,
-        aira_public_key=public_b64(private_key), store="sqlite:///:memory:", http=http, clock=clock,
+        anril_public_key=public_b64(private_key), store="sqlite:///:memory:", http=http, clock=clock,
     )
     yield c
     c.close()

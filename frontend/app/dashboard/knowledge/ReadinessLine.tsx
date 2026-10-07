@@ -1,6 +1,6 @@
 "use client";
 
-// One line above the drop zone: which Business Kit headings Aira already has. It only
+// One line above the drop zone: which Business Kit headings Anril already has. It only
 // nudges -- nothing is blocked. Served by GET /knowledge/readiness (knowledge.view), so
 // unlike the old owner-only Description row it tells managers the truth too.
 //
@@ -17,11 +17,11 @@ type ItemKey = KnowledgeReadinessItem["key"];
 
 const TEXT_ITEMS: Partial<Record<ItemKey, { file: string; placeholder: string }>> = {
   prices: {
-    file: "Prices (added in Aira).txt",
+    file: "Prices (added in Anril).txt",
     placeholder: "One product or service per line, with its exact price.\ne.g. Haircut - Rs 300",
   },
   questions: {
-    file: "Customer questions (added in Aira).txt",
+    file: "Customer questions (added in Anril).txt",
     placeholder: "Q: Can I get a refund?\nA: Yes, within 7 days of payment.",
   },
 };

@@ -1,4 +1,4 @@
-"""AiraPrivateSend: track events, send via the client's own Meta token, report counts only."""
+"""AnrilPrivateSend: track events, send via the client's own Meta token, report counts only."""
 from __future__ import annotations
 
 import logging
@@ -12,12 +12,12 @@ import httpx
 
 from . import core
 from ._version import __version__
-from .bundle import BundleManager, Clock, aira_headers, load_public_keys, raise_if_license_rejected, utcnow
+from .bundle import BundleManager, Clock, anril_headers, load_public_keys, raise_if_license_rejected, utcnow
 from .errors import QuotaExceeded
 from .meta import send_template, template_body
 from .store import Store, iso, make_store, parse_iso
 
-logger = logging.getLogger("aira_private_send")
+logger = logging.getLogger("anril_private_send")
 
 DUPLICATE_WINDOW = timedelta(hours=24)
 STUCK_AFTER = timedelta(minutes=15)
@@ -39,12 +39,12 @@ def _check_base_url(url: str) -> str:
         parts = urlsplit(url if isinstance(url, str) else "")
         host = parts.hostname
     except ValueError:
-        raise ValueError("aira_base_url is not a valid URL") from None
+        raise ValueError("anril_base_url is not a valid URL") from None
     if parts.scheme == "https" and host:
         return url
     if parts.scheme == "http" and host in _LOCAL_HTTP_HOSTS:
         return url
-    raise ValueError("aira_base_url must be https:// (http:// is only allowed for localhost and 127.0.0.1)")
+    raise ValueError("anril_base_url must be https:// (http:// is only allowed for localhost and 127.0.0.1)")
 
 
 @dataclass(frozen=True)
@@ -54,15 +54,15 @@ class SendResult:
     message_id: Optional[str] = None
 
 
-class AiraPrivateSend:
+class AnrilPrivateSend:
     def __init__(
         self,
         license_key: str,
         meta_token: str,
         phone_number_id: str,
-        aira_public_key: Union[str, Sequence[str]],
-        store: Union[str, Store] = "sqlite:///aira_private_send.db",
-        aira_base_url: str = "https://aira-ai-5tfr.onrender.com",
+        anril_public_key: Union[str, Sequence[str]],
+        store: Union[str, Store] = "sqlite:///anril_private_send.db",
+        anril_base_url: str = "https://aira-ai-5tfr.onrender.com",
         graph_version: str = "v21.0",
         http: Optional[httpx.Client] = None,
         clock: Clock = utcnow,
@@ -77,16 +77,16 @@ class AiraPrivateSend:
         self._license_key = license_key
         self._meta_token = meta_token
         self._phone_number_id = phone_number_id
-        self._base_url = _check_base_url(aira_base_url).rstrip("/")
+        self._base_url = _check_base_url(anril_base_url).rstrip("/")
         self._graph_version = graph_version
         self._clock = clock
         self._store = make_store(store)
         self._http = http or httpx.Client(timeout=HTTP_TIMEOUT_SECONDS)
         self._bundles = BundleManager(
-            license_key, load_public_keys(aira_public_key), self._base_url, self._store, self._http, clock)
+            license_key, load_public_keys(anril_public_key), self._base_url, self._store, self._http, clock)
 
     def __repr__(self) -> str:  # never show the license key or Meta token
-        return f"AiraPrivateSend(phone_number_id={self._phone_number_id!r}, plugin=python/{__version__})"
+        return f"AnrilPrivateSend(phone_number_id={self._phone_number_id!r}, plugin=python/{__version__})"
 
     # ------------------------------------------------------------ public API
 
@@ -140,13 +140,13 @@ class AiraPrivateSend:
                 if self._deliver(row, bundle).status == "sent":
                     sent += 1
             except Exception as exc:  # one bad row must not stop the batch; it is failed as 'interrupted' later
-                logger.error("aira run_due: unexpected error on send %s: %s", row.get("id"), type(exc).__name__)
+                logger.error("anril run_due: unexpected error on send %s: %s", row.get("id"), type(exc).__name__)
         return sent
 
     def report_usage(self, force: bool = False) -> int:
         """POST cumulative counters for today and yesterday (counts only, never a phone or name).
         Throttled to once per 15 minutes unless force=True. Returns rows reported (0 if throttled,
-        nothing to report, or Aira unreachable/rate-limited -- counters are cumulative, so the next call
+        nothing to report, or Anril unreachable/rate-limited -- counters are cumulative, so the next call
         catches up). A 422 (e.g. unknown_template) is logged and skipped so a bad row never blocks reporting."""
         now = self._clock()
         if not force and self._usage_throttled(now):
@@ -236,18 +236,18 @@ class AiraPrivateSend:
 
     def _post_usage(self, rows: List[Dict[str, Any]]) -> str:
         try:
-            resp = self._http.post(self._base_url + USAGE_PATH, json={"rows": rows}, headers=aira_headers(self._license_key))
+            resp = self._http.post(self._base_url + USAGE_PATH, json={"rows": rows}, headers=anril_headers(self._license_key))
         except httpx.HTTPError as exc:
-            logger.warning("aira usage report failed: %s", type(exc).__name__)
+            logger.warning("anril usage report failed: %s", type(exc).__name__)
             return _RETRY
         raise_if_license_rejected(resp)
         if resp.status_code == 200:
             return _OK
         if resp.status_code == 422:
             # a bad row (e.g. unknown_template) must not wedge reporting forever: log the code only, move on
-            logger.warning("aira usage report rejected: %s", _error_code(resp))
+            logger.warning("anril usage report rejected: %s", _error_code(resp))
             return _REJECTED
-        logger.warning("aira usage report failed: HTTP %s", resp.status_code)
+        logger.warning("anril usage report failed: HTTP %s", resp.status_code)
         return _RETRY
 
 

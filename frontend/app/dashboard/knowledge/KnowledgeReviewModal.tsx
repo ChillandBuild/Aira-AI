@@ -190,7 +190,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
         if (cancelled) return;
         setReview(r);
         setStale(r.stale);
-        // Defaults (spec §5): Aira's changes ticked, except where they touch the client's
+        // Defaults (spec §5): Anril's changes ticked, except where they touch the client's
         // own lines; conflicts leave both options out; price updates ticked unless the
         // line is the client's own.
         setAccepted(new Set(r.hunks.filter((h) => !h.touches_client_lines).map((h) => h.id)));
@@ -217,7 +217,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
   const overLimit = review ? finalWords > review.soft_word_limit : false;
   // A file that is all look-up facts leaves the Description empty. That used to block
   // Apply (and 422 server-side); since 2026-09-20 it only warns -- the facts go live and
-  // Aira answers from them, it just has no identity yet. Warning, not blockReason.
+  // Anril answers from them, it just has no identity yet. Warning, not blockReason.
   const emptyResult = review !== null && !finalText.trim();
   const ownerBlocked = descChanged && !isOwner;
 
@@ -298,7 +298,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
         return false;
       }
       if (!putRes.ok) throw new Error("Save failed");
-      toast.success("Contact line saved under \u2018What Aira says when it brings in your team\u2019.");
+      toast.success("Contact line saved under \u2018What Anril says when it brings in your team\u2019.");
       return true;
     } catch {
       toast.error("The contact line was not saved. Add it from your Description.");
@@ -436,7 +436,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
               </Section>
 
               {/* Contact line found -- a sentence telling customers how to reach a person.
-                  Offered for the profile's "What Aira says when it brings in your team"
+                  Offered for the profile's "What Anril says when it brings in your team"
                   section, never saved automatically. Owner-only (profile write). */}
               {review.suggested_handover.trim() && !handoverDismissed && (
                 <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5">
@@ -447,7 +447,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                     <div className="min-w-0 flex-1">
                       <h4 className="font-display text-sm font-bold text-on-surface">Contact line found in this file</h4>
                       <p className="mt-1 font-body text-xs leading-relaxed text-amber-900">
-                        This tells customers how to reach a person. Use it as your &ldquo;What Aira says when it
+                        This tells customers how to reach a person. Use it as your &ldquo;What Anril says when it
                         brings in your team&rdquo; section? It replaces what is in that section now. It is saved when
                         you apply this review, and you can undo it from the profile history.
                       </p>

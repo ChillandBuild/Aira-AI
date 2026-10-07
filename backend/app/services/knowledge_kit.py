@@ -1,4 +1,4 @@
-"""Aira Business Kit helpers -- spec: docs/superpowers/specs/2026-09-24-aira-business-kit-design.md
+"""Anril Business Kit helpers -- spec: docs/superpowers/specs/2026-09-24-aira-business-kit-design.md
 
 The Kit is the one document shape every client is steered toward (8 headings). Clients
 get it from a Word template or by pasting our prompt into their own AI, so an upload can
@@ -39,19 +39,24 @@ _QUESTIONS_RE = re.compile(
 
 # Kit heading -> the auto-sort label it always gets. Rules feed the Description (the
 # compile step routes phone and hours lines to BUSINESS HOURS AND CONTACT and offers the
-# say-sentence for WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM); facts go to lookup verbatim.
+# say-sentence for WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM); facts go to lookup verbatim.
 KIT_HEADINGS = {
     "ABOUT YOUR BUSINESS": "RULE",
     "WHO YOUR CUSTOMERS ARE": "RULE",
     "HOW A CUSTOMER BUYS FROM YOU": "RULE",
-    "HOW AIRA SHOULD SOUND": "RULE",
-    "WHAT AIRA MUST NEVER SAY OR PROMISE": "RULE",
+    "HOW ANRIL SHOULD SOUND": "RULE",
+    "WHAT ANRIL MUST NEVER SAY OR PROMISE": "RULE",
     "WHEN TO HAND OVER TO A PERSON": "RULE",
     "PRODUCTS, SERVICES, PRICES": "FACT",
     "CUSTOMER QUESTIONS AND POLICIES": "FACT",
 }
 _MIN_KIT_HEADINGS = 4
-_TEMPLATE_TITLE_RE = re.compile(r"^\s*(?:Aira Business Kit|Template for:.*)\s*$", re.IGNORECASE)
+# Kit files clients already filled in carry the old Aira headings and title: both still match.
+_LEGACY_KIT_HEADINGS = {
+    "HOW AIRA SHOULD SOUND": "HOW ANRIL SHOULD SOUND",
+    "WHAT AIRA MUST NEVER SAY OR PROMISE": "WHAT ANRIL MUST NEVER SAY OR PROMISE",
+}
+_TEMPLATE_TITLE_RE = re.compile(r"^\s*(?:(?:Anril|Aira) Business Kit|Template for:.*)\s*$", re.IGNORECASE)
 
 
 def _heading_key(line: str) -> str:
@@ -60,7 +65,10 @@ def _heading_key(line: str) -> str:
     return " ".join(re.sub(r"[^A-Z ]", " ", line.upper()).split())
 
 
-_KIT_BY_KEY = {_heading_key(h): h for h in KIT_HEADINGS}
+_KIT_BY_KEY = {
+    **{_heading_key(h): h for h in KIT_HEADINGS},
+    **{_heading_key(old): new for old, new in _LEGACY_KIT_HEADINGS.items()},
+}
 
 # (key, label, level) in display order: must-haves first.
 _ITEMS = [
@@ -69,9 +77,9 @@ _ITEMS = [
     ("prices", "Products and prices", "must"),
     ("handover", "When to hand over to a person", "must"),
     ("who", "Who your customers are", "nice"),
-    ("never", "What Aira must never say", "nice"),
+    ("never", "What Anril must never say", "nice"),
     ("questions", "Customer questions and policies", "nice"),
-    ("voice", "How Aira should sound", "optional"),
+    ("voice", "How Anril should sound", "optional"),
 ]
 _DESCRIPTION_KEYS = {"about", "how_to_buy", "who", "never", "voice"}
 
@@ -114,7 +122,7 @@ def scrub_placeholders(text: str) -> tuple[str, list[str]]:
 
 
 def readiness(*, description: str, handover_line: str, facts: list[str]) -> list[dict]:
-    """The 8 Kit headings, each with whether Aira already has it."""
+    """The 8 Kit headings, each with whether Anril already has it."""
     # Imported here: business_profile imports knowledge_sort, which imports this module.
     from app.services import business_profile
 

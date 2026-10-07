@@ -1,5 +1,5 @@
 """
-AIRA Score Engine v3
+Anril Score Engine v3
 
 Segment classification: Hot (A) / Warm (B) / Cold (C) / Not Interested (D)
 
@@ -384,7 +384,7 @@ async def compute_score(
     # already persisted by the time compute_score runs, so the latest inbound row
     # for this lead IS the message being scored; attributed_ad_creative_id ties it
     # to the specific ad it came from, whose known original text (synced from
-    # Meta, or Aira's own tracking-code flow -- see ad_creatives.prefilled_greeting_text)
+    # Meta, or Anril's own tracking-code flow -- see ad_creatives.prefilled_greeting_text)
     # is the ground truth to compare against.
     via_ad_referral = False
     ad_prefill_confirmed_unedited = False

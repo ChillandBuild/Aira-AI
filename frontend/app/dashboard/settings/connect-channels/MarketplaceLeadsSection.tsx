@@ -32,7 +32,7 @@ const SAMPLE_ENQUIRY: Record<ProviderId, Record<string, unknown>> = {
       SENDER_MOBILE: "+91-9000000001",
       SENDER_CITY: "Chennai",
       QUERY_PRODUCT_NAME: "Test product",
-      QUERY_MESSAGE: "This is a test enquiry from Aira settings.",
+      QUERY_MESSAGE: "This is a test enquiry from Anril settings.",
     },
   },
   justdial: {

@@ -35,7 +35,7 @@ _LEAK_MARKERS = ("OWNER TO CHECK", "Parking near", "EXAMPLE BELOW", "Decoy Acade
 
 
 def kit_file(example: dict) -> str:
-    parts = ["Aira Business Kit", f"Template for: {example['industry']}"]
+    parts = ["Anril Business Kit", f"Template for: {example['industry']}"]
     for (heading, _hints), body in zip(HEADINGS, example["sections"], strict=True):
         parts.append(f"{heading}\n{body}")
     parts[-1] += "\nQ: Is there parking?\nA: [OWNER TO CHECK]\nParking near the entrance: [OWNER TO CHECK]"

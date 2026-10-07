@@ -140,7 +140,7 @@ async def reset_password(tenant_id: str, _admin: dict = Depends(get_system_admin
     )
     if not owner.data:
         raise HTTPException(status_code=404, detail="No owner found for this tenant")
-    temp_pw = "Aira@" + secrets.token_urlsafe(10)
+    temp_pw = "Anril@" + secrets.token_urlsafe(10)
     db.auth.admin.update_user_by_id(owner.data["user_id"], {"password": temp_pw})
     record_audit_event(
         db,
@@ -1097,7 +1097,7 @@ def get_fleet_token_usage(
     _admin: dict = Depends(get_system_admin),
 ):
     """Cross-tenant token/cost view (migration 142 aggregated across every
-    tenant) -- the "who is costing me the most" leaderboard, since Aira funds
+    tenant) -- the "who is costing me the most" leaderboard, since Anril funds
     every provider account rather than the tenant. Computes a trend by also
     aggregating the immediately-preceding, equal-length window; skipped
     entirely for all_time (no meaningful "prior all-time" baseline).

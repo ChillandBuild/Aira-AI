@@ -1,7 +1,7 @@
-/** AiraPrivateSend: track events, send via the client's own Meta token, report counts only. */
+/** AnrilPrivateSend: track events, send via the client's own Meta token, report counts only. */
 import { assertNotBlocked, BundleManager, loadPublicKeys, ruleFor, templateFor, type Bundle } from "./bundle.js";
 import { buildComponents, buildContext, normalizeEvent, normalizePhone, type JsonRecord } from "./core.js";
-import { airaHeaders, licenseErrorFor, LICENSE_STATUSES, type Clock, type FetchFn } from "./http.js";
+import { anrilHeaders, licenseErrorFor, LICENSE_STATUSES, type Clock, type FetchFn } from "./http.js";
 import { sendTemplate, templateBody } from "./meta.js";
 import { iso, openStore, type CounterRow, type SendRow, type Store, type StoredSend } from "./store.js";
 import { VERSION } from "./version.js";
@@ -27,24 +27,24 @@ function checkBaseUrl(url: string): string {
   try {
     parsed = new URL(url);
   } catch {
-    throw new TypeError("airaBaseUrl is not a valid URL");
+    throw new TypeError("anrilBaseUrl is not a valid URL");
   }
   const isHttps = parsed.protocol === "https:" && parsed.hostname !== "";
   const isLocalHttp = parsed.protocol === "http:" && LOCAL_HTTP_HOSTS.includes(parsed.hostname);
   if (!isHttps && !isLocalHttp) {
-    throw new TypeError("airaBaseUrl must be https:// (http:// is only allowed for localhost and 127.0.0.1)");
+    throw new TypeError("anrilBaseUrl must be https:// (http:// is only allowed for localhost and 127.0.0.1)");
   }
   return url;
 }
 
-export interface AiraPrivateSendOptions {
+export interface AnrilPrivateSendOptions {
   licenseKey: string;
   metaToken: string;
   phoneNumberId: string;
-  /** One base64 key, or a list of them while Aira rotates its signing key. */
-  airaPublicKey: string | readonly string[];
+  /** One base64 key, or a list of them while Anril rotates its signing key. */
+  anrilPublicKey: string | readonly string[];
   store?: string | Store;
-  airaBaseUrl?: string;
+  anrilBaseUrl?: string;
   graphVersion?: string;
   fetch?: FetchFn;
   clock?: Clock;
@@ -73,7 +73,7 @@ interface UsageRow {
 
 const utcDay = (moment: Date): string => moment.toISOString().slice(0, 10);
 
-export class AiraPrivateSend {
+export class AnrilPrivateSend {
   readonly #licenseKey: string;
   readonly #metaToken: string;
   private readonly phoneNumberId: string;
@@ -85,7 +85,7 @@ export class AiraPrivateSend {
   private readonly publicKey: ReturnType<typeof loadPublicKeys>;
   private storeReady: Promise<{ store: Store; bundles: BundleManager }> | null = null;
 
-  constructor(options: AiraPrivateSendOptions) {
+  constructor(options: AnrilPrivateSendOptions) {
     for (const [label, value] of [
       ["licenseKey", options.licenseKey], ["metaToken", options.metaToken],
       ["phoneNumberId", options.phoneNumberId],
@@ -102,17 +102,17 @@ export class AiraPrivateSend {
     this.#licenseKey = options.licenseKey;
     this.#metaToken = options.metaToken;
     this.phoneNumberId = options.phoneNumberId;
-    this.baseUrl = checkBaseUrl(options.airaBaseUrl ?? "https://aira-ai-5tfr.onrender.com").replace(/\/+$/, "");
+    this.baseUrl = checkBaseUrl(options.anrilBaseUrl ?? "https://aira-ai-5tfr.onrender.com").replace(/\/+$/, "");
     this.graphVersion = graphVersion;
     this.fetchFn = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.clock = options.clock ?? (() => new Date());
-    this.storeSpec = options.store ?? "sqlite:./aira_private_send.db";
-    this.publicKey = loadPublicKeys(options.airaPublicKey);
+    this.storeSpec = options.store ?? "sqlite:./anril_private_send.db";
+    this.publicKey = loadPublicKeys(options.anrilPublicKey);
   }
 
   /** Never show the license key or Meta token. */
   toString(): string {
-    return `AiraPrivateSend(phoneNumberId=${this.phoneNumberId}, plugin=node/${VERSION})`;
+    return `AnrilPrivateSend(phoneNumberId=${this.phoneNumberId}, plugin=node/${VERSION})`;
   }
 
   toJSON(): { phoneNumberId: string; plugin: string } {
@@ -177,7 +177,7 @@ export class AiraPrivateSend {
   /**
    * POST cumulative counters for today and yesterday (counts only, never a phone or name).
    * Throttled to once per 15 minutes unless {force:true}. Returns rows reported (0 if throttled,
-   * nothing to report, or Aira unreachable/rate-limited; counters are cumulative so the next call catches up).
+   * nothing to report, or Anril unreachable/rate-limited; counters are cumulative so the next call catches up).
    * A 422 (e.g. unknown_template) is logged and skipped so a bad row never blocks reporting.
    */
   async reportUsage(options: { force?: boolean } = {}): Promise<number> {
@@ -266,7 +266,7 @@ export class AiraPrivateSend {
     try {
       resp = await this.fetchFn(this.baseUrl + USAGE_PATH, {
         method: "POST",
-        headers: { ...airaHeaders(this.#licenseKey), "Content-Type": "application/json" },
+        headers: { ...anrilHeaders(this.#licenseKey), "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
         signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
       });
@@ -277,7 +277,7 @@ export class AiraPrivateSend {
     if (resp.status === 200) return "ok";
     if (resp.status === 422) {
       // a bad row (e.g. unknown_template) must not wedge reporting forever: log the code only, move on
-      console.warn(`aira usage report rejected: ${await errorCodeOf(resp)}`);
+      console.warn(`anril usage report rejected: ${await errorCodeOf(resp)}`);
       return "rejected";
     }
     return "retry";

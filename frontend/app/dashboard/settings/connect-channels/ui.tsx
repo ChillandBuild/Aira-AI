@@ -101,8 +101,8 @@ export function ZephyrCourier({
       <div className={cn("relative h-44 w-44 sm:h-48 sm:w-48", className)}>
         <Image
           src={isEmbedded
-            ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
-            : "/aira/illustrations/aira-zephyr-manual-3d.png"}
+            ? "/anril/illustrations/anril-zephyr-embedded-3d.png"
+            : "/anril/illustrations/anril-zephyr-manual-3d.png"}
           alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
           fill
           sizes="220px"
@@ -117,8 +117,8 @@ export function ZephyrCourier({
     <div className={cn("relative h-48 w-full sm:h-64", className)}>
       <Image
         src={isEmbedded
-          ? "/aira/illustrations/aira-zephyr-embedded-3d.png"
-          : "/aira/illustrations/aira-zephyr-manual-3d.png"}
+          ? "/anril/illustrations/anril-zephyr-embedded-3d.png"
+          : "/anril/illustrations/anril-zephyr-manual-3d.png"}
         alt={isEmbedded ? "Zephyr courier delivering a message" : "Zephyr navigator planning a connection route"}
         fill
         sizes="(min-width: 1024px) 300px, 150px"

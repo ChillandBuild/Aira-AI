@@ -214,7 +214,7 @@ export class SqliteStore extends SqlStore {
     super();
   }
 
-  static async open(path = "aira_private_send.db"): Promise<SqliteStore> {
+  static async open(path = "anril_private_send.db"): Promise<SqliteStore> {
     const mod = (await import("better-sqlite3")) as unknown as { default: new (p: string) => SqliteDb };
     const isNewFile = path !== ":memory:" && path !== "" && !existsSync(path);
     const db = new mod.default(path);

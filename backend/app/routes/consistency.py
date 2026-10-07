@@ -1,4 +1,4 @@
-"""Where Aira's sources disagree with the Services page, and one-click fixes
+"""Where Anril's sources disagree with the Services page, and one-click fixes
 (services/consistency.py)."""
 from typing import Annotated
 

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.dependencies.tenant import get_tenant_id
 from app.routes import ai_tune
 
-HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+HANDOVER_HEADING = "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM"
 HOURS_HEADING = "BUSINESS HOURS AND CONTACT"
 
 

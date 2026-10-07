@@ -76,7 +76,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
                 action: {
                   label: "Chat",
                   onClick: () => {
-                    window.location.href = `/aira/dashboard/conversations?lead_id=${leadId}`;
+                    window.location.href = `/anril/dashboard/conversations?lead_id=${leadId}`;
                   }
                 }
               });

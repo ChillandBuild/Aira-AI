@@ -1,6 +1,6 @@
 """Private Send plug-in endpoints (license-key auth, no user session).
 
-The client's server runs the Aira plug-in: it pulls a signed rule bundle from here and
+The client's server runs the Anril plug-in: it pulls a signed rule bundle from here and
 reports send COUNTS back. No name or phone number ever reaches these routes: the usage
 body rejects unknown fields, so a phone can't be smuggled in. Contract: sdk/spec/CONTRACT.md.
 """
@@ -64,6 +64,11 @@ def _bearer(request: Request) -> str | None:
     return token.strip() if scheme.lower() == "bearer" and token.strip() else None
 
 
+def _plugin_version(request: Request) -> str | None:
+    """The plug-in's version header: X-Anril-Plugin, or X-Aira-Plugin from plug-ins already installed."""
+    return request.headers.get("x-anril-plugin") or request.headers.get("x-aira-plugin")
+
+
 def _error(e: svc.PrivateSendError) -> JSONResponse:
     return JSONResponse(status_code=e.status_code, content={"error": e.message, "code": e.code}, headers=_NO_STORE)
 
@@ -84,7 +89,7 @@ def get_bundle(request: Request):
         key = svc.find_key(db, _bearer(request))
         if not _bundle_limiter.allow(key["id"]):
             return _rate_limited()
-        svc.authorize_key(db, key, request.headers.get("x-aira-plugin"))
+        svc.authorize_key(db, key, _plugin_version(request))
         return JSONResponse(content=svc.signed_bundle(db, key["tenant_id"]), headers=_NO_STORE)
     except svc.PrivateSendError as e:
         return _error(e)
@@ -99,7 +104,7 @@ def post_usage(body: UsageIn, request: Request):
         key = svc.find_key(db, _bearer(request))
         if not _usage_limiter.allow(key["id"]):
             return _rate_limited()
-        svc.authorize_key(db, key, request.headers.get("x-aira-plugin"))
+        svc.authorize_key(db, key, _plugin_version(request))
         rows = [
             {
                 "day": r.day.isoformat(), "event": r.event, "template_id": str(r.template_id),

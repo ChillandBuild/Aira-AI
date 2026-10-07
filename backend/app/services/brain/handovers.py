@@ -16,8 +16,10 @@ KIND_PRIORITY = (KIND_ASKED_FOR_HUMAN, KIND_KNOWLEDGE_GAP, KIND_PAYMENT, KIND_OT
 
 _TRIGGERS = ai_reply._TRIGGER_REASONS
 _ASKED_FOR_HUMAN = {_TRIGGERS["C"]}
-# Aira told the customer it was checking with the team, or its answer failed or fell back.
-_KNOWLEDGE_GAP = {deal_turn.TEAM_CLAIM_REASON, _TRIGGERS["B"], _TRIGGERS["A"], _TRIGGERS["F"]}
+# Anril told the customer it was checking with the team, or its answer failed or fell back.
+# Handovers opened before the rename were saved with the old wording; they still count.
+_LEGACY_TEAM_CLAIM_REASON = "Aira told the customer it is checking with the team"
+_KNOWLEDGE_GAP = {deal_turn.TEAM_CLAIM_REASON, _LEGACY_TEAM_CLAIM_REASON, _TRIGGERS["B"], _TRIGGERS["A"], _TRIGGERS["F"]}
 _PAYMENT_PREFIX = "payment link could not be created"
 
 HANDOVER_LIMIT = 20

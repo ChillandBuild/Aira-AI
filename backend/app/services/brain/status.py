@@ -1,4 +1,4 @@
-"""'Aira can reply': auto-reply switch, WhatsApp/channel connection, quota.
+"""'Anril can reply': auto-reply switch, WhatsApp/channel connection, quota.
 
 Connection reuses services/webhook_health (the GET /settings/webhook-health logic) and is
 included only for callers with settings.view. A token problem is a token_invalid incident

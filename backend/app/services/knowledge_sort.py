@@ -42,7 +42,7 @@ _OTHER_FACTS_BUDGET_CHARS = 20_000
 _PREVIEW_CHARS = 600
 _LABELS = {"RULE", "FACT", "MIXED", "JUNK"}
 
-NO_MODEL_MESSAGE = "Aira couldn't sort this file because no AI model is set up for your account."
+NO_MODEL_MESSAGE = "Anril couldn't sort this file because no AI model is set up for your account."
 BLANK_NOTE = "You left this blank in your file. Fill it in, then upload the file again."
 
 
@@ -57,7 +57,7 @@ class KnowledgeError(Exception):
 
 
 class SortError(KnowledgeError):
-    message = "Aira couldn't sort this file. Try Re-sort."
+    message = "Anril couldn't sort this file. Try Re-sort."
 
 
 class NotFoundError(KnowledgeError):
@@ -73,7 +73,7 @@ class StaleError(KnowledgeError):
 class EmptyDescriptionError(KnowledgeError):
     status = 422
     message = (
-        "This would leave your Description empty, so Aira still wouldn't know who it is. "
+        "This would leave your Description empty, so Anril still wouldn't know who it is. "
         "Write a short Description first, or upload a file that describes your business."
     )
 
@@ -126,7 +126,7 @@ async def _llm_json(system: str, user: str, *, tenant_id: str, max_tokens: int) 
                 {"role": "assistant", "content": raw or ""},
                 {"role": "user", "content": "That was not valid JSON. Reply again with only the JSON object."},
             ]
-    raise SortError("Aira couldn't read the sorting result. Try Re-sort.")
+    raise SortError("Anril couldn't read the sorting result. Try Re-sort.")
 
 
 _LABEL_SYSTEM = """You sort a business's uploaded document for its WhatsApp sales assistant.
@@ -149,7 +149,7 @@ You get the CURRENT DESCRIPTION and NEW RULES taken from an uploaded document. P
 
 How to write it:
 - Keep every line of the current Description word for word, unless a new rule contradicts it.
-- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO, BUSINESS HOURS AND CONTACT, WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM. Headings already in the current Description stay as they are.
+- Merge the new rules in as short plain lines under UPPERCASE headings, in this order, using only the ones you need: ABOUT US, HOW CUSTOMERS BUY, WHO WE TALK TO, HOW TO SOUND, YOUR JOB IN EVERY CONVERSATION, WHAT YOU MUST NEVER DO, BUSINESS HOURS AND CONTACT, WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM. Headings already in the current Description stay as they are.
 - Section routing is strict:
   - HOW CUSTOMERS BUY is ONLY the steps to buy or book, where to do it, and AT MOST ONE line summarising price. Never a price list, package breakdown, FAQ or policy.
   - Conversation-flow rules -- when or how often to recommend something, what to do when the customer shares X, when to ask a follow-up question -- go under YOUR JOB IN EVERY CONVERSATION, never under HOW CUSTOMERS BUY.
@@ -157,7 +157,7 @@ How to write it:
 - Never include rules about WHICH LANGUAGE to reply in (that is a setting); keep style/phrases/spellings.
 - Contact and hours are never dropped. A line giving a phone number, WhatsApp number, email, address to visit or opening hours goes, word for word, under BUSINESS HOURS AND CONTACT (keep every number exactly).
 - Which situations need a person (a complaint, a refund, a custom order) is a rule: it goes under YOUR JOB IN EVERY CONVERSATION.
-- The ONE sentence the assistant should SAY to the customer when it brings the team in, in the business's own words, goes in "handover", not in the Description; "" if none is present in these rules. Keep WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM as it is when the current Description already has it.
+- The ONE sentence the assistant should SAY to the customer when it brings the team in, in the business's own words, goes in "handover", not in the Description; "" if none is present in these rules. Keep WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM as it is when the current Description already has it.
 - Drop generic good behaviour that every assistant already follows (no guarantees, no invented facts, be polite, keep it short, no pressure, honesty about being AI).
 - When one new rule says it overrides or replaces another, keep only the winning one.
 - Write each rule once. Drop example conversations unless one exact phrase must be used word for word.
@@ -285,7 +285,7 @@ def bucket_sections(sections: list[Section], labels: dict[str, Label]) -> Bucket
     for s in sections:
         lab = labels.get(s.id)
         if lab is None:
-            b.left_out.append({"text": s.text[:_PREVIEW_CHARS], "note": "Aira couldn't tell what this part is, so it was left out."})
+            b.left_out.append({"text": s.text[:_PREVIEW_CHARS], "note": "Anril couldn't tell what this part is, so it was left out."})
         elif lab.label == "FACT":
             b.facts.append(s.text)
         elif lab.label == "RULE":
@@ -297,7 +297,7 @@ def bucket_sections(sections: list[Section], labels: dict[str, Label]) -> Bucket
             for fact in lab.facts:
                 (b.facts if verify_fact(fact, s.text) else b.unverified).append(fact)
         else:
-            b.left_out.append({"text": s.text[:_PREVIEW_CHARS], "note": lab.note or "Not meant for Aira."})
+            b.left_out.append({"text": s.text[:_PREVIEW_CHARS], "note": lab.note or "Not meant for Anril."})
     return b
 
 
@@ -369,8 +369,8 @@ def strip_handover_lines(text: str, handover: str) -> tuple[str, str]:
     """Deterministic safety net, independent of what the model claimed. A line with a
     phone number next to a word like "call" or "contact", or with opening hours, is
     contact information: it is ROUTED to the BUSINESS HOURS AND CONTACT section, never
-    deleted. Lines already under that section or under WHAT AIRA SAYS WHEN IT BRINGS IN
-    YOUR TEAM stay where they are. If the model's own "handover" (the sentence Aira says
+    deleted. Lines already under that section or under WHAT ANRIL SAYS WHEN IT BRINGS IN
+    YOUR TEAM stay where they are. If the model's own "handover" (the sentence Anril says
     to the customer) came back empty, the first phone-and-call line is offered as the
     suggestion for the 8th section; the client decides whether to use it."""
     from app.services import business_profile as bp
@@ -412,7 +412,7 @@ def _source_handover_sentence(source: str) -> str:
 
 
 def verified_handover(handover: str, source: str) -> str:
-    """The suggested line for the client's WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM
+    """The suggested line for the client's WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM
     section must never carry a contact the file
     doesn't contain: live-tested, the model offered 9840012345 for a file whose number
     was 97890 33445. The file's own phone sentence wins when there is one (verbatim,
@@ -912,7 +912,7 @@ def apply_review(db, tenant_id: str, document_id: str, choices: ApplyChoices, *,
     _check_profile_word_limit(final)
     # An empty result is allowed (2026-09-20): a file that is all look-up facts gets
     # indexed even when nothing in it describes the business. The review screen warns
-    # that Aira has no identity yet; it no longer refuses. An empty Description is
+    # that Anril has no identity yet; it no longer refuses. An empty Description is
     # degraded, not broken -- _build_base_prompt() just omits the BUSINESS DESCRIPTION
     # block, so the developer-owned master prompt still governs the reply.
     changed = normalize_text(final) != normalize_text(base_text)
@@ -1022,7 +1022,7 @@ def update_facts(db, tenant_id: str, document_id: str, text: str, user_id: str |
     if not doc:
         raise NotFoundError("Document not found.")
     if not doc.get("sorted_at"):
-        raise SortError("Sort this file before editing what Aira looks up from it.")
+        raise SortError("Sort this file before editing what Anril looks up from it.")
     text = (text or "").strip()
     _write_facts(db, tenant_id, document_id, text, "edit", user_id)
     return {"facts": text, "campaign_tag_id": doc.get("campaign_tag_id")}
@@ -1111,7 +1111,7 @@ def restore_version(db, tenant_id: str, version_id: str, *, user_id: str | None,
 
     if v.get("kind") == "description":
         if not content.strip():
-            raise EmptyDescriptionError("That version is empty. Restoring it would leave Aira without a Description.")
+            raise EmptyDescriptionError("That version is empty. Restoring it would leave Anril without a Description.")
         latest = versions.current_description_version(db, tenant_id)
         base_text = latest.get("content") or ""
         if normalize_text(content) == normalize_text(base_text):

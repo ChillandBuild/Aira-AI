@@ -334,7 +334,7 @@ def test_new_sections_have_the_agreed_headings_and_limits():
     hours = _SECTION_BY_KEY["hours_contact"]
     handover = _SECTION_BY_KEY["handover"]
     assert (hours.heading, hours.word_limit) == ("BUSINESS HOURS AND CONTACT", 60)
-    assert (handover.heading, handover.word_limit) == ("WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM", 50)
+    assert (handover.heading, handover.word_limit) == ("WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM", 50)
 
 
 def test_section_limits_stay_inside_the_hard_cap():
@@ -361,8 +361,33 @@ def test_render_puts_the_new_sections_last_in_order_and_round_trips():
     }
     text = render(sections)
     assert text.index("ABOUT US") < text.index("BUSINESS HOURS AND CONTACT") < text.index(
-        "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM")
+        "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM")
     assert parse(text).sections == sections
+
+
+OLD_HANDOVER = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+NEW_HANDOVER = "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM"
+
+
+def test_a_description_with_the_old_aira_handover_heading_still_parses_the_same():
+    body = "ABOUT US\nWe sell sarees.\n\n{h}\nOur team will reply here shortly."
+    old, new = parse(body.format(h=OLD_HANDOVER)), parse(body.format(h=NEW_HANDOVER))
+    assert old == new
+    assert new.sections["handover"] == "Our team will reply here shortly."
+    assert new.other == ""
+
+
+def test_the_old_handover_heading_is_seen_even_when_empty():
+    from app.services.business_profile import heading_keys, section_key_for_heading
+    assert section_key_for_heading(OLD_HANDOVER) == "handover"
+    assert section_key_for_heading(OLD_HANDOVER.title()) == "handover"
+    assert heading_keys(f"ABOUT US\nx\n\n{OLD_HANDOVER}\n") == {"about", "handover"}
+    assert parse(f"ABOUT US\nx\n\n{OLD_HANDOVER}\n").sections["handover"] == ""
+
+
+def test_rendering_a_description_that_had_the_old_heading_writes_the_new_one():
+    text = render(parse(f"{OLD_HANDOVER}\nTeam will reply.").sections)
+    assert text == f"{NEW_HANDOVER}\nTeam will reply."
 
 
 def test_validate_accepts_the_new_keys():
@@ -384,7 +409,7 @@ def test_heading_keys_reports_a_present_but_empty_heading():
 
 # ─── get_handover_line: one reader for the handover wording ────────────────────
 
-HANDOVER_HEADING = "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM"
+HANDOVER_HEADING = "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM"
 
 
 def _settings(values: dict):
@@ -460,7 +485,8 @@ async def test_propose_conversion_prompt_describes_all_8_sections_and_routes_han
     system_prompt = mock_llm.call_args.args[0]
     assert "8 sections" in system_prompt
     assert "BUSINESS HOURS AND CONTACT" in system_prompt
-    assert "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM" in system_prompt
+    assert "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM" in system_prompt
+    assert "WHAT AIRA SAYS" not in system_prompt
     assert "suggested_handover" not in system_prompt
 
 

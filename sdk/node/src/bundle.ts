@@ -7,7 +7,7 @@
  */
 import { createPublicKey, verify, type KeyObject } from "node:crypto";
 import { BundleUnavailable, LicenseError, QuotaExceeded } from "./errors.js";
-import { LICENSE_STATUSES, airaHeaders, licenseErrorFor, type Clock, type FetchFn } from "./http.js";
+import { LICENSE_STATUSES, anrilHeaders, licenseErrorFor, type Clock, type FetchFn } from "./http.js";
 import type { Store } from "./store.js";
 
 export const REFRESH_AFTER_MS = 5 * 60 * 1000;
@@ -57,18 +57,18 @@ export interface Bundle {
   readonly fetchedAt: Date;
 }
 
-export function loadPublicKey(airaPublicKey: string): KeyObject {
-  const raw = typeof airaPublicKey === "string" ? Buffer.from(airaPublicKey, "base64") : Buffer.alloc(0);
+export function loadPublicKey(anrilPublicKey: string): KeyObject {
+  const raw = typeof anrilPublicKey === "string" ? Buffer.from(anrilPublicKey, "base64") : Buffer.alloc(0);
   if (raw.length !== ED25519_RAW_LENGTH) {
-    throw new TypeError("airaPublicKey must be the base64 of a 32-byte Ed25519 public key");
+    throw new TypeError("anrilPublicKey must be the base64 of a 32-byte Ed25519 public key");
   }
   return createPublicKey({ key: Buffer.concat([ED25519_SPKI_PREFIX, raw]), format: "der", type: "spki" });
 }
 
 /** One base64 key or a list of them (key rotation). A bundle is valid if any key verifies it. */
-export function loadPublicKeys(airaPublicKey: string | readonly string[]): KeyObject[] {
-  const specs = typeof airaPublicKey === "string" ? [airaPublicKey] : [...airaPublicKey];
-  if (!specs.length) throw new TypeError("airaPublicKey must contain at least one key");
+export function loadPublicKeys(anrilPublicKey: string | readonly string[]): KeyObject[] {
+  const specs = typeof anrilPublicKey === "string" ? [anrilPublicKey] : [...anrilPublicKey];
+  if (!specs.length) throw new TypeError("anrilPublicKey must contain at least one key");
   return specs.map(loadPublicKey);
 }
 
@@ -153,7 +153,7 @@ export class BundleManager {
     const fresh = await this.refresh(now);
     if (fresh) return fresh;
     if (cached && now.getTime() - cached.fetchedAt.getTime() <= graceMs(cached)) return cached;
-    throw new BundleUnavailable("Aira is unreachable and no verified rules bundle is within its offline grace");
+    throw new BundleUnavailable("Anril is unreachable and no verified rules bundle is within its offline grace");
   }
 
   async drop(): Promise<void> {
@@ -164,7 +164,7 @@ export class BundleManager {
   private async refresh(now: Date): Promise<Bundle | null> {
     let resp: Response;
     try {
-      resp = await this.fetchFn(this.baseUrl.replace(/\/+$/, "") + BUNDLE_PATH, { headers: airaHeaders(this.licenseKey) });
+      resp = await this.fetchFn(this.baseUrl.replace(/\/+$/, "") + BUNDLE_PATH, { headers: anrilHeaders(this.licenseKey) });
     } catch {
       return null;
     }
@@ -208,7 +208,7 @@ export class BundleManager {
       return;
     }
     if (tenant !== pinned) {
-      console.warn("aira bundle rejected: tenant_id does not match the pinned tenant");
+      console.warn("anril bundle rejected: tenant_id does not match the pinned tenant");
       throw new LicenseError("tenant_mismatch", "signed bundle is for a different tenant than this store is pinned to");
     }
   }

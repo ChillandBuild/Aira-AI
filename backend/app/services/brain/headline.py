@@ -1,4 +1,4 @@
-"""'This week: Aira handled 71 of 84 chats.' A per-chat aggregation over the last 7 days
+"""'This week: Anril handled 71 of 84 chats.' A per-chat aggregation over the last 7 days
 in Asia/Kolkata (no per-chat counter exists; the existing ones are per message).
 
 Definitions (blueprint section 7):
@@ -12,7 +12,7 @@ reply_source 'ai' or 'knowledge' (ai_reply.py:1933-1934, 2139-2140). A human rep
 is_ai_generated=false with no reply_source (routes/leads.py:915-923). is_ai_generated
 alone is NOT enough: the canned reply after an LLM exception is is_ai_generated=false with
 reply_source='ai' (ai_reply.py:2005-2007), and follow-ups (routes/follow_ups.py:105-112)
-are is_ai_generated=true with no reply_source. So a reply counts as Aira's answer only when
+are is_ai_generated=true with no reply_source. So a reply counts as Anril's answer only when
 both hold: is_ai_generated true AND reply_source in ('ai', 'knowledge')."""
 import time
 from datetime import datetime, timedelta

@@ -39,7 +39,7 @@ def test_buckets_route_each_label():
     assert b.facts == ["fact text 29", "charges start from 29 rupees."]
     assert b.rules == ["rule text", "Always mention our tagline first.\n\nApproved reply:"]
     assert b.unverified == ["charges start from 49 rupees"]
-    assert [x["note"] for x in b.left_out] == ["pasted AI chat", "Aira couldn't tell what this part is, so it was left out."]
+    assert [x["note"] for x in b.left_out] == ["pasted AI chat", "Anril couldn't tell what this part is, so it was left out."]
 
 
 def test_mixed_rules_text_removes_copied_facts_and_collapses_blanks():
@@ -320,7 +320,8 @@ def test_strip_handover_lines_on_text_with_nothing_to_route_is_unchanged():
 def test_compile_prompt_routes_contact_lines_instead_of_banning_them():
     assert "BUSINESS HOURS AND CONTACT" in ks._COMPILE_SYSTEM
     assert "must NEVER appear in the Description" not in ks._COMPILE_SYSTEM
-    assert "WHAT AIRA SAYS WHEN IT BRINGS IN YOUR TEAM" in ks._COMPILE_SYSTEM
+    assert "WHAT ANRIL SAYS WHEN IT BRINGS IN YOUR TEAM" in ks._COMPILE_SYSTEM
+    assert "WHAT AIRA SAYS" not in ks._COMPILE_SYSTEM
     assert '"handover"' in ks._COMPILE_SYSTEM  # the say-sentence still comes back in this key
 
 

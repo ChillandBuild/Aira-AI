@@ -1,7 +1,7 @@
 """Line-level helpers for the Description review screen (spec §5, §6).
 
 The Description is plain text the client edits freely. These pure functions diff the
-current text against Aira's proposal, apply only the hunks the client ticked, and make
+current text against Anril's proposal, apply only the hunks the client ticked, and make
 targeted single-line changes. Lines are compared whitespace-normalised so a stray
 double space never shows up as a change, while equal lines always keep the client's
 exact original text.

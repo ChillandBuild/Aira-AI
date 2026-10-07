@@ -1,4 +1,4 @@
-"""IndiaMART / JustDial enquiries -> Aira leads.
+"""IndiaMART / JustDial enquiries -> Anril leads.
 
 A marketplace buyer usually sends the same enquiry to 5-10 sellers at once and
 the first to reply tends to win, so a new enquiry must (1) land as a lead with

@@ -123,7 +123,7 @@ async def list_documents(tenant_id: str = Depends(get_tenant_id)):
 
 @router.get("/readiness")
 async def get_readiness(tenant_id: str = Depends(get_tenant_id)):
-    """Which of the 8 Business Kit headings Aira already has. Only live (indexed)
+    """Which of the 8 Business Kit headings Anril already has. Only live (indexed)
     documents count, since a file waiting for review isn't answering leads yet. Served
     here rather than under /ai-tune (owner-only) so a manager sees the real state."""
     db = get_supabase()

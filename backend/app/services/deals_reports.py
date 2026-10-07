@@ -3,7 +3,7 @@ register a client hands to their auditor. Months are Asia/Kolkata calendar
 months -- a sale at 00:30 IST on the 1st belongs to that month, not the last.
 
 The register is the CLIENT's document: its header is their business profile
-(services/business_details.py), never Aira's name."""
+(services/business_details.py), never Anril's name."""
 import csv
 import io
 import re

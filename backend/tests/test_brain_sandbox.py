@@ -228,7 +228,7 @@ def test_kill_switch_off_returns_503_and_calls_no_model(model, monkeypatch):
     res = _client_as(["knowledge.manage"]).post(CLIENT_URL, json=BODY)
 
     assert res.status_code == 503
-    assert res.json()["detail"] == "Test Aira is switched off"
+    assert res.json()["detail"] == "Test Anril is switched off"
     model.assert_not_called()
 
 
@@ -278,7 +278,7 @@ def test_missing_reply_model_returns_409(guard_db, monkeypatch):
     res = _client_as(["knowledge.manage"]).post(CLIENT_URL, json=BODY)
 
     assert res.status_code == 409
-    assert res.json()["detail"] == "Aira's reply model isn't set up for this business"
+    assert res.json()["detail"] == "Anril's reply model isn't set up for this business"
     chat.assert_not_called()
 
 

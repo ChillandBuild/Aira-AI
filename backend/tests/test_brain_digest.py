@@ -73,6 +73,7 @@ def test_notifies_owners_only_not_callers_or_admins():
     assert [c.args[1] for c in calls] == ["owner1", "owner2"]
     assert all(c.args[0] == "t1" and c.args[2] == "brain_digest" for c in calls)
     assert all(c.kwargs["push_url"] == "/dashboard/brain" for c in calls)
+    assert all(c.args[3] == "Anril Brain weekly digest" for c in calls)
 
 
 def test_one_tenant_exception_does_not_stop_the_others(caplog):
@@ -94,22 +95,22 @@ def test_one_tenant_exception_does_not_stop_the_others(caplog):
 
 
 def test_message_with_zero_questions():
-    assert bd.build_digest_message(3, []) == "Aira Brain: 3 things need you."
+    assert bd.build_digest_message(3, []) == "Anril Brain: 3 things need you."
 
 
 def test_message_with_one_question_and_singular_count():
     msg = bd.build_digest_message(1, ["Do you deliver to Madurai?"])
-    assert msg == "Aira Brain: 1 thing needs you. Top question Aira couldn't answer: 'Do you deliver to Madurai?'"
+    assert msg == "Anril Brain: 1 thing needs you. Top question Anril couldn't answer: 'Do you deliver to Madurai?'"
 
 
 def test_message_with_three_questions():
     msg = bd.build_digest_message(3, ["a?", "b?", "c?"])
-    assert msg == "Aira Brain: 3 things need you. Top questions Aira couldn't answer: 'a?'; 'b?'; 'c?'"
+    assert msg == "Anril Brain: 3 things need you. Top questions Anril couldn't answer: 'a?'; 'b?'; 'c?'"
 
 
 def test_message_when_only_gaps_and_nothing_waiting():
     msg = bd.build_digest_message(0, ["a?"])
-    assert msg.startswith("Aira Brain: nothing is waiting on you.") and "'a?'" in msg
+    assert msg.startswith("Anril Brain: nothing is waiting on you.") and "'a?'" in msg
 
 
 def test_message_none_when_nothing_to_say():

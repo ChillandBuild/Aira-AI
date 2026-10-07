@@ -90,7 +90,7 @@ def create_subscription_request(payload: SubmitRequestPayload, ctx: dict = Depen
     if not payload.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
     if any(item.feature_key in OPERATOR_ONLY_FEATURES for item in payload.items):
-        raise HTTPException(status_code=400, detail="This feature is set up by your Aira contact")
+        raise HTTPException(status_code=400, detail="This feature is set up by your Anril contact")
 
     db = get_supabase()
     result = submit_request(

@@ -1,7 +1,7 @@
 {
-  "name": "aira-private-send",
+  "name": "anril-private-send",
   "version": "1.0.0",
-  "description": "Aira Private Send plug-in: send WhatsApp automation messages from your own server without sharing customer data with Aira.",
+  "description": "Anril Private Send plug-in: send WhatsApp automation messages from your own server without sharing customer data with Anril.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.cjs",

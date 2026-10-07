@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-logger = logging.getLogger("aira_private_send")
+logger = logging.getLogger("anril_private_send")
 GRAPH_BASE = "https://graph.facebook.com"
 META_TIMEOUT_SECONDS = 15.0
 
