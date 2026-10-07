@@ -147,7 +147,7 @@ export function DashboardClient({ fallbackOverview }: { fallbackOverview: Analyt
           <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Sparkles size={24} />
           </div>
-          <h1 className="font-display text-3xl font-bold text-ink mb-2">Welcome to Aira AI</h1>
+          <h1 className="font-display text-3xl font-bold text-ink mb-2">Welcome to Anril AI</h1>
           <p className="text-sm text-ink-muted leading-relaxed max-w-2xl">
             You have successfully set up your workspace credentials! To begin engaging leads with intelligent telecalling campaigns, custom WhatsApp automation, and live chat, please configure your subscription.
           </p>

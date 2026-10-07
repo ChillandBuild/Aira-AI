@@ -3,29 +3,29 @@ import { LegalPageShell, LegalSection, LegalList } from "@/components/legal/Lega
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Bloom Matrix collects, uses, stores, and protects information when businesses access or use AIRA.",
+  description: "How Bloom Matrix collects, uses, stores, and protects information when businesses access or use Anril.",
 };
 
 export default function PrivacyPolicyPage() {
   return (
-    <LegalPageShell title="Privacy Policy" subtitle="AIRA — a Bloom Matrix product" effectiveDate="14 June 2026">
+    <LegalPageShell title="Privacy Policy" subtitle="Anril — a Bloom Matrix product" effectiveDate="14 June 2026">
       <p className="text-sm leading-relaxed text-ink-secondary mb-6">
-        Welcome to AIRA (&ldquo;AIRA&rdquo;), a cloud-based, multi-tenant Software-as-a-Service (SaaS) platform operated by
-        Bloom Matrix. AIRA enables businesses to manage customer communications, AI-powered workflows, lead management,
+        Welcome to Anril (&ldquo;Anril&rdquo;), a cloud-based, multi-tenant Software-as-a-Service (SaaS) platform operated by
+        Bloom Matrix. Anril enables businesses to manage customer communications, AI-powered workflows, lead management,
         telecalling, analytics, and integrations with supported third-party communication platforms, including the
         WhatsApp Business Platform, Facebook Messenger, Instagram, and Telegram.
       </p>
       <p className="text-sm leading-relaxed text-ink-secondary mb-6">
         This Privacy Policy explains how Bloom Matrix collects, uses, stores, processes, discloses, and protects
-        information when businesses access or use AIRA and its related services.
+        information when businesses access or use Anril and its related services.
       </p>
       <p className="text-sm leading-relaxed text-ink-secondary mb-10">
-        By accessing, registering for, or using AIRA, you acknowledge that you have read, understood, and agreed to the
+        By accessing, registering for, or using Anril, you acknowledge that you have read, understood, and agreed to the
         practices described in this Privacy Policy.
       </p>
 
       <LegalSection title="1. Company Information">
-        <p>AIRA is operated by:</p>
+        <p>Anril is operated by:</p>
         <LegalList
           items={[
             "Bloom Matrix",
@@ -41,7 +41,7 @@ export default function PrivacyPolicyPage() {
         <p>This Privacy Policy applies to:</p>
         <LegalList
           items={[
-            "AIRA platform users",
+            "Anril platform users",
             "Business customers",
             "Customer relationship management activities",
             "Messaging and communication services",
@@ -50,12 +50,12 @@ export default function PrivacyPolicyPage() {
             "Integrated third-party communication channels",
           ]}
         />
-        <p>AIRA is intended exclusively for business use and is not designed for individuals under the age of 18.</p>
+        <p>Anril is intended exclusively for business use and is not designed for individuals under the age of 18.</p>
       </LegalSection>
 
       <LegalSection title="3. Connected Third-Party Business Accounts">
         <p>
-          AIRA enables businesses to connect third-party communication services, including the WhatsApp Business
+          Anril enables businesses to connect third-party communication services, including the WhatsApp Business
           Platform, through Meta&rsquo;s Embedded Signup and other authorized integration mechanisms. Customers remain
           the owners of their respective Meta Business Accounts, WhatsApp Business Accounts, phone numbers, and
           related business assets. Bloom Matrix processes information associated with such connected accounts solely
@@ -174,7 +174,7 @@ export default function PrivacyPolicyPage() {
             ]}
           />
           <p className="mt-1.5">
-            Payment transactions may be processed through third-party payment service providers. AIRA does not store
+            Payment transactions may be processed through third-party payment service providers. Anril does not store
             complete payment card information and relies on authorized payment providers for payment processing.
           </p>
         </div>
@@ -225,11 +225,11 @@ export default function PrivacyPolicyPage() {
         <p>
           We use data obtained through the WhatsApp Business Platform, Facebook Messenger, Instagram, and other
           connected platforms solely to provide and support the messaging and related services that customers request
-          through AIRA.
+          through Anril.
         </p>
         <p>
           Consistent with the WhatsApp Business Policy and the policies of other connected platforms, we do not use
-          data about a person a customer messages through AIRA — other than as reasonably necessary to support that
+          data about a person a customer messages through Anril — other than as reasonably necessary to support that
           messaging — for any other purpose. We do not sell such data, and we do not use it for advertising or
           unrelated purposes. All processing of such data is consistent with the Meta Platform Terms, the WhatsApp
           Business Solution Terms, the WhatsApp Business Policy, and the policies of the relevant platforms.
@@ -237,7 +237,7 @@ export default function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="7. Artificial Intelligence Processing">
-        <p>AIRA uses artificial intelligence technologies to assist businesses with:</p>
+        <p>Anril uses artificial intelligence technologies to assist businesses with:</p>
         <LegalList
           items={[
             "Automated responses",
@@ -260,7 +260,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="8. Third-Party Services and Integrations">
         <p>
-          AIRA may access customer-authorized third-party accounts only after customers grant the necessary
+          Anril may access customer-authorized third-party accounts only after customers grant the necessary
           permissions through supported authorization mechanisms. Customers may revoke such authorization at any time
           through the applicable third-party platform. These services include, but are not limited to:
         </p>
@@ -289,18 +289,18 @@ export default function PrivacyPolicyPage() {
           ]}
         />
         <p>
-          AIRA does not independently verify whether uploaded contacts have consented to receive communications.
+          Anril does not independently verify whether uploaded contacts have consented to receive communications.
           Customers are responsible for ensuring that all communications, campaigns, calls, messages, and customer
-          interactions conducted through AIRA comply with applicable laws, regulations, industry requirements, and
+          interactions conducted through Anril comply with applicable laws, regulations, industry requirements, and
           third-party platform policies, including but not limited to WhatsApp Business Platform policies, Meta
           policies, telephony provider requirements, and messaging service provider rules.
         </p>
         <p>
-          Customers acknowledge that AIRA acts solely as a technology platform and does not determine, monitor,
+          Customers acknowledge that Anril acts solely as a technology platform and does not determine, monitor,
           validate, or guarantee the legality, accuracy, appropriateness, or compliance of customer-provided data,
           contact lists, communications, or business activities. Delivery of messages, calls, and notifications may
           depend on third-party service providers, network availability, recipient availability, and platform
-          restrictions, and AIRA does not guarantee message delivery, response rates, engagement, conversion rates, or
+          restrictions, and Anril does not guarantee message delivery, response rates, engagement, conversion rates, or
           communication outcomes.
         </p>
       </LegalSection>
@@ -356,7 +356,7 @@ export default function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="14. Data Deletion and How to Request It">
-        <p>You may request deletion of your personal data at any time. This right is available to all users who can access AIRA.</p>
+        <p>You may request deletion of your personal data at any time. This right is available to all users who can access Anril.</p>
         <p>
           To request deletion, email <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a> with
           the subject line &ldquo;Data Deletion Request,&rdquo; together with enough information for us to identify the
@@ -366,7 +366,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           For data associated with connected Meta, WhatsApp Business, Facebook, Instagram, or Telegram accounts, you
-          may also revoke AIRA&rsquo;s access at any time through the applicable third-party platform&rsquo;s
+          may also revoke Anril&rsquo;s access at any time through the applicable third-party platform&rsquo;s
           settings. Certain data controlled directly by those platforms can only be deleted through the platform
           itself.
         </p>
@@ -393,7 +393,7 @@ export default function PrivacyPolicyPage() {
         </p>
         <p>
           We regularly review and update our security practices to help protect the confidentiality, integrity, and
-          availability of information processed through AIRA. However, no system, network, or method of electronic
+          availability of information processed through Anril. However, no system, network, or method of electronic
           transmission or storage can guarantee absolute security, and Bloom Matrix cannot guarantee that information
           will be completely secure against all risks or unauthorized access.
         </p>
@@ -401,7 +401,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="16. International Data Transfers">
         <p>
-          AIRA primarily operates from India. Certain service providers, cloud infrastructure providers, communication
+          Anril primarily operates from India. Certain service providers, cloud infrastructure providers, communication
           providers, artificial intelligence providers, and technology partners may process, store, or access
           information outside India. Where personal data is transferred outside India, Bloom Matrix will take
           reasonable measures designed to protect such information in accordance with applicable laws, industry
@@ -440,7 +440,7 @@ export default function PrivacyPolicyPage() {
 
       <LegalSection title="18. Children's Privacy">
         <p>
-          AIRA is intended exclusively for business users and is not directed toward individuals under the age of 18.
+          Anril is intended exclusively for business users and is not directed toward individuals under the age of 18.
           We do not knowingly collect information from children. If we become aware that we have collected
           information from a child, we will delete it.
         </p>
@@ -449,7 +449,7 @@ export default function PrivacyPolicyPage() {
       <LegalSection title="19. Changes to this Privacy Policy">
         <p>
           We may update this Privacy Policy from time to time. Updated versions become effective upon publication.
-          Continued use of AIRA following publication of an updated Privacy Policy constitutes acceptance of the
+          Continued use of Anril following publication of an updated Privacy Policy constitutes acceptance of the
           revised version.
         </p>
       </LegalSection>
@@ -468,7 +468,7 @@ export default function PrivacyPolicyPage() {
       </LegalSection>
 
       <LegalSection title="21. Acceptance">
-        <p>By accessing or using AIRA, users acknowledge that they have read, understood, and agreed to this Privacy Policy.</p>
+        <p>By accessing or using Anril, users acknowledge that they have read, understood, and agreed to this Privacy Policy.</p>
       </LegalSection>
     </LegalPageShell>
   );

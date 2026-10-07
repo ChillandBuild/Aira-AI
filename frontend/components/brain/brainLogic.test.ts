@@ -189,13 +189,13 @@ const BASE_HEADLINE: BrainHeadline = {
 describe("headlineSentence", () => {
   it("matches the blueprint example", () => {
     expect(headlineSentence(BASE_HEADLINE)).toBe(
-      "This week: Aira handled 71 of 84 chats. 6 reached a human: 5 asked for a person, 1 was a gap in what Aira knows.",
+      "This week: Anril handled 71 of 84 chats. 6 reached a human: 5 asked for a person, 1 was a gap in what Anril knows.",
     );
   });
 
   it("pluralises gaps", () => {
     const text = headlineSentence({ ...BASE_HEADLINE, handed_over: 5, asked_for_human: 3, knowledge_gaps: 2 });
-    expect(text).toContain("3 asked for a person, 2 were gaps in what Aira knows.");
+    expect(text).toContain("3 asked for a person, 2 were gaps in what Anril knows.");
   });
 
   it("accounts for payment and other handovers", () => {
@@ -211,7 +211,7 @@ describe("headlineSentence", () => {
 
   it("handles no handovers", () => {
     const text = headlineSentence({ ...BASE_HEADLINE, handed_over: 0, asked_for_human: 0, knowledge_gaps: 0 });
-    expect(text).toBe("This week: Aira handled 71 of 84 chats. Nobody needed a human.");
+    expect(text).toBe("This week: Anril handled 71 of 84 chats. Nobody needed a human.");
   });
 
   it("names a non-weekly window", () => {

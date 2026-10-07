@@ -160,7 +160,7 @@ export default function ServicesPage() {
             </span>
           </div>
           <p className="font-body text-sm leading-relaxed text-ink-secondary">
-            Aira offers your packages as buttons, answers questions in between, collects the details
+            Anril offers your packages as buttons, answers questions in between, collects the details
             below in any order, and sends the Razorpay link once every detail is in. Prices come only
             from this page.
           </p>
@@ -171,14 +171,14 @@ export default function ServicesPage() {
             on={draft.enabled}
             disabled={!canManageSettings}
             onChange={(v) => setDraft({ ...draft, enabled: v })}
-            aria-label="Let Aira sell these in chat"
+            aria-label="Let Anril sell these in chat"
           />
         </div>
       </section>
 
       <Row
         title="Packages"
-        help="What Aira offers, at exactly these prices. Group options under one package (Long Term: 1 Year, 2 Year) and add optional add-ons to any package."
+        help="What Anril offers, at exactly these prices. Group options under one package (Long Term: 1 Year, 2 Year) and add optional add-ons to any package."
       >
         <PackageEditor
           packages={draft.packages}
@@ -218,7 +218,7 @@ export default function ServicesPage() {
       >
         {draft.fields.length === 0 ? (
           <p className="font-body text-sm text-ink-muted">
-            None. Aira sends the payment link as soon as the customer picks a package.
+            None. Anril sends the payment link as soon as the customer picks a package.
           </p>
         ) : (
           <ol className="divide-y divide-surface-mid rounded-xl ring-1 ring-surface-mid">
@@ -272,7 +272,7 @@ export default function ServicesPage() {
                       disabled={!canManageSettings}
                       className="w-full rounded-lg border border-transparent bg-surface-low px-3 py-1.5 font-body text-sm text-ink focus:border-primary/40 focus:bg-white focus:outline-none"
                     />
-                    <p className="mt-1 font-body text-[11px] text-ink-muted">Aira shows these as buttons when it asks.</p>
+                    <p className="mt-1 font-body text-[11px] text-ink-muted">Anril shows these as buttons when it asks.</p>
                   </div>
                 )}
               </li>
@@ -283,7 +283,7 @@ export default function ServicesPage() {
 
       <Row
         title="What you call it"
-        help="The word Aira and the payment receipt use for what you sell: consultation, reading, session, class."
+        help="The word Anril and the payment receipt use for what you sell: consultation, reading, session, class."
       >
         <input
           type="text"

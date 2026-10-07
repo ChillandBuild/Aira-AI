@@ -52,7 +52,7 @@ function Verdict({ saw }: { saw: WhatAiraSaw }) {
         ))}
       </ul>
       {blockingGates(saw.gates).length === 0 && notices.length > 0 && (
-        <p className="text-xs text-ink-secondary">Amber gates change how Aira replies but do not stop it.</p>
+        <p className="text-xs text-ink-secondary">Amber gates change how Anril replies but do not stop it.</p>
       )}
     </div>
   );
@@ -65,7 +65,7 @@ function Messages({ saw }: { saw: WhatAiraSaw }) {
       {saw.recent_messages.map((m, i) => (
         <li key={`${m.at}-${i}`} className="rounded-lg bg-surface-mid/60 px-3 py-2">
           <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-secondary">
-            {m.direction === "inbound" ? "Lead" : m.is_ai ? "Aira" : "Person"} · {relTime(m.at)}
+            {m.direction === "inbound" ? "Lead" : m.is_ai ? "Anril" : "Person"} · {relTime(m.at)}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap break-words">{m.text || "—"}</p>
         </li>
@@ -141,7 +141,7 @@ function Knowledge({ saw, loading, onLoad }: { saw: WhatAiraSaw; loading: boolea
 function Body({ saw, loading, onLoadKnowledge }: { saw: WhatAiraSaw; loading: boolean; onLoadKnowledge: () => void }) {
   return (
     <div className="space-y-3">
-      <Section title="Would Aira reply?" defaultOpen><Verdict saw={saw} /></Section>
+      <Section title="Would Anril reply?" defaultOpen><Verdict saw={saw} /></Section>
       <Section title="Message it answers">
         <p className="whitespace-pre-wrap break-words">{saw.message_used.text || "—"}</p>
         {saw.message_used.note && <p className="mt-1 text-xs text-ink-secondary">{saw.message_used.note}</p>}
@@ -173,7 +173,7 @@ export function WhatAiraSawDrawer({ tenantId, leadId, leadName, onClose }: Drawe
     try {
       const path = `/api/v1/operator/clients/${tenantId}/leads/${leadId}/what-aira-saw${retrieval ? "?retrieval=true" : ""}`;
       const body: unknown = await operatorFetch<unknown>(path);
-      if (!isWhatAiraSaw(body)) throw new Error("Aira sent an unexpected response.");
+      if (!isWhatAiraSaw(body)) throw new Error("Anril sent an unexpected response.");
       setSaw(body);
       setError(null);
     } catch (e) {
@@ -196,13 +196,13 @@ export function WhatAiraSawDrawer({ tenantId, leadId, leadName, onClose }: Drawe
       <aside
         role="dialog"
         aria-modal="true"
-        aria-label="What Aira saw"
+        aria-label="What Anril saw"
         className="flex h-full w-full max-w-2xl flex-col overflow-hidden bg-surface shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-start justify-between gap-4 border-b border-border px-4 py-3 sm:px-5">
           <div className="min-w-0">
-            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">What Aira saw</p>
+            <p className="font-label text-[11px] font-bold uppercase tracking-wider text-primary">What Anril saw</p>
             <h2 className="truncate font-display text-lg font-bold text-ink">{leadName || "Unknown lead"}</h2>
             {saw && <p className="font-body text-xs text-ink-secondary">Generated {relTime(saw.generated_at)}</p>}
           </div>

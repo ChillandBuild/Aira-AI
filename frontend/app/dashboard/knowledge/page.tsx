@@ -79,7 +79,7 @@ const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; ti
   unsorted: {
     label: "Not sorted",
     className: "bg-slate-50 text-slate-600 border-slate-200",
-    title: "Uploaded before auto-sort. Aira reads the whole file, rules included. Sort it to split out the rules.",
+    title: "Uploaded before auto-sort. Anril reads the whole file, rules included. Sort it to split out the rules.",
   },
   sort_failed: { label: "Sort failed", className: "bg-red-50 text-red-700 border-red-200" },
   failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
@@ -91,7 +91,7 @@ const DOC_STATUS_STYLE: Record<DocStatus, { label: string; className: string; ti
 // not just a status flavor.
 const NOT_SEARCHABLE_TITLE: Record<"no_jina_key" | "not_indexed", string> = {
   no_jina_key:
-    "Aira can't search this file because no Jina key is set for this account. Ask your Aira operator to add one. Until then, Aira reads the whole file on every reply, which stops working well once your files get long.",
+    "Anril can't search this file because no Jina key is set for this account. Ask your Anril operator to add one. Until then, Anril reads the whole file on every reply, which stops working well once your files get long.",
   not_indexed: "This file hasn't been prepared for search yet. Try Re-sort.",
 };
 
@@ -585,7 +585,7 @@ export default function KnowledgePage() {
     setUploadError(null);
     try {
       await api.knowledge.uploadDocument(file, selectedCampaignTag || null, target);
-      toast.success(`"${file.name}" uploaded. Aira is sorting it — you'll review the result before anything changes.`);
+      toast.success(`"${file.name}" uploaded. Anril is sorting it — you'll review the result before anything changes.`);
       setReplaceTarget("");
       await loadDocuments();
     } catch (e) {
@@ -781,7 +781,7 @@ export default function KnowledgePage() {
           {renderSortAction(doc)}
           <button
             onClick={() => openDocument(doc.id)}
-            title="What Aira looks up from this file"
+            title="What Anril looks up from this file"
             className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
           >
             <Eye size={16} />
@@ -814,7 +814,7 @@ export default function KnowledgePage() {
       const res = await api.knowledge.updateFacts(viewingDoc.id, factsDraft);
       setViewingDoc({ ...viewingDoc, full_text: res.full_text });
       setFactsEditing(false);
-      toast.success("Saved. Aira will look up the updated facts.");
+      toast.success("Saved. Anril will look up the updated facts.");
     } catch (e) {
       toast.error(e instanceof Error && e.message ? e.message : "Could not save your changes.");
     } finally {
@@ -998,7 +998,7 @@ export default function KnowledgePage() {
                   Add Knowledge Document
                 </h2>
                 <p className="font-body text-xs text-on-surface-muted mt-0.5">
-                  Upload anything you have — rulebooks, price lists, FAQs. Aira sorts each file into rules for your Description and facts to look up, and you review it before anything changes.
+                  Upload anything you have — rulebooks, price lists, FAQs. Anril sorts each file into rules for your Description and facts to look up, and you review it before anything changes.
                 </p>
               </div>
 
@@ -1072,7 +1072,7 @@ export default function KnowledgePage() {
                       No lead scoring rubric yet
                     </p>
                     <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed max-w-2xl">
-                      The rubric tells Aira how to classify leads as Hot, Warm, or Cold. It&rsquo;s written for you from
+                      The rubric tells Anril how to classify leads as Hot, Warm, or Cold. It&rsquo;s written for you from
                       your Description the first time you save one, or you can write your own. It
                       doesn&rsquo;t hold up uploads &mdash; nothing here does.
                     </p>
@@ -1372,7 +1372,7 @@ export default function KnowledgePage() {
                         on the same empty screen read as two different upload routes.
                         The copy points up at it instead. */}
                     <p className="font-body text-xs text-on-surface-muted mt-1 max-w-sm mx-auto">
-                      Upload rulebooks, FAQs, price lists or brochures using the box above. Aira sorts each one and shows you the result before anything changes.
+                      Upload rulebooks, FAQs, price lists or brochures using the box above. Anril sorts each one and shows you the result before anything changes.
                     </p>
                   </>
                 ) : (
@@ -1485,7 +1485,7 @@ export default function KnowledgePage() {
                           {renderSortAction(doc)}
                           <button
                             onClick={() => openDocument(doc.id)}
-                            title="What Aira looks up from this file"
+                            title="What Anril looks up from this file"
                             className="p-1.5 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                           >
                             <Eye size={16} />
@@ -1625,7 +1625,7 @@ export default function KnowledgePage() {
                               {renderSortAction(doc)}
                               <button
                                 onClick={() => openDocument(doc.id)}
-                                title="What Aira looks up from this file"
+                                title="What Anril looks up from this file"
                                 className="p-2 text-on-surface-muted hover:text-primary hover:bg-primary/5 rounded-lg transition-colors"
                               >
                                 <Eye size={16} />
@@ -1681,7 +1681,7 @@ export default function KnowledgePage() {
                 Lead Scoring Rubric (Hot / Warm / Cold)
               </h2>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
-                The criteria used by Aira to classify leads into Hot, Warm, or Cold categories based on conversation transcripts. You can edit this rubric manually or toggle auto-update to sync with your product description.
+                The criteria used by Anril to classify leads into Hot, Warm, or Cold categories based on conversation transcripts. You can edit this rubric manually or toggle auto-update to sync with your product description.
               </p>
             </div>
 
@@ -1773,7 +1773,7 @@ export default function KnowledgePage() {
                   </h3>
                 </div>
                 <p className="mt-1 font-label text-[11px] font-bold uppercase tracking-wider text-primary">
-                  {viewingDoc.sorted ? "What Aira looks up from this file" : "Not sorted yet — Aira reads all of this file"}
+                  {viewingDoc.sorted ? "What Anril looks up from this file" : "Not sorted yet — Anril reads all of this file"}
                 </p>
                 <p className="mt-0.5 font-body text-xs text-on-surface-muted">
                   {formatBytes(viewingDoc.size_bytes)} ·{" "}
@@ -1816,7 +1816,7 @@ export default function KnowledgePage() {
               {!viewingDoc.sorted && (
                 <div className="mb-3 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                   <p className="flex-1 font-body text-xs leading-relaxed text-amber-900">
-                    This file was uploaded before auto-sort, so Aira treats all of it as facts, rules included.
+                    This file was uploaded before auto-sort, so Anril treats all of it as facts, rules included.
                     Sort it to move the rules into your Description and keep only the facts here.
                   </p>
                   {canManageKnowledge && viewingDoc.sort_state !== "sorting" && (
@@ -2032,7 +2032,7 @@ export default function KnowledgePage() {
               <h3 className="font-display font-bold text-lg text-on-surface">A file with this name already exists</h3>
               <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed break-words">
                 <strong className="text-on-surface">{sameNamePrompt.existing.name}</strong> is already uploaded. Is this
-                a newer version of it? Replacing removes the old file once you apply the new one. Keeping both means Aira
+                a newer version of it? Replacing removes the old file once you apply the new one. Keeping both means Anril
                 may quote either if they disagree.
               </p>
             </div>

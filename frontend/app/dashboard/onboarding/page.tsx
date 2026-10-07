@@ -24,7 +24,7 @@ function NameStep({ onCreated }: { onCreated: () => void }) {
 
   return (
     <div className="card rounded-3xl p-8">
-      <h1 className="font-display text-xl font-bold text-ink mb-1">Welcome to Aira AI</h1>
+      <h1 className="font-display text-xl font-bold text-ink mb-1">Welcome to Anril AI</h1>
       <p className="font-body text-sm text-ink-muted mb-6">
         Enter your business name to set up your workspace.
       </p>
@@ -91,7 +91,7 @@ function StarterStep({ onDone, onWantInterview }: { onDone: () => void; onWantIn
     <div className="card rounded-3xl p-8">
       <h1 className="font-display text-xl font-bold text-ink mb-1">What kind of business is this?</h1>
       <p className="font-body text-sm text-ink-muted mb-6">
-        Pick the closest match and Aira starts with a ready-made prompt and business
+        Pick the closest match and Anril starts with a ready-made prompt and business
         description — you can edit everything later in Settings.
       </p>
 
@@ -187,7 +187,7 @@ function InterviewQuestionsForm({
     <div className="card rounded-3xl p-8">
       <h1 className="font-display text-xl font-bold text-ink mb-1">A few quick questions</h1>
       <p className="font-body text-sm text-ink-muted mb-6">
-        Aira&apos;s AI will write your setup from your answers. You&apos;ll review it before anything is saved.
+        Anril&apos;s AI will write your setup from your answers. You&apos;ll review it before anything is saved.
       </p>
 
       {error && (

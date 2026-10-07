@@ -4,38 +4,38 @@ import { LegalPageShell, LegalSection, LegalList } from "@/components/legal/Lega
 
 export const metadata: Metadata = {
   title: "Terms & Conditions",
-  description: "The terms and conditions governing access to and use of AIRA, a Bloom Matrix product.",
+  description: "The terms and conditions governing access to and use of Anril, a Bloom Matrix product.",
 };
 
 export default function TermsAndConditionsPage() {
   return (
-    <LegalPageShell title="Terms and Conditions" subtitle="AIRA — a Bloom Matrix product" effectiveDate="14 June 2026">
+    <LegalPageShell title="Terms and Conditions" subtitle="Anril — a Bloom Matrix product" effectiveDate="14 June 2026">
       <p className="text-sm leading-relaxed text-ink-secondary mb-6">
-        Welcome to AIRA, a cloud-based multi-tenant SaaS platform — a business-focused sales engagement, customer
+        Welcome to Anril, a cloud-based multi-tenant SaaS platform — a business-focused sales engagement, customer
         communication, automation, lead management, analytics, telecalling, and AI assistance platform operated by
         Bloom Matrix (&ldquo;Bloom Matrix&rdquo;, &ldquo;Company&rdquo;, &ldquo;we&rdquo;, &ldquo;our&rdquo;, or
         &ldquo;us&rdquo;).
       </p>
       <p className="text-sm leading-relaxed text-ink-secondary mb-2">
-        By accessing, registering for, or using AIRA, you agree to be bound by these Terms and Conditions.
+        By accessing, registering for, or using Anril, you agree to be bound by these Terms and Conditions.
       </p>
       <p className="text-sm leading-relaxed text-ink-secondary mb-10">
-        If you do not agree to these Terms, you must not access or use AIRA.
+        If you do not agree to these Terms, you must not access or use Anril.
       </p>
 
       <LegalSection title="1. Eligibility">
-        <p>AIRA is intended solely for business and professional use.</p>
+        <p>Anril is intended solely for business and professional use.</p>
         <p>Users must be at least eighteen (18) years of age and legally capable of entering into binding agreements.</p>
-        <p>By using AIRA, you represent and warrant that you satisfy these requirements.</p>
+        <p>By using Anril, you represent and warrant that you satisfy these requirements.</p>
       </LegalSection>
 
       <LegalSection title="2. Services">
         <p>
-          AIRA is a cloud-based multi-tenant Software-as-a-Service (SaaS) platform that enables businesses to manage
+          Anril is a cloud-based multi-tenant Software-as-a-Service (SaaS) platform that enables businesses to manage
           customer communications, sales engagement, artificial intelligence workflows, telecalling operations,
           business automation, analytics, and integrations with supported third-party communication platforms.
         </p>
-        <p>AIRA may provide services including:</p>
+        <p>Anril may provide services including:</p>
         <LegalList
           items={[
             "Lead management",
@@ -63,7 +63,7 @@ export default function TermsAndConditionsPage() {
       </LegalSection>
 
       <LegalSection title="3. Account Registration">
-        <p>Users may be required to create an account to access AIRA.</p>
+        <p>Users may be required to create an account to access Anril.</p>
         <p>You agree to:</p>
         <LegalList
           items={[
@@ -84,7 +84,7 @@ export default function TermsAndConditionsPage() {
           databases, message history, call recordings, or connected third-party business assets.
         </p>
         <p>
-          By using AIRA, customers grant Bloom Matrix a limited, non-exclusive license to process, store, analyze,
+          By using Anril, customers grant Bloom Matrix a limited, non-exclusive license to process, store, analyze,
           transmit, display, and manage customer data solely for providing and improving the services.
         </p>
         <p>Customers remain solely responsible for:</p>
@@ -110,7 +110,7 @@ export default function TermsAndConditionsPage() {
         <p>Bloom Matrix does not verify whether contacts have consented to receive communications.</p>
         <p>
           Customers are solely responsible for ensuring that all communications, campaigns, broadcasts, calls,
-          messages, and customer interactions conducted through AIRA comply with:
+          messages, and customer interactions conducted through Anril comply with:
         </p>
         <LegalList
           items={[
@@ -133,14 +133,14 @@ export default function TermsAndConditionsPage() {
           contact lists, communications, or violations of third-party platform policies.
         </p>
         <p>
-          Customers acknowledge that AIRA may automate communications based on customer-configured settings.
+          Customers acknowledge that Anril may automate communications based on customer-configured settings.
           Customers remain solely responsible for reviewing, monitoring, supervising, and controlling the
           communications initiated through their accounts.
         </p>
         <div>
           <p className="font-medium text-ink mb-1.5">Third-Party Account Authorization</p>
           <p>
-            AIRA may enable customers to connect third-party communication platforms, including the WhatsApp Business
+            Anril may enable customers to connect third-party communication platforms, including the WhatsApp Business
             Platform, through Meta&rsquo;s Embedded Signup or other authorized connection mechanisms.
           </p>
           <p>
@@ -149,7 +149,7 @@ export default function TermsAndConditionsPage() {
           </p>
           <p>
             By connecting such accounts, customers authorize Bloom Matrix to access and manage the connected assets
-            solely for the purpose of providing the services requested through AIRA.
+            solely for the purpose of providing the services requested through Anril.
           </p>
           <p>
             Customers may revoke such authorization at any time through the applicable Meta or third-party account
@@ -179,7 +179,7 @@ export default function TermsAndConditionsPage() {
       </LegalSection>
 
       <LegalSection title="7. Artificial Intelligence Disclaimer">
-        <p>AIRA uses artificial intelligence technologies.</p>
+        <p>Anril uses artificial intelligence technologies.</p>
         <p>AI-generated outputs:</p>
         <LegalList
           items={[
@@ -221,7 +221,7 @@ export default function TermsAndConditionsPage() {
 
       <LegalSection title="9. Fees, Billing, and Payments">
         <p>
-          AIRA may offer subscription-based pricing, usage-based pricing, feature-based pricing, or a combination of
+          Anril may offer subscription-based pricing, usage-based pricing, feature-based pricing, or a combination of
           such pricing models depending on the services, plans, features, and offerings made available by Bloom
           Matrix.
         </p>
@@ -290,7 +290,7 @@ export default function TermsAndConditionsPage() {
 
       <LegalSection title="13. Intellectual Property">
         <p>
-          All rights, title, and interest in AIRA, including software, source code, interfaces, trademarks, branding,
+          All rights, title, and interest in Anril, including software, source code, interfaces, trademarks, branding,
           content, documentation, workflows, designs, and technology, remain the exclusive property of Bloom Matrix
           or its licensors.
         </p>
@@ -298,7 +298,7 @@ export default function TermsAndConditionsPage() {
       </LegalSection>
 
       <LegalSection title="14. Third-Party Services">
-        <p>AIRA may integrate with:</p>
+        <p>Anril may integrate with:</p>
         <LegalList
           items={[
             "WhatsApp Business Platform",
@@ -372,7 +372,7 @@ export default function TermsAndConditionsPage() {
             "Loss of goodwill",
           ]}
         />
-        <p>Use of AIRA is at the user&rsquo;s sole risk.</p>
+        <p>Use of Anril is at the user&rsquo;s sole risk.</p>
       </LegalSection>
 
       <LegalSection title="18. Indemnification">
@@ -395,9 +395,9 @@ export default function TermsAndConditionsPage() {
 
       <LegalSection title="19. Privacy">
         <p>
-          Use of AIRA is governed by the{" "}
+          Use of Anril is governed by the{" "}
           <Link href="/privacy-policy" className="text-primary hover:underline">
-            AIRA Privacy Policy
+            Anril Privacy Policy
           </Link>
           , which describes how Bloom Matrix collects, processes, stores, protects, and discloses personal
           information.
@@ -407,7 +407,7 @@ export default function TermsAndConditionsPage() {
       <LegalSection title="20. Governing Law and Jurisdiction">
         <p>These Terms shall be governed by and construed in accordance with the laws of India.</p>
         <p>
-          Any dispute arising out of or relating to these Terms, AIRA, or the use of the services shall be subject to
+          Any dispute arising out of or relating to these Terms, Anril, or the use of the services shall be subject to
           the exclusive jurisdiction of the courts located in Coimbatore, Tamil Nadu, India.
         </p>
       </LegalSection>
@@ -415,7 +415,7 @@ export default function TermsAndConditionsPage() {
       <LegalSection title="21. Changes to These Terms">
         <p>Bloom Matrix may update these Terms from time to time.</p>
         <p>Updated versions become effective upon publication.</p>
-        <p>Continued use of AIRA following publication of updated Terms constitutes acceptance of the revised Terms.</p>
+        <p>Continued use of Anril following publication of updated Terms constitutes acceptance of the revised Terms.</p>
       </LegalSection>
 
       <LegalSection title="22. Contact Information">
@@ -432,7 +432,7 @@ export default function TermsAndConditionsPage() {
 
       <LegalSection title="23. Acceptance">
         <p>
-          By accessing, registering for, or using AIRA, users acknowledge that they have read, understood, and agreed
+          By accessing, registering for, or using Anril, users acknowledge that they have read, understood, and agreed
           to these Terms and Conditions.
         </p>
       </LegalSection>

@@ -58,9 +58,9 @@ describe("gates", () => {
     expect(noticeGates(gates).map((g) => g.key)).toEqual(["opted_out"]);
   });
   it("words the verdict from the blocking gates only", () => {
-    expect(verdictLine({ would_reply: false, gates })).toBe("Aira would not reply: lead is blocked.");
-    expect(verdictLine({ would_reply: true, gates: [] })).toBe("Aira would reply to a new message.");
-    expect(verdictLine({ would_reply: false, gates: [] })).toBe("Aira would not reply.");
+    expect(verdictLine({ would_reply: false, gates })).toBe("Anril would not reply: lead is blocked.");
+    expect(verdictLine({ would_reply: true, gates: [] })).toBe("Anril would reply to a new message.");
+    expect(verdictLine({ would_reply: false, gates: [] })).toBe("Anril would not reply.");
   });
 });
 

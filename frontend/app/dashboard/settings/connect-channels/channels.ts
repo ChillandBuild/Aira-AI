@@ -124,7 +124,7 @@ export const CHANNELS: ChannelConfig[] = [
     themeColor: "indigo",
     fields: [
       { key: "meta_ads_account_id", label: "Ads Account ID", secret: false, required: true, hint: "Business Settings → Accounts → Ad accounts. Enter digits or act_<digits>." },
-      { key: "meta_ads_access_token", label: "Ads System User Token", secret: true, required: true, hint: "Use a System User token with ads_read. Aira imports only single-destination Click-to-WhatsApp ads." },
+      { key: "meta_ads_access_token", label: "Ads System User Token", secret: true, required: true, hint: "Use a System User token with ads_read. Anril imports only single-destination Click-to-WhatsApp ads." },
     ],
     hasActivation: true,
   },

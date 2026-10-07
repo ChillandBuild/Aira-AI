@@ -71,7 +71,7 @@ export default function KnowledgeHistoryModal({ kind, documentId, title, canRest
     setRestoring(true);
     try {
       await api.knowledge.restoreVersion(selected.id);
-      toast.success(kind === "description" ? "Description restored. You can undo this from History too." : "Restored what Aira looks up from this file.");
+      toast.success(kind === "description" ? "Description restored. You can undo this from History too." : "Restored what Anril looks up from this file.");
       onRestored();
     } catch (e) {
       toast.error((e as ApiError).message || "Could not restore this version.");

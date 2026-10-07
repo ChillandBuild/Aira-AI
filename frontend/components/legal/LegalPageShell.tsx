@@ -14,7 +14,7 @@ export function LegalPageShell({ title, subtitle, effectiveDate, children }: Leg
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
         <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
-          <Link href="/" aria-label="Aira home">
+          <Link href="/" aria-label="Anril home">
             <AiraLogo height={26} className="text-primary" />
           </Link>
           <nav className="flex gap-5 text-sm text-ink-secondary">

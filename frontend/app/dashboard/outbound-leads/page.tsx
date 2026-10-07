@@ -2025,7 +2025,7 @@ export default function OutboundLeadsPage() {
                         A
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-label text-[10px] font-semibold truncate leading-tight">Aira Assistant</p>
+                        <p className="font-label text-[10px] font-semibold truncate leading-tight">Anril Assistant</p>
                         <p className="font-body text-[8px] text-white/80 leading-none">Online</p>
                       </div>
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
@@ -2319,7 +2319,7 @@ export default function OutboundLeadsPage() {
                       A
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-label text-[10px] font-semibold truncate leading-tight">Aira Assistant</p>
+                      <p className="font-label text-[10px] font-semibold truncate leading-tight">Anril Assistant</p>
                       <p className="font-body text-[8px] text-white/80 leading-none">Online</p>
                     </div>
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />

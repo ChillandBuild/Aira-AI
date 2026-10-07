@@ -27,7 +27,7 @@ export function AiraLoader({ showRetryAfterMs, onRetry }: AiraLoaderProps) {
           />
         )}
         <span className="text-xs font-medium tracking-widest text-[#78716c] uppercase">
-          Aira
+          Anril
         </span>
         {showRetry && (
           <div className="mt-4 max-w-sm animate-in fade-in duration-300">

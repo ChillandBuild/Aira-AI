@@ -109,8 +109,8 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/brain") {
     return {
-      title: "Aira Brain",
-      description: "What needs you, why customers reached a human, and what Aira knows.",
+      title: "Anril Brain",
+      description: "What needs you, why customers reached a human, and what Anril knows.",
     };
   }
   if (pathname === "/dashboard/catalog") {
@@ -120,13 +120,13 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     if (tab === "insights") tabLabel = "Insights";
     return {
       title: `Products / ${tabLabel}`,
-      description: "Your products, prices and stock — what Aira can recommend and sell.",
+      description: "Your products, prices and stock — what Anril can recommend and sell.",
     };
   }
   if (pathname === "/dashboard/services") {
     return {
       title: "Services",
-      description: "What you sell in chat: packages, prices, and the details Aira collects before sending the payment link.",
+      description: "What you sell in chat: packages, prices, and the details Anril collects before sending the payment link.",
     };
   }
   if (pathname === "/dashboard/leads") {
@@ -185,7 +185,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/onboarding") {
     return {
-      title: "Welcome to Aira AI",
+      title: "Welcome to Anril AI",
       description: "Complete your onboarding setup.",
     };
   }
@@ -223,7 +223,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
 
   return {
-    title: "Aira AI",
+    title: "Anril AI",
     description: "Your autonomous AI calling and messaging assistant.",
   };
 }

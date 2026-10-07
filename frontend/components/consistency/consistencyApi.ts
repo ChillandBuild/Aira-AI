@@ -29,7 +29,7 @@ export class BatchError extends Error {
 /** The report changed under the user (another tab, or a re-check); the panel must reload. */
 export class StaleReportError extends BatchError {
   constructor(partial: BatchPartial | null = null) {
-    super("Issues changed since Aira checked. Reload to see the current list.", partial);
+    super("Issues changed since Anril checked. Reload to see the current list.", partial);
     this.name = "StaleReportError";
   }
 }

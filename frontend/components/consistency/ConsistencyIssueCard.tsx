@@ -74,7 +74,7 @@ export function ConsistencyIssueCard({ issue, access, selected, isLocked, onTogg
         </p>
       ) : issue.editable ? (
         <p className="font-body text-xs text-ink-muted">
-          Aira hasn&rsquo;t written a fix for this one yet. It tries again each time you open this
+          Anril hasn&rsquo;t written a fix for this one yet. It tries again each time you open this
           page, or press Check again. You can also edit it yourself.
         </p>
       ) : null}

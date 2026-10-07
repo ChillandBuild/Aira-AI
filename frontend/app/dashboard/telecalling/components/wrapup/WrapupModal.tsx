@@ -97,7 +97,7 @@ export default function WrapupModal({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary">Call timing</p>
-                  <p className="mt-0.5 font-body text-[11px] text-[#78716c]">Aira can&apos;t read SIM call time, so check it before saving.</p>
+                  <p className="mt-0.5 font-body text-[11px] text-[#78716c]">Anril can&apos;t read SIM call time, so check it before saving.</p>
                 </div>
                 <span className="whitespace-nowrap rounded-xl bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#292524]">
                   {seconds !== null ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : "0m"}

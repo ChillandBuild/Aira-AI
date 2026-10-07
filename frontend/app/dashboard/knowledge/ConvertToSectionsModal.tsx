@@ -60,7 +60,7 @@ export default function ConvertToSectionsModal({ text, onClose, onApply }: Conve
           <div className="flex items-center justify-center gap-3">
             <Loader2 size={20} className="animate-spin text-primary" />
             <p className="font-body text-sm text-on-surface">
-              Aira is sorting your description… this can take up to a minute.
+              Anril is sorting your description… this can take up to a minute.
             </p>
           </div>
         </div>

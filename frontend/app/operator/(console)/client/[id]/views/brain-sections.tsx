@@ -129,7 +129,7 @@ export function OperatorOnlyRows({ rows, onOpenSection }: { rows: OperatorRow[];
 
 export function HistorySection({ history }: { history: OperatorHistory }) {
   return (
-    <SectionCard title="History" subtitle="Approvals and fixes that changed what Aira reads. Dismissals and discards are not timestamped, so they are not listed.">
+    <SectionCard title="History" subtitle="Approvals and fixes that changed what Anril reads. Dismissals and discards are not timestamped, so they are not listed.">
       {history.entries.length === 0 ? <Empty>No changes recorded yet.</Empty> : (
         <ul className="flex flex-col gap-2">
           {history.entries.map((entry) => (
@@ -176,8 +176,8 @@ export function LaterPlaceholders({ testAira }: { testAira: ReactNode }) {
       <div data-placeholder="test-aira">{testAira}</div>
       {/* What Aira saw (blueprint step 8): the per-lead drawer lives in views/WhatAiraSawDrawer.tsx, opened from the Inbox view. */}
       <div data-placeholder="what-aira-saw">
-        <SectionCard title="What Aira saw" subtitle="A reconstruction of what Aira would see for one lead if it messaged now.">
-          <Empty>Open a chat in Inbox → What Aira saw.</Empty>
+        <SectionCard title="What Anril saw" subtitle="A reconstruction of what Anril would see for one lead if it messaged now.">
+          <Empty>Open a chat in Inbox → What Anril saw.</Empty>
         </SectionCard>
       </div>
     </div>

@@ -27,7 +27,7 @@ const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
 type FieldKey = "legal_name" | "address" | "city" | "state" | "pincode" | "email" | "phone";
 
 const TEXT_FIELDS: { key: FieldKey; label: string; placeholder: string; span?: string }[] = [
-  { key: "legal_name", label: "Legal business name", placeholder: "e.g. Aira Bakes Pvt Ltd", span: "sm:col-span-2" },
+  { key: "legal_name", label: "Legal business name", placeholder: "e.g. Anril Bakes Pvt Ltd", span: "sm:col-span-2" },
   { key: "address", label: "Address", placeholder: "Street, area", span: "sm:col-span-2" },
   { key: "city", label: "City", placeholder: "e.g. Coimbatore" },
   { key: "state", label: "State", placeholder: "e.g. Tamil Nadu" },

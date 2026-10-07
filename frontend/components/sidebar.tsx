@@ -301,7 +301,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             // old "open menu" drawer was a second copy of the same navigation.
             // public/ assets are not basePath-prefixed, hence the hard-coded /aira.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src="/aira/icons/aira-icon.svg" alt="Aira" width={32} height={32} className="h-8 w-8" />
+            <img src="/aira/icons/aira-icon.svg" alt="Anril" width={32} height={32} className="h-8 w-8" />
           ) : (
             <AiraLogo className="h-6 w-auto text-[#1c1917]" />
           )}
@@ -432,7 +432,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             href="/dashboard/brain"
             active={pathname.startsWith("/dashboard/brain")}
             icon={Brain}
-            label="Aira Brain"
+            label="Anril Brain"
             badge={brainCount ? <BrainNavBadge count={brainCount} variant="rail" /> : undefined}
           />
         )}
@@ -757,7 +757,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             href="/dashboard/brain"
             active={pathname.startsWith("/dashboard/brain")}
             icon={Brain}
-            label="Aira Brain"
+            label="Anril Brain"
             badge={brainCount ? <BrainNavBadge count={brainCount} variant="row" /> : undefined}
           />
         )}

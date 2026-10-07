@@ -81,7 +81,7 @@ function AstroCell({ row }: { row: IntakeSession }) {
   }
   return (
     <span
-      title="This paid question has not reached AstroTamil yet. Aira keeps retrying and alerts staff if it stays stuck."
+      title="This paid question has not reached AstroTamil yet. Anril keeps retrying and alerts staff if it stays stuck."
       className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-label text-[10px] font-bold text-red-700"
     >
       Not sent

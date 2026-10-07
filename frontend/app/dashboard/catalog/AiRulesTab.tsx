@@ -93,14 +93,14 @@ export function AiRulesTab({ canManage }: { canManage: boolean }) {
       <div className="grid gap-4 lg:grid-cols-3">
         <RuleCard
           title="AI Recommendations"
-          description="Allow Aira to recommend matching catalog items when customers ask for options."
+          description="Allow Anril to recommend matching catalog items when customers ask for options."
           checked={rules.can_recommend}
           disabled={controlsDisabled}
           onChange={(checked) => patch({ can_recommend: checked })}
         />
         <RuleCard
           title="Send Images"
-          description="Allow Aira to send item images with its recommendation when the chat context calls for it."
+          description="Allow Anril to send item images with its recommendation when the chat context calls for it."
           checked={rules.can_send_images}
           disabled={controlsDisabled}
           onChange={(checked) => patch({ can_send_images: checked })}

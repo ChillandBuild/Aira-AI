@@ -32,7 +32,7 @@ function GroupLabel({ id, children }: { id?: string; children: string }) {
 export function WaitingOnYou({ waiting, canManage, isOwner, panelKey, onConflictsChanged, onOpenReview, onTest }: WaitingOnYouProps) {
   const rejected = waiting.rejected_templates;
   return (
-    <SectionCard title="Review and fix" subtitle="Sorted answers are only available to Aira after you approve them.">
+    <SectionCard title="Review and fix" subtitle="Sorted answers are only available to Anril after you approve them.">
       <div className="flex flex-col gap-4">
         {waiting.count === 0 && (
           <div className="flex flex-col items-start gap-2">

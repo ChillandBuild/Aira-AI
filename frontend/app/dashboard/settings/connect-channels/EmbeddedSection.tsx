@@ -9,7 +9,7 @@ import type { MetaSignupMode } from "./metaSignupMode";
 const VALUE_PROPS: Array<{ title: string; detail: string }> = [
   { title: "Secure one-click connection", detail: "Authorise once in Meta — no tokens to copy or paste" },
   { title: "Official WhatsApp Cloud API", detail: "Templates, broadcasts and delivery reporting" },
-  { title: "Number and webhook linked for you", detail: "Aira subscribes your WABA automatically" },
+  { title: "Number and webhook linked for you", detail: "Anril subscribes your WABA automatically" },
 ];
 
 /**
@@ -187,11 +187,11 @@ export default function EmbeddedSection({
             <div className="mt-3 grid gap-3 max-w-[90ch] sm:grid-cols-2 sm:gap-6">
               <div className="flex items-start gap-2.5 font-body text-[13px] leading-relaxed text-ink-secondary">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                <span>One secure connection brings WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting into Aira.</span>
+                <span>One secure connection brings WhatsApp, Messenger, Instagram and Click-to-WhatsApp ad reporting into Anril.</span>
               </div>
               <div className="flex items-start gap-2.5 font-body text-[13px] leading-relaxed text-ink-secondary">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary-400" />
-                <span><strong className="font-semibold text-ink">Prefer using your phone?</strong> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing with Aira.</span>
+                <span><strong className="font-semibold text-ink">Prefer using your phone?</strong> WhatsApp Coexistence keeps your existing WhatsApp Business mobile app active while syncing with Anril.</span>
               </div>
             </div>
           )}
@@ -220,7 +220,7 @@ export default function EmbeddedSection({
                 type="button"
                 onClick={onConnectCoexistence}
                 disabled={!canManage || isBusy}
-                title="Keep the WhatsApp mobile app working alongside Aira"
+                title="Keep the WhatsApp mobile app working alongside Anril"
                 className="inline-flex items-center gap-2 rounded-[10px] border border-border bg-white px-3.5 py-2 font-label text-xs font-bold text-ink shadow-sm transition-all hover:-translate-y-px hover:border-primary/40 hover:text-primary hover:shadow-[0_4px_12px_-5px_rgba(var(--primary-800-rgb),0.28)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isBusy && activeMode === "coexistence" && <Loader2 size={12} className="animate-spin" />}

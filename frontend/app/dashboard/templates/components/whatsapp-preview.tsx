@@ -117,7 +117,7 @@ export default function WhatsAppPreview({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-semibold leading-tight truncate">
-              Aira AI
+              Anril AI
             </p>
             <p className="text-white/60 text-[10px] leading-tight">online</p>
           </div>

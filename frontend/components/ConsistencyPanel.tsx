@@ -49,7 +49,7 @@ interface Notice {
   text: string;
 }
 
-const RELOAD_TEXT = "Issues changed since Aira checked. Reload to see the current list.";
+const RELOAD_TEXT = "Issues changed since Anril checked. Reload to see the current list.";
 
 function partialSummary(partial: FixBatchResult | DismissBatchResult | null): string | null {
   if (!partial) return null;
@@ -172,7 +172,7 @@ export function ConsistencyPanel({ canManage, isOwner, onChanged, embedded = fal
     <>
       {isStale && (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-300 bg-amber-100/70 px-3 py-2">
-          <p className="min-w-0 break-words font-body text-xs text-ink">Issues changed since Aira checked. Reload to see the current list.</p>
+          <p className="min-w-0 break-words font-body text-xs text-ink">Issues changed since Anril checked. Reload to see the current list.</p>
           <button
             type="button"
             onClick={reload}
@@ -212,11 +212,11 @@ export function ConsistencyPanel({ canManage, isOwner, onChanged, embedded = fal
         <div className={slimChrome}>
           <span className="min-w-0 break-words font-body text-xs text-ink-muted">
             {isChecking ? (
-              "Aira is checking that your description and knowledge agree with your Services page…"
+              "Anril is checking that your description and knowledge agree with your Services page…"
             ) : needsCheck ? (
-              error ?? (checkedAt ? "Your setup changed since Aira last checked." : "Aira hasn't checked your setup yet.")
+              error ?? (checkedAt ? "Your setup changed since Anril last checked." : "Anril hasn't checked your setup yet.")
             ) : (
-              <>Everything Aira knows agrees with your Services page{checkedAt ? ` · Checked ${timeAgo(checkedAt)}` : ""}</>
+              <>Everything Anril knows agrees with your Services page{checkedAt ? ` · Checked ${timeAgo(checkedAt)}` : ""}</>
             )}
           </span>
           <CheckButton isChecking={isChecking} blockedReason={checkReason} onCheck={runCheck} />
@@ -237,10 +237,10 @@ export function ConsistencyPanel({ canManage, isOwner, onChanged, embedded = fal
           </span>
           <div className="min-w-0">
             <p className="font-display text-sm font-bold text-ink">
-              Aira found {issues.length} thing{issues.length === 1 ? "" : "s"} that disagree{issues.length === 1 ? "s" : ""} with your Services page
+              Anril found {issues.length} thing{issues.length === 1 ? "" : "s"} that disagree{issues.length === 1 ? "s" : ""} with your Services page
             </p>
             <p className="mt-0.5 max-w-xl font-body text-xs leading-relaxed text-ink-secondary">
-              Aira always follows your Services page when they disagree, but fixing these keeps every answer consistent.
+              Anril always follows your Services page when they disagree, but fixing these keeps every answer consistent.
               {checkedAt ? ` Last checked ${timeAgo(checkedAt)}.` : ""}
             </p>
           </div>

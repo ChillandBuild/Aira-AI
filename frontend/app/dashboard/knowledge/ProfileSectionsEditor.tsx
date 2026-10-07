@@ -169,7 +169,7 @@ export default function ProfileSectionsEditor({
           <h2 className="font-display text-lg font-bold text-primary">Business Profile</h2>
           <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
             Keep it under 700 words — the profile below has a word budget per section. This
-            structured approach helps Aira respond more accurately and consistently.
+            structured approach helps Anril respond more accurately and consistently.
           </p>
         </div>
 
@@ -212,7 +212,7 @@ export default function ProfileSectionsEditor({
             </label>
             <p className="font-body text-xs text-on-surface-muted mt-1 leading-relaxed">
               Text from your original description that hasn&apos;t been organized into sections yet. Use
-              the &quot;Convert to sections&quot; button below to let Aira sort it automatically.
+              the &quot;Convert to sections&quot; button below to let Anril sort it automatically.
             </p>
           </div>
 

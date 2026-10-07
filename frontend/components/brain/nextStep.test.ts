@@ -20,7 +20,7 @@ describe("nextBrainStep", () => {
   it("explains that sorted knowledge is not active before approval", () => {
     const step = nextBrainStep({ ...brain, waiting: { ...brain.waiting, count: 1, sort_reviews: [{ id: "review", document_id: "doc", title: "FAQ", created_at: "2026-09-30" }] } });
     expect(step.section).toBe("approvals");
-    expect(step.detail).toContain("before Aira can use");
+    expect(step.detail).toContain("before Anril can use");
   });
   it("does not treat optional off inputs as a setup problem", () => {
     expect(nextBrainStep({ ...brain, inputs: [{ key: "catalog", label: "Products", state: "off", detail: "Not needed", edit_href: "/dashboard/catalog", can_edit: true, reason: null }] }).section).toBe("test");

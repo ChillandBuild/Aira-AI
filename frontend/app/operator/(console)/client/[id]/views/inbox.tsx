@@ -131,7 +131,7 @@ export function InboxView({ tenantId }: { tenantId: string }) {
                       onClick={() => c.lead_id && setSawLead({ id: c.lead_id, name: c.lead_name })}
                       className="font-label text-xs font-bold text-primary hover:text-primary-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      What Aira saw
+                      What Anril saw
                     </button>
                   </td>
                 </tr>

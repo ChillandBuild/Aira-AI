@@ -5,14 +5,14 @@ import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: "Get in touch with the AIRA team at Bloom Matrix.",
+  description: "Get in touch with the Anril team at Bloom Matrix.",
 };
 
 export default function ContactPage() {
   return (
-    <LegalPageShell title="Contact Us" subtitle="AIRA — a Bloom Matrix product" effectiveDate="14 June 2026">
+    <LegalPageShell title="Contact Us" subtitle="Anril — a Bloom Matrix product" effectiveDate="14 June 2026">
       <p className="text-sm leading-relaxed text-ink-secondary mb-10">
-        For support, sales, privacy requests, or any other questions about AIRA, reach us directly using the details
+        For support, sales, privacy requests, or any other questions about Anril, reach us directly using the details
         below. We typically respond within one business day.
       </p>
 

@@ -248,10 +248,10 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
       });
       toast.success(
         res.description_changed
-          ? "Applied. Your Description is updated and Aira now looks up this file's facts."
+          ? "Applied. Your Description is updated and Anril now looks up this file's facts."
           : emptyResult
-            ? "Applied. Aira looks up this file's facts, but still has no Description."
-            : "Applied. Aira now looks up this file's facts.",
+            ? "Applied. Anril looks up this file's facts, but still has no Description."
+            : "Applied. Anril now looks up this file's facts.",
       );
       const handoverWritten = await saveChosenHandover();
       onFinished({ applied: true, descriptionChanged: res.description_changed || handoverWritten });
@@ -346,7 +346,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
               {review?.document_name || "Loading…"}
             </h3>
             <p className="mt-0.5 font-body text-xs text-on-surface-muted">
-              Aira split this file into rules for your Description and facts to look up. Nothing changes until you click Apply.
+              Anril split this file into rules for your Description and facts to look up. Nothing changes until you click Apply.
             </p>
             {review?.replaces_document && (
               <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary-100 bg-primary-50 px-2.5 py-1 font-label text-[11px] font-semibold text-primary-700">
@@ -400,7 +400,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                 icon={<PenLine size={14} />}
                 title="Changes to your Description"
                 count={review.hunks.length}
-                subtitle="Aira reads the Description before every reply. Untick anything you don't want."
+                subtitle="Anril reads the Description before every reply. Untick anything you don't want."
                 action={
                   review.hunks.length > 1 && canManage ? (
                     <div className="flex shrink-0 gap-1">
@@ -492,7 +492,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                   icon={<Scale size={14} />}
                   title="These disagree — pick one"
                   count={review.conflicts.length}
-                  subtitle="Aira couldn't tell which is right, so neither is in your Description yet."
+                  subtitle="Anril couldn't tell which is right, so neither is in your Description yet."
                 >
                   {review.conflicts.map((c) => (
                     <div key={c.id} className="rounded-xl border border-surface-mid bg-surface-low/40 p-3">
@@ -540,7 +540,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                   icon={<AlertTriangle size={14} />}
                   title="Prices and facts that changed"
                   count={descriptionUpdates.length + fileWarnings.length}
-                  subtitle="This file says something different from what Aira already knows."
+                  subtitle="This file says something different from what Anril already knows."
                 >
                   {descriptionUpdates.map((d) => (
                     <label
@@ -572,7 +572,7 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                   {fileWarnings.map((d) => (
                     <Banner key={d.id} tone="amber" icon={<FileText size={14} />}>
                       <span className="font-semibold">&ldquo;{d.document_name}&rdquo; says {d.existing_value}</span>, this file says{" "}
-                      {d.new_value}. Aira may quote either one. Replace that file, or edit what Aira looks up from it.
+                      {d.new_value}. Anril may quote either one. Replace that file, or edit what Anril looks up from it.
                     </Banner>
                   ))}
                 </Section>
@@ -581,8 +581,8 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
               {/* 4. Facts */}
               <Section
                 icon={<BookOpen size={14} />}
-                title="What Aira will look up from this file"
-                subtitle="Kept word for word. Aira reads these only when a customer asks about them."
+                title="What Anril will look up from this file"
+                subtitle="Kept word for word. Anril reads these only when a customer asks about them."
               >
                 {review.facts ? (
                   <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-xl border border-surface-mid/80 bg-surface-low/40 p-3 font-mono text-[11.5px] leading-relaxed text-on-surface">
@@ -671,10 +671,10 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                 <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
                 <div className="min-w-0 font-body text-xs leading-relaxed text-amber-900">
                   <p className="font-display text-[13px] font-bold">
-                    Your facts will go live, but Aira won&rsquo;t know who you are.
+                    Your facts will go live, but Anril won&rsquo;t know who you are.
                   </p>
                   <p className="mt-0.5 text-amber-800">
-                    This file was all look-up facts — nothing in it describes your business. Aira
+                    This file was all look-up facts — nothing in it describes your business. Anril
                     will answer questions from it, but it has no idea what company it works for.
                     {isOwner
                       ? " You can apply this now and add a short description in the upload box on this page whenever you’re ready."

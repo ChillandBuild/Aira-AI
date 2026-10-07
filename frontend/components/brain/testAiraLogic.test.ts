@@ -24,7 +24,7 @@ function turns(count: number): SandboxTurn[] {
 describe("messageForStatus", () => {
   it("has plain words for the statuses the server uses", () => {
     expect(messageForStatus(429)).toMatch(/wait a few minutes/);
-    expect(messageForStatus(503)).toBe("Test Aira is switched off right now.");
+    expect(messageForStatus(503)).toBe("Test Anril is switched off right now.");
     expect(messageForStatus(409)).toMatch(/reply model isn't set up/);
   });
 

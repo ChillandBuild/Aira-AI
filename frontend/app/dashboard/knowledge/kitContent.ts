@@ -26,7 +26,7 @@ export function kitTemplateUrl(slug: string): string {
   return `${KIT_BASE}/aira-kit-${slug}.docx`;
 }
 
-export const KIT_AI_PROMPT = `I'm setting up Aira, an AI assistant that replies to my customers on WhatsApp. Help me write one document about my business that Aira will learn from.
+export const KIT_AI_PROMPT = `I'm setting up Anril, an AI assistant that replies to my customers on WhatsApp. Help me write one document about my business that Anril will learn from.
 
 First, use what you already know about my business from our past chats or files. If you don't have enough, interview me: ask ONE question at a time, in simple words, and wait for my answer.
 
@@ -34,7 +34,7 @@ Write the document with EXACTLY these 8 headings, in capital letters, in this or
 
 ABOUT YOUR BUSINESS - name, what you do, since when, where you serve.
 WHO YOUR CUSTOMERS ARE - who usually contacts you and what they want most.
-HOW A CUSTOMER BUYS FROM YOU - the steps from first message to paying, one per line. End with one line starting "Aira's goal:" - the one next step Aira should push every interested customer toward.
+HOW A CUSTOMER BUYS FROM YOU - the steps from first message to paying, one per line. End with one line starting "Anril's goal:" - the one next step Anril should push every interested customer toward.
 HOW AIRA SHOULD SOUND - tone, how to address people, reply length. (Optional.)
 WHAT AIRA MUST NEVER SAY OR PROMISE - one thing per line.
 WHEN TO HAND OVER TO A PERSON - which situations, plus the phone number and working hours.
@@ -48,4 +48,4 @@ Strict rules:
 - Plain English, short lines, no marketing language, no tables.
 - Keep it under 2 pages.
 
-When done, show me the full document so I can copy it into a Word file and upload it to Aira.`;
+When done, show me the full document so I can copy it into a Word file and upload it to Anril.`;

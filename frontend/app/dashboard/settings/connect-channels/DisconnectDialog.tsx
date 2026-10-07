@@ -39,8 +39,8 @@ export default function DisconnectDialog({
             {error && <p className="rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
             <ul className="space-y-1.5 font-body text-sm text-[#57534e]">
               {target.stops.map(clause => <li key={clause}>· {clause}</li>)}
-              <li>· Aira&apos;s webhooks are unsubscribed at the provider</li>
-              <li>· Stored tokens are deleted from Aira</li>
+              <li>· Anril&apos;s webhooks are unsubscribed at the provider</li>
+              <li>· Stored tokens are deleted from Anril</li>
             </ul>
 
             {target.sharesMetaToken && (
@@ -59,7 +59,7 @@ export default function DisconnectDialog({
             >
               <TickMark checked={releaseAssets} size="sm" className="mt-0.5" />
               <span className="font-body text-xs text-ink-secondary">
-                Also release these assets so they can be connected to a different Aira workspace.
+                Also release these assets so they can be connected to a different Anril workspace.
                 <span className="mt-0.5 block text-ink-muted">Leave this off to keep them reserved for you.</span>
               </span>
             </button>

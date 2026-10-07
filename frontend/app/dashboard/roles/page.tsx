@@ -461,8 +461,8 @@ export default function RolesPage() {
     if (!callerId) return;
     setSyncTokenDialogUser(null);
     setConfirmState({
-      title: "Regenerate Aira Sync token",
-      description: `Generate a new Aira Sync token for "${user.full_name || user.email}"? This immediately invalidates their current token — their Aira Sync app will stop syncing until you paste in the new one.`,
+      title: "Regenerate Anril Sync token",
+      description: `Generate a new Anril Sync token for "${user.full_name || user.email}"? This immediately invalidates their current token — their Anril Sync app will stop syncing until you paste in the new one.`,
       tone: "danger",
       confirmLabel: "Regenerate",
       onConfirm: () => runRegenerateSyncToken(user, callerId),
@@ -598,7 +598,7 @@ export default function RolesPage() {
               <Smartphone size={18} />
             </div>
             <div>
-              <p className="font-body text-sm font-bold text-ink">Aira Sync — Android app</p>
+              <p className="font-body text-sm font-bold text-ink">Anril Sync — Android app</p>
               <p className="mt-0.5 font-body text-xs text-ink-muted">Not on Play Store — sideload this APK on each telecaller&apos;s phone for automatic call-log tracking.</p>
             </div>
           </div>
@@ -614,8 +614,8 @@ export default function RolesPage() {
 
       {syncToken && (
         <div className="flex flex-col gap-3 rounded-3xl border border-primary-200 bg-primary-50 p-4">
-          <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary-700">Aira Sync setup for {syncToken.label}</p>
-          <p className="font-body text-xs text-primary-700">Paste both fields into the Aira Sync app on the caller&apos;s phone, then tap Save &amp; Connect. The token is shown once.</p>
+          <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary-700">Anril Sync setup for {syncToken.label}</p>
+          <p className="font-body text-xs text-primary-700">Paste both fields into the Anril Sync app on the caller&apos;s phone, then tap Save &amp; Connect. The token is shown once.</p>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
@@ -1044,7 +1044,7 @@ export default function RolesPage() {
                             type="button"
                             className="btn-secondary px-3"
                             onClick={() => setSyncTokenDialogUser(user)}
-                            title="Aira Sync token"
+                            title="Anril Sync token"
                           >
                             <Smartphone size={14} />
                           </button>
@@ -1133,7 +1133,7 @@ export default function RolesPage() {
                   <Smartphone size={18} />
                 </div>
                 <h3 className="text-lg font-bold text-ink">
-                  Aira Sync — {syncTokenDialogUser.full_name || syncTokenDialogUser.email}
+                  Anril Sync — {syncTokenDialogUser.full_name || syncTokenDialogUser.email}
                 </h3>
               </div>
               <button

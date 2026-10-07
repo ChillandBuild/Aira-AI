@@ -49,7 +49,7 @@ export function useBrainData(enabled: boolean): BrainData {
         setRefreshError(null);
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Couldn't load Aira Brain. Please try again.";
+      const message = e instanceof Error ? e.message : "Couldn't load Anril Brain. Please try again.";
       if (isMountedRef.current && seq === seqRef.current) {
         dispatch({ type: "failure", seq, message });
         setRefreshError(message);

@@ -138,7 +138,7 @@ export function TestAira({
     <>
       <p id={noteId} className="rounded-xl bg-surface-low px-3 py-2 font-body text-xs text-ink-secondary">
         Answers only. This test cannot take payments, make bookings, contact a person, or send messages. Nothing is saved.
-        {isWindowed(chat.turns) && " Aira only remembers the latest 20 messages of this test."}
+        {isWindowed(chat.turns) && " Anril only remembers the latest 20 messages of this test."}
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2" aria-label="Suggested questions">
@@ -194,7 +194,7 @@ export function TestAira({
         })}
         {isPending && (
           <p className="flex items-center gap-1.5 font-body text-xs text-ink-secondary" role="status">
-            <Loader2 size={12} className="animate-spin" aria-hidden /> Aira is typing
+            <Loader2 size={12} className="animate-spin" aria-hidden /> Anril is typing
           </p>
         )}
       </div>
@@ -213,7 +213,7 @@ export function TestAira({
         }}
       >
         <label htmlFor={`${reasonId}-input`} className="sr-only">
-          Message to Aira
+          Message to Anril
         </label>
         <textarea
           id={`${reasonId}-input`}
@@ -263,7 +263,7 @@ export function TestAira({
   if (!standalone) return <div className="min-w-0">{content}</div>;
 
   return (
-    <SectionCard title="Customer conversation" subtitle="Ask a question the way a customer would and see how Aira answers from what you've told it.">
+    <SectionCard title="Customer conversation" subtitle="Ask a question the way a customer would and see how Anril answers from what you've told it.">
       {content}
     </SectionCard>
   );

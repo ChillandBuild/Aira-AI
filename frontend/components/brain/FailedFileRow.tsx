@@ -34,7 +34,7 @@ export function FailedFileRow({ file, canManage }: FailedFileRowProps) {
   }
 
   return (
-    <WaitingRow title={file.name} meta="Aira couldn't sort this file">
+    <WaitingRow title={file.name} meta="Anril couldn't sort this file">
       <button
         type="button"
         className={ROW_BUTTON_CLASS}

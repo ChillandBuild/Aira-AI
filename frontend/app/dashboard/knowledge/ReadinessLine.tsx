@@ -104,7 +104,7 @@ export default function ReadinessLine({ refreshKey, isOwner, canManage, onOpenDe
           {ready} of {items.length}
         </span>
         <span className="font-display text-sm font-bold text-on-surface">
-          {mustMissing.length === 0 ? "Aira is ready" : "Aira readiness"}
+          {mustMissing.length === 0 ? "Anril is ready" : "Anril readiness"}
         </span>
         {next && (
           <span className="font-body text-xs text-on-surface-muted">

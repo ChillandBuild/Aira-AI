@@ -20,7 +20,7 @@ const TEST_AIRA_ENDPOINT = "/api/v1/brain/sandbox";
 
 function LoadingState() {
   return (
-    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading Aira Brain">
+    <div className="flex flex-col gap-4" aria-busy="true" aria-label="Loading Anril Brain">
       {[64, 48, 160, 200].map((height) => (
         <div key={height} className="animate-pulse rounded-2xl bg-border-subtle" style={{ height }} aria-hidden />
       ))}
@@ -110,7 +110,7 @@ export default function AiraBrainPage() {
   if (!canView) {
     return (
       <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-white p-5">
-        <p className="font-body text-sm text-ink-secondary">You don&apos;t have access to Aira Brain.</p>
+        <p className="font-body text-sm text-ink-secondary">You don&apos;t have access to Anril Brain.</p>
       </div>
     );
   }
@@ -134,11 +134,11 @@ export default function AiraBrainPage() {
             {refreshError && <p role="alert" className="font-body text-sm text-danger">{refreshError} Showing the last loaded status; try refreshing again.</p>}
             <NextBrainAction brain={data} onSelect={setActiveSection} activeSection={activeSection} canManageSettings={isOwner || permissions.includes("settings.manage")} />
             <BrainWorkspace activeId={activeSection} onSelect={setActiveSection} sections={[
-              { id: "overview", label: "Overview", description: "How Aira is doing and where its answers can improve.", content: <HeadlineStrip headline={data.headline} /> },
+              { id: "overview", label: "Overview", description: "How Anril is doing and where its answers can improve.", content: <HeadlineStrip headline={data.headline} /> },
               { id: "approvals", label: "Needs attention", description: "Review sorted files, resolve conflicts, and fix failed inputs.", count: data.waiting.count, content: <WaitingOnYou waiting={data.waiting} canManage={canManage} isOwner={isOwner} panelKey={panelKey} onConflictsChanged={announceApprovalsChanged} onOpenReview={openReview} onTest={() => setActiveSection("test")} /> },
-              { id: "knowledge", label: "What Aira knows", description: "Check the information Aira reads before answering.", content: <InputsList inputs={data.inputs} /> },
+              { id: "knowledge", label: "What Anril knows", description: "Check the information Anril reads before answering.", content: <InputsList inputs={data.inputs} /> },
               { id: "handovers", label: "Handovers", description: "See which conversations needed a person.", content: <HandoverFeed handovers={data.handovers} canManageKnowledge={canManage} /> },
-              { id: "test", scrollable: false, label: "Test Aira", description: "Try a customer message and inspect Aira’s response.", content: <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} initialQuestion={testQuestion} onAddAnswer={canManage ? addAnswer : undefined} /> },
+              { id: "test", scrollable: false, label: "Test Anril", description: "Try a customer message and inspect Anril’s response.", content: <TestAira endpoint={TEST_AIRA_ENDPOINT} canUse={canManage} disabledReason={NEEDS_MANAGE_REASON} initialQuestion={testQuestion} onAddAnswer={canManage ? addAnswer : undefined} /> },
             ]} />
           </>
         )}

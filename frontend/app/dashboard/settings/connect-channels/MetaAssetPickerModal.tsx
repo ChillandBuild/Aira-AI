@@ -50,7 +50,7 @@ export default function MetaAssetPickerModal({
             <label className="block">
               <span className="font-label text-xs font-bold uppercase tracking-wider text-ink">Facebook Page <span className="font-normal normal-case text-ink-muted">(optional)</span></span>
               <select value={selectedPageId} onChange={event => onSelectPage(event.target.value)} className="mt-2 w-full rounded-xl border border-border bg-white px-3 py-2.5 font-body text-sm text-ink disabled:bg-surface-low disabled:text-ink-muted" disabled={isBusy || hasNoPages}>
-                <option value="">{hasNoPages ? "No Page was shared with Aira" : "Do not connect a Page"}</option>
+                <option value="">{hasNoPages ? "No Page was shared with Anril" : "Do not connect a Page"}</option>
                 {assets.pages.map(page => <option key={page.id} value={page.id}>{page.name}{page.instagram_business_account ? " · Instagram linked" : ""}</option>)}
               </select>
               <p className="mt-1.5 font-body text-[11px] text-ink-muted">
@@ -65,7 +65,7 @@ export default function MetaAssetPickerModal({
                 <option value="">Do not connect an ad account</option>
                 {assets.ad_accounts.map(account => <option key={account.id} value={account.id}>{account.name}{account.account_id ? ` · ${account.account_id}` : ""}{account.currency ? ` · ${account.currency}` : ""}</option>)}
               </select>
-              <p className="mt-1.5 font-body text-[11px] text-ink-muted">Aira reads reporting data from this account. It cannot create, edit, or publish ads.</p>
+              <p className="mt-1.5 font-body text-[11px] text-ink-muted">Anril reads reporting data from this account. It cannot create, edit, or publish ads.</p>
             </label>
           </div>
           <div className="flex items-center justify-between gap-3 border-t border-border-subtle bg-surface-low p-5">

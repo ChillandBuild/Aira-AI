@@ -60,7 +60,7 @@ export default function KnowledgeGapAnswerForm({ question, uploadedDocumentId, c
         <div className="min-w-0 flex-1">
           <h2 id="knowledge-gap-title" className="font-display text-base font-bold text-on-surface">Add the missing answer</h2>
           <p className="mt-1 font-body text-xs text-on-surface-muted">
-            This creates a knowledge document. Aira will sort it, and it must be reviewed before the answer becomes active.
+            This creates a knowledge document. Anril will sort it, and it must be reviewed before the answer becomes active.
           </p>
         </div>
       </div>
@@ -85,7 +85,7 @@ export default function KnowledgeGapAnswerForm({ question, uploadedDocumentId, c
             )}
             <Link href="/dashboard/brain?section=approvals" className="inline-flex min-h-9 items-center rounded-lg border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface hover:border-primary/40">All approvals</Link>
             <Link href={retestHref} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-surface-mid bg-white px-3 font-label text-xs font-bold text-on-surface hover:border-primary/40">
-              Return to Test Aira
+              Return to Test Anril
             </Link>
           </div>
         </div>
@@ -100,7 +100,7 @@ export default function KnowledgeGapAnswerForm({ question, uploadedDocumentId, c
             rows={5}
             maxLength={12000}
             disabled={!canManage || uploading}
-            placeholder="Write the answer Aira should learn"
+            placeholder="Write the answer Anril should learn"
             className="mt-1.5 w-full resize-y rounded-xl border border-surface-mid bg-white px-3 py-2 font-body text-sm text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-surface-mid disabled:opacity-60"
           />
           {!canManage && <p className="mt-2 font-body text-xs text-on-surface-muted">You need knowledge management access to add an answer.</p>}

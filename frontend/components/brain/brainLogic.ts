@@ -115,13 +115,13 @@ function windowPhrase(days: number): string {
 export function headlineSentence(h: BrainHeadline): string {
   const lead = windowPhrase(h.window_days);
   if (h.chats === 0) return `${lead}: no chats yet.`;
-  const handled = `Aira handled ${h.handled_by_aira} of ${h.chats} ${plural(h.chats, "chat", "chats")}.`;
+  const handled = `Anril handled ${h.handled_by_aira} of ${h.chats} ${plural(h.chats, "chat", "chats")}.`;
   if (h.handed_over === 0) return `${lead}: ${handled} Nobody needed a human.`;
 
   const parts: string[] = [];
   if (h.asked_for_human > 0) parts.push(`${h.asked_for_human} asked for a person`);
   if (h.knowledge_gaps > 0) {
-    parts.push(`${h.knowledge_gaps} ${plural(h.knowledge_gaps, "was a gap", "were gaps")} in what Aira knows`);
+    parts.push(`${h.knowledge_gaps} ${plural(h.knowledge_gaps, "was a gap", "were gaps")} in what Anril knows`);
   }
   const other = h.handed_over - h.asked_for_human - h.knowledge_gaps;
   if (other > 0) parts.push(`${other} for other reasons`);
@@ -132,7 +132,7 @@ export function headlineSentence(h: BrainHeadline): string {
 
 /** "1 thing disagrees with Aira's setup, " / "3 things disagree with Aira's setup, ", followed by the link text. */
 export function conflictsLinkText(count: number): string {
-  return `${count} ${plural(count, "thing disagrees", "things disagree")} with Aira's setup —`;
+  return `${count} ${plural(count, "thing disagrees", "things disagree")} with Anril's setup —`;
 }
 
 export function topLineText(waitingCount: number): string {
@@ -167,7 +167,7 @@ export function pickMainAction(waiting: BrainWaiting): MainAction {
   if (waiting.rejected_templates.length > 0) {
     return { kind: "link", label: "Open templates", href: "/dashboard/templates" };
   }
-  return { kind: "link", label: "Add to what Aira knows", href: "/dashboard/knowledge" };
+  return { kind: "link", label: "Add to what Anril knows", href: "/dashboard/knowledge" };
 }
 
 // ─── Handover feed: which action a row offers ────────────────────────────────

@@ -52,7 +52,7 @@ export interface WhatAiraSaw {
 }
 
 export const RECONSTRUCTION_BANNER =
-  "Reconstruction: what Aira would see if this lead messaged now — not a record of past replies";
+  "Reconstruction: what Anril would see if this lead messaged now — not a record of past replies";
 
 export const RETRIEVAL_COST_NOTE = "Runs one knowledge search, which costs one embedding call.";
 
@@ -90,9 +90,9 @@ export function noticeGates(gates: readonly SawGate[]): SawGate[] {
 
 /** One line for the verdict: what would happen to a new message. */
 export function verdictLine(saw: Pick<WhatAiraSaw, "would_reply" | "gates">): string {
-  if (saw.would_reply) return "Aira would reply to a new message.";
+  if (saw.would_reply) return "Anril would reply to a new message.";
   const reasons = blockingGates(saw.gates).map((g) => g.label.toLowerCase());
-  return reasons.length ? `Aira would not reply: ${reasons.join("; ")}.` : "Aira would not reply.";
+  return reasons.length ? `Anril would not reply: ${reasons.join("; ")}.` : "Anril would not reply.";
 }
 
 /** Rupees with grouping from paise; "—" when unknown. */

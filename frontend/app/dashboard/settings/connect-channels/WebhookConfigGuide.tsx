@@ -51,7 +51,7 @@ export default function WebhookConfigGuide({ channelId }: { channelId: string; t
           </div>
           <CopyButton text={url} />
         </div>
-        <p>3. This one URL serves every client — no client ID in it. Aira works out who a message belongs to from the Instagram account it was sent to.</p>
+        <p>3. This one URL serves every client — no client ID in it. Anril works out who a message belongs to from the Instagram account it was sent to.</p>
         <p>4. Verify token: the same <strong>meta_webhook_verify_token</strong> your WhatsApp uses. Subscribe to <strong>messages</strong>.</p>
         <p>5. The token must come from the <strong>same Meta app the backend uses</strong>. A token from a different app is refused, and names the app it belongs to.</p>
       </div>
@@ -71,7 +71,7 @@ export default function WebhookConfigGuide({ channelId }: { channelId: string; t
           </div>
           <CopyButton text={url} />
         </div>
-        <p>3. This one URL serves every client — no client ID in it. Aira works out who a message belongs to from the Page it was sent to.</p>
+        <p>3. This one URL serves every client — no client ID in it. Anril works out who a message belongs to from the Page it was sent to.</p>
         <p>4. Verify token: the same <strong>meta_webhook_verify_token</strong> your WhatsApp uses. Subscribe to <strong>messages</strong> under your Page.</p>
         <p>5. The token must come from the <strong>same Meta app the backend uses</strong>. A token from a different app is refused, and names the app it belongs to.</p>
       </div>

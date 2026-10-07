@@ -343,7 +343,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="hero-subtitle">
-                AIRA helps businesses automate conversations, qualify leads, evaluate telecallers and convert more customers.
+                Anril helps businesses automate conversations, qualify leads, evaluate telecallers and convert more customers.
               </p>
 
               <div className="flex flex-wrap gap-4 pt-2">
@@ -390,7 +390,7 @@ export default function LandingPage() {
                   <div className="window-dot bg-[#ef4444]/70"></div>
                   <div className="window-dot bg-[#f59e0b]/70"></div>
                   <div className="window-dot bg-[#22c55e]/70"></div>
-                  <span className="ml-3 text-[10px] font-mono text-ink-muted">Aira — Dashboard</span>
+                  <span className="ml-3 text-[10px] font-mono text-ink-muted">Anril — Dashboard</span>
                 </div>
                 {/* Dashboard Content */}
                 <div className="bg-background p-6">
@@ -439,7 +439,7 @@ export default function LandingPage() {
                       <div className="w-5 h-5 rounded-full bg-gradient-to-br from-[var(--primary-950)] to-[var(--primary-800)] flex items-center justify-center">
                         <Bot size={10} className="text-white" />
                       </div>
-                      <span className="text-[9px] font-semibold text-ink">Aira Assistant</span>
+                      <span className="text-[9px] font-semibold text-ink">Anril Assistant</span>
                       <div className="w-1.5 h-1.5 rounded-full bg-success ml-auto"></div>
                       <span className="text-[8px] text-success">Online</span>
                     </div>
@@ -483,7 +483,7 @@ export default function LandingPage() {
           <div className="river-separator"></div>
           <div className="max-w-7xl mx-auto px-6 md:px-10 pt-16">
             <div className="text-center mb-16 reveal">
-              <p className="section-eyebrow mb-3">HOW AIRA WORKS</p>
+              <p className="section-eyebrow mb-3">HOW ANRIL WORKS</p>
               <h2 className="section-title">From Enquiry to Revenue</h2>
             </div>
 
@@ -536,7 +536,7 @@ export default function LandingPage() {
           <div className="max-w-5xl mx-auto px-6 md:px-10 pt-16">
             <div className="text-center mb-10 reveal">
               <p className="section-eyebrow mb-3">LIVE PREVIEW</p>
-              <h2 className="section-title">Watch Aira AI in Action</h2>
+              <h2 className="section-title">Watch Anril AI in Action</h2>
               <p className="section-subtitle mx-auto mt-3">
                 Real-time simulation of incoming leads being captured, scored, and automated.
               </p>
@@ -551,7 +551,7 @@ export default function LandingPage() {
                     Live Agent
                   </h4>
                   <p className="text-xs text-ink-secondary leading-relaxed mb-8">
-                    Aira monitors webhooks, verifies signatures, queries the knowledge base, routes callbacks, and logs telecaller activity.
+                    Anril monitors webhooks, verifies signatures, queries the knowledge base, routes callbacks, and logs telecaller activity.
                   </p>
                   <div className="space-y-4">
                     {[
@@ -597,7 +597,7 @@ export default function LandingPage() {
                             {msg.text}
                           </div>
                           <span className={`text-[10px] mt-1 ${isAira ? "self-end text-primary/70" : "self-start text-ink-muted"}`}>
-                            {isAira ? "Aira AI" : "Lead"} • {msg.time}
+                            {isAira ? "Anril AI" : "Lead"} • {msg.time}
                           </span>
                         </div>
                       );
@@ -665,7 +665,7 @@ export default function LandingPage() {
                     <span className="hero-title-gradient">Into Revenue?</span>
                   </h2>
                   <p className="section-subtitle mb-8">
-                    Book a demo with our team and see how AIRA can help your business grow. Our experts will walk you through the platform and set up your account.
+                    Book a demo with our team and see how Anril can help your business grow. Our experts will walk you through the platform and set up your account.
                   </p>
                   <div className="flex flex-wrap gap-6 mb-6">
                     {[

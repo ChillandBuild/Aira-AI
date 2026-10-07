@@ -19,7 +19,7 @@ interface BulkSheetProps {
 
 function BeforeAfter({ issue }: { issue: Issue }) {
   if (issue.proposed === null) {
-    return <p className="font-body text-xs text-ink-muted">Aira has no suggested wording for this one.</p>;
+    return <p className="font-body text-xs text-ink-muted">Anril has no suggested wording for this one.</p>;
   }
   return (
     <div className="space-y-1 font-body text-xs">
@@ -93,7 +93,7 @@ export function ConsistencyBulkSheet({ action, issues, access, isBusy, onCancel,
             </h3>
             <p className="mt-0.5 font-body text-xs text-ink-secondary">
               {isFix
-                ? "Every item is ticked. Untick anything you want to leave alone. Each fix uses Aira's suggested wording."
+                ? "Every item is ticked. Untick anything you want to leave alone. Each fix uses Anril's suggested wording."
                 : "Every item is ticked. Untick anything you want to keep listed. You can restore dismissed items later."}
             </p>
           </div>

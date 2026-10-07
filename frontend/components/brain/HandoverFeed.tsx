@@ -7,7 +7,7 @@ import type { BrainHandover, HandoverKind } from "./types";
 
 const KIND_LABEL: Record<HandoverKind, string> = {
   asked_for_human: "Asked for a person",
-  knowledge_gap: "Gap in what Aira knows",
+  knowledge_gap: "Gap in what Anril knows",
   payment: "Payment problem",
   other: "Other",
 };
@@ -78,7 +78,7 @@ export function HandoverFeed({
   canManageKnowledge?: boolean;
 }) {
   return (
-    <SectionCard title="Why customers reached a human" subtitle="Recent chats Aira passed to your team.">
+    <SectionCard title="Why customers reached a human" subtitle="Recent chats Anril passed to your team.">
       {handovers.length === 0 ? (
         <p className="font-body text-sm text-ink-secondary">No customers have needed a human recently.</p>
       ) : (

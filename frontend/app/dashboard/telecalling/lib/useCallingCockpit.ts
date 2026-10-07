@@ -229,7 +229,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
 
   async function executeManualDial(phone: string) {
     if (callingProvider === "sim_basic" && !isMobileDialSurface()) {
-      toast.info("Open Aira on your mobile to place SIM calls.");
+      toast.info("Open Anril on your mobile to place SIM calls.");
       return;
     }
     setManualDialing(true);
@@ -485,7 +485,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
         console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
       } else {
-        toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+        toast.error(err instanceof Error ? err.message : "Call was opened, but Anril could not log it.");
       }
     }).finally(() => {
       setDialing(null);
@@ -529,7 +529,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       if (err instanceof TypeError || (err instanceof Error && err.message.includes("Cannot reach server"))) {
         console.warn("Call initiated, but backend logging was interrupted by app backgrounding:", err);
       } else {
-        toast.error(err instanceof Error ? err.message : "Call was opened, but Aira could not log it.");
+        toast.error(err instanceof Error ? err.message : "Call was opened, but Anril could not log it.");
       }
     }).finally(() => {
       setManualDialing(false);
@@ -625,7 +625,7 @@ export function useCallingCockpit({ callerId, blockingWrapups, refreshQueue }: U
       if (!result.push_configured) {
         toast.info("Mobile push is not configured yet. Use the QR code or copy the number to open this lead on your phone.");
       } else if (result.subscription_count === 0) {
-        toast.info("No mobile push subscription found. Open Aira on the phone, enable alerts, or use the QR code.");
+        toast.info("No mobile push subscription found. Open Anril on the phone, enable alerts, or use the QR code.");
       } else {
         toast.success("Sent to mobile");
       }

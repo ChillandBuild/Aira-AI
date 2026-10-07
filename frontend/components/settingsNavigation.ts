@@ -8,7 +8,7 @@ import {
   UserCircle,
 } from "lucide-react";
 
-export type SettingsGroup = "Account" | "Channels" | "Aira" | "Calling" | "Alerts";
+export type SettingsGroup = "Account" | "Channels" | "Anril" | "Calling" | "Alerts";
 
 export type SettingsNavItem = {
   href: string;
@@ -23,9 +23,9 @@ export type SettingsNavItem = {
 export const SETTINGS_ITEMS: SettingsNavItem[] = [
   { href: "/dashboard/settings/account", icon: UserCircle, label: "Profile & Business", group: "Account" },
   { href: "/dashboard/settings/connect-channels", icon: RadioTower, label: "Connect Channels", group: "Channels" },
-  { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply", group: "Aira" },
-  { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups", group: "Aira" },
-  { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox & Handover", group: "Aira" },
+  { href: "/dashboard/settings/auto-reply", icon: Sparkles, label: "Auto-Reply", group: "Anril" },
+  { href: "/dashboard/settings/follow-ups", icon: Calendar, label: "Follow-Ups", group: "Anril" },
+  { href: "/dashboard/settings/inbox", icon: MessageSquare, label: "Inbox & Handover", group: "Anril" },
   { href: "/dashboard/settings/telecalling-behavior", icon: Headset, label: "Telecalling Behavior", group: "Calling" },
   { href: "/dashboard/settings/notifications", icon: Megaphone, label: "Notifications", group: "Alerts", entitlement: "notifications" },
 ];
@@ -46,4 +46,4 @@ export function getVisibleSettingsItems(purchasedFeatures: string[]): SettingsNa
 }
 
 /** Groups, in display order, for rendering group headings above their items. */
-export const SETTINGS_GROUP_ORDER: SettingsGroup[] = ["Account", "Channels", "Aira", "Calling", "Alerts"];
+export const SETTINGS_GROUP_ORDER: SettingsGroup[] = ["Account", "Channels", "Anril", "Calling", "Alerts"];

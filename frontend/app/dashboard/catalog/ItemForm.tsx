@@ -210,7 +210,7 @@ export function ItemForm({
               />
             </div>
             <p className="mt-1 text-xs text-ink-muted">
-              When set, Aira can quote this price directly in WhatsApp replies.
+              When set, Anril can quote this price directly in WhatsApp replies.
             </p>
           </div>
           <div>
@@ -244,7 +244,7 @@ export function ItemForm({
               <p className="mt-1 text-xs text-ink-muted">
                 {itemToEdit
                   ? "Changes are saved as a stock correction in the history."
-                  : "When set, Aira stops recommending this item for purchase once it hits 0 — but can still tell a customer it's out of stock if asked."}
+                  : "When set, Anril stops recommending this item for purchase once it hits 0 — but can still tell a customer it's out of stock if asked."}
               </p>
             </div>
           )}
@@ -255,7 +255,7 @@ export function ItemForm({
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
               className="w-full rounded-xl border border-border bg-surface-low px-3 py-2 text-sm outline-none focus:border-primary"
-              placeholder="Short description Aira can use when recommending this item"
+              placeholder="Short description Anril can use when recommending this item"
             />
           </div>
 

@@ -16,12 +16,12 @@ const POLL_MS = 30_000;
 const HEARTBEAT_WARNING_ENABLED = false;
 
 function syncWarning(row: PendingWrapupSummary): string | null {
-  if (!row.has_sync_token) return "Aira Sync not set up";
+  if (!row.has_sync_token) return "Anril Sync not set up";
   if (!HEARTBEAT_WARNING_ENABLED) return null;
   const hour = new Date().getHours();
   if (hour < WORKDAY_START_HOUR || hour >= WORKDAY_END_HOUR) return null;
-  if (!row.last_sync_at) return "Aira Sync never connected";
-  return Date.now() - new Date(row.last_sync_at).getTime() > SYNC_STALE_MS ? "Aira Sync inactive" : null;
+  if (!row.last_sync_at) return "Anril Sync never connected";
+  return Date.now() - new Date(row.last_sync_at).getTime() > SYNC_STALE_MS ? "Anril Sync inactive" : null;
 }
 
 /** True when the phone is known to run an older Aira Sync than the published one. */
@@ -112,7 +112,7 @@ export default function FeedbackOversight() {
                 )}
                 {needsAppUpdate(row) && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 font-label text-xs font-bold text-amber-700">
-                    <Download size={11} /> Aira Sync update needed
+                    <Download size={11} /> Anril Sync update needed
                     {row.app_version != null ? ` · build ${row.app_version}` : " · old version"}
                   </span>
                 )}

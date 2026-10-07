@@ -7,5 +7,5 @@ export function pendingCallLabel(log: Pick<CallLog, "direction" | "duration_seco
   const answered = (log.duration_seconds ?? 0) > 0;
   if (log.direction === "outgoing" && !answered) return "Outgoing, not answered";
   if (log.direction === "outgoing") return "Outgoing";
-  return log.status === "sim_started" ? "Call started from Aira" : "Call";
+  return log.status === "sim_started" ? "Call started from Anril" : "Call";
 }

@@ -19,13 +19,13 @@ export interface SandboxReply {
 }
 
 const STATUS_MESSAGES: Record<number, string> = {
-  409: "Aira's reply model isn't set up for this business. Ask the Aira team to set it up.",
+  409: "Anril's reply model isn't set up for this business. Ask the Anril team to set it up.",
   429: "That's a lot of test messages. Please wait a few minutes and try again.",
-  503: "Test Aira is switched off right now.",
-  403: "You need manage access to the Knowledge Base to test Aira.",
+  503: "Test Anril is switched off right now.",
+  403: "You need manage access to the Knowledge Base to test Anril.",
   422: "That message can't be sent. Keep it under 1000 characters.",
 };
-const GENERIC_ERROR = "Aira couldn't answer just now. Please try again.";
+const GENERIC_ERROR = "Anril couldn't answer just now. Please try again.";
 const NETWORK_ERROR = "Couldn't reach the server. Please try again.";
 
 export function messageForStatus(status: number | null): string {

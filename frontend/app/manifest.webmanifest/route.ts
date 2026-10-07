@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const APP_NAME = "Aira AI";
+const APP_NAME = "Anril AI";
 const APP_DESCRIPTION = "WhatsApp lead management for education consultancies.";
 
 export function GET() {
@@ -8,7 +8,7 @@ export function GET() {
     {
       id: "/aira",
       name: APP_NAME,
-      short_name: "Aira",
+      short_name: "Anril",
       description: APP_DESCRIPTION,
       start_url: "/aira/dashboard",
       scope: "/aira",

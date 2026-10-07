@@ -173,7 +173,7 @@ export function ItemsTab({ canManage }: { canManage: boolean }) {
       <div className="flex flex-col gap-3 rounded-card border border-border bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="font-display text-lg font-bold text-ink">Products</h2>
-          <p className="mt-1 text-sm text-ink-muted">Manage the products, services and media Aira can recommend and sell.</p>
+          <p className="mt-1 text-sm text-ink-muted">Manage the products, services and media Anril can recommend and sell.</p>
         </div>
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <label className="relative block md:w-72">
@@ -247,7 +247,7 @@ export function ItemsTab({ canManage }: { canManage: boolean }) {
           <div className="mt-4 border-t border-border-subtle pt-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
               <p className="text-sm text-ink-muted">
-                Group variants (e.g. properties in different locations) so Aira can disambiguate them.
+                Group variants (e.g. properties in different locations) so Anril can disambiguate them.
               </p>
               {canManage && (
                 <div className="flex flex-wrap gap-2">

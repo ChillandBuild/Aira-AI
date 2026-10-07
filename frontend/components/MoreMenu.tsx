@@ -54,7 +54,7 @@ const MORE_ITEMS: MoreMenuItem[] = [
   { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
   { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", permissionAny: ["inbound_leads.view"], feature: "inbound_messaging" },
   { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: BRAIN_HREF, icon: Brain, label: "Aira Brain", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
+  { href: BRAIN_HREF, icon: Brain, label: "Anril Brain", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/catalog", icon: ShoppingBag, label: "Products", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
   { href: "/dashboard/services", icon: Package, label: "Services", permissionAny: ["settings.view", "settings.manage", "catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },

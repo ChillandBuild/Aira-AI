@@ -788,7 +788,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Auto-reply to inbound messages</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                Allow Aira to automatically reply to inbound WhatsApp messages using AI for this client.
+                Allow Anril to automatically reply to inbound WhatsApp messages using AI for this client.
               </p>
             </div>
             <OperatorToggle
@@ -812,7 +812,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-ink">Reply with WhatsApp audio</p>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-                When a customer sends a WhatsApp voice note, Aira transcribes it and replies back as a Gemini-generated voice note for this client.
+                When a customer sends a WhatsApp voice note, Anril transcribes it and replies back as a Gemini-generated voice note for this client.
               </p>
             </div>
             <OperatorToggle
@@ -1070,7 +1070,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
                 {providerMeta.key === "jina" && status !== "configured" && (
                   <p className="mb-3 flex items-start gap-1.5 text-xs text-warning">
                     <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                    No Jina key: this client&apos;s knowledge files are not searchable (Aira pastes all files into every reply).
+                    No Jina key: this client&apos;s knowledge files are not searchable (Anril pastes all files into every reply).
                   </p>
                 )}
                 {models.length === 0 ? (
@@ -1127,7 +1127,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
           Sends this client&apos;s paid consultations to an astrologer platform (e.g. AstroTamil)
           and delivers their replies back over WhatsApp. Ops-entered, not client self-service —
           these credentials come from that platform&apos;s own dev team, coordinated directly with
-          Aira&apos;s team during setup. Also requires the <code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code> flag
+          Anril&apos;s team during setup. Also requires the <code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code> flag
           enabled below under Custom Feature Flags.
         </p>
         <div className="flex flex-col gap-5">

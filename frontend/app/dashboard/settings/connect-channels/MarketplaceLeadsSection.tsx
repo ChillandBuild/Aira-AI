@@ -228,7 +228,7 @@ function WelcomeTemplatePicker({ canManage }: { canManage: boolean }) {
     <div className="space-y-2 rounded-2xl border border-primary/15 bg-primary/[0.03] p-5">
       <p className="text-sm font-semibold text-ink">First WhatsApp message</p>
       <p className="font-body text-xs text-ink-secondary">
-        Buyers usually message several sellers at once — the first reply wins. Pick an approved template and Aira
+        Buyers usually message several sellers at once — the first reply wins. Pick an approved template and Anril
         sends it within seconds of every new enquiry. {"{{1}}"} becomes the buyer&apos;s first name, {"{{2}}"} the
         product they asked about.
       </p>

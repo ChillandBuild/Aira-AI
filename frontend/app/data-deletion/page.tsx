@@ -4,23 +4,23 @@ import { LegalPageShell, LegalSection, LegalList } from "@/components/legal/Lega
 
 export const metadata: Metadata = {
   title: "Data Deletion",
-  description: "How to request deletion of your personal data from AIRA, a Bloom Matrix product.",
+  description: "How to request deletion of your personal data from Anril, a Bloom Matrix product.",
 };
 
 export default function DataDeletionPage() {
   return (
-    <LegalPageShell title="Data Deletion" subtitle="AIRA — a Bloom Matrix product" effectiveDate="14 June 2026">
+    <LegalPageShell title="Data Deletion" subtitle="Anril — a Bloom Matrix product" effectiveDate="14 June 2026">
       <p className="text-sm leading-relaxed text-ink-secondary mb-10">
-        This page explains how you can request deletion of personal data associated with your use of AIRA, a
-        product operated by Bloom Matrix. It applies to AIRA business users, their team members, and individuals
-        who have interacted with a business through AIRA-connected channels (WhatsApp, Instagram, Facebook
+        This page explains how you can request deletion of personal data associated with your use of Anril, a
+        product operated by Bloom Matrix. It applies to Anril business users, their team members, and individuals
+        who have interacted with a business through Anril-connected channels (WhatsApp, Instagram, Facebook
         Messenger, and Telegram).
       </p>
 
       <LegalSection title="1. Your Right to Request Deletion">
         <p>
           You may request deletion of your personal data at any time. This right is available to all users who
-          can access AIRA, as well as to individuals whose data has been processed through AIRA on behalf of a
+          can access Anril, as well as to individuals whose data has been processed through Anril on behalf of a
           business customer.
         </p>
       </LegalSection>
@@ -50,19 +50,19 @@ export default function DataDeletionPage() {
 
       <LegalSection title="3. Deleting Data via Connected Platforms">
         <p>
-          If your data reached AIRA through a connected third-party platform — the WhatsApp Business Platform,
-          Meta Business Manager, Facebook, Instagram, or Telegram — you may also revoke AIRA&rsquo;s access at
+          If your data reached Anril through a connected third-party platform — the WhatsApp Business Platform,
+          Meta Business Manager, Facebook, Instagram, or Telegram — you may also revoke Anril&rsquo;s access at
           any time through that platform&rsquo;s own settings. Certain data controlled directly by those
           platforms can only be deleted through the platform itself, and revoking access there does not
-          automatically delete data already stored in AIRA — submit a request as described in Section 2 for that.
+          automatically delete data already stored in Anril — submit a request as described in Section 2 for that.
         </p>
       </LegalSection>
 
       <LegalSection title="4. If a Business Customer Uploaded Your Data">
         <p>
-          Where a business customer using AIRA has uploaded your contact or communication data (for example, as
+          Where a business customer using Anril has uploaded your contact or communication data (for example, as
           a lead or customer record), that business acts as the controller of your data. If you are an
-          end-customer of an AIRA business customer, you may direct your deletion request to that business
+          end-customer of an Anril business customer, you may direct your deletion request to that business
           directly. Bloom Matrix will assist the business in fulfilling such requests when contacted through the
           process above.
         </p>

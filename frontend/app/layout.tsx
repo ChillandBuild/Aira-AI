@@ -37,15 +37,15 @@ const dancingScript = Dancing_Script({
 
 export const metadata: Metadata = {
   title: {
-    default: "Aira AI - Lead Intelligence",
-    template: "%s | Aira AI",
+    default: "Anril AI - Lead Intelligence",
+    template: "%s | Anril AI",
   },
   description: "WhatsApp lead management for education consultancies",
-  applicationName: "Aira AI",
+  applicationName: "Anril AI",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Aira AI",
+    title: "Anril AI",
   },
   formatDetection: {
     telephone: false,

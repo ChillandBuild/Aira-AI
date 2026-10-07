@@ -11,9 +11,9 @@ export class BrainApiError extends Error {
 }
 
 function messageForStatus(status: number): string {
-  if (status === 403) return "You don't have access to Aira Brain.";
-  if (status === 404) return "Aira Brain isn't available yet. Please try again shortly.";
-  return "Couldn't load Aira Brain. Please try again.";
+  if (status === 403) return "You don't have access to Anril Brain.";
+  if (status === 404) return "Anril Brain isn't available yet. Please try again shortly.";
+  return "Couldn't load Anril Brain. Please try again.";
 }
 
 function isBrainResponse(body: unknown): body is BrainResponse {
@@ -37,6 +37,6 @@ export async function getBrain(): Promise<BrainResponse> {
   }
   if (!res.ok) throw new BrainApiError(messageForStatus(res.status), res.status);
   const body: unknown = await res.json().catch(() => null);
-  if (!isBrainResponse(body)) throw new BrainApiError("Aira Brain sent an unexpected response.");
+  if (!isBrainResponse(body)) throw new BrainApiError("Anril Brain sent an unexpected response.");
   return body;
 }

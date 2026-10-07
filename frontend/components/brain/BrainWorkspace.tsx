@@ -33,7 +33,7 @@ export function BrainWorkspace({ sections, activeId, onSelect }: {
 
   return (
     <div className="grid min-w-0 gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <nav aria-label="Aira Brain sections" className="min-w-0">
+      <nav aria-label="Anril Brain sections" className="min-w-0">
         <div className="flex flex-wrap gap-2 lg:flex-col lg:gap-1">
           {sections.map((section) => {
             const selected = section.id === active.id;

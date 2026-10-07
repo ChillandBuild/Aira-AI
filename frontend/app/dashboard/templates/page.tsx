@@ -723,7 +723,7 @@ export default function TemplatesPage() {
               </div>
 
               <p className="font-body text-xs text-ink-muted leading-relaxed mb-4">
-                Add other approved templates to rotate inside broadcasts. When sending messages, Aira will select randomly among variations.
+                Add other approved templates to rotate inside broadcasts. When sending messages, Anril will select randomly among variations.
               </p>
 
               {variationsLoading ? (

@@ -106,8 +106,8 @@ export default function DeleteDocumentModal({ doc, isOwner, onClose, onDeleted }
             <div className="space-y-3">
               <div className="rounded-xl border border-surface-mid bg-surface-low/60 p-3 font-body text-xs text-on-surface">
                 {preview.has_facts
-                  ? "Aira will stop looking up the facts from this file."
-                  : "This file has nothing Aira looks up."}
+                  ? "Anril will stop looking up the facts from this file."
+                  : "This file has nothing Anril looks up."}
               </div>
 
               {preview.remove_lines.length > 0 && (

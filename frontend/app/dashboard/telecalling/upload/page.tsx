@@ -1232,7 +1232,7 @@ function ScriptsTab() {
                                 <textarea 
                                   value={step.text} 
                                   onChange={(e) => updateStep(idx, { text: e.target.value })} 
-                                  placeholder="Hello, is this {{name}}? I'm calling from Aira..." 
+                                  placeholder="Hello, is this {{name}}? I'm calling from Anril..." 
                                   rows={3}
                                   className="w-full border border-surface-mid rounded-xl px-4 py-3 font-body text-sm text-on-surface bg-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all" 
                                 />

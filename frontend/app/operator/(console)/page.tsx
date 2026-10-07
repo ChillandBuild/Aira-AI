@@ -377,7 +377,7 @@ export default function OperatorPage() {
                 <span>{alert.detail}</span>
                 {alert.href && (
                   <button type="button" onClick={() => router.push(alert.href as string)} className="font-semibold text-primary underline">
-                    Open Aira Brain
+                    Open Anril Brain
                   </button>
                 )}
               </li>

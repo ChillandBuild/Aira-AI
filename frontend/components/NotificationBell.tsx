@@ -155,7 +155,7 @@ export function NotificationBell() {
                     <div>
                       <p className="font-display text-xs font-black text-[#292524]">Enable phone alerts</p>
                       <p className="mt-0.5 font-body text-[11px] leading-relaxed text-[#57534e]">
-                        Get notified when a new lead is assigned while Aira is in the background.
+                        Get notified when a new lead is assigned while Anril is in the background.
                       </p>
                     </div>
                   </div>
