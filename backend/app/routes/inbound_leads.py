@@ -457,7 +457,7 @@ AD_PERFORMANCE_EXPORT_COLUMNS = [
     ("frequency", "Frequency"),
     ("inline_link_clicks", "WhatsApp clicks"),
     ("clicks_all", "Clicks (all)"),
-    ("messages", "Messages sent (Aira confirmed)"),
+    ("messages", "Messages sent (Anril confirmed)"),
     ("meta_conversations", "Meta-reported conversations"),
     ("conversation_rate", "Message rate"),
     ("meta_conversation_rate", "Meta-reported message rate"),
