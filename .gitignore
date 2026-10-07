@@ -76,3 +76,10 @@ backend/evals/ui/screenshots/
 
 # R&D run reports: may hold aggregated customer patterns, local only (scripts/rnd/run.sh)
 /rnd/
+
+# web-product-video
+.product-video/session.json
+.product-video/capture/
+videos/*/capture/app-raw/
+/videos/
+output
