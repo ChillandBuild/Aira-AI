@@ -256,7 +256,9 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
-      setTime(now.toLocaleTimeString("en-US", { hour12: false, hour: '2-digit', minute: '2-digit' }));
+      // 12-hour with AM/PM in the viewer's own locale: "4:10 PM" reads at a
+      // glance, "16:10" made people stop and convert.
+      setTime(now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true }));
     };
     updateTime();
     const interval = setInterval(updateTime, 1000);
@@ -651,7 +653,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           title="Schedule & Notes"
         >
           <Clock size={13} className="opacity-50" />
-          <span>{time || "00:00"}</span>
+          <span>{time || "—"}</span>
           <span className="sr-only">Schedule & Notes</span>
         </button>
         <NotificationBell />

@@ -1598,7 +1598,9 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 
 - **2026-10-06 — Partner send drops extra template variables.** AstroTamil's Django always sends `[customer name, service name, "AstroTamil"]` for `{{1}}`/`{{2}}`/`{{3}}` and cannot know how many placeholders a given template uses, so `partner_send_template` trims the list to the template's count instead of returning `variables_mismatch`; too few values is still 400. Lets the client write templates with none, one or both placeholders without any per-template config.
 
-### 2026-10-07 — Private Send: Aira's rules, the client's own server sends (local, NOT committed)
+- **2026-10-06 — Developer page in the client dashboard.** Aira is multi-vendor; a partner's developer needs the integration contract without asking us. `/dashboard/developer` documents the partner send API, signing, Aira IDs, errors and callbacks, with the tenant's own non-secret identifiers filled in from `GET /api/v1/intake/partner/config`. Secrets stay ops-issued (operator console) and are only reported as set/not set, in line with the 2026-08-23 decision not to expose bridge credentials client-side.
+
+### 2026-10-07 — Private Send: Aira's rules, the client's own server sends (branch `feat/private-send`, not merged to main)
 
 - **What:** for clients (banks, private firms) whose lead data may not reach Aira. The client's server runs the open-source plug-in (`sdk/python` → `aira-private-send`, `sdk/node` → `aira-private-send`), downloads an Ed25519-signed bundle (enabled `auto_message_rules` + APPROVED templates + cap) from `GET /api/v1/private-send/bundle`, sends to Meta with the client's own System User token, and reports count-only daily totals to `POST /api/v1/private-send/usage`. Contract: `sdk/spec/CONTRACT.md`; client guide: `docs/private-send.md`.
 - **Why not "send it to us and we delete it":** the client cannot verify deletion; with the plug-in, Aira never receives a name or number (the `/usage` model is `extra="forbid"`).

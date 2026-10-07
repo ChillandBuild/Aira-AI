@@ -31,6 +31,7 @@ import type { Blocker } from "../template-rules";
 import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
+import PlaceholderGuide from "../components/placeholder-guide";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import { useAuthRole } from "../../contexts/AuthRoleContext";
 
@@ -516,6 +517,14 @@ export default function NewTemplatePage() {
                   maxLength={1024}
                   placeholder="Enter template message body here..."
                 />
+                <div className="mt-3">
+                  <PlaceholderGuide
+                    onUse={(body, samples) => {
+                      setBodyText(body);
+                      setBodySamples(samples);
+                    }}
+                  />
+                </div>
               </div>
 
               {/* Footer Text */}

@@ -63,8 +63,10 @@ def _db(template=None, lead=None):
     return db
 
 
-def _post(url, body, db, secret=SECRET, send=None, send_text=None):
+def _post(url, body, db, secret=SECRET, send=None, send_text=None, header_name=None):
     raw, headers = _signed(body)
+    if header_name:  # sign under a different header name (canonical vs legacy)
+        headers = {header_name: headers.pop("x-astro-signature"), **headers}
     send = send or AsyncMock(return_value={"messages": [{"id": "wamid.T1"}]})
     send_text = send_text or AsyncMock(return_value="wamid.X1")
     with patch("app.routes.intake.astro_bridge.get_bridge_secret", return_value=secret), \
@@ -165,6 +167,25 @@ def test_template_happy_path():
         tenant_id=TENANT,
         phone_number_id=PNID,
     )
+
+
+def test_the_canonical_header_name_is_accepted():
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), header_name="x-aira-signature")
+    assert res.status_code == 200, res.text
+    send.assert_awaited_once()
+
+
+def test_the_legacy_header_name_still_works():
+    # AstroTamil's Django signs under the original name; _signed() uses it by default.
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), header_name="x-astro-signature")
+    assert res.status_code == 200, res.text
+    send.assert_awaited_once()
+
+
+def test_a_bad_signature_under_the_canonical_name_is_401():
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), _db(APPROVED), secret="other", header_name="x-aira-signature")
+    assert res.status_code == 401
+    send.assert_not_awaited()
 
 
 def test_template_lookup_is_tenant_scoped():

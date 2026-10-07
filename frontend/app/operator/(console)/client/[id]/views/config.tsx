@@ -83,9 +83,9 @@ const MANAGED_FEATURE_KEYS = new Set([
 type AstroBridgeFieldKey = "astro_bridge_url" | "astro_bridge_api_key" | "astro_bridge_secret";
 
 const ASTRO_BRIDGE_FIELDS: { key: AstroBridgeFieldKey; label: string; secret: boolean; hint: string }[] = [
-  { key: "astro_bridge_url", label: "Bridge Base URL", secret: false, hint: "Base URL of the astrologer platform, e.g. https://astro.example.com — no trailing slash." },
-  { key: "astro_bridge_api_key", label: "API Key", secret: true, hint: "The PermanentAPIKey issued by the astrologer platform. Sent as X-API-Key on every push." },
-  { key: "astro_bridge_secret", label: "Callback Secret", secret: true, hint: "Shared HMAC secret the astrologer platform signs its reply callback with. Must match its AIRA_BRIDGE_SECRET." },
+  { key: "astro_bridge_url", label: "Partner app base URL", secret: false, hint: "Base URL of the client's own app, e.g. https://app.example.com — no trailing slash. Only needed for expert hand-off." },
+  { key: "astro_bridge_api_key", label: "Partner app API key", secret: true, hint: "Issued by the client's app. Aira sends it as X-API-Key on every hand-off push." },
+  { key: "astro_bridge_secret", label: "Shared secret (signing)", secret: true, hint: "HMAC secret the client's app signs every request to Aira with (partner sends and the reply callback). Hand it to their developer; their Developer page says whether it is on file." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [
@@ -586,7 +586,7 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
       // 3 fields, and this component only tracks drafts for the one just saved.
       const refreshed = await apiFetch<ConfigData>(`/api/v1/operator/clients/${tenantId}/config`);
       setConfig(refreshed);
-      toast.success("Astro bridge field saved.");
+      toast.success("Partner integration field saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save astro bridge field");
       toast.error("Failed to save astro bridge field.");
@@ -1116,19 +1116,21 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </div>
       </div>
 
-      {/* Astro Bridge */}
+      {/* Partner integration (settings keys keep their original astro_bridge_* names) */}
       <div>
         <h3 className="text-sm font-semibold text-ink mb-3 flex items-center gap-2">
           <Link2 size={16} className="text-ink-muted" />
-          Astro Bridge
+          Partner integration
           {statusBadge(config.credentials_status.astro_bridge || "not_configured")}
         </h3>
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
-          Sends this client&apos;s paid consultations to an astrologer platform (e.g. AstroTamil)
-          and delivers their replies back over WhatsApp. Ops-entered, not client self-service —
-          these credentials come from that platform&apos;s own dev team, coordinated directly with
-          Anril&apos;s team during setup. Also requires the <code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code> flag
-          enabled below under Custom Feature Flags.
+          How this client&apos;s own app talks to Anril. The <strong>shared secret</strong> is all a
+          client needs to send WhatsApp templates and texts through Anril from their app; their
+          developer reads the contract on the dashboard&apos;s <strong>Developer</strong> page, which
+          shows whether a secret is on file but never its value. The URL and API key are only for
+          expert hand-off (Anril pushing paid requests to their app), which also needs the
+          <code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code> flag
+          below under Custom Feature Flags. Ops-entered, not client self-service.
         </p>
         <div className="flex flex-col gap-5">
           {ASTRO_BRIDGE_FIELDS.map((field) => {
@@ -1174,8 +1176,8 @@ export function ConfigView({ tenantId }: { tenantId: string }) {
         </h3>
         <p className="mb-4 text-xs leading-relaxed text-ink-muted">
           Raw flags with no plan/catalog entry of their own — for a one-off integration built
-          for a specific client, like AstroTamil&apos;s paid-consultation bridge to their
-          astrologer platform (<code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code>).
+          for a specific client, like a paid-request hand-off to the client&apos;s own expert
+          platform (<code className="rounded bg-surface-low px-1 py-0.5 text-[11px]">astro_bridge</code>).
           If another client needs a similar custom connection, enable a flag here and the
           matching setup fields appear for them under Settings → Connect Channels.
         </p>

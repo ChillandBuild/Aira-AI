@@ -9,7 +9,7 @@ import {
   BarChart2, Upload, BookOpen, Layers, FileCheck,
   Zap, StickyNote, Package, ShoppingBag,
   ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
-  Settings, Brain,
+  Settings, Brain, Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -930,6 +930,29 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             </div>
           )}
         </>
+      )}
+
+      {/* Pinned footer: Developer. Kept out of the scrolling lists so it sits at
+          the bottom whatever page or group is open — it is reference material
+          for a partner's developer, not a daily destination. */}
+      {isSubscribed && canSettings && (
+        <div className={cn("shrink-0 border-t border-[#e8e3db]", collapsed ? "py-2 flex flex-col items-center" : "px-3 py-2")}>
+          {collapsed ? (
+            <CollapsedNavItem
+              href="/dashboard/developer"
+              active={pathname.startsWith("/dashboard/developer")}
+              icon={Code2}
+              label="Developer"
+            />
+          ) : (
+            <MainNavItem
+              href="/dashboard/developer"
+              active={pathname.startsWith("/dashboard/developer")}
+              icon={Code2}
+              label="Developer"
+            />
+          )}
+        </div>
       )}
     </aside>
   );
