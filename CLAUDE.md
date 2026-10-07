@@ -3,7 +3,7 @@
 ## Core Commands
 - **Backend Dev**: `make dev-backend` (safe mode: scheduler paused, outbound dry-run). Never plain `uvicorn` on a laptop — it shares the live DB.
 - **Backend Build/Deps**: `cd backend && pip install -r requirements.txt`
-- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` dies at collection with `ModuleNotFoundError: No module named 'app'`. `python -m` puts the cwd on `sys.path` and the suite passes (2553 tests collected as of 2026-09-29). Run it from `backend/`, not the repo root.
+- **Backend Test**: `cd backend && python -m pytest` (runs tests under `backend/tests/`). Use `python -m pytest`, not bare `pytest` — several test modules import `app.*` without adding the backend dir to `sys.path`, so bare `pytest` dies at collection with `ModuleNotFoundError: No module named 'app'`. `python -m` puts the cwd on `sys.path` and the suite passes (3860 tests collected as of 2026-10-07). Run it from `backend/`, not the repo root.
 - **Frontend Dev**: `cd frontend && npm run dev`
 - **Frontend Build**: `cd frontend && npm run build`
 - **Frontend Typecheck**: `cd frontend && npm run typecheck`

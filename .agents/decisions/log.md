@@ -164,6 +164,117 @@
 | **118_fix_secret_flags** | Dynamic credentials secret tags fix |
 | **119_telecmi_agent_password** | TeleCMI credentials support for voice call lines |
 
+
+## DB Migrations Index (120–219, generated from filenames)
+
+Scope is the filename; the *why* lives in the dated entries below (grep the number). 196/197 do not exist (deleted); two files share 144. Regenerate with `ls backend/supabase/migrations` — do not hand-edit.
+
+| Migration | Scope |
+|---|---|
+| **120** | calling provider and push |
+| **121** | sim manual call statuses |
+| **122** | callback notification guards |
+| **122** | sim sync token |
+| **123** | monetization entitlements |
+| **124** | seed monetization |
+| **125** | tenant contact columns |
+| **126** | callers status |
+| **127** | admin subscription plans |
+| **128** | itemized subscriptions |
+| **129** | subscription toggle sync |
+| **130** | drop legacy booking artifacts |
+| **130** | flat price unlimited catalog |
+| **131** | pending whatsapp alerts |
+| **132** | add ai voice reply setting |
+| **133** | voice usage metrics |
+| **134** | backfill ai voice reply settings |
+| **135** | subscription request date range |
+| **136** | catalog items |
+| **137** | scope message templates to waba |
+| **138** | tenant rbac |
+| **139** | repair tenant rbac schema cache |
+| **140** | catalog disambiguation |
+| **141** | catalog media sort order |
+| **142** | escalation whatsapp alerts |
+| **143** | master prompt |
+| **144** | knowledge document storage |
+| **144** | token usage metering |
+| **145** | provider model rates |
+| **146** | distinct token usage pairs rpc |
+| **147** | ad creative attribution |
+| **148** | meta ads reporting columns |
+| **149** | meta ads create columns |
+| **150** | messages ad referral flag |
+| **151** | conversation leads search |
+| **152** | fix conversation leads duplicate pinned |
+| **153** | meta ads whatsapp account scope |
+| **154** | meta ads adset budget scope |
+| **155** | lead meta ad attributions |
+| **156** | lead meta ad attribution advisor fixes |
+| **157** | analytics comparison rpcs |
+| **158** | analytics value rpcs |
+| **159** | analytics engagement rate |
+| **160** | analytics lead arrival heatmap |
+| **161** | analytics stale hot leads |
+| **162** | employee todos tenant id |
+| **162** | meta asset claims |
+| **163** | leads tamil locked |
+| **164** | fixed lead scoring bands |
+| **165** | ad prefill exact match |
+| **166** | scheduled broadcasts abort lifecycle |
+| **167** | broadcast recipients lead id nullable |
+| **168** | expert handoff sessions |
+| **169** | app releases bucket |
+| **170** | drop broadcast auto retry |
+| **171** | meta asset claim whatsapp |
+| **172** | release meta assets |
+| **173** | add expert handoff reply source |
+| **174** | advisor hardening |
+| **175** | auto enable rls new tables |
+| **176** | intake rename and packages |
+| **177** | intake amount mismatch |
+| **178** | intake field attempts |
+| **179** | astro bridge session links |
+| **180** | intake followup counter |
+| **181** | astro reply nudge |
+| **182** | analytics returning ad leads |
+| **183** | silence nudge |
+| **184** | quick reply blocks |
+| **185** | chat handover resolver |
+| **186** | intake nested packages |
+| **187** | tenant feedback |
+| **188** | precall brief cache |
+| **189** | ad creative delivery status |
+| **190** | knowledge auto sort |
+| **191** | catalog media tenant scoped writes |
+| **192** | marketplace lead sources |
+| **193** | vertical starters |
+| **194** | catalog prices and deals |
+| **195** | catalog stock |
+| **198** | drop ai prompts |
+| **199** | call feedback gate |
+| **200** | caller app version |
+| **201** | knowledge review handover |
+| **20260802173000** | template performance date range (timestamp-prefixed, out of sequence) |
+| **202** | telecmi call scoring |
+| **203** | drop outcome only scoring |
+| **204** | deals |
+| **205** | call scoring v4 |
+| **206** | call score status v4 |
+| **207** | drop call flags |
+| **208** | call wrapup v2 widen |
+| **209** | call wrapup v2 narrow |
+| **210** | intake payment link expires at |
+| **211** | intake gst |
+| **212** | intake deal lifecycle |
+| **213** | intake one open per lead |
+| **214** | messages interactive id |
+| **215** | auto messages |
+| **216** | auto messages drop products |
+| **217** | message templates short code |
+| **218** | private send |
+| **219** | message templates variable map |
+
 ---
 
 ## 2026-06-26 - PWA support and Codex command migration
@@ -1600,7 +1711,7 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 
 - **2026-10-06 — Developer page in the client dashboard.** Aira is multi-vendor; a partner's developer needs the integration contract without asking us. `/dashboard/developer` documents the partner send API, signing, Aira IDs, errors and callbacks, with the tenant's own non-secret identifiers filled in from `GET /api/v1/intake/partner/config`. Secrets stay ops-issued (operator console) and are only reported as set/not set, in line with the 2026-08-23 decision not to expose bridge credentials client-side.
 
-### 2026-10-07 — Private Send: Aira's rules, the client's own server sends (branch `feat/private-send`, not merged to main)
+### 2026-10-07 — Private Send: Aira's rules, the client's own server sends (merged to main; built on branch `feat/private-send`)
 
 - **What:** for clients (banks, private firms) whose lead data may not reach Aira. The client's server runs the open-source plug-in (`sdk/python` → `aira-private-send`, `sdk/node` → `aira-private-send`), downloads an Ed25519-signed bundle (enabled `auto_message_rules` + APPROVED templates + cap) from `GET /api/v1/private-send/bundle`, sends to Meta with the client's own System User token, and reports count-only daily totals to `POST /api/v1/private-send/usage`. Contract: `sdk/spec/CONTRACT.md`; client guide: `docs/private-send.md`.
 - **Why not "send it to us and we delete it":** the client cannot verify deletion; with the plug-in, Aira never receives a name or number (the `/usage` model is `extra="forbid"`).
@@ -1615,3 +1726,18 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Scope (user choice):** the two alerts only — not the marketplace welcome, not partner send; flows with their own per-send mapping untouched.
 - **219_message_templates_variable_map.sql — APPLIED to live 2026-10-07.** Nullable `jsonb` column; must precede the backend deploy (alert queries select it). 218 is taken by `feat/private-send`.
 
+### 2026-10-07 — Aira renamed to Anril (dashboard, operator screens, paths, SDK)
+- **What:** commits `a6013229` (user-facing copy), `994ed214` (Ad Performance export header), `2fa366b1` (paths, backend text, SDK and kit — 143 files), `3929f215` (leftover visible text in Private Send, template and operator screens).
+- **Status:** dashboard, operator and Private Send screens were renamed. NOT verified as intentional: `frontend/app/page.tsx` (landing page) and its `hello@aira.ai` mailto still say Aira, and ~65 `aira` word hits remain in frontend `.tsx` (many are internal identifiers like `sender: "aira"` / `chat-bubble-aira`). Ask Prem before renaming the landing page or the email.
+- Internal names (repo, `Aira AI` in docs/CLAUDE.md, the `aira-agents` rules file) still say Aira on purpose.
+
+### 2026-10-07 — Dashboard analytics RPCs retry a dropped connection
+- **Why:** `_RetryTransport` (db/supabase.py) replays only GET/HEAD/OPTIONS because a dropped write may already have landed — but postgrest sends an RPC as a POST, so a "Server disconnected" on the four read-only analytics RPCs became a 500 and an "unavailable" card on the tenant's dashboard.
+- **Decision:** `execute_with_retry_async()` (next to `execute_with_retry()` in `app/utils/db_retry.py`) wraps `analytics_daily_messages`, `analytics_period_money`, `analytics_response_times`, `analytics_daily_returning_ad_leads` (commit `dbf5491d`, test `tests/test_analytics_overview_rpc_retry.py`). Writes still raise. Rule: only wrap an RPC in a retry if it is read-only.
+
+### 2026-10-07 — AppVersionTests cache reset made deterministic on fresh CI runners
+- **Why:** the tests set `_sim_app_version_cache` `at=0.0` to force a cache miss, but the cache counts as fresh while `time.monotonic() - at < 600`; on a CI runner booted under 10 minutes ago, `monotonic()` is still below 600, so `0.0` looked fresh and the mocked HTTP call never ran.
+- **Decision:** use `at=float("-inf")` (always older than the TTL). Commit `b7f4138c` (`backend/tests/test_call_feedback_gate.py`), merged as `b806b5cd`. Any new test that forces a TTL cache miss should do the same, never `0.0`.
+
+### 2026-10-07 — Second-brain audit and repair
+- Graph and wiki rebuilt with `make wiki-refresh` (16,176 → 18,216 nodes; Private Send, auto-messages, call review, lead wipe and template rules were missing before). Migration index extended to 120–219. Stale backlog items pruned, `identity.md` team line corrected, design-system and operator-run facts moved out of personal memory into `identity.md`.
