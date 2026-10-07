@@ -481,7 +481,7 @@ export default function TemplatesPage() {
               <thead className="sticky top-0 z-10 bg-surface-subtle">
                 <tr className="bg-surface-subtle border-b border-border-subtle text-ink-muted text-[11px] font-bold uppercase tracking-wider">
                   <th className="px-5 py-3.5">Template Name</th>
-                  <th className="px-5 py-3.5">Aira ID</th>
+                  <th className="px-5 py-3.5">Anril ID</th>
                   <th className="px-5 py-3.5">Category</th>
                   <th className="px-5 py-3.5">Language</th>
                   <th className="px-5 py-3.5">Status</th>
@@ -596,7 +596,7 @@ export default function TemplatesPage() {
                 {selectedTemplate.short_code && (
                   <div className="flex items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50/60 p-4">
                     <div className="min-w-0">
-                      <p className="font-body text-[10px] text-primary-700 uppercase font-bold tracking-wider">Aira ID</p>
+                      <p className="font-body text-[10px] text-primary-700 uppercase font-bold tracking-wider">Anril ID</p>
                       <p className="font-body text-xs text-ink-secondary mt-0.5">
                         Paste this number in adminweb → WhatsApp Templates to send this template from AstroTamil.
                       </p>

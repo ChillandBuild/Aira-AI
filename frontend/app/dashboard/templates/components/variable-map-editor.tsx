@@ -126,7 +126,7 @@ export default function VariableMapEditor({ templateId, bodyText, saved, canEdit
             <h2 className="font-display text-base font-bold text-ink">Variables</h2>
             <p className="font-body text-xs text-ink-muted mt-0.5 leading-relaxed">
               Choose what fills each placeholder when this template goes out as an escalation or hot-lead WhatsApp
-              alert. Leave one on Default to keep what Aira sends today. Broadcasts and auto-messages pick their own.
+              alert. Leave one on Default to keep what Anril sends today. Broadcasts and auto-messages pick their own.
             </p>
           </div>
         </div>

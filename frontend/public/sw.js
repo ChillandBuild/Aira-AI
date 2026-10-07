@@ -109,10 +109,10 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch {
-    payload = { title: "Aira", body: event.data ? event.data.text() : "New update" };
+    payload = { title: "Anril", body: event.data ? event.data.text() : "New update" };
   }
 
-  const title = payload.title || "Aira";
+  const title = payload.title || "Anril";
   const options = {
     body: payload.body || "You have a new update.",
     icon: "/anril/icons/anril-icon-192.png",

@@ -11,7 +11,7 @@ function NewKeyDialog({ created, onClose }: { created: PrivateSendNewKey; onClos
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
       <div role="dialog" aria-modal="true" aria-label="New license key" className="w-full max-w-md rounded-card bg-white p-6 shadow-xl">
         <h3 className="text-lg font-bold text-ink">License key created</h3>
-        <p className="mt-2 text-sm leading-relaxed text-warning">Copy it now — Aira can&apos;t show it again.</p>
+        <p className="mt-2 text-sm leading-relaxed text-warning">Copy it now — Anril can&apos;t show it again.</p>
         <div className="mt-4 flex items-start gap-2">
           <div className="min-w-0 flex-1 select-all break-all rounded-xl border border-border bg-surface-subtle p-3 font-mono text-[11px] font-medium text-primary">
             {created.key}

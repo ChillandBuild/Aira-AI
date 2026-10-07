@@ -42,7 +42,7 @@ export function OnboardingWizard({ open, onClose, onComplete }: OnboardingWizard
   const [password, setPassword] = useState("");
 
   function generatePassword() {
-    return "Aira@" + Math.random().toString(36).slice(2, 8);
+    return "Anril@" + Math.random().toString(36).slice(2, 8);
   }
 
   async function handleCreate() {

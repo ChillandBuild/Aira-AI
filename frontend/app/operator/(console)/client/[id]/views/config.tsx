@@ -84,8 +84,8 @@ type AstroBridgeFieldKey = "astro_bridge_url" | "astro_bridge_api_key" | "astro_
 
 const ASTRO_BRIDGE_FIELDS: { key: AstroBridgeFieldKey; label: string; secret: boolean; hint: string }[] = [
   { key: "astro_bridge_url", label: "Partner app base URL", secret: false, hint: "Base URL of the client's own app, e.g. https://app.example.com — no trailing slash. Only needed for expert hand-off." },
-  { key: "astro_bridge_api_key", label: "Partner app API key", secret: true, hint: "Issued by the client's app. Aira sends it as X-API-Key on every hand-off push." },
-  { key: "astro_bridge_secret", label: "Shared secret (signing)", secret: true, hint: "HMAC secret the client's app signs every request to Aira with (partner sends and the reply callback). Hand it to their developer; their Developer page says whether it is on file." },
+  { key: "astro_bridge_api_key", label: "Partner app API key", secret: true, hint: "Issued by the client's app. Anril sends it as X-API-Key on every hand-off push." },
+  { key: "astro_bridge_secret", label: "Shared secret (signing)", secret: true, hint: "HMAC secret the client's app signs every request to Anril with (partner sends and the reply callback). Hand it to their developer; their Developer page says whether it is on file." },
 ];
 
 const RETRIEVAL_MODES: { id: RetrievalMode; label: string; desc: string }[] = [

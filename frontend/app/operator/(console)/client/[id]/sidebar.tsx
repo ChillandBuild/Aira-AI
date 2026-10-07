@@ -50,7 +50,7 @@ const TC_SUB_NAV: { key: SectionType; icon: typeof Phone; label: string; feature
 ];
 
 const OPERATOR_NAV: NavItem[] = [
-  { key: "brain", icon: Brain, label: "Aira Brain" },
+  { key: "brain", icon: Brain, label: "Anril Brain" },
   { key: "config", icon: Wrench, label: "Configuration" },
   { key: "entitlements", icon: Settings2, label: "Entitlements & Usage" },
   { key: "private-send", icon: Lock, label: "Private Send" },

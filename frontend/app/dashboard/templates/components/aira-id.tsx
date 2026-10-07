@@ -60,15 +60,15 @@ export default function AiraId({ code, size = "sm", className = "" }: AiraIdProp
       <button
         type="button"
         onClick={copy}
-        title="Copy Aira ID — paste it in adminweb → WhatsApp Templates"
-        aria-label={`Copy Aira ID ${code}`}
+        title="Copy Anril ID — paste it in adminweb → WhatsApp Templates"
+        aria-label={`Copy Anril ID ${code}`}
         className={`group/aira inline-flex items-center gap-2.5 rounded-xl border bg-white pl-3 pr-2 py-1.5 shadow-sm transition-colors ${
           copied ? "border-emerald-300 bg-emerald-50" : "border-primary-200 hover:border-primary-400 hover:bg-primary-50"
         } ${className}`}
       >
         <span className="flex flex-col items-start leading-none">
           <span className="font-label text-[9px] font-bold uppercase tracking-[0.14em] text-primary-600">
-            Aira ID
+            Anril ID
           </span>
           <span className="mt-0.5 font-mono text-[17px] font-bold tabular-nums tracking-[0.12em] text-ink select-all">
             {code}
@@ -90,8 +90,8 @@ export default function AiraId({ code, size = "sm", className = "" }: AiraIdProp
     <button
       type="button"
       onClick={copy}
-      title="Copy Aira ID — paste it in adminweb → WhatsApp Templates"
-      aria-label={`Copy Aira ID ${code}`}
+      title="Copy Anril ID — paste it in adminweb → WhatsApp Templates"
+      aria-label={`Copy Anril ID ${code}`}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums transition-colors ${
         copied
           ? "border-emerald-300 bg-emerald-50 text-emerald-700"

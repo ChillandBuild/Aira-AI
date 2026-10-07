@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Lightbulb, Wand2 } from "lucide-react";
 
 /*
-  Placeholder guide on the template editor. Aira is sold to many businesses,
+  Placeholder guide on the template editor. Anril is sold to many businesses,
   so this explains the one mechanism every template shares — numbered
   placeholders filled in order — without naming any client. The examples are
   one click away from being the body, samples included, so a first template
@@ -68,7 +68,7 @@ export default function PlaceholderGuide({ onUse }: { onUse: (body: string, samp
               A placeholder is <code className="font-mono">{"{{1}}"}</code>, <code className="font-mono">{"{{2}}"}</code>, <code className="font-mono">{"{{3}}"}</code>… in the body. Numbers only, starting at 1, no gaps.
             </li>
             <li>
-              <strong>The numbers carry no meaning of their own.</strong> Whoever sends the template fills them in order. From a broadcast in Aira you pick a lead field for each one. From your own app through the API, your app sends a list of values: the first fills <code className="font-mono">{"{{1}}"}</code>, the second <code className="font-mono">{"{{2}}"}</code>, and so on.
+              <strong>The numbers carry no meaning of their own.</strong> Whoever sends the template fills them in order. From a broadcast in Anril you pick a lead field for each one. From your own app through the API, your app sends a list of values: the first fills <code className="font-mono">{"{{1}}"}</code>, the second <code className="font-mono">{"{{2}}"}</code>, and so on.
             </li>
             <li>
               An app may send <strong>more</strong> values than a template uses; the extras are ignored. That is how one app can send the same fixed list to every template. Sending <strong>fewer</strong> is refused, because WhatsApp would refuse it too.

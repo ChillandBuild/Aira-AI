@@ -58,22 +58,22 @@ function PrivateSendCard({ keyPrefix, replyMode }: { keyPrefix: string | null; r
     <Card
       icon={<Lock size={18} />}
       title="Your server (Private Send)"
-      sub="Your own server sends the messages. Aira only receives daily counts — never names or numbers."
+      sub="Your own server sends the messages. Anril only receives daily counts — never names or numbers."
     >
       <dl className="space-y-2 font-body text-xs">
         <div className="grid grid-cols-[96px_1fr] gap-2">
           <dt className="font-semibold text-ink">License key</dt>
           <dd className="min-w-0 text-ink-secondary">
             <span className="break-all font-mono text-[11px] font-semibold text-primary">{keyPrefix ? `${keyPrefix}…` : "—"}</span>
-            <span className="block text-ink-muted">Ask your Aira contact for the full key.</span>
+            <span className="block text-ink-muted">Ask your Anril contact for the full key.</span>
           </dd>
         </div>
         <div className="grid grid-cols-[96px_1fr] gap-2">
           <dt className="font-semibold text-ink">Replies</dt>
           <dd className="text-ink-secondary">
             {replyMode === "aira"
-              ? "Aira AI answers. Replies come to Aira's inbox."
-              : "Your system handles replies. Aira never sees them."}
+              ? "Anril AI answers. Replies come to Anril's inbox."
+              : "Your system handles replies. Anril never sees them."}
           </dd>
         </div>
       </dl>
@@ -87,7 +87,7 @@ function PrivateSendCard({ keyPrefix, replyMode }: { keyPrefix: string | null; r
           <CodeBlock code={NODE_SNIPPET} />
         </div>
       </div>
-      <p className="font-body text-[11px] text-ink-muted">Aira only receives daily counts — never names or numbers.</p>
+      <p className="font-body text-[11px] text-ink-muted">Anril only receives daily counts — never names or numbers.</p>
     </Card>
   );
 }

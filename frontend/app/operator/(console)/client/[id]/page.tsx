@@ -143,7 +143,7 @@ export default function ClientDetailPage() {
     "tc-dialer": { title: "Telecalling / Dialer", desc: "Call logs and connect rates." },
     "tc-scheduled": { title: "Telecalling / Scheduled", desc: "Upcoming scheduled callbacks." },
     "tc-notes": { title: "Telecalling / Notes", desc: "Call notes from telecallers." },
-    brain: { title: "Aira Brain", desc: "What Aira knows, what is waiting on the client, and how customers are handled (read-only)." },
+    brain: { title: "Anril Brain", desc: "What Anril knows, what is waiting on the client, and how customers are handled (read-only)." },
     config: { title: "Configuration", desc: "Credential status and key settings." },
     entitlements: { title: "Entitlements & Usage", desc: "Current purchased items, subscription status, and usage this cycle (read-only)." },
     "private-send": { title: "Private Send", desc: "Client-side sending: license keys, plan cap, reply routing and usage." },

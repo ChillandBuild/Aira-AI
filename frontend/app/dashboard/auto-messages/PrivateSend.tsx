@@ -27,7 +27,7 @@ export function PrivateSendDailyTable({ status }: { status: PrivateSendStatus })
       <div className="border-b border-border-subtle px-5 py-4">
         <h3 className="font-display text-base font-bold text-ink">Private Send — daily counts</h3>
         <p className="mt-0.5 font-body text-xs text-ink-secondary">
-          Sent from your own server. Aira only receives these counts, never names or numbers.
+          Sent from your own server. Anril only receives these counts, never names or numbers.
         </p>
       </div>
       {status.days.length === 0 ? (

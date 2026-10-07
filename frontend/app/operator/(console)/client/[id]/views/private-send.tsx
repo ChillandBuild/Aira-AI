@@ -25,8 +25,8 @@ const selectCls =
   "w-full rounded-xl border border-border bg-white px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-primary disabled:opacity-60";
 
 const REPLY_OPTIONS: { id: PrivateSendReplyMode; title: string; desc: string }[] = [
-  { id: "client", title: "Client's system", desc: "Aira never sees replies or numbers" },
-  { id: "aira", title: "Aira AI answers", desc: "replies come to Aira's inbox, so Aira sees the number of anyone who replies" },
+  { id: "client", title: "Client's system", desc: "Anril never sees replies or numbers" },
+  { id: "aira", title: "Anril AI answers", desc: "replies come to Anril's inbox, so Anril sees the number of anyone who replies" },
 ];
 
 interface Props {
@@ -106,8 +106,8 @@ export function PrivateSendView({ tenantId, enabledFeatures, onToggleFeature, fe
               Private Send
             </p>
             <p className="mt-1 text-xs leading-relaxed text-ink-muted">
-              The client&apos;s own server sends the WhatsApp templates, so Aira never sees lead names or numbers.
-              Aira controls the license, the monthly cap, reply routing and offline grace.
+              The client&apos;s own server sends the WhatsApp templates, so Anril never sees lead names or numbers.
+              Anril controls the license, the monthly cap, reply routing and offline grace.
             </p>
           </div>
           <OperatorToggle
@@ -206,7 +206,7 @@ export function PrivateSendView({ tenantId, enabledFeatures, onToggleFeature, fe
             {data.reply_mode === "aira" && (
               <div className="mt-3 flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs text-warning">
                 <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-                <p>Replies come to Aira&apos;s inbox, so Aira sees the number of anyone who replies.</p>
+                <p>Replies come to Anril&apos;s inbox, so Anril sees the number of anyone who replies.</p>
               </div>
             )}
             {replyError && (
