@@ -123,28 +123,52 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
   );
 }
 
+// Last answer per lead, so reopening a lead shows the card at once while it refreshes.
+const contextCache = new Map<string, SendDetailsContext>();
+
+/** Holds the card's space while the first answer loads, so Quick Note doesn't jump. */
+function SendDetailsSkeleton() {
+  return (
+    <div aria-hidden className="flex min-w-0 flex-1 animate-pulse flex-col gap-3 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm">
+      <div className="h-3 w-40 rounded bg-[#f0ece6]" />
+      <div className="h-4 w-56 rounded-full bg-[#f5f2ed]" />
+      <div className="min-h-[120px] flex-1 rounded-xl bg-[#faf8f5]" />
+      <div className="h-8 rounded-xl bg-[#f0ece6]" />
+    </div>
+  );
+}
+
 /** Lead page card. Hidden when the tenant has no WhatsApp or the lead opted out. */
 export default function SendDetailsCard({ leadId, readOnly = false }: { leadId: string; readOnly?: boolean }) {
-  const [context, setContext] = useState<SendDetailsContext | null>(null);
+  const [context, setContext] = useState<SendDetailsContext | null>(() => contextCache.get(leadId) ?? null);
   const [sending, setSending] = useState(false);
 
-  const load = useCallback(() => {
-    api.leads.sendDetailsContext(leadId).then(setContext).catch(() => setContext({ available: false }));
+  const load = useCallback((force = false) => {
+    api.leads.sendDetailsContext(leadId)
+      .then((next) => {
+        const cached = contextCache.get(leadId);
+        // An unchanged refresh keeps the old object: a new one resets any draft being typed.
+        if (!force && cached && JSON.stringify(cached) === JSON.stringify(next)) return setContext(cached);
+        contextCache.set(leadId, next);
+        setContext(next);
+      })
+      .catch(() => setContext({ available: false }));
   }, [leadId]);
 
   useEffect(() => {
-    setContext(null);
+    setContext(contextCache.get(leadId) ?? null);
     load();
-  }, [load]);
+  }, [leadId, load]);
 
-  if (!context || !context.available) return null;
+  if (!context) return <SendDetailsSkeleton />;
+  if (!context.available) return null;
 
   async function send(body: { text: string } | { template_id: string; variables: string[] }) {
     setSending(true);
     try {
       await api.leads.sendDetails(leadId, body);
       toast.success("Sent on WhatsApp. It's in Conversations.");
-      load();
+      load(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "WhatsApp didn't send it");
     } finally {

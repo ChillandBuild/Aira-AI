@@ -26,7 +26,7 @@ class SendDetailsIn(BaseModel):
 
 
 @router.get("/{lead_id}/send-details")
-async def get_send_details(lead_id: UUID, ctx: dict = Depends(require_share_permission)):
+def get_send_details(lead_id: UUID, ctx: dict = Depends(require_share_permission)):
     context = share_context(get_supabase(), ctx["tenant_id"], str(lead_id), now=datetime.now(timezone.utc))
     if context is None:
         raise HTTPException(status_code=404, detail="Lead not found")

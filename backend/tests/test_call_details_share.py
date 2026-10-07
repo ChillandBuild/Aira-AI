@@ -1,5 +1,7 @@
 """Lead page 'Send details on WhatsApp': free message inside 24h, approved template otherwise."""
+import inspect
 import sys
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -118,6 +120,32 @@ class ContextTests(_Base):
     async def test_soft_deleted_lead_is_treated_as_not_found(self):
         self.lead()["deleted_at"] = NOW.isoformat()
         self.assertIsNone(share.share_context(self.db, "t1", "lead-1", now=NOW))
+
+    async def test_independent_reads_run_at_the_same_time(self):
+        # Each read is a Render -> Supabase round trip; one after another they made the
+        # card appear ~1 s after the lead opened. Four 0.2 s reads must overlap.
+        def slow(original):
+            def run(*args, **kwargs):
+                time.sleep(0.2)
+                return original(*args, **kwargs)
+            return run
+
+        patches = [patch.object(share, name, side_effect=slow(getattr(share, name)))
+                   for name in ("get_intake_config", "_business_name", "_next_step", "_approved_templates")]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+        started = time.monotonic()
+        ctx = share.share_context(self.db, "t1", "lead-1", now=NOW)
+        self.assertLess(time.monotonic() - started, 0.5)
+        self.assertEqual([t["name"] for t in ctx["templates"]], ["call_details_share", "promo"])
+        self.assertIn("Astro Tamil", ctx["free_text"])
+
+    def test_route_does_not_block_the_event_loop(self):
+        # share_context does blocking database reads; a plain `def` route runs in
+        # FastAPI's thread pool instead of stalling every other request meanwhile.
+        from app.routes.lead_details_share import get_send_details
+        self.assertFalse(inspect.iscoroutinefunction(get_send_details))
 
 
 class SendTests(_Base):

@@ -4,6 +4,7 @@ Free message when the customer wrote in the last 24 h (pre-filled from the Servi
 page), otherwise an approved template with its blanks pre-filled. Nothing is sent
 without a tap; the message is logged in `messages`, so it shows in Conversations."""
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException
@@ -152,9 +153,14 @@ def share_context(db, tenant_id: str, lead_id: str, *, now: datetime) -> dict | 
         return None
     if not _whatsapp_ready(tenant_id, lead):
         return {"available": False}
-    packages = normalize_packages(get_intake_config(tenant_id, db))
-    business = _business_name(db, tenant_id)
-    next_step = _next_step(db, tenant_id, lead_id, now)
+    # Four independent Supabase round trips; run together so the card isn't 4x one trip late.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        intake = pool.submit(get_intake_config, tenant_id, db)
+        business_f = pool.submit(_business_name, db, tenant_id)
+        next_step_f = pool.submit(_next_step, db, tenant_id, lead_id, now)
+        templates_f = pool.submit(_approved_templates, db, tenant_id)
+        packages = normalize_packages(intake.result())
+        business, next_step, templates = business_f.result(), next_step_f.result(), templates_f.result()
     facts = {
         "customer_name": (lead.get("name") or "").strip(), "business_name": business,
         "details": services_one_line(packages), "next_step": next_step,
@@ -170,7 +176,7 @@ def share_context(db, tenant_id: str, lead_id: str, *, now: datetime) -> dict | 
                 "body_text": t.get("body_text") or "",
                 "variables": template_variables(t["name"], t.get("body_text"), facts),
             }
-            for t in _approved_templates(db, tenant_id)
+            for t in templates
         ],
     }
 
