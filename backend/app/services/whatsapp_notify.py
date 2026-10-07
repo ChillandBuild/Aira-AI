@@ -1,16 +1,18 @@
 import logging
-import re
 from datetime import datetime, timezone, timedelta
 
 from app.db.supabase import get_supabase
 from app.services.meta_cloud import send_template_message
 from app.services.notification_config import get_notification_config
+from app.services.template_fields import AlertFields, build_body_components, chat_link
 
 logger = logging.getLogger(__name__)
 
 _SEGMENT_LABELS = {"A": "Hot", "B": "Warm", "C": "Cold", "D": "Not Interested"}
 _COOLDOWN_HOURS = 6
 ALERT_DELAY_SECONDS = 300
+# Everything a template variable map can pull from the lead row itself.
+_ALERT_LEAD_COLUMNS = "id,name,phone,score,segment,created_at,assigned_to,collected_data,call_status"
 
 
 def _log_incident(db, tenant_id: str, detail: dict) -> None:
@@ -53,25 +55,18 @@ def _is_recently_notified(db, lead_id: str, to_segment: str) -> bool:
         return False
 
 
-def _build_components(template: dict, lead: dict, to_segment: str) -> list[dict] | None:
-    """Map ordinal {{n}} placeholders in the template body to lead/segment values.
+def _build_components(
+    template: dict, lead: dict, to_segment: str, fields: AlertFields | None = None
+) -> list[dict] | None:
+    """Fill the template body for a hot-lead alert: the template's saved variable
+    map when it has one, else {{1}} name, {{2}} phone, {{3}} Hot/Warm label,
+    {{4}} conversation link.
 
     Returns None when the template has no variables — nothing safe to send.
     """
-    body_text = template.get("body_text") or ""
-    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", body_text)))
-    if not indices:
-        return None
-
     label = _SEGMENT_LABELS.get(to_segment, to_segment)
-    candidate_values = [
-        lead.get("name") or "Lead",
-        lead.get("phone") or "",
-        label,
-        f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
-    ]
-    values = candidate_values[: len(indices)]
-    return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
+    defaults = [lead.get("name") or "Lead", lead.get("phone") or "", label, chat_link(lead["id"])]
+    return build_body_components(template, defaults, fields)
 
 
 def _lead_ad_source(db, tenant_id: str, lead_id: str) -> str:
@@ -106,29 +101,23 @@ def _lead_ad_source(db, tenant_id: str, lead_id: str) -> str:
 
 
 def _build_escalation_components(
-    template: dict, lead: dict, reason: str, source: str = "Organic lead"
+    template: dict, lead: dict, reason: str, source: str = "Organic lead",
+    fields: AlertFields | None = None,
 ) -> list[dict] | None:
-    """Map ordinal {{n}} placeholders in the template body to escalation values.
-
-    Variables are filled positionally: {{1}} name, {{2}} phone, {{3}} reason,
+    """Fill the template body for an escalation alert: the template's saved
+    variable map when it has one, else {{1}} name, {{2}} phone, {{3}} reason,
     {{4}} conversation link, {{5}} acquisition source. A template with fewer
     variables simply uses the leading subset. Returns None when the template
     has no variables — nothing safe to send.
     """
-    body_text = template.get("body_text") or ""
-    indices = sorted(set(int(m) for m in re.findall(r"\{\{(\d+)\}\}", body_text)))
-    if not indices:
-        return None
-
-    candidate_values = [
+    defaults = [
         lead.get("name") or "Lead",
         lead.get("phone") or "",
         (reason or "")[:120],
-        f"https://aira.ai/dashboard/conversations?lead_id={lead['id']}",
+        chat_link(lead["id"]),
         source,
     ]
-    values = candidate_values[: len(indices)]
-    return [{"type": "body", "parameters": [{"type": "text", "text": str(v)} for v in values]}]
+    return build_body_components(template, defaults, fields)
 
 
 def queue_escalation_whatsapp_alert(
@@ -249,7 +238,7 @@ async def _process_escalation_alert(db, alert: dict) -> None:
 
     lead_res = (
         db.table("leads")
-        .select("id,name,phone,score,segment")
+        .select(_ALERT_LEAD_COLUMNS)
         .eq("id", lead_id)
         .eq("tenant_id", tenant_id)
         .limit(1)
@@ -263,7 +252,7 @@ async def _process_escalation_alert(db, alert: dict) -> None:
 
     template_res = (
         db.table("message_templates")
-        .select("id,name,language,body_text,status")
+        .select("id,name,language,body_text,status,variable_map")
         .eq("id", template_id)
         .eq("tenant_id", tenant_id)
         .eq("status", "APPROVED")
@@ -283,9 +272,9 @@ async def _process_escalation_alert(db, alert: dict) -> None:
         return
 
     source = _lead_ad_source(db, tenant_id, lead_id)
-    components = _build_escalation_components(
-        template, lead, alert.get("escalation_reason") or "", source
-    )
+    reason = alert.get("escalation_reason") or ""
+    fields = AlertFields(db, tenant_id, lead, {"escalation_reason": reason[:120], "lead_source": source})
+    components = _build_escalation_components(template, lead, reason, source, fields)
     if components is None:
         db.table("pending_whatsapp_alerts").update(
             {"status": "failed"}
@@ -422,7 +411,7 @@ async def process_due_whatsapp_alerts() -> None:
                 # Verify lead is still in the target segment
                 lead_res = (
                     db.table("leads")
-                    .select("id,name,phone,score,segment")
+                    .select(_ALERT_LEAD_COLUMNS)
                     .eq("id", lead_id)
                     .eq("tenant_id", tenant_id)
                     .limit(1)
@@ -478,7 +467,7 @@ async def process_due_whatsapp_alerts() -> None:
 
                 template_res = (
                     db.table("message_templates")
-                    .select("id,name,language,body_text,status")
+                    .select("id,name,language,body_text,status,variable_map")
                     .eq("id", template_id)
                     .eq("tenant_id", tenant_id)
                     .eq("status", "APPROVED")
@@ -498,7 +487,11 @@ async def process_due_whatsapp_alerts() -> None:
                     })
                     continue
 
-                components = _build_components(template, lead, to_segment)
+                fields = AlertFields(db, tenant_id, lead, {
+                    "lead_temperature": _SEGMENT_LABELS.get(to_segment, to_segment),
+                    "lead_source": lambda: _lead_ad_source(db, tenant_id, lead_id),
+                })
+                components = _build_components(template, lead, to_segment, fields)
                 if components is None:
                     db.table("pending_whatsapp_alerts").update(
                         {"status": "failed"}

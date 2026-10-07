@@ -22,6 +22,8 @@ import WhatsAppPreview from "../components/whatsapp-preview";
 import ButtonBuilder from "../components/button-builder";
 import VariableInserter from "../components/variable-inserter";
 import AiraId from "../components/aira-id";
+import VariableMapEditor, { fieldLabel } from "../components/variable-map-editor";
+import type { VariableMap } from "../components/variable-map-editor";
 import FieldMessages, { BlockedReason, SampleInputs, focusFirst, useFixNotes } from "../components/field-messages";
 import {
   bodyBlockers,
@@ -65,6 +67,8 @@ export default function TemplateDetailsPage() {
   const [bodySamples, setBodySamples] = useState<Record<number, string>>({});
   const [headerSample, setHeaderSample] = useState("");
   const { notes, show } = useFixNotes();
+  // Unsaved Variables choices, shown in the preview bubble.
+  const [mapDraft, setMapDraft] = useState<VariableMap>({});
 
   const headerVars = headerType === "TEXT" ? detectVariables(headerText) : [];
   const editBlockers = useMemo(() => {
@@ -405,8 +409,9 @@ export default function TemplateDetailsPage() {
 
       {/* Main Grid: Details or Editor / Live Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left: View Panel or Edit Form */}
-        <div className="lg:col-span-7 bg-white rounded-3xl border border-border-subtle p-6 shadow-sm min-h-[400px]">
+        {/* Left: View Panel or Edit Form, then the Variables map */}
+        <div className="lg:col-span-7 space-y-6">
+        <div className="bg-white rounded-3xl border border-border-subtle p-6 shadow-sm min-h-[400px]">
           {editMode ? (
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-border-subtle pb-3">
@@ -682,6 +687,18 @@ export default function TemplateDetailsPage() {
           )}
         </div>
 
+        {!editMode && (
+          <VariableMapEditor
+            templateId={template.id}
+            bodyText={template.body_text}
+            saved={template.variable_map}
+            canEdit={canManageTemplates}
+            onDraftChange={setMapDraft}
+            onSaved={(map) => setTemplate((t) => (t ? { ...t, variable_map: map } : t))}
+          />
+        )}
+        </div>
+
         {/* Right: Sticky Live Preview */}
         <div className="lg:col-span-5 lg:sticky lg:top-6 space-y-4">
           {/* Removed WhatsApp Live Preview label */}
@@ -698,7 +715,11 @@ export default function TemplateDetailsPage() {
             headerMediaPreview={editMode ? mediaPreview?.url : undefined}
             headerMediaName={editMode ? mediaPreview?.name : undefined}
             bodyText={editMode ? bodyText : template.body_text}
-            bodySamples={editMode ? bodySamples : undefined}
+            bodySamples={
+              editMode
+                ? bodySamples
+                : Object.fromEntries(Object.entries(mapDraft).map(([n, f]) => [Number(n), fieldLabel(f)]))
+            }
             headerSample={editMode ? headerSample : undefined}
             footerText={editMode ? footerText || undefined : template.footer_text || undefined}
             buttons={

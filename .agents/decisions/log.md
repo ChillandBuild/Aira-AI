@@ -1599,3 +1599,10 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **2026-10-06 — Partner send drops extra template variables.** AstroTamil's Django always sends `[customer name, service name, "AstroTamil"]` for `{{1}}`/`{{2}}`/`{{3}}` and cannot know how many placeholders a given template uses, so `partner_send_template` trims the list to the template's count instead of returning `variables_mismatch`; too few values is still 400. Lets the client write templates with none, one or both placeholders without any per-template config.
 
 - **2026-10-06 — Developer page in the client dashboard.** Aira is multi-vendor; a partner's developer needs the integration contract without asking us. `/dashboard/developer` documents the partner send API, signing, Aira IDs, errors and callbacks, with the tenant's own non-secret identifiers filled in from `GET /api/v1/intake/partner/config`. Secrets stay ops-issued (operator console) and are only reported as set/not set, in line with the 2026-08-23 decision not to expose bridge credentials client-side.
+
+### 2026-10-07 — Per-template variable map for the WhatsApp alerts
+- **Why:** escalation and hot-lead alerts filled `{{1}}`… in a fixed order, so a client whose template has one placeholder for the phone got the lead's name.
+- **Decision:** the map lives on the template (`message_templates.variable_map`), editable after approval from the template page; no map = unchanged behaviour. 14 fields: the 6 existing values plus assigned agent, enquiry date, last message from lead, business name, alert date & time, collected detail (any `collected_data` key), channel, last call status. User dropped lead score, first name and fixed text.
+- **Scope (user choice):** the two alerts only — not the marketplace welcome, not partner send; flows with their own per-send mapping untouched.
+- **219_message_templates_variable_map.sql — APPLIED to live 2026-10-07.** Nullable `jsonb` column; must precede the backend deploy (alert queries select it). 218 is taken by `feat/private-send`.
+
