@@ -44,38 +44,32 @@ function AdminCallerCard({ caller, callingProvider }: {
     : !caller.phone;
 
   return (
-    <div className="max-w-xs">
-      <div className="relative p-2.5 bg-gradient-to-r from-primary/5 to-transparent rounded-xl border border-primary/20 text-xs">
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className="font-bold text-[#292524] truncate">{caller.name}</span>
-          <span className="shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
-            Owner
-          </span>
-        </div>
-        {needsSetup && (
-          <p className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 mb-1.5 font-medium">
-            {isTelecmi
-              ? "Set your phone and Cloud Telephony User ID in Roles → Users to enable click-to-call"
-              : "Set your phone number in Roles → Users to enable SIM calling"}
-          </p>
-        )}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-[#78716c] uppercase w-14 shrink-0">Phone</span>
-            <span className="text-[#292524]">
-              {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
-            </span>
-          </div>
-          {isTelecmi && (
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-[#78716c] uppercase w-14 shrink-0">User ID</span>
-              <span className="text-[#292524]">
-                {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+    <div className="inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-primary-300/60 bg-gradient-to-r from-primary-50 via-white to-white py-2 pl-2 pr-3.5 text-xs shadow-[0_0_0_3px_rgba(139,92,246,0.08),0_6px_22px_-6px_rgba(124,58,237,0.45)]">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-gradient text-[11px] font-bold text-white shadow-[0_0_12px_rgba(139,92,246,0.55)]">
+        {caller.name.trim().charAt(0).toUpperCase() || "A"}
+      </span>
+      <span className="font-bold text-[#292524] truncate">{caller.name}</span>
+      <span className="shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
+        Owner
+      </span>
+      <span className="h-4 w-px bg-primary-200" aria-hidden />
+      <span className="flex items-center gap-1.5 text-[#57534e]">
+        <span className="text-[10px] font-bold uppercase text-[#a8a29e]">Phone</span>
+        {caller.phone || <span className="text-[#a8a29e] italic">Not set</span>}
+      </span>
+      {isTelecmi && (
+        <span className="flex items-center gap-1.5 text-[#57534e]">
+          <span className="text-[10px] font-bold uppercase text-[#a8a29e]">User ID</span>
+          {caller.telecmi_agent_id || <span className="text-[#a8a29e] italic">Not set</span>}
+        </span>
+      )}
+      {needsSetup && (
+        <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 font-medium">
+          {isTelecmi
+            ? "Set phone + User ID in Roles → Users to enable click-to-call"
+            : "Set phone in Roles → Users to enable SIM calling"}
+        </span>
+      )}
     </div>
   );
 }
