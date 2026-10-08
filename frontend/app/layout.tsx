@@ -1,38 +1,42 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, JetBrains_Mono, Dancing_Script, Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { PwaRegistrar } from "@/components/PwaRegistrar";
 import "./globals.css";
 
-const manrope = Manrope({
-  subsets: ["latin"],
+// Fonts are self-hosted (latin subset, variable files in app/fonts) instead of
+// next/font/google: the Google loader fetches from fonts.googleapis.com at build
+// time and crashed the Vercel build when Google returned an unexpected URL shape.
+const manrope = localFont({
+  src: "./fonts/manrope-latin-var.woff2",
   variable: "--font-manrope",
   display: "swap",
-  weight: ["300", "400", "500", "600", "700", "800"],
+  weight: "200 800",
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin-var.woff2",
   variable: "--font-mono",
   display: "swap",
-  weight: ["400", "500", "600", "700"],
+  weight: "100 800",
 });
 
 // Display face for headings and KPI figures. Deliberately NOT wired to the
 // shared `font-display` role -- that alias points at Manrope and is used in 76
 // component files, so repointing it would restyle most of the app. Opt in per
 // page with `font-heading`.
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+const plusJakarta = localFont({
+  src: "./fonts/plus-jakarta-sans-latin-var.woff2",
   variable: "--font-heading",
   display: "swap",
+  weight: "200 800",
 });
 
-const dancingScript = Dancing_Script({
-  subsets: ["latin"],
+const dancingScript = localFont({
+  src: "./fonts/dancing-script-latin-var.woff2",
   variable: "--font-script",
   display: "swap",
-  weight: ["700"],
+  weight: "400 700",
 });
 
 export const metadata: Metadata = {
