@@ -44,13 +44,13 @@ function AdminCallerCard({ caller, callingProvider }: {
     : !caller.phone;
 
   return (
-    <div className="inline-flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-primary-300/60 bg-gradient-to-r from-primary-50 via-white to-white py-2 pl-2 pr-3.5 text-xs shadow-[0_0_0_3px_rgba(var(--primary-500-rgb),0.08),0_6px_22px_-6px_rgba(var(--primary-600-rgb),0.45)]">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-gradient text-[11px] font-bold text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.55)]">
+    <div className="inline-flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 rounded-lg border border-primary-300/60 bg-gradient-to-r from-primary-50 via-white to-white py-1 pl-1 pr-3 text-xs shadow-[0_0_0_2px_rgba(var(--primary-500-rgb),0.08),0_4px_14px_-6px_rgba(var(--primary-600-rgb),0.4)]">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-brand-gradient text-[11px] font-bold text-white shadow-[0_0_12px_rgba(var(--primary-500-rgb),0.55)]">
         {caller.name.trim().charAt(0).toUpperCase() || "A"}
       </span>
       <span className="font-bold text-[#13284A] truncate">{caller.name}</span>
       <span className="shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-bold text-primary bg-primary/10 border-primary/20">
-        Owner
+        Admin
       </span>
       <span className="h-4 w-px bg-primary-200" aria-hidden />
       <span className="flex items-center gap-1.5 text-[#334155]">
@@ -282,15 +282,15 @@ export default function LiveAgentStatus({
 
       {/* Admin caller card — separate from team, non-deletable */}
       {adminCaller && (
-        <div className="mt-4 mb-1">
+        <div className="mt-3">
           <span className="font-label text-[10px] font-bold text-[#475569] uppercase tracking-wide">Admin</span>
-          <div className="mt-1.5">
+          <div className="mt-1">
             <AdminCallerCard caller={adminCaller} callingProvider={callingProvider} />
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-3">
         {callers.map((c) => {
           const st = c.status || "active";
           const statusColor = st === "active" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : st === "break" ? "text-amber-700 bg-amber-50 border-amber-200" : "text-[#475569] bg-[#f1f5f9] border-[#e2e8f0]";
