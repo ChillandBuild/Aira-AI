@@ -29,6 +29,17 @@ class HealthEndpointTests(unittest.TestCase):
         self.assertEqual(res.headers.get("access-control-allow-origin"), ALLOWED_ORIGIN)
         self.assertEqual(res.json()["status"], "healthy")
 
+    def test_cors_allows_the_anril_domain_and_the_legacy_domain(self):
+        for origin in (
+            "https://www.anrilaitech.com",
+            "https://anrilaitech.com",
+            "https://www.bloommatrix.in",
+        ):
+            with self.subTest(origin=origin):
+                res = self.client.get("/health", headers={"Origin": origin})
+
+                self.assertEqual(res.headers.get("access-control-allow-origin"), origin)
+
     @patch("app.db.supabase.get_supabase")
     def test_ready_reports_dependency_failure_with_cors(self, mock_get_supabase):
         mock_get_supabase.side_effect = RuntimeError("db unavailable")

@@ -570,6 +570,9 @@ async def server_error_json_middleware(request: Request, call_next):
 _allowed = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "https://www.anrilaitech.com",
+    "https://anrilaitech.com",
+    # Legacy host: kept so sessions and links from before the domain move still work.
     "https://www.bloommatrix.in",
     "https://bloommatrix.in",
 ]

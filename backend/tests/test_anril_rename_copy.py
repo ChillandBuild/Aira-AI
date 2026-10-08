@@ -56,7 +56,7 @@ def test_the_escalation_link_points_at_the_anril_dashboard():
     from app.services import whatsapp_notify
     texts = _literals("services/whatsapp_notify.py") + _literals("services/template_fields.py")
     assert not any("aira.ai" in t for t in texts)
-    assert sum("https://www.bloommatrix.in/anril/dashboard/conversations?lead_id=" in t for t in texts) == 1
+    assert sum("https://www.anrilaitech.com/dashboard/conversations?lead_id=" in t for t in texts) == 1
 
 
 def test_the_service_names_say_anril():

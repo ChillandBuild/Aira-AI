@@ -1,14 +1,14 @@
 const CACHE_VERSION = "anril-pwa-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
-const OFFLINE_URL = "/anril/offline";
+const OFFLINE_URL = "/offline";
 
 const PRECACHE_URLS = [
   OFFLINE_URL,
-  "/anril/favicon.ico",
-  "/anril/icons/anril-icon-192.png",
-  "/anril/icons/anril-icon-512.png",
-  "/anril/icons/anril-maskable-512.png",
+  "/favicon.ico",
+  "/icons/anril-icon-192.png",
+  "/icons/anril-icon-512.png",
+  "/icons/anril-maskable-512.png",
 ];
 
 const isHttpRequest = (request) => {
@@ -31,7 +31,7 @@ const shouldHandleRequest = (request) => {
   }
 
   const { pathname } = new URL(request.url);
-  return !pathname.startsWith("/anril/api/") && !pathname.startsWith("/anril/auth/");
+  return !pathname.startsWith("/api/") && !pathname.startsWith("/auth/");
 };
 
 const isStaticAsset = (request) => {
@@ -115,11 +115,11 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Anril";
   const options = {
     body: payload.body || "You have a new update.",
-    icon: "/anril/icons/anril-icon-192.png",
-    badge: "/anril/icons/anril-icon-192.png",
+    icon: "/icons/anril-icon-192.png",
+    badge: "/icons/anril-icon-192.png",
     tag: payload.tag || "anril-update",
     data: {
-      url: payload.url || "/anril/dashboard",
+      url: payload.url || "/dashboard",
       ...(payload.data || {}),
     },
   };
@@ -129,7 +129,7 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = new URL(event.notification.data?.url || "/anril/dashboard", self.location.origin).href;
+  const targetUrl = new URL(event.notification.data?.url || "/dashboard", self.location.origin).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

@@ -4,8 +4,8 @@
 // it starts with a capital letter. "[OWNER TO CHECK]" is dropped by the backend's
 // scrub_placeholders and shown to the client as a gap, so it never reaches a lead.
 
-// public/ assets are NOT prefixed by basePath -- the /anril prefix must be written out.
-const KIT_BASE = "/anril/kit";
+// public/ assets are served from the site root.
+const KIT_BASE = "/kit";
 
 export const KIT_INDUSTRIES: { slug: string; label: string }[] = [
   { slug: "coaching", label: "Coaching & education" },

@@ -44,9 +44,6 @@ export function LegalPageShell({ title, subtitle, effectiveDate, children }: Leg
       <footer className="border-t border-border">
         <div className="max-w-3xl mx-auto px-6 py-8 text-xs text-ink-muted flex flex-col sm:flex-row justify-between gap-3">
           <span>Bloom Matrix — 352-1, Srinivasapuram Street, Avinashi, Tiruppur, Tamil Nadu – 641654, India</span>
-          <a href="mailto:aira@bloommatrix.in" className="hover:text-primary transition-colors">
-            aira@bloommatrix.in
-          </a>
         </div>
       </footer>
     </div>

@@ -27,11 +27,8 @@ export default function DataDeletionPage() {
 
       <LegalSection title="2. How to Submit a Deletion Request">
         <p>
-          Email{" "}
-          <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">
-            aira@bloommatrix.in
-          </a>{" "}
-          with the subject line &ldquo;Data Deletion Request&rdquo;. Include enough information for us to
+          Send a written request marked &ldquo;Data Deletion Request&rdquo; to our registered office address
+          (see Section 6). Include enough information for us to
           identify the relevant account or data, such as:
         </p>
         <LegalList
@@ -83,7 +80,6 @@ export default function DataDeletionPage() {
         <LegalList
           items={[
             "Bloom Matrix",
-            <>Support Email: <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a></>,
           ]}
         />
         <p>Registered Office Address:</p>

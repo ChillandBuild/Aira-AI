@@ -126,7 +126,7 @@ def test_build_escalation_components_maps_four_variables():
         "Asha",
         "+919999999999",
         "user asked for human",
-        "https://www.bloommatrix.in/anril/dashboard/conversations?lead_id=lead-1",
+        "https://www.anrilaitech.com/dashboard/conversations?lead_id=lead-1",
     ]
 
 
@@ -154,7 +154,7 @@ def test_build_escalation_components_maps_source_as_fifth_variable():
         "Asha",
         "+919999999999",
         "user asked for human",
-        "https://www.bloommatrix.in/anril/dashboard/conversations?lead_id=lead-1",
+        "https://www.anrilaitech.com/dashboard/conversations?lead_id=lead-1",
         "Ad: Astro Whatsapp 02",
     ]
 

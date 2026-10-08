@@ -52,7 +52,7 @@ def test_escalation_without_map_keeps_fixed_order_and_queries_nothing():
 def test_hot_alert_without_map_keeps_fixed_order():
     template = {"body_text": "{{1}} {{2}} {{3}} {{4}}"}
     comps = whatsapp_notify._build_components(template, LEAD, "A", AlertFields(_db({}), "t1", LEAD))
-    assert _texts(comps) == ["Asha", "+919999999999", "Hot", "https://www.bloommatrix.in/anril/dashboard/conversations?lead_id=lead-1"]
+    assert _texts(comps) == ["Asha", "+919999999999", "Hot", "https://www.anrilaitech.com/dashboard/conversations?lead_id=lead-1"]
 
 
 # --- with a map --------------------------------------------------------------

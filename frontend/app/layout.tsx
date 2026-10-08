@@ -55,11 +55,11 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/anril/favicon.ico" },
-      { url: "/anril/icons/anril-favicon.svg", type: "image/svg+xml" },
-      { url: "/anril/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico" },
+      { url: "/icons/anril-favicon.svg", type: "image/svg+xml" },
+      { url: "/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" },
     ],
-    apple: [{ url: "/anril/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" }],
   },
 };
 
@@ -75,7 +75,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${plusJakarta.variable} ${dancingScript.variable}`}>
       <head>
-        <link rel="manifest" href="/anril/manifest.webmanifest" crossOrigin="use-credentials" />
+        <link rel="manifest" href="/manifest.webmanifest" crossOrigin="use-credentials" />
       </head>
       <body className="antialiased">
         {children}

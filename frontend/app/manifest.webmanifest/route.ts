@@ -6,12 +6,12 @@ const APP_DESCRIPTION = "WhatsApp lead management for education consultancies.";
 export function GET() {
   return NextResponse.json(
     {
-      id: "/anril",
+      id: "/",
       name: APP_NAME,
       short_name: "Anril",
       description: APP_DESCRIPTION,
-      start_url: "/anril/dashboard",
-      scope: "/anril",
+      start_url: "/dashboard",
+      scope: "/",
       display: "standalone",
       orientation: "portrait-primary",
       background_color: "#ffffff",
@@ -19,17 +19,17 @@ export function GET() {
       categories: ["business", "productivity"],
       icons: [
         {
-          src: "/anril/icons/anril-icon-192.png",
+          src: "/icons/anril-icon-192.png",
           sizes: "192x192",
           type: "image/png",
         },
         {
-          src: "/anril/icons/anril-icon-512.png",
+          src: "/icons/anril-icon-512.png",
           sizes: "512x512",
           type: "image/png",
         },
         {
-          src: "/anril/icons/anril-maskable-512.png",
+          src: "/icons/anril-maskable-512.png",
           sizes: "512x512",
           type: "image/png",
           purpose: "maskable",

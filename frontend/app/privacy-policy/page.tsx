@@ -29,8 +29,7 @@ export default function PrivacyPolicyPage() {
         <LegalList
           items={[
             "Bloom Matrix",
-            <>Website: <a href="https://bloommatrix.in/anril" className="text-primary hover:underline">https://bloommatrix.in/anril</a></>,
-            <>Support Email: <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a></>,
+            <>Website: <a href="https://www.anrilaitech.com" className="text-primary hover:underline">https://www.anrilaitech.com</a></>,
           ]}
         />
         <p>Registered Office Address:</p>
@@ -358,8 +357,8 @@ export default function PrivacyPolicyPage() {
       <LegalSection title="14. Data Deletion and How to Request It">
         <p>You may request deletion of your personal data at any time. This right is available to all users who can access Anril.</p>
         <p>
-          To request deletion, email <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a> with
-          the subject line &ldquo;Data Deletion Request,&rdquo; together with enough information for us to identify the
+          To request deletion, send a written request marked &ldquo;Data Deletion Request&rdquo; to our registered
+          office address (listed under Contact Information), together with enough information for us to identify the
           relevant account or data. We will verify the request and delete the relevant personal data without undue
           delay, and in any event within thirty (30) days, unless we are legally required or permitted to retain it
           (for example, for legal, tax, security, or dispute-resolution purposes).
@@ -428,7 +427,7 @@ export default function PrivacyPolicyPage() {
           ]}
         />
         <p>
-          Requests may be submitted to <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a>.
+          Requests may be submitted in writing to our registered office address listed under Contact Information.
           Bloom Matrix will review and respond in accordance with applicable laws and our legal, contractual,
           operational, security, and regulatory obligations. Certain requests may be limited where Bloom Matrix is
           legally required or technically unable to disclose, modify, or delete information, including information
@@ -459,8 +458,7 @@ export default function PrivacyPolicyPage() {
         <LegalList
           items={[
             "Bloom Matrix",
-            <>Website: <a href="https://bloommatrix.in/anril" className="text-primary hover:underline">https://bloommatrix.in/anril</a></>,
-            <>Support Email: <a href="mailto:aira@bloommatrix.in" className="text-primary hover:underline">aira@bloommatrix.in</a></>,
+            <>Website: <a href="https://www.anrilaitech.com" className="text-primary hover:underline">https://www.anrilaitech.com</a></>,
           ]}
         />
         <p>Registered Office Address:</p>

@@ -35,7 +35,7 @@ _CALL_STATUS_LABELS = {
 
 
 def chat_link(lead_id: str) -> str:
-    return f"https://www.bloommatrix.in/anril/dashboard/conversations?lead_id={lead_id}"
+    return f"https://www.anrilaitech.com/dashboard/conversations?lead_id={lead_id}"
 
 
 def is_valid_field(field: object) -> bool:

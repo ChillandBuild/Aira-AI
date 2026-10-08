@@ -1241,7 +1241,7 @@ async function apiFetchOnce<T>(path: string, opts: RequestInit, timeoutMs: numbe
     });
     if (!res.ok) {
       if (res.status === 401 && typeof window !== "undefined") {
-        window.location.href = "/anril/login";
+        window.location.href = "/login";
       }
       // The overview is a read-only dashboard aggregate. A transient database
       // failure can surface as 500 while the service is recovering, so retry it
