@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/anril/favicon.ico" },
-      { url: "/anril/icons/anril-icon.svg", type: "image/svg+xml" },
+      { url: "/anril/icons/anril-favicon.svg", type: "image/svg+xml" },
       { url: "/anril/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [{ url: "/anril/icons/anril-icon-192.png", sizes: "192x192", type: "image/png" }],

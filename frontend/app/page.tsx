@@ -804,7 +804,7 @@ export default function LandingPage() {
             {/* Brand */}
             <div className="col-span-2">
               <div className="flex items-center gap-2.5 mb-4">
-                <AnrilLogo tone="dark" className="h-6 w-auto text-white" />
+                <AnrilLogo className="h-6 w-auto text-ink" />
               </div>
               <p className="text-xs text-ink-secondary leading-relaxed max-w-xs mb-5">
                 We help businesses automate conversations, qualify leads, evaluate telecallers and accelerate revenue.

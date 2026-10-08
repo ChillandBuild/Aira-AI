@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Anril AI</title>
+  <rect width="512" height="512" rx="112" fill="#0A1528"/>
+  <g transform="translate(72 72) scale(1.84)"><rect x="0" y="0" width="95" height="95" rx="26" fill="#FFFFFF"/><rect x="105" y="0" width="95" height="95" rx="26" fill="#038285"/><rect x="0" y="105" width="95" height="95" rx="26" fill="#FFFFFF"/><rect x="105" y="105" width="95" height="95" rx="26" fill="#FFFFFF"/></g>
+</svg>

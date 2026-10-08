@@ -13,11 +13,11 @@ export function LegalPageShell({ title, subtitle, effectiveDate, children }: Leg
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border">
-        <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
-          <Link href="/" aria-label="Anril home">
+        <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between gap-4">
+          <Link href="/" aria-label="Anril home" className="shrink-0">
             <AnrilLogo height={26} className="text-ink" />
           </Link>
-          <nav className="flex gap-5 text-sm text-ink-secondary">
+          <nav className="flex flex-wrap justify-end gap-x-5 gap-y-1 text-sm text-ink-secondary">
             <Link href="/privacy-policy" className="hover:text-primary transition-colors">
               Privacy Policy
             </Link>

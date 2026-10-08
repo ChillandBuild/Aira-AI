@@ -1,14 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
   <title id="title">Anril AI icon</title>
-  <defs>
-    <linearGradient id="anrilTile" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0" stop-color="#13284A"/>
-      <stop offset="1" stop-color="#0A1528"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="112" fill="url(#anrilTile)"/>
-  <g transform="translate(108.20,400.00) scale(0.2000)">
-    <path d="M440 30Q324 30 243.5 -14.5Q163 -59 121.5 -133.5Q80 -208 80 -298Q80 -373 103.0 -435.0Q126 -497 177.5 -544.5Q229 -592 316 -624Q376 -646 459.0 -663.0Q542 -680 647.0 -695.5Q752 -711 878 -730L780 -676Q780 -772 734.0 -817.0Q688 -862 580 -862Q520 -862 455.0 -833.0Q390 -804 364 -730L118 -808Q159 -942 272.0 -1026.0Q385 -1110 580 -1110Q723 -1110 834.0 -1066.0Q945 -1022 1002 -914Q1034 -854 1040.0 -794.0Q1046 -734 1046 -660V0H808V-222L842 -176Q763 -67 671.5 -18.5Q580 30 440 30ZM498 -184Q573 -184 624.5 -210.5Q676 -237 706.5 -271.0Q737 -305 748 -328Q769 -372 772.5 -430.5Q776 -489 776 -528L856 -508Q735 -488 660.0 -474.5Q585 -461 539.0 -450.0Q493 -439 458 -426Q418 -410 393.5 -391.5Q369 -373 357.5 -351.0Q346 -329 346 -302Q346 -265 364.5 -238.5Q383 -212 417.0 -198.0Q451 -184 498 -184Z" fill="#ffffff"/>
-    <path d="M1126 -1230V-1470H1398V-1230Z" fill="#3fbcbf"/>
-  </g>
+  <rect width="512" height="512" rx="112" fill="#0A1528"/>
+  <g transform="translate(118 118) scale(1.38)"><rect x="0" y="0" width="95" height="95" rx="26" fill="#FFFFFF"/><rect x="105" y="0" width="95" height="95" rx="26" fill="#038285"/><rect x="0" y="105" width="95" height="95" rx="26" fill="#FFFFFF"/><rect x="105" y="105" width="95" height="95" rx="26" fill="#FFFFFF"/></g>
 </svg>

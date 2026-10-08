@@ -62,7 +62,7 @@ export default function LoginPage() {
         <div className="absolute -bottom-40 -right-20 w-96 h-96 rounded-full bg-[var(--primary-400)] opacity-20 blur-[100px] pointer-events-none"></div>
 
         <div>
-          <AnrilLogo tone="dark" className="text-white h-7 w-auto" />
+          <AnrilLogo className="text-white h-7 w-auto" />
         </div>
 
         <div className="space-y-6 lg:space-y-8 my-auto">
@@ -120,7 +120,7 @@ export default function LoginPage() {
         <div className="w-full max-w-sm relative z-10">
           {/* Mobile logo header (hidden on desktop) */}
           <div className="lg:hidden flex flex-col items-center mb-8">
-            <AnrilLogo width={196} height={45} className="text-ink mb-2" />
+            <AnrilLogo height={40} className="text-ink mb-2" />
             <p className="text-[10px] tracking-[0.15em] font-semibold text-ink-muted uppercase flex items-center gap-1.5 font-label">
               Automate <span className="w-1 h-1 rounded-full bg-stone-300"></span> <span className="text-primary">Convert</span> <span className="w-1 h-1 rounded-full bg-stone-300"></span> Grow
             </p>

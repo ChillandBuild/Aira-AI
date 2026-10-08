@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
-import { AnrilLogo } from "@/components/logo";
+import { AnrilLogo, AnrilMark } from "@/components/logo";
 import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER, SETTINGS_ITEMS } from "@/components/settingsNavigation";
 import { useBrainCount } from "@/hooks/useBrainCount";
 import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
@@ -299,9 +299,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           {collapsed ? (
             // Brand mark only: every page is already an icon in the rail below, so the
             // old "open menu" drawer was a second copy of the same navigation.
-            // public/ assets are not basePath-prefixed, hence the hard-coded /anril.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src="/anril/icons/anril-icon.svg" alt="Anril" width={32} height={32} className="h-8 w-8" />
+            <AnrilMark className="h-7 w-7 text-ink" />
           ) : (
             <AnrilLogo className="h-6 w-auto text-ink" />
           )}

@@ -1,4 +1,4 @@
-const CACHE_VERSION = "anril-pwa-v1";
+const CACHE_VERSION = "anril-pwa-v2";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = "/anril/offline";

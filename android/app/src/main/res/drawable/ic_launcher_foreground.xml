@@ -1,18 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Aira Sync launcher foreground.
-
-  Two 140-degree arcs around centre 54,54 at radius 23: the upper runs 200..340
-  degrees, the lower 20..160. The lower half is an exact 180-degree rotation of
-  the upper, so both 40-degree gaps are identical and the mark is balanced.
-
-  Each arc ends in a triangular head whose base sits on the arc endpoint and is
-  rotated to the tangent there, so the arc's flat butt cap meets the base on the
-  same line - no notch and no step in width. Head is 17 wide by 18 long against
-  an 8 stroke.
-
-  Furthest point from centre is 31.5. Android's adaptive-icon safe zone is a
-  66dp circle, i.e. radius 33, so nothing here can be clipped by a launcher mask.
+  Anril launcher foreground: the four-square mark, top-right square teal.
+  44dp mark centred in the 108dp canvas. Its farthest point from the centre is
+  28.7dp; Android's adaptive-icon safe zone is a 66dp circle (radius 33), so
+  no launcher mask can clip it.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
@@ -21,23 +12,19 @@
     android:viewportHeight="108">
 
     <path
-        android:pathData="M32.39,46.13 A23,23 0 0 1 75.61,46.13"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="8"
-        android:strokeLineCap="butt" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M37.72,32 H47.18 A5.72,5.72 0 0 1 52.9,37.72 V47.18 A5.72,5.72 0 0 1 47.18,52.9 H37.72 A5.72,5.72 0 0 1 32,47.18 V37.72 A5.72,5.72 0 0 1 37.72,32 Z" />
 
     <path
-        android:pathData="M81.77,63.05 L67.63,49.04 L83.60,43.23 Z"
-        android:fillColor="#FFFFFF" />
+        android:fillColor="#038285"
+        android:pathData="M60.82,32 H70.28 A5.72,5.72 0 0 1 76,37.72 V47.18 A5.72,5.72 0 0 1 70.28,52.9 H60.82 A5.72,5.72 0 0 1 55.1,47.18 V37.72 A5.72,5.72 0 0 1 60.82,32 Z" />
 
     <path
-        android:pathData="M75.61,61.87 A23,23 0 0 1 32.39,61.87"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="8"
-        android:strokeLineCap="butt" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M37.72,55.1 H47.18 A5.72,5.72 0 0 1 52.9,60.82 V70.28 A5.72,5.72 0 0 1 47.18,76 H37.72 A5.72,5.72 0 0 1 32,70.28 V60.82 A5.72,5.72 0 0 1 37.72,55.1 Z" />
 
     <path
-        android:pathData="M26.23,44.95 L40.37,58.96 L24.40,64.77 Z"
-        android:fillColor="#FFFFFF" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M60.82,55.1 H70.28 A5.72,5.72 0 0 1 76,60.82 V70.28 A5.72,5.72 0 0 1 70.28,76 H60.82 A5.72,5.72 0 0 1 55.1,70.28 V60.82 A5.72,5.72 0 0 1 60.82,55.1 Z" />
 
 </vector>
