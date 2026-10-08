@@ -205,43 +205,13 @@ host=github.com
 - **Stale `meta_ads_*` rows on tenant `Astro Tamil`** (`eba3ed94-...`): `meta_ads_currency`, `meta_ads_timezone`, `meta_ads_last_sync_count`, `meta_ads_last_synced_account_id` (`act_4306295769588787`) survive from 2026-07-30 / 08-09, but there is no `meta_ads_access_token`, `meta_ads_account_id` or `meta_ads_status`, so the integration reads as not configured. Inert, but misleading when debugging — note that these date from a **manually-pasted** ads token (which is how the 2026-07-23 `ad_insights_daily` entry above had `ads_read` verified live), not from embedded signup, which has never been able to grant ads access. Decide whether to clear them or re-connect ads properly once the config permissions land.
 - **`whatsapp_connection_source` on `Astro Tamil` reads `manual`, not `embedded`** — the 19:04 embedded signup wrote `embedded`, then a manual credentials save at 19:06 (adding the verify token by hand, before `e962cbcc` automated it) overwrote it. Cosmetic only; re-running the embedded flow alone would correct the label.
 
-## Three brittle source-string tests failing on `main` (diagnosed 2026-08-24, not fixed)
-- `test_outbound_number_routing.py::test_generate_reply_forwards_phone_number_id_to_send_whatsapp`, `test_ai_reply_llm_wiring.py::test_generate_reply_uses_voice_only_for_audio_inbound_whatsapp_dispatch`, `test_whatsapp_audio_webhook.py::test_audio_background_transcribes_inserts_and_routes_reply`. Present before and after the 2026-08-24 quick-reply work (confirmed by running the suite on `main` before branching).
-- **Root cause (verified, not assumed)**: they assert an exact *single-line* source string is `in` `ai_reply.py`'s text — e.g. `'send_whatsapp(_wa_phone, reply_text, tenant_id=lead_data.get("tenant_id"), phone_number_id=phone_number_id)'`. That call is now formatted across multiple lines, so the substring cannot match regardless of behaviour. They broke on a **reformat**, not a regression.
-- **Fix direction**: assert on behaviour (mock `send_whatsapp`, call the dispatch, check kwargs) rather than on source text. Note the quick-reply work moved that call into an `if chosen_block: ... else: ...` branch, so it is now indented one level deeper — any source-text rewrite of these tests would break again on the next refactor. Behaviour assertions are the only durable fix.
-- Related but distinct from the 2026-07-18 entry above about `sys.path.insert` collection failures — these three collect fine and fail on assertion.
-
 ## Nested packages spec — `button_label` no longer applies (2026-08-24)
 - [2026-08-23-nested-packages-and-settings-nav-design.md](../../docs/superpowers/specs/2026-08-23-nested-packages-and-settings-nav-design.md) is still approved and unbuilt. An earlier version of the 2026-08-24 button work added a `button_label` field to `intake_config` package nodes, which would have collided with that spec's recursive node shape. **That work was reverted** — `button_label` does not exist anywhere. The nested-packages plan can be written against the current flat node shape with no coordination needed.
 - The settings-nav restructure in that same spec (splitting the Automations tab into `/dashboard/settings/auto-reply`, `/follow-ups`, etc.) now also needs to relocate the new `QuickRepliesPanel`, which currently sits in the Automations tab alongside `IntakeConfigPanel`.
 
-## Dev-environment tooling gaps — superseded, see below (was: re-confirmed 2026-09-09)
-This and two later sections (2026-09-18, 2026-09-20) all reported the same lefthook/gitleaks/
-graphify/`make` gaps. Consolidated and re-checked 2026-09-23 — see **"Local tooling gaps —
-re-checked and mostly resolved"** further down for current status. One thing worth keeping from
-here: `graphify-out/manifest.json` now exists, so `second-brain-close`'s `find … -newer
-graphify-out/manifest.json` false-negative (reads as "no code changed" when the manifest is
-missing) no longer triggers — but the mechanism is still worth knowing if the manifest ever goes
-missing again.
-
-
-## 26 dead `animate-in` usages across the frontend (2026-09-05)
+## 17 dead `animate-in` usages across the frontend (2026-09-05; recounted 17 on 2026-10-08)
 - `tailwindcss-animate` was never installed, so every `animate-in` / `fade-in` / `zoom-in-95` / `slide-in-from-*` class in the repo is inert (see the `subsystem-notes.md` entry under Frontend styling conventions for the verification command). 10 files affected: `dashboard/ClientLayout.tsx`, `dashboard/knowledge/page.tsx`, `telecalling/components/CockpitModals.tsx`, `operator/.../alert-bell.tsx`, `operator/.../command-palette.tsx`, `operator/(console)/page.tsx`, `AiraLoader.tsx`, `conversation-list.tsx`, `MoreMenu.tsx`, `NotificationBell.tsx`.
-- Nothing is broken — these elements just appear instantly instead of animating in, which is why it went unnoticed. Two ways to close it: add the plugin (`npm i -D tailwindcss-animate` + register it in `tailwind.config.ts`, which makes all 26 start animating at once — worth eyeballing before shipping), or delete the dead classes and hand-roll the few that actually want motion. Not urgent; the cost of leaving it is that the next person also writes `animate-in` expecting it to work.
-
-## ~~`second_brain_close.py` stale-claim check is ~100% false positives (2026-08-25)~~ — FIXED 2026-09-11, see below
-- It reported **21 stale claims**; every one was verified and **none was stale**. It flags any
-  `path/like/this.py` string that is not on disk, but `.agents/` legitimately references:
-  **deliberately removed** modules (`broadcast_retry.py` — the note says "service deleted"),
-  **renamed** ones (`expert_handoff.py` → `intake.py`, whose note warns against dropping the live
-  Razorpay alias), **parked-on-a-branch** ones (`intake_brain.py`), **gitignored** files
-  (`android/**/*.jks`), **third-party** paths (`slowapi/middleware.py`), and **URL routes** that
-  merely look like files (`/intake/sessions.csv`).
-- A decisions log's *job* is to reference things that no longer exist, so this check is
-  structurally wrong for `log.md`. Cost: 21 lines of noise every close, which trains everyone to
-  skim past the section — where a genuine stale claim would then hide.
-- **Fix**: skip `decisions/log.md` entirely; ignore paths matched by `.gitignore`; ignore strings
-  that aren't repo-rooted (third-party, URL paths); or allow an inline `<!-- historical -->` marker.
+- Nothing is broken — these elements just appear instantly instead of animating in, which is why it went unnoticed. Two ways to close it: add the plugin (`npm i -D tailwindcss-animate` + register it in `tailwind.config.ts`, which makes all 17 start animating at once — worth eyeballing before shipping), or delete the dead classes and hand-roll the few that actually want motion. Not urgent; the cost of leaving it is that the next person also writes `animate-in` expecting it to work.
 
 ## Instagram/Messenger for Astro Tamil — wired but unproven, and not review-ready (2026-08-30)
 - **State at close**: tenant `Astro Tamil` (`eba3ed94-…`) has `instagram_page_id = 17841442269423222`; `instagram_access_token` and `instagram_app_secret` were written **directly via SQL** (Test Aira's Page token, and Test Aira's app secret `e7da5a94…` / md5 `b1779b33…`) so that the app configured in Meta and the secret the backend verifies against finally match. `meta_app_secret` was deliberately left untouched so WhatsApp keeps working. **No inbound Instagram DM has been observed yet.** The last blocker handed to the user: Test Aira's callback URL points at `/webhook/facebook/9dfe3f53-…` — wrong route *and* wrong tenant — and must become `/webhook/instagram/eba3ed94-277c-430f-a992-19bbe855e2f4` with verify token `aira_super_secret_token_2` and field `messages`.
@@ -361,44 +331,6 @@ code. Uncheck them so the config matches what Meta approves. See
   know about.
 
 
-## ~~Astro Tamil tenant is misconfigured — description and RAG are inverted~~ — FIXED 2026-09-24 (see decisions/log.md)
-> Resolved: all three Astro Tamil tenants now have sectioned profiles (485/397/225 words), the behavioural rules moved out of Documents, and the master prompt is generic. The findings below are kept for history; the ₹29 vs ₹49 price question was settled as ₹29 (the profile and facts say so).
-Tenant `eba3ed94-277c-430f-a992-19bbe855e2f4`. Found while answering "should this document
-live in the description or in RAG"; **nothing was changed** — needs the client's sign-off.
-- **`business_description` (2,005 chars) is a pasted AI chat reply.** It opens literally
-  *"Yes. If you want the backend trigger → WhatsApp consultation package list flow, I would use
-  a clear prompt like this:"* — assistant preamble, markdown heading and blockquote arrows
-  intact. This is injected in full on **every reply** this tenant sends.
-- **Two behavioural documents are misfiled in Documents (RAG)**, both `indexed`:
-  `AstroTamil AI Conversation Guidelines- Final (1).docx` (64dd97ae…, 12 chunks, 16,289 chars —
-  language rules, empathy rules, emoji caps, an 8-step thinking process, a tone ratio, a
-  rule-priority list) and `AstroTamil_Refined_KB_v9_Conversation_Fix- Final.docx` (48a7d93a…,
-  escalation phrasing + anti-hallucination rules). Neither answers a customer question.
-  They retrieve on real messages — see the RAG poisoning note in `context/subsystem-notes.md`.
-- **Fix is not a straight move**: 16k chars is ~8× what the description should hold, and large
-  parts restate things Aira already does natively (Tanglish/language matching is the
-  `reply_language_mode` setting + `_language_rule_block`; escalation has real machinery).
-  Needs condensing to the rules that actually change replies, then the two docs deleted from RAG.
-- Sibling tenant `82c63194-1957-4262-ae7c-a95f05effcb1` has
-  `AstroTamil_Sudharsana_Homam_Aira_Knowledge_Base.docx` — not audited, may be genuine knowledge.
-- **Re-checked live 2026-09-11 — the picture above was incomplete:**
-  - Sizes corrected: `Refined_KB_v9` is **46,501 chars / 44 chunks** (not 16k); `Guidelines` is 14,114 / 12.
-  - The tenant **already has its own `ai_prompts` `master` row** (13,518 chars, updated 2026-08-22)
-    that is a condensed rewrite of almost all of both docs (rule priority, length, Tanglish
-    dictionary, empathy, anti-hallucination, greetings, privacy split, pricing, CTA frequency).
-    So the rules do **not** need to move into the description — they are already in the prompt.
-  - What exists **only** in `Refined_KB_v9` and would be lost by deleting it: app features list,
-    free-question policy (1 per 7 days, 25 users/day), reward points, confidential-consultation
-    detail. Those are facts → belong in a short clean Documents file, not the description.
-  - **Contradictions to resolve with the client before any rewrite:** starting price is **₹49** in
-    the master prompt vs **₹29** in the doc; master says "at least two follow-up questions" before
-    the consultation, doc says one.
-  - The description's pasted "backend trigger → package list" text names a
-    `whatsapp_consultation_enabled` flag that exists nowhere; the real mechanism is `intake_config`,
-    which is **already enabled** for this tenant. The description text is redundant.
-  - Sibling `82c63194`: empty `business_description`, no `jina_api_key`, and its one doc is
-    `indexed` with **0 chunks** (so only the full-text fallback ever serves it).
-
 ## Text inside images in a mixed PDF is silently dropped (found 2026-09-09)
 `extract_text_from_file` (`services/knowledge_service.py:86`) OCRs via Gemini **only** when
 `pdfplumber` returns nothing at all (`if not text.strip()`). A PDF holding real text *plus* a
@@ -412,11 +344,6 @@ and a standalone image are both fine (they hit the Gemini path).
   logo on a cover page looks identical to a pasted table) or just warn on the document row.
   Recommendation was warn first, gather real hit data, then decide. User has not picked.
 - The Documents guide copy now warns clients about this shape of file; the pipeline is unchanged.
-
-## ~~`second_brain_close.py` stale-claim false positives~~ — FIXED 2026-09-11
-Fixed in `scripts/second_brain_close.py`; the check now reports 0 and still catches a genuine
-stale reference (verified with a throwaway probe file). See `decisions/log.md` 2026-09-11.
-Superseded the three duplicate entries that tracked this (2026-08-15, 2026-08-25, 2026-09-09).
 
 ## Vercel production deploy failing — cause not yet known (open, 2026-09-11)
 The user reported the Vercel deployment "blocked"; they confirmed it shows as a **failed build
@@ -469,11 +396,6 @@ Shipped and merged to local `main` (not pushed); migration 190 applied live. See
   warn when a pasted AI transcript is saved as the Description; undo a document delete (needs
   soft delete + a `deleted_at` filter in the retrieval RPCs); a per-campaign Description add-on
   for campaign-scoped rules (currently left out and shown to the client).
-
-## Local dev environment gaps — superseded, see "Local tooling gaps" below (was: open, 2026-09-18)
-Reported from an agent sandbox without network access. Re-checked on the user's actual machine
-2026-09-23 — see **"Local tooling gaps — re-checked and mostly resolved"** further down.
-
 
 ## Meta Ads — what still blocks the `ads_read` / Marketing API resubmission (open, 2026-09-19)
 The scheduler half is fixed (`0e35b2f1`, `7aa8b710`); these three are not, and two of them need the
