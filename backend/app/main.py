@@ -28,7 +28,7 @@ from app.routes import brain_sandbox
 from app.routes import operator_brain
 from app.routes import lead_details_share
 from app.routes import auto_messages
-from app.routes import private_send
+from app.routes import private_send, private_send_keys
 
 # Configure logging
 logging.basicConfig(
@@ -689,6 +689,7 @@ app.include_router(marketplace_public_router, prefix="/api/v1/marketplace", tags
 app.include_router(auto_messages.public_router, prefix="/api/v1/auto-messages", tags=["auto-messages-webhook"])
 app.include_router(auto_messages.router, prefix="/api/v1/auto-messages", tags=["auto-messages"], dependencies=_auth)
 app.include_router(private_send.public_router, prefix="/api/v1/private-send", tags=["private-send"])
+app.include_router(private_send_keys.router, prefix="/api/v1/private-send", tags=["private-send-keys"], dependencies=_auth)
 # Legacy prefix. Razorpay's dashboard has /api/v1/expert-handoff/razorpay-webhook
 # registered externally; remove these two lines only after updating it there.
 app.include_router(intake_public_router, prefix="/api/v1/expert-handoff", tags=["intake-webhook-legacy"])

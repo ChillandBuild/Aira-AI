@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from anril_private_send import core
+from anril_connector import core
 
 VECTORS = Path(__file__).resolve().parents[2] / "spec" / "vectors"
 

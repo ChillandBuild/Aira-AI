@@ -34,8 +34,8 @@ export function bundleData(now: Date, overrides: Partial<BundleData> = {}): Bund
     offline_grace_hours: 6,
     limits: { monthly_cap: 50000, used: 10, blocked: false },
     rules: [
-      { id: "r1", event: "purchased", template_id: "tp1", delay_minutes: 0, variables: null, button_param: null, enabled: true },
-      { id: "r2", event: "signed_up", template_id: "tp1", delay_minutes: 30, variables: null, button_param: null, enabled: true },
+      { id: "r1", event: "purchased", template_id: "tp1", variables: null, button_param: null, enabled: true },
+      { id: "r2", event: "signed_up", template_id: "tp1", variables: null, button_param: null, enabled: true },
     ],
     templates: [
       { id: "tp1", name: "loan_ready", language: "en", category: "UTILITY", body_text: "Hi {{1}}, your loan is approved.",

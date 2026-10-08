@@ -129,6 +129,10 @@ EVENT_INPUTS = [
     "signed_up", "signup", "sign_up", "sign-up", "Sign Up", "register", "registered", "registration",
     "purchased", "purchase", "order", "order_placed", "Order Placed", "ORDER-PLACED", "__order__placed__", "bought",
     "paid", "sale", "refund", "unknown", "purchas", "pur chase!", "signed up now",
+    # custom event slugs: ^[a-z][a-z0-9_]{1,39}$ after trim + lowercase, no mapping invented for them
+    "Refund", "  KYC_done  ", "cart_abandoned_2", "ab", "a" + "b" * 39,
+    # junk that stays rejected
+    "a", "1abc", "_abc", "abc-def", "abc def", "refund!", "a" + "b" * 40, "é", "ab\ncd", "-", "__",
 ]
 
 PHONE_INPUTS = [
@@ -169,7 +173,7 @@ def main() -> None:
         "cases": components,
     })
     write("normalize.json", {
-        "description": "events: [input, expected_or_null] via normalize_event. phones: [input, expected_or_null] via _normalize_phone.",
+        "description": "events: [input, expected_or_null] via normalize_event (built-in aliases, or a custom slug ^[a-z][a-z0-9_]{1,39}$). phones: [input, expected_or_null] via _normalize_phone.",
         "events": [[e, normalize_event(e)] for e in EVENT_INPUTS],
         "phones": [[p, _normalize_phone(p)] for p in PHONE_INPUTS],
     })

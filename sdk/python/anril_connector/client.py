@@ -13,14 +13,15 @@ import httpx
 from . import core
 from ._version import __version__
 from .bundle import BundleManager, Clock, anril_headers, load_public_keys, raise_if_license_rejected, utcnow
-from .errors import QuotaExceeded
-from .meta import send_template, template_body
+from .errors import BundleUnavailable, QuotaExceeded
+from .meta import MetaOutcome, send_template, template_body
 from .store import Store, iso, make_store, parse_iso
 
-logger = logging.getLogger("anril_private_send")
+logger = logging.getLogger("anril_connector")
 
-DUPLICATE_WINDOW = timedelta(hours=24)
 STUCK_AFTER = timedelta(minutes=15)
+RETRY_DELAY = timedelta(minutes=1)
+RETRY_WINDOW = timedelta(hours=1)
 USAGE_INTERVAL = timedelta(minutes=15)
 USAGE_PATH = "/api/v1/private-send/usage"
 MAX_USAGE_ROWS = 500
@@ -49,7 +50,7 @@ def _check_base_url(url: str) -> str:
 
 @dataclass(frozen=True)
 class SendResult:
-    status: str  # sent | failed | queued | skipped
+    status: str  # sent | failed | queued (waiting for a retry) | skipped
     reason: Optional[str] = None
     message_id: Optional[str] = None
 
@@ -61,7 +62,7 @@ class AnrilPrivateSend:
         meta_token: str,
         phone_number_id: str,
         anril_public_key: Union[str, Sequence[str]],
-        store: Union[str, Store] = "sqlite:///anril_private_send.db",
+        store: Union[str, Store] = "sqlite:///anril_connector.db",
         anril_base_url: str = "https://aira-ai-5tfr.onrender.com",
         graph_version: str = "v21.0",
         http: Optional[httpx.Client] = None,
@@ -94,6 +95,9 @@ class AnrilPrivateSend:
         self, event: str, phone: str, name: Optional[str] = None,
         extra: Optional[Dict[str, Any]] = None, page_url: Optional[str] = None,
     ) -> SendResult:
+        """Send the matching template now. No checks: no opt-out list, no duplicate window, no quiet hours,
+        no delay. The row is written 'queued' and delivered in the same call; it stays queued (for run_due)
+        only when Meta or Anril could not be reached."""
         norm_event = core.normalize_event(event)
         if not norm_event:
             raise ValueError(f"unknown event {event!r}")
@@ -101,41 +105,33 @@ class AnrilPrivateSend:
         if not norm_phone:
             raise ValueError("missing or invalid phone")
         now = self._clock()
-        if self._store.is_opted_out(norm_phone):
-            return self._skip(norm_phone, norm_event, None, "opted_out", now)
-        bundle = self._bundles.current()
+        try:
+            bundle = self._bundles.current()
+        except BundleUnavailable:
+            return self._park_for_retry(norm_phone, norm_event, name, extra, page_url, now)
         if bundle.blocked:
             raise QuotaExceeded("monthly message cap reached")
         rule = bundle.rule_for(norm_event)
         if not rule:
             return self._skip(norm_phone, norm_event, None, "no_rule", now)
-        if self._store.has_recent_send(norm_phone, norm_event, now - DUPLICATE_WINDOW):
-            return self._skip(norm_phone, norm_event, rule["template_id"], "duplicate", now)
-        delay = int(rule.get("delay_minutes") or 0)
-        row = self._queue_row(norm_phone, norm_event, rule, name, extra, page_url, now + timedelta(minutes=delay), now)
+        row = self._queue_row(norm_phone, norm_event, rule["template_id"], name, extra, page_url, now, now)
         send_id = self._store.insert_send(row)
-        if delay > 0:
-            return SendResult("queued")
         return self._deliver({**row, "id": send_id}, bundle)
 
-    def opt_out(self, phone: str) -> None:
-        norm_phone = core.normalize_phone(phone)
-        if not norm_phone:
-            raise ValueError("missing or invalid phone")
-        self._store.add_opt_out(norm_phone)
-
     def run_due(self) -> int:
-        """Send queued items whose delay is up. Returns how many were sent."""
+        """The retry path: send queued rows left by an unreachable Meta or Anril. Returns how many were sent.
+        A row still failing an hour after it was created is failed for good."""
         now = self._clock()
         self._store.fail_stuck(now - STUCK_AFTER)
         due = self._store.due_sends(now, DUE_BATCH)
-        if not due:
+        live = [row for row in due if not self._give_up_if_stale(row, now)]
+        if not live:
             return 0
         bundle = self._bundles.current()
         if bundle.blocked:
             raise QuotaExceeded("monthly message cap reached")
         sent = 0
-        for row in due:
+        for row in live:
             try:
                 if self._deliver(row, bundle).status == "sent":
                     sent += 1
@@ -179,14 +175,38 @@ class AnrilPrivateSend:
 
     @staticmethod
     def _queue_row(
-        phone: str, event: str, rule: Dict[str, Any], name: Optional[str], extra: Optional[Dict[str, Any]],
+        phone: str, event: str, template_id: Optional[str], name: Optional[str], extra: Optional[Dict[str, Any]],
         page_url: Optional[str], send_at: datetime, now: datetime,
     ) -> Dict[str, Any]:
         stored_extra = dict((core.build_context(name, phone, extra, page_url))["extra"])
         return {
-            "phone": phone, "event": event, "template_id": rule["template_id"], "status": "queued",
+            "phone": phone, "event": event, "template_id": template_id, "status": "queued",
             "send_at": iso(send_at), "created_at": iso(now), "name": (name or "").strip() or None, "extra": stored_extra,
         }
+
+    def _park_for_retry(
+        self, phone: str, event: str, name: Optional[str], extra: Optional[Dict[str, Any]],
+        page_url: Optional[str], now: datetime,
+    ) -> SendResult:
+        """Anril is unreachable and no verified bundle is usable, so the rule is unknown: queue the send;
+        run_due looks the rule up once a bundle is available."""
+        self._store.insert_send(self._queue_row(phone, event, None, name, extra, page_url, now + RETRY_DELAY, now))
+        return SendResult("queued", "anril_unreachable")
+
+    def _is_stale(self, row: Dict[str, Any], now: datetime) -> bool:
+        return now - parse_iso(row["created_at"]) >= RETRY_WINDOW
+
+    def _give_up_if_stale(self, row: Dict[str, Any], now: datetime) -> bool:
+        """Fail a queued row that has been retrying for RETRY_WINDOW. True when it was failed."""
+        if not self._is_stale(row, now):
+            return False
+        self._count_failed(row)
+        self._finish(row, "failed", "gave_up: " + (row.get("reason") or "anril_unreachable"))
+        return True
+
+    def _count_failed(self, row: Dict[str, Any]) -> None:
+        if row.get("template_id"):  # a row parked before any rule was known has no template to count against
+            self._store.bump_counter(self._clock().strftime("%Y-%m-%d"), row["event"], row["template_id"], 0, 1)
 
     def _finish(self, row: Dict[str, Any], status: str, reason: Optional[str] = None) -> SendResult:
         sent_at = self._clock() if status == "sent" else None
@@ -194,11 +214,10 @@ class AnrilPrivateSend:
         return SendResult(status, reason)
 
     def _deliver(self, row: Dict[str, Any], bundle: Any) -> SendResult:
-        """Claim queued -> sending (so two runs never double-send), then send. Never retries."""
+        """Claim queued -> sending (so two runs never double-send), then send once. Only a send that
+        provably never reached Meta (connection failure, 429, 503) goes back to 'queued' for run_due."""
         if not self._store.claim_send(row["id"], self._clock()):
             return SendResult("skipped", "already_claimed")
-        if self._store.is_opted_out(row["phone"]):
-            return self._finish(row, "skipped", "opted_out")
         rule = bundle.rule_for(row["event"])
         if not rule:
             return self._finish(row, "skipped", "rule_removed_or_off")
@@ -210,11 +229,18 @@ class AnrilPrivateSend:
             row["phone"], template["name"], template.get("language") or "en",
             core.build_components(template, rule, ctx))
         outcome = send_template(self._http, self._graph_version, self._phone_number_id, self._meta_token, body)
+        if outcome.retryable and not self._is_stale(row, self._clock()):
+            return self._requeue(row, outcome)
         day = self._clock().strftime("%Y-%m-%d")
         counts = (1, 0) if outcome.ok else (0, 1)
         self._store.bump_counter(day, row["event"], rule["template_id"], *counts)
-        result = self._finish(row, "sent" if outcome.ok else "failed", outcome.reason)
+        reason = outcome.reason if outcome.ok or not outcome.retryable else "gave_up: " + (outcome.reason or "")
+        result = self._finish(row, "sent" if outcome.ok else "failed", reason)
         return SendResult(result.status, result.reason, outcome.message_id)
+
+    def _requeue(self, row: Dict[str, Any], outcome: MetaOutcome) -> SendResult:
+        self._store.retry_send(row["id"], self._clock() + RETRY_DELAY, outcome.reason)
+        return SendResult("queued", outcome.reason)
 
     # ------------------------------------------------------------ usage
 

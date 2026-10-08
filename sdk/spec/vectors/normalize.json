@@ -1,5 +1,5 @@
 {
-  "description": "events: [input, expected_or_null] via normalize_event. phones: [input, expected_or_null] via _normalize_phone.",
+  "description": "events: [input, expected_or_null] via normalize_event (built-in aliases, or a custom slug ^[a-z][a-z0-9_]{1,39}$). phones: [input, expected_or_null] via _normalize_phone.",
   "events": [
     [
       null,
@@ -119,15 +119,15 @@
     ],
     [
       "refund",
-      null
+      "refund"
     ],
     [
       "unknown",
-      null
+      "unknown"
     ],
     [
       "purchas",
-      null
+      "purchas"
     ],
     [
       "pur chase!",
@@ -135,6 +135,70 @@
     ],
     [
       "signed up now",
+      null
+    ],
+    [
+      "Refund",
+      "refund"
+    ],
+    [
+      "  KYC_done  ",
+      "kyc_done"
+    ],
+    [
+      "cart_abandoned_2",
+      "cart_abandoned_2"
+    ],
+    [
+      "ab",
+      "ab"
+    ],
+    [
+      "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    [
+      "a",
+      null
+    ],
+    [
+      "1abc",
+      null
+    ],
+    [
+      "_abc",
+      null
+    ],
+    [
+      "abc-def",
+      null
+    ],
+    [
+      "abc def",
+      null
+    ],
+    [
+      "refund!",
+      null
+    ],
+    [
+      "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      null
+    ],
+    [
+      "é",
+      null
+    ],
+    [
+      "ab\ncd",
+      null
+    ],
+    [
+      "-",
+      null
+    ],
+    [
+      "__",
       null
     ]
   ],

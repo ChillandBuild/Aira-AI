@@ -1,71 +1,64 @@
 "use client";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
-import { MessagesTab } from "./MessagesTab";
-import { ConnectTab } from "./ConnectTab";
-import { CounterTab } from "./CounterTab";
-import { ActivityTab } from "./ActivityTab";
+import { ActivitySection } from "./ActivitySection";
+import { HeaderCounts } from "./HeaderCounts";
+import { usePrivateSend } from "./PrivateSend";
+import { MessagesSection } from "./MessagesSection";
+import { SourcesSection } from "./SourcesSection";
 
-type Tab = "messages" | "connect" | "counter" | "activity";
-
-const TABS: { id: Tab; label: string; needs: "view" | "manage" }[] = [
-  { id: "messages", label: "Messages", needs: "view" },
-  { id: "connect", label: "Website & apps", needs: "view" },
-  { id: "counter", label: "Shop counter", needs: "manage" },
-  { id: "activity", label: "Activity", needs: "view" },
-];
+const SECTION_LABEL = "mb-2 px-1 font-label text-[11px] font-bold uppercase tracking-wide text-ink-secondary";
 
 export default function AutoMessagesPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { role, permissions, loading } = useAuthRole();
+  const privateSend = usePrivateSend();
 
-  const isOwner = role === "owner";
-  const has = (p: string) => isOwner || permissions.includes(p);
+  const has = (p: string) => role === "owner" || permissions.includes(p);
   const canManage = has("auto_messages.manage");
   const canView = canManage || has("auto_messages.view");
 
-  const visible = TABS.filter((t) => (t.needs === "view" ? canView : canManage));
-  const raw = searchParams.get("tab");
-  const tab = (visible.some((t) => t.id === raw) ? raw : visible[0]?.id) as Tab | undefined;
-
-  function setTab(next: Tab) {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("tab", next);
-    router.replace(`/dashboard/auto-messages?${params.toString()}`, { scroll: false });
-  }
-
   if (loading) return <div className="m-6 min-h-[320px] animate-pulse rounded-2xl bg-border-subtle" />;
 
-  if (!tab) {
+  if (!canView) {
     return (
       <div className="py-20 text-center">
-        <p className="font-body text-sm text-ink-muted">You do not have access to Auto-Messages.</p>
+        <p className="font-body text-sm text-ink-secondary">You do not have access to Auto-Messages.</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6">
-      <nav className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-surface-subtle p-1 sm:flex sm:w-fit">
-        {visible.map(({ id, label }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setTab(id)}
-            className={`shrink-0 rounded-lg px-3.5 py-1.5 font-label text-xs font-bold transition-all ${
-              tab === id ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-4 py-6 sm:px-6">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <p className="max-w-2xl font-body text-sm text-ink-secondary">
+          When something happens, Anril sends your approved WhatsApp template.
+        </p>
+        <HeaderCounts />
+      </header>
 
-      {tab === "messages" && <MessagesTab canManage={canManage} />}
-      {tab === "connect" && <ConnectTab canManage={canManage} />}
-      {tab === "counter" && <CounterTab />}
-      {tab === "activity" && <ActivityTab />}
+      <section aria-labelledby="your-messages-h">
+        <h2 id="your-messages-h" className={SECTION_LABEL}>
+          Your messages
+        </h2>
+        <MessagesSection canManage={canManage} />
+      </section>
+
+      <section id="get-customers-in" aria-labelledby="get-customers-h" className="scroll-mt-6">
+        <h2 id="get-customers-h" className={SECTION_LABEL}>
+          Get customers in
+        </h2>
+        <SourcesSection canManage={canManage} privateSend={privateSend} />
+      </section>
+
+      <section aria-labelledby="activity-h">
+        <h2 id="activity-h" className={SECTION_LABEL}>
+          Activity
+        </h2>
+        <ActivitySection privateSend={privateSend} />
+      </section>
+
+      <p className="px-1 font-body text-xs text-ink-secondary">
+        Approved templates only · sent instantly · replies come to your Inbox
+      </p>
     </div>
   );
 }

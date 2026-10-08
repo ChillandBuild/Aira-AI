@@ -406,7 +406,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
+        {/* TOP LEVEL: Auto-Messages (template sent when something happens: website form, app or server) */}
         {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
           <CollapsedNavItem
             href="/dashboard/auto-messages"
@@ -731,7 +731,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           />
         )}
 
-        {/* TOP LEVEL: Auto-Messages (template sent when a number arrives from website / app / shop counter) */}
+        {/* TOP LEVEL: Auto-Messages (template sent when something happens: website form, app or server) */}
         {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
           <MainNavItem
             href="/dashboard/auto-messages"

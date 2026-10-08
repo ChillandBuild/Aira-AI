@@ -2596,9 +2596,21 @@ def _has_dynamic_header_or_url(template: dict) -> bool:
     return False
 
 
+def _partner_name(payload: dict) -> str | None:
+    name = payload.get("name")
+    return name.strip()[:200] if isinstance(name, str) and name.strip() else None
+
+
 async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple[int, dict]:
+    """Each account's app calls this ONE way, set on the Developer page (services/partner_send_mode.py):
+    template_code (the default, the original AstroTamil call) or event (the tenant's Auto Messages
+    rule, services/partner_events.py). A call in the other shape is 400 wrong_mode. Both are logged."""
     from app.services.astro_normalize import normalize_phone
     from app.services.meta_cloud import send_template_message
+    from app.services.partner_events import log_partner_send
+    from app.services.partner_send_mode import (
+        EVENT_REFUSED_MESSAGE, TEMPLATE_REFUSED_MESSAGE, WRONG_MODE_CODE, get_partner_send_mode,
+    )
     from app.services.template_rules import VAR_RE, variable_indices
 
     if db is None:
@@ -2606,6 +2618,16 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
         db = get_supabase()
 
     code = str(payload.get("template_code") or "").strip()
+    has_event = payload.get("event") not in (None, "")
+    if get_partner_send_mode(db, tenant_id) == "event":
+        if code:
+            return _partner_error(400, WRONG_MODE_CODE, TEMPLATE_REFUSED_MESSAGE)
+        if not has_event:
+            return _partner_error(400, "invalid_request", "event is required")
+        from app.services.partner_events import partner_send_event
+        return await partner_send_event(payload, tenant_id, db)
+    if has_event:
+        return _partner_error(400, WRONG_MODE_CODE, EVENT_REFUSED_MESSAGE)
     variables = payload.get("variables")
     if variables is None:
         variables = []
@@ -2615,7 +2637,7 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
 
     row = (
         db.table("message_templates")
-        .select("name,language,status,body_text,header_text,buttons")
+        .select("id,name,language,status,body_text,header_text,buttons")
         .eq("tenant_id", tenant_id)
         .eq("short_code", code)
         .limit(1)
@@ -2626,6 +2648,10 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
         return _partner_error(404, "template_not_found", f"No template with Anril ID {code}")
     status = str(template.get("status") or "")
     if status != "APPROVED":
+        log_partner_send(
+            db, tenant_id, phone=normalize_phone(payload.get("phone")), event=None, template_id=template.get("id"),
+            status="failed", reason="template_not_approved", name=_partner_name(payload),
+        )
         return _partner_error(409, "template_not_approved", f"Template status is {status or 'unknown'}")
 
     phone = normalize_phone(payload.get("phone"))
@@ -2650,6 +2676,10 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
     lang = template.get("language") or "en"
     reference = _partner_reference(payload)
     components = [{"type": "body", "parameters": [{"type": "text", "text": v} for v in variables]}] if variables else None
+    log = dict(
+        phone=phone, event=None, template_id=template.get("id"), name=_partner_name(payload),
+        extra={"reference": reference} if reference else None,
+    )
     try:
         data = await send_template_message(
             to_number=phone,
@@ -2661,13 +2691,17 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
         )
     except HTTPException as e:
         logger.error(f"Partner template {code} ({reference}) for tenant {tenant_id} rejected by Meta: {e.detail}")
+        log_partner_send(db, tenant_id, status="failed", reason=str(e.detail), **log)
         return _partner_error(502, "meta_error", str(e.detail))
     except Exception as e:
         logger.error(f"Partner template {code} ({reference}) for tenant {tenant_id} failed: {e}")
+        log_partner_send(db, tenant_id, status="failed", reason=str(e), **log)
         return _partner_error(502, "meta_error", str(e))
     mid = ((data or {}).get("messages") or [{}])[0].get("id")
     if not mid:
+        log_partner_send(db, tenant_id, status="failed", reason="no message id", **log)
         return _partner_error(502, "meta_error", "no message id")
+    log_partner_send(db, tenant_id, status="sent", **log)
 
     content = VAR_RE.sub(
         lambda m: variables[int(m.group(1)) - 1] if 0 < int(m.group(1)) <= len(variables) else m.group(0),

@@ -1,5 +1,5 @@
 /**
- * Local state for the plug-in: dedupe, opt-outs, delayed queue, daily counters, bundle cache.
+ * Local state for the plug-in: the send log and retry queue, daily counters, bundle cache.
  * Everything stays on the client's machine. Same schema as the Python plug-in (sqlite file is
  * interchangeable). SqliteStore uses better-sqlite3; PostgresStore lazily imports the optional peer `pg`.
  */
@@ -43,13 +43,11 @@ export interface Store {
   getMeta(key: string): Promise<string | null>;
   setMeta(key: string, value: string): Promise<void>;
   deleteMeta(key: string): Promise<void>;
-  isOptedOut(phone: string): Promise<boolean>;
-  addOptOut(phone: string): Promise<void>;
-  hasRecentSend(phone: string, event: string, since: Date): Promise<boolean>;
   insertSend(row: SendRow): Promise<string>;
   claimSend(sendId: string, now: Date): Promise<boolean>;
   finishSend(sendId: string, status: string, reason: string | null, sentAt: Date | null): Promise<void>;
   dueSends(now: Date, limit: number): Promise<StoredSend[]>;
+  retrySend(sendId: string, sendAt: Date, reason: string | null): Promise<void>;
   failStuck(before: Date): Promise<number>;
   bumpCounter(day: string, event: string, templateId: string, sent: number, failed: number): Promise<void>;
   counters(days: readonly string[]): Promise<CounterRow[]>;
@@ -61,9 +59,7 @@ const SCHEMA: readonly string[] = [
     id TEXT PRIMARY KEY, phone TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT,
     status TEXT NOT NULL, reason TEXT, send_at TEXT, sent_at TEXT, created_at TEXT NOT NULL,
     name TEXT, extra TEXT, claimed_at TEXT)`,
-  "CREATE INDEX IF NOT EXISTS sends_dedupe ON sends (phone, event, created_at)",
   "CREATE INDEX IF NOT EXISTS sends_due ON sends (status, send_at)",
-  "CREATE TABLE IF NOT EXISTS opt_outs (phone TEXT PRIMARY KEY)",
   `CREATE TABLE IF NOT EXISTS counters (
     day TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT NOT NULL,
     sent INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0,
@@ -107,24 +103,6 @@ abstract class SqlStore implements Store {
     await this.run("DELETE FROM meta WHERE key = ?", [key]);
   }
 
-  async isOptedOut(phone: string): Promise<boolean> {
-    const { rows } = await this.run("SELECT phone FROM opt_outs WHERE phone = ?", [phone]);
-    return rows.length > 0;
-  }
-
-  async addOptOut(phone: string): Promise<void> {
-    await this.run("INSERT INTO opt_outs (phone) VALUES (?) ON CONFLICT (phone) DO NOTHING", [phone]);
-  }
-
-  async hasRecentSend(phone: string, event: string, since: Date): Promise<boolean> {
-    const { rows } = await this.run(
-      "SELECT id FROM sends WHERE phone = ? AND event = ? AND status IN ('queued', 'sending', 'sent') " +
-        "AND created_at >= ? LIMIT 1",
-      [phone, event, iso(since)],
-    );
-    return rows.length > 0;
-  }
-
   async insertSend(row: SendRow): Promise<string> {
     const id = row.id ?? randomUUID();
     const full: Record<string, unknown> = Object.fromEntries(SEND_COLUMNS.map((c) => [c, null]));
@@ -164,6 +142,14 @@ abstract class SqlStore implements Store {
       ...(r as unknown as StoredSend),
       extra: typeof r.extra === "string" && r.extra ? (JSON.parse(r.extra) as Record<string, string>) : {},
     }));
+  }
+
+  /** A claimed send that provably never reached Meta goes back to 'queued' for runDue. */
+  async retrySend(sendId: string, sendAt: Date, reason: string | null): Promise<void> {
+    await this.run(
+      "UPDATE sends SET status = 'queued', send_at = ?, reason = ?, claimed_at = NULL WHERE id = ? AND status = 'sending'",
+      [iso(sendAt), reason ? reason.slice(0, MAX_REASON_CHARS) : null, sendId],
+    );
   }
 
   /** 'sending' rows left by a crash are failed, never re-sent: Meta may already have delivered them. */
@@ -214,7 +200,7 @@ export class SqliteStore extends SqlStore {
     super();
   }
 
-  static async open(path = "anril_private_send.db"): Promise<SqliteStore> {
+  static async open(path = "anril_connector.db"): Promise<SqliteStore> {
     const mod = (await import("better-sqlite3")) as unknown as { default: new (p: string) => SqliteDb };
     const isNewFile = path !== ":memory:" && path !== "" && !existsSync(path);
     const db = new mod.default(path);

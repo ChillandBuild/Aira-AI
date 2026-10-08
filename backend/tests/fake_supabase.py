@@ -38,9 +38,15 @@ class FakeSupabase:
         self.tables: dict[str, list[dict]] = {}
         self._clock = itertools.count(1)
         self.storage = MagicMock()
+        self.rpc_handlers: dict = {}
 
     def table(self, name: str) -> "_Query":
         return _Query(self, name)
+
+    def rpc(self, name: str, params: dict):
+        """Calls the python handler registered in self.rpc_handlers (a stand-in for a SQL function)."""
+        handler = self.rpc_handlers[name]
+        return SimpleNamespace(execute=lambda: SimpleNamespace(data=handler(params)))
 
     def rows(self, name: str) -> list[dict]:
         return self.tables.setdefault(name, [])
@@ -59,6 +65,7 @@ class _Query:
         self.filters: list = []
         self._order: tuple[str, bool] | None = None
         self._limit: int | None = None
+        self._offset = 0
         self._single = False
         self._negate = False
 
@@ -96,6 +103,10 @@ class _Query:
 
     def update(self, payload: dict):
         self.op, self.payload = "update", payload
+        return self
+
+    def upsert(self, payload: dict, on_conflict: str = "id"):
+        self.op, self.payload, self._conflict = "upsert", payload, [c.strip() for c in on_conflict.split(",")]
         return self
 
     def delete(self):
@@ -172,6 +183,11 @@ class _Query:
         self._limit = n
         return self
 
+    def range(self, start: int, end: int):
+        """Inclusive row window like PostgREST `range`."""
+        self._offset, self._limit = start, end - start + 1
+        return self
+
     def _matching(self) -> list[dict]:
         return [r for r in self.db.rows(self.name) if all(f(r) for f in self.filters)]
 
@@ -186,6 +202,17 @@ class _Query:
                 self.db.rows(self.name).append(row)
                 created.append(dict(row))
             return SimpleNamespace(data=created, count=len(created))
+
+        if self.op == "upsert":
+            existing = [r for r in self.db.rows(self.name) if all(r.get(c) == self.payload.get(c) for c in self._conflict)]
+            if existing:
+                existing[0].update(self.payload)
+                return SimpleNamespace(data=[dict(existing[0])], count=1)
+            row = {**_DEFAULTS.get(self.name, {}), **self.payload}
+            row.setdefault("id", str(uuid.uuid4()))
+            row.setdefault("created_at", self.db._stamp())
+            self.db.rows(self.name).append(row)
+            return SimpleNamespace(data=[dict(row)], count=1)
 
         matched = self._matching()
         if self.op == "update":
@@ -209,8 +236,10 @@ class _Query:
         if self._order:
             column, desc = self._order
             rows.sort(key=lambda r: (r.get(column) is None, r.get(column) or ""), reverse=desc)
+        total = len(rows)  # like PostgREST count=exact: the total before limit / range
+        rows = rows[self._offset:]
         if self._limit is not None:
             rows = rows[: self._limit]
         if self._single:
-            return SimpleNamespace(data=rows[0] if rows else None, count=len(rows))
-        return SimpleNamespace(data=rows, count=len(rows))
+            return SimpleNamespace(data=rows[0] if rows else None, count=total)
+        return SimpleNamespace(data=rows, count=total)

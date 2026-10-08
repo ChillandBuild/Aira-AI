@@ -57,7 +57,14 @@ def _db(template=None, lead=None):
         MagicMock(data=lead) if lead else None
     )
     messages = MagicMock()
-    tables = {"message_templates": templates, "phone_numbers": phones, "leads": leads, "messages": messages}
+    settings = MagicMock()  # no partner_send_mode saved: the account sends by template ID
+    settings.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = (
+        MagicMock(data=[])
+    )
+    tables = {
+        "message_templates": templates, "phone_numbers": phones, "leads": leads, "messages": messages,
+        "app_settings": settings,
+    }
     db.table.side_effect = lambda name: tables[name]
     db.messages = messages
     return db

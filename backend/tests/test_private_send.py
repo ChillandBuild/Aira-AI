@@ -477,7 +477,6 @@ def test_usage_with_phone_at_top_level_is_422(env, signing):
     [_usage_row(day=_today(8))],
     [_usage_row(day=(datetime.now(timezone.utc).date() + timedelta(days=1)).isoformat())],
     [_usage_row(sent=-1)],
-    [_usage_row(event="bought_it")],
     [_usage_row(template_id="not-a-uuid")],
 ])
 def test_usage_validation_rejects_bad_rows(env, signing, rows):
@@ -577,7 +576,7 @@ def test_operator_overview_shape_and_usage(env):
     env.db.rows("private_send_meta_daily").append({"tenant_id": TENANT, "day": day, "volume": 400, "aira_sent": 100})
     data = env.client.get(OPERATOR_BASE).json()
     assert data["enabled"] is True and data["monthly_cap"] == 50000
-    assert data["reply_mode"] == "client" and data["offline_grace_hours"] == 6
+    assert data["reply_mode"] == "aira" and data["offline_grace_hours"] == 6
     assert data["usage"]["days"] == [{"day": day, "reported_sent": 100, "meta_volume": 300}]
     assert data["usage"]["mismatch"] is True  # Meta saw 300, the plug-in reported 100
     assert data["usage"]["period"] == day[:7]
@@ -728,7 +727,7 @@ def test_tenant_overview_enabled(env):
          "reported_sent": 99, "reported_failed": 0},
     ])
     data = env.client.get("/api/v1/auto-messages/private-send").json()
-    assert data["enabled"] is True and data["reply_mode"] == "client"
+    assert data["enabled"] is True and data["reply_mode"] == "aira"
     assert data["key_prefix"].startswith("aps_live_") and len(data["key_prefix"]) == 13
     assert data["days"] == [{"day": _today(), "event": "purchased", "template_id": TPL_A,
                              "template_name": "loan_ready", "sent": 312, "failed": 3}]
@@ -967,9 +966,9 @@ def test_reply_mode_db_failure_reverts_the_meta_subscription_and_logs(env, monke
     _meta_transport(monkeypatch, handler)
     env.db.failing_tables.add("app_settings")
     with caplog.at_level(logging.ERROR, logger=ps.logger.name):
-        res = env.client.patch(f"{OPERATOR_BASE}/settings", json={"reply_mode": "aira"})
+        res = env.client.patch(f"{OPERATOR_BASE}/settings", json={"reply_mode": "client"})
     assert res.status_code == 500
-    assert seen == ["POST", "DELETE"]  # subscribed, DB write failed, reverted to the saved "client"
+    assert seen == ["DELETE", "POST"]  # unsubscribed, DB write failed, reverted to the default "aira"
     assert any(r.levelno == logging.ERROR for r in caplog.records)
     assert "EAAB-secret-token" not in res.text
 
@@ -978,13 +977,13 @@ def test_reply_mode_revert_failure_is_still_a_500_and_logged(env, monkeypatch, c
     _connect_meta(env)
 
     def handler(req):
-        if req.method == "DELETE":
+        if req.method == "POST":  # the revert back to the default "aira" fails
             return httpx.Response(400, json={"error": {"message": "nope"}})
         return httpx.Response(200, json={"success": True})
     _meta_transport(monkeypatch, handler)
     env.db.failing_tables.add("app_settings")
     with caplog.at_level(logging.ERROR, logger=ps.logger.name):
-        res = env.client.patch(f"{OPERATOR_BASE}/settings", json={"reply_mode": "aira"})
+        res = env.client.patch(f"{OPERATOR_BASE}/settings", json={"reply_mode": "client"})
     assert res.status_code == 500
     assert any("revert" in r.getMessage().lower() for r in caplog.records)
 
@@ -1017,3 +1016,83 @@ def test_migration_has_no_tenant_member_select_policies_left():
     assert "CREATE POLICY" not in sql
     assert "DROP POLICY IF EXISTS private_send_usage_tenant_member_select ON private_send_usage" in sql
     assert "DROP POLICY IF EXISTS private_send_meta_daily_tenant_member_select ON private_send_meta_daily" in sql
+
+
+# ------------------------------------------------------------------ Auto Messages v2: custom events, no quiet hours
+
+def _add_custom_event(env, key="kundli_ready", tenant=TENANT):
+    env.db.rows("auto_message_events").append({"id": str(uuid.uuid4()), "tenant_id": tenant, "key": key, "label": key})
+
+
+def test_usage_accepts_a_custom_event_key_the_tenant_has(env, signing):
+    _add_custom_event(env)
+    res = _post_usage(env, _add_key(env), {"rows": [_usage_row(event="kundli_ready", sent=3)]})
+    assert res.status_code == 200
+    assert env.db.rows("private_send_usage")[0]["event"] == "kundli_ready"
+
+
+def test_usage_for_a_deleted_or_unknown_custom_event_is_accepted_and_billed(env, signing):
+    """The owner deleted the event (or it never existed here): the plug-in already sent those
+    messages, so the row is stored and billed. Rejecting it would drop the whole batch."""
+    _add_custom_event(env, tenant=OTHER_TENANT)  # someone else's event must not matter either
+    res = _post_usage(env, _add_key(env), {"rows": [_usage_row(), _usage_row(event="kundli_ready", sent=4)]})
+    assert res.status_code == 200 and res.json() == {"ok": True, "accepted": 2}
+    assert sorted(r["event"] for r in env.db.rows("private_send_usage")) == ["kundli_ready", "purchased"]
+    assert _metered(env) == 9  # 5 + 4
+
+
+@pytest.mark.parametrize("event", ["Kundli Ready", "1abc", "a", "has-dash", "x" * 41, ""])
+def test_usage_event_must_be_a_slug(env, signing, event):
+    assert _post_usage(env, _add_key(env), {"rows": [_usage_row(event=event)]}).status_code == 422
+
+
+def test_usage_never_looks_up_events(env, signing):
+    _add_custom_event(env)
+    rows = [_usage_row(event="kundli_ready"), _usage_row(event="purchased"), _usage_row(day=_today(1), event="gone_event")]
+    key = _add_key(env)
+    env.db.lookups.clear()
+    assert _post_usage(env, key, {"rows": rows}).status_code == 200
+    assert env.db.lookups.count("auto_message_events") == 0
+    assert env.db.lookups.count("message_templates") == 1  # the ownership check stays
+
+
+def test_bundle_has_no_quiet_hours_no_rule_delay_and_still_carries_each_template_category(env, signing):
+    _seed_rules(env)
+    env.db.rows("auto_message_rules")[1]["enabled"] = True  # r-interested carries delay_minutes=5 in the table
+    payload = _decode(_get_bundle(env, _add_key(env)).json())
+    assert "quiet_hours" not in payload
+    assert {r["event"] for r in payload["rules"]} == {"interested", "purchased"}
+    for rule in payload["rules"]:
+        assert "delay_minutes" not in rule
+        assert set(rule) == {"id", "event", "template_id", "variables", "button_param", "enabled"}
+    assert payload["templates"][0]["category"] == "UTILITY"
+
+
+def test_reply_mode_defaults_to_aira_everywhere_when_unset(env):
+    """'client' unsubscribes Anril from the whole WhatsApp number, so it must be an explicit choice."""
+    assert ps.get_reply_mode(TENANT) == "aira"
+    _add_key(env)
+    assert env.client.get(OPERATOR_BASE).json()["reply_mode"] == "aira"
+    assert env.client.get("/api/v1/auto-messages/private-send").json()["reply_mode"] == "aira"
+
+
+def test_reply_mode_unrecognised_stored_value_falls_back_to_aira(env):
+    env.settings[(TENANT, ps.REPLY_MODE_KEY)] = "both"
+    assert ps.get_reply_mode(TENANT) == "aira"
+
+
+def test_reply_mode_explicit_client_is_still_honoured(env):
+    _add_key(env)
+    env.settings[(TENANT, ps.REPLY_MODE_KEY)] = "client"
+    assert env.client.get(OPERATOR_BASE).json()["reply_mode"] == "client"
+    assert env.client.get("/api/v1/auto-messages/private-send").json()["reply_mode"] == "client"
+
+
+def test_bundle_includes_a_rule_for_a_custom_event(env, signing):
+    _seed_rules(env)
+    _add_custom_event(env)
+    env.db.rows("auto_message_rules").append(
+        {"id": "r-kundli", "tenant_id": TENANT, "event": "kundli_ready", "template_id": TPL_A, "delay_minutes": 0,
+         "variables": [], "button_param": None, "enabled": True})
+    payload = _decode(_get_bundle(env, _add_key(env)).json())
+    assert sorted(r["event"] for r in payload["rules"]) == ["kundli_ready", "purchased"]

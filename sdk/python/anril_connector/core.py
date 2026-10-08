@@ -17,6 +17,7 @@ _EVENT_ALIASES = {
     "purchased": "purchased", "purchase": "purchased", "order": "purchased", "order_placed": "purchased",
     "bought": "purchased", "paid": "purchased", "sale": "purchased",
 }
+_CUSTOM_EVENT_RE = re.compile(r"[a-z][a-z0-9_]{1,39}")
 _PHONE_KEYS = ("phone", "mobile", "phone_number", "mobile_number", "whatsapp", "whatsapp_number", "contact", "number")
 _NAME_KEYS = ("name", "full_name", "customer_name", "your_name")
 _URL_KEYS = ("page_url", "url", "link")
@@ -53,10 +54,16 @@ def _first(payload: Dict[str, Any], keys: tuple) -> str:
 
 
 def normalize_event(raw: Optional[str]) -> Optional[str]:
-    """None for an unknown event (the caller rejects it); empty/None means 'interested'."""
+    """Empty/None means 'interested'. A built-in alias maps to its event; otherwise the trimmed, lowercased
+    text is accepted as a custom event slug if it matches [a-z][a-z0-9_]{1,39} (no mapping is invented for
+    it; the bundle decides whether a rule exists). None for anything else (the caller rejects it)."""
     if not raw:
         return "interested"
-    return _EVENT_ALIASES.get(_NON_ALNUM.sub("_", raw.strip().lower()).strip("_"))
+    trimmed = raw.strip().lower()
+    alias = _EVENT_ALIASES.get(_NON_ALNUM.sub("_", trimmed).strip("_"))
+    if alias:
+        return alias
+    return trimmed if _CUSTOM_EVENT_RE.fullmatch(trimmed) else None
 
 
 def parse_payload(payload: Dict[str, Any]) -> Dict[str, Any]:

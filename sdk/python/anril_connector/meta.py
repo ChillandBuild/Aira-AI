@@ -8,9 +8,10 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-logger = logging.getLogger("anril_private_send")
+logger = logging.getLogger("anril_connector")
 GRAPH_BASE = "https://graph.facebook.com"
 META_TIMEOUT_SECONDS = 15.0
+_RETRYABLE_STATUSES = (429, 503)
 
 
 @dataclass(frozen=True)
@@ -18,6 +19,7 @@ class MetaOutcome:
     ok: bool
     message_id: Optional[str] = None
     reason: Optional[str] = None
+    retryable: bool = False  # the request provably never reached Meta, so sending it again cannot double-send
 
 
 def template_body(to_number: str, template_name: str, lang_code: str, components: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -49,9 +51,11 @@ def send_template(
         resp = http.post(url, json=body, headers={"Authorization": f"Bearer {token}"}, timeout=META_TIMEOUT_SECONDS)
     except httpx.HTTPError as exc:
         logger.warning("meta send failed: %s", type(exc).__name__)
-        return MetaOutcome(ok=False, reason=f"network_error: {type(exc).__name__}")
+        # only a failed connect is safe to repeat; a read timeout may mean Meta already accepted the message
+        never_arrived = isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout))
+        return MetaOutcome(ok=False, reason=f"network_error: {type(exc).__name__}", retryable=never_arrived)
     if not resp.is_success:
-        return MetaOutcome(ok=False, reason=_error_reason(resp))
+        return MetaOutcome(ok=False, reason=_error_reason(resp), retryable=resp.status_code in _RETRYABLE_STATUSES)
     try:
         message_id = (resp.json().get("messages") or [{}])[0].get("id")
     except (ValueError, AttributeError, IndexError):

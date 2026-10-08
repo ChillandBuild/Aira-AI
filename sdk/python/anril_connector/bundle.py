@@ -22,7 +22,7 @@ from ._version import __version__
 from .errors import BundleUnavailable, LicenseError
 from .store import Store
 
-logger = logging.getLogger("anril_private_send")
+logger = logging.getLogger("anril_connector")
 
 REFRESH_AFTER = timedelta(minutes=5)
 BUNDLE_PATH = "/api/v1/private-send/bundle"

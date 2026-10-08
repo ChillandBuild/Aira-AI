@@ -1,6 +1,6 @@
 """Auto-Messages end to end against the in-memory Supabase fake: payload parsing,
-one message per event, duplicates, delays, failures, template components, and
-the public / dashboard routes."""
+every matched event sent at once (no opt-out / duplicate / quiet-hours / delay checks),
+failures, template components, and the public / dashboard routes."""
 import asyncio
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
@@ -26,6 +26,11 @@ def _now_stamp():
 def db():
     d = FakeSupabase()
     d._stamp = _now_stamp
+    # Stand-in for the SQL function auto_message_sent_events (migration 221).
+    d.rpc_handlers["auto_message_sent_events"] = lambda params: sorted({
+        s["event"] for s in d.rows("auto_message_sends")
+        if s["tenant_id"] == params["p_tenant"] and s["status"] == "sent"
+    })
     return d
 
 
@@ -90,7 +95,9 @@ def test_events_normalise_and_unknown_is_rejected():
     assert svc.normalize_event("Order Placed") == "purchased"
     assert svc.normalize_event("sign-up") == "signed_up"
     assert svc.normalize_event("") == "interested"
-    assert svc.normalize_event("refund") is None
+    # a non-built-in key is only returned as a slug; the tenant lookup (resolve_event) decides if it exists
+    assert svc.normalize_event("refund") == "refund"
+    assert svc.normalize_event("pur chase!") is None
 
 
 # ---------------------------------------------------------------- one message per event
@@ -129,56 +136,69 @@ def test_unknown_event_and_bad_phone_are_ignored(db, send):
     assert _sends(db) == []
 
 
-def test_same_person_same_event_within_24h_is_sent_once(db, send):
+def test_same_person_same_event_twice_sends_twice(db, send):
+    """Owner decision 2026-10-08: no duplicate check. Every matched event is sent."""
     _rule(db, "interested", _template(db, "details"))
     _rule(db, "purchased", _template(db, "thanks"))
-    _event(db)
+    first = _event(db)
     second = _event(db)
     other_event = _event(db, event_raw="purchased")
-    assert (second["message_status"], second["reason"]) == ("skipped", "duplicate")
-    assert other_event["message_status"] == "sent"
-    assert send.call_count == 2
+    assert first["message_status"] == second["message_status"] == other_event["message_status"] == "sent"
+    assert [r["reason"] for r in (first, second, other_event)] == [None, None, None]
+    assert send.call_count == 3
+    assert [s["status"] for s in _sends(db)] == ["sent", "sent", "sent"]
 
 
-def test_duplicate_window_expires(db, send):
-    _rule(db, "interested", _template(db, "t"))
-    _event(db)
-    _sends(db)[0]["created_at"] = (datetime.now(timezone.utc) - timedelta(hours=25)).isoformat()
-    assert _event(db)["message_status"] == "sent"
-
-
-def test_delayed_message_waits_for_scheduler(db, send):
+def test_a_rule_delay_is_ignored_and_the_message_goes_out_at_once(db, send):
+    """auto_message_rules.delay_minutes stays in the table but is always treated as 0."""
     _rule(db, "signed_up", _template(db, "welcome"), delay_minutes=5)
+    before = datetime.now(timezone.utc)
     r = _event(db, event_raw="signup")
-    assert r["message_status"] == "queued"
-    send.assert_not_called()
-
-    with patch.object(svc, "get_supabase", return_value=db):
-        assert asyncio.run(svc.process_due_sends()) == 0          # not due yet
-        _sends(db)[0]["send_at"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
-        assert asyncio.run(svc.process_due_sends()) == 1
-        assert asyncio.run(svc.process_due_sends()) == 0          # never sent twice
-    assert _sends(db)[0]["status"] == "sent" and send.call_count == 1
+    assert r["message_status"] == "sent"
+    send.assert_called_once()
+    row = _sends(db)[0]
+    assert row["status"] == "sent"
+    assert datetime.fromisoformat(row["send_at"]) <= datetime.now(timezone.utc)
+    assert datetime.fromisoformat(row["send_at"]) >= before - timedelta(seconds=5)
     msg = db.rows("messages")[0]
     assert msg["reply_source"] == "automation" and msg["content"] == "[Auto-message: welcome]"
 
 
-def test_opted_out_lead_is_skipped(db, send):
+def test_no_new_row_ever_gets_a_future_send_at(db, send):
+    _rule(db, "interested", _template(db, "offer", category="MARKETING"), delay_minutes=120)
+    with patch.object(svc, "_utcnow", return_value=datetime(2026, 10, 7, 17, 30, tzinfo=timezone.utc)):  # 23:00 IST
+        _event(db)
+    assert datetime.fromisoformat(_sends(db)[0]["send_at"]) == datetime(2026, 10, 7, 17, 30, tzinfo=timezone.utc)
+
+
+def test_scheduler_still_sends_a_stale_queued_row_as_a_retry_path(db, send):
+    rule_id = _rule(db, "signed_up", _template(db, "welcome"))
+    db.add("auto_message_sends", tenant_id=T, rule_id=rule_id, phone="+919876543210", event="signed_up",
+           source="api", status="queued", send_at=(datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
+           extra={}, template_id=db.rows("auto_message_rules")[0]["template_id"])
+    with patch.object(svc, "get_supabase", return_value=db):
+        assert asyncio.run(svc.process_due_sends()) == 1
+        assert asyncio.run(svc.process_due_sends()) == 0          # never sent twice
+    assert _sends(db)[0]["status"] == "sent" and send.call_count == 1
+
+
+def test_opted_out_lead_still_gets_the_message(db, send):
     _rule(db, "interested", _template(db, "t"))
     db.add("leads", tenant_id=T, phone="+919876543210", opted_out=True)
     r = _event(db)
-    assert (r["message_status"], r["reason"]) == ("skipped", "opted_out")
-    send.assert_not_called()
+    assert (r["message_status"], r["reason"]) == ("sent", None)
+    send.assert_called_once()
 
 
 def test_rule_switched_off_while_queued_is_skipped(db, send):
-    rule_id = _rule(db, "interested", _template(db, "t"), delay_minutes=10)
-    _event(db)
+    rule_id = _rule(db, "interested", _template(db, "t"))
+    db.add("auto_message_sends", tenant_id=T, rule_id=rule_id, phone="+919876543210", event="interested",
+           source="api", status="queued", send_at=_now_stamp(), extra={})
     next(r for r in db.rows("auto_message_rules") if r["id"] == rule_id)["enabled"] = False
-    _sends(db)[0]["send_at"] = _now_stamp()
     with patch.object(svc, "get_supabase", return_value=db):
         asyncio.run(svc.process_due_sends())
     assert (_sends(db)[0]["status"], _sends(db)[0]["reason"]) == ("skipped", "rule_removed_or_off")
+    send.assert_not_called()
 
 
 def test_unapproved_template_and_meta_error_are_failures_with_reason(db, send):
@@ -361,20 +381,17 @@ def test_rules_crud_validates_template_and_one_rule_per_event(client, db):
     created = client.post(base, json={"event": "interested", "template_id": approved,
                                       "delay_minutes": 5, "variables": [{"source": "first_name", "fallback": "there"}]})
     assert created.status_code == 200
+    # an old client may still send delay_minutes: it is ignored, never stored, never 422
+    assert not created.json().get("delay_minutes")
+    assert "delay_minutes" not in db.rows("auto_message_rules")[0]
     assert client.post(base, json={"event": "interested", "template_id": approved}).status_code == 409
     assert client.post(base, json={"event": "purchased", "template_id": approved}).status_code == 200
     rid = created.json()["id"]
     assert client.patch(f"{base}/{rid}", json={"enabled": False}).json()["enabled"] is False
+    assert client.patch(f"{base}/{rid}", json={"delay_minutes": 30}).status_code == 400  # nothing left to change
+    assert "delay_minutes" not in db.rows("auto_message_rules")[0]
     assert client.delete(f"{base}/{rid}").status_code == 200
     assert len(client.get(base).json()["rules"]) == 1
-
-
-def test_quick_add_from_shop_counter(client, db, send):
-    _rule(db, "purchased", _template(db, "thanks_for_buying"))
-    r = client.post("/api/v1/auto-messages/quick-add", json={"name": "Ravi", "phone": "98765 43210"})
-    assert r.status_code == 200 and r.json()["message_status"] == "sent"
-    assert _sends(db)[0]["source"] == "store" and db.rows("leads")[0]["opt_in_source"] == "offline_event"
-    assert client.post("/api/v1/auto-messages/quick-add", json={"phone": "123456"}).status_code == 400
 
 
 def test_send_log_names_the_template(client, db, send):
@@ -414,8 +431,9 @@ def test_button_suffix_is_url_encoded(db, send):
 
 
 def test_send_interrupted_mid_flight_is_marked_failed_not_resent(db, send):
-    _rule(db, "interested", _template(db, "t"), delay_minutes=5)
+    _rule(db, "interested", _template(db, "t"))
     _event(db)
+    send.reset_mock()
     row = _sends(db)[0]
     row.update(status="sending", send_at=(datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat())
     with patch.object(svc, "get_supabase", return_value=db):
@@ -437,29 +455,20 @@ def _auto_messages_client(perms):
     return TestClient(app)
 
 
-def test_auto_messages_manage_can_use_the_counter(db, send):
-    routes._per_ip.reset()
-    with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
-        c = _auto_messages_client(["auto_messages.manage"])
-        assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 200
-        assert len(c.get("/api/v1/auto-messages/quick-add/recent").json()["sends"]) == 1
-
-
-def test_auto_messages_view_can_read_but_not_send_or_edit(db, send):
-    routes._per_ip.reset()
+def test_auto_messages_view_can_read_but_not_edit(db, send):
     with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
         c = _auto_messages_client(["auto_messages.view"])
         assert c.get("/api/v1/auto-messages/sends").status_code == 200
-        assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 403
+        assert c.get("/api/v1/auto-messages/events").status_code == 200
         assert c.post("/api/v1/auto-messages/rules", json={}).status_code == 403
+        assert c.post("/api/v1/auto-messages/events", json={"label": "Kundli ready"}).status_code == 403
 
 
 def test_old_settings_and_leads_keys_no_longer_open_auto_messages(db, send):
-    routes._per_ip.reset()
     with patch.object(routes, "get_supabase", return_value=db), patch.object(svc, "get_supabase", return_value=db):
         c = _auto_messages_client(["settings.manage", "leads.manage"])
         assert c.get("/api/v1/auto-messages/sends").status_code == 403
-        assert c.post("/api/v1/auto-messages/quick-add", json={"phone": "9876543210"}).status_code == 403
+        assert c.get("/api/v1/auto-messages/summary").status_code == 403
 
 
 def test_rate_limit_key_ignores_client_supplied_forwarded_for():

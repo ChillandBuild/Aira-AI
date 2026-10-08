@@ -4,14 +4,16 @@ import logging
 import re
 import uuid
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import require_permission
-from app.services import astro_bridge
+from app.services import astro_bridge, partner_send_mode
+from app.services.audit_log import record_audit_event
 from app.services.ai_reply import send_whatsapp
 from app.services.intake import (
     alert_bridge_auth_failure,
@@ -176,6 +178,7 @@ def export_intake_sessions_csv(
 
 
 require_settings_view = require_permission("settings.view")
+require_settings_manage = require_permission("settings.manage")
 
 
 @router.get("/partner/config")
@@ -201,6 +204,41 @@ def partner_config(ctx: dict = Depends(require_settings_view)):
             "legacy_prefix": "/api/v1/expert-handoff",
         },
     }
+
+
+class PartnerSendModeIn(BaseModel):
+    # extra="forbid": a tenant_id (or any other field) in the body is a 422, never used.
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["template", "event"]
+
+
+@router.get("/partner/send-mode")
+def get_partner_send_mode(ctx: dict = Depends(require_settings_view)):
+    """How this account's app calls POST /partner/send-template: "template" (default) or "event"."""
+    return {"mode": partner_send_mode.get_partner_send_mode(get_supabase(), ctx["tenant_id"])}
+
+
+@router.put("/partner/send-mode")
+def set_partner_send_mode(body: PartnerSendModeIn, ctx: dict = Depends(require_settings_manage)):
+    """Admin switch, set on the Developer page. The app's calls must change at the same time: the
+    other shape is refused with 400 wrong_mode from the next call on."""
+    tenant_id = ctx["tenant_id"]
+    db = get_supabase()
+    previous = partner_send_mode.get_partner_send_mode(db, tenant_id)
+    try:
+        partner_send_mode.save_partner_send_mode(db, tenant_id, body.mode)
+    except Exception as e:
+        logger.error(f"partner_send_mode save failed for tenant {tenant_id}: {e}")
+        return JSONResponse(status_code=500, content={
+            "error": "Could not save the setting. Nothing was changed; try again.", "code": "setting_not_saved",
+        })
+    record_audit_event(
+        db, tenant_id=tenant_id, actor_user_id=ctx.get("user_id"), actor_role=ctx.get("role"),
+        action="tenant.partner_send_mode_updated", target_type="partner_send_mode", target_id=tenant_id,
+        metadata={"mode": body.mode, "previous": previous},
+    )
+    return {"mode": body.mode}
 
 
 @router.get("/stats")
@@ -447,9 +485,11 @@ async def _partner_request(request: Request) -> tuple[dict, str] | JSONResponse:
 
 @public_router.post("/partner/send-template")
 async def partner_send_template_route(request: Request):
-    """An approved template, by its Anril ID, sent from the tenant's WhatsApp number
-    on behalf of the AstroTamil app. Wire contract — see subsystem-notes.md,
-    AstroTamil consultation bridge."""
+    """The one door for apps. Send EXACTLY ONE of: template_code (an approved template by its
+    Anril ID, the AstroTamil call) or event (a built-in or custom Auto Messages event key,
+    optional name and extra). Both send from the tenant's WhatsApp number at once and are
+    logged as source 'partner'; neither creates a lead. Wire contract — see subsystem-notes.md,
+    AstroTamil consultation bridge, and services/partner_events.py for event mode."""
     parsed = await _partner_request(request)
     if isinstance(parsed, JSONResponse):
         return parsed

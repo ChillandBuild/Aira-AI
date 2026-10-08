@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AnrilPrivateSend } from "../src/client.js";
-import { LicenseError } from "../src/errors.js";
+import { BundleUnavailable, LicenseError } from "../src/errors.js";
 import { SqliteStore } from "../src/store.js";
 import {
   BASE, FakeClock, LICENSE_KEY, META_TOKEN, bundleData, envelope, json, makeKeys, mockFetch, type Call,
@@ -20,14 +20,24 @@ afterEach(async () => {
   while (open.length) await open.pop()!.close();
 });
 
+/** Flip these mid-test to make Meta or Anril unreachable. */
+interface Control {
+  metaDown: "no" | "connect" | "read-timeout" | 503;
+  bundleDown: boolean;
+}
+
 function build(opts: { metaStatus?: number; usageStatus?: number; usageBody?: object; bundle?: object } = {}) {
   const keys = makeKeys();
   const clock = new FakeClock(T0);
+  const control: Control = { metaDown: "no", bundleDown: false };
   let metaCount = 0;
   const { fn, calls } = mockFetch({
-    bundle: () => json(200, envelope(keys, opts.bundle ?? bundleData(clock.read()))),
+    bundle: () => (control.bundleDown ? json(503, {}) : json(200, envelope(keys, opts.bundle ?? bundleData(clock.read())))),
     usage: () => json(opts.usageStatus ?? 200, opts.usageBody ?? { ok: true, accepted: 1 }),
     meta: () => {
+      if (control.metaDown === "connect") throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } });
+      if (control.metaDown === "read-timeout") throw Object.assign(new Error("timed out"), { name: "TimeoutError" });
+      if (control.metaDown === 503) return json(503, {});
       metaCount += 1;
       return opts.metaStatus && opts.metaStatus >= 400
         ? json(opts.metaStatus, { error: { code: 131047, message: "Re-engagement message" } })
@@ -41,7 +51,7 @@ function build(opts: { metaStatus?: number; usageStatus?: number; usageBody?: ob
   open.push(anril);
   const metaCalls = (): Call[] => calls.filter((c) => c.url.startsWith("https://graph.facebook.com"));
   const usageCalls = (): Call[] => calls.filter((c) => c.url.includes("/usage"));
-  return { anril, clock, calls, metaCalls, usageCalls };
+  return { anril, clock, calls, metaCalls, usageCalls, control };
 }
 
 describe("track: immediate send", () => {
@@ -69,7 +79,7 @@ describe("track: immediate send", () => {
     const bundle = bundleData(T0, {
       templates: [{ id: "tp1", name: "t", language: "en", body_text: "{{1}} {{2}}", buttons: [] }],
       rules: [{
-        id: "r1", event: "purchased", template_id: "tp1", delay_minutes: 0, enabled: true, button_param: null,
+        id: "r1", event: "purchased", template_id: "tp1", enabled: true, button_param: null,
         variables: [{ source: "extra", key: "Plan", fallback: "x" }, { source: "page_url", fallback: "-" }],
       }],
     });
@@ -81,7 +91,7 @@ describe("track: immediate send", () => {
 
   it("rejects an unknown event and an invalid phone", async () => {
     const { anril } = build();
-    await expect(anril.track("nonsense", { phone: "9876543210" })).rejects.toThrow(/unknown event/);
+    await expect(anril.track("non-sense!", { phone: "9876543210" })).rejects.toThrow(/unknown event/);
     await expect(anril.track("purchased", { phone: "abc" })).rejects.toThrow(/invalid phone/);
   });
 
@@ -101,60 +111,183 @@ describe("track: immediate send", () => {
   });
 });
 
-describe("dedupe and opt-out", () => {
-  it("skips the same phone+event within 24h, allows again after", async () => {
+describe("instant, no checks", () => {
+  it("the same event twice sends twice", async () => {
     const { anril, clock, metaCalls } = build();
-    await anril.track("purchased", { phone: "9876543210" });
-    clock.advance(23 * 60 * MIN);
-    expect(await anril.track("purchased", { phone: "+91 98765 43210" })).toEqual({ status: "skipped", reason: "duplicate" });
-    clock.advance(61 * MIN);
     expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("sent");
+    expect((await anril.track("purchased", { phone: "+91 98765 43210" })).status).toBe("sent");
     expect(metaCalls()).toHaveLength(2);
+    clock.advance(25 * 60 * MIN);
+    expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("sent");
+    expect(metaCalls()).toHaveLength(3);
   });
 
-  it("does not dedupe a different phone", async () => {
-    const { anril } = build();
-    await anril.track("purchased", { phone: "9876543210" });
-    expect((await anril.track("purchased", { phone: "9876543211" })).status).toBe("sent");
-  });
-
-  it("opted-out numbers are skipped, in any phone spelling", async () => {
+  it("every event sends at once (signed_up used to be a 30 minute delayed rule)", async () => {
     const { anril, metaCalls } = build();
-    await anril.optOut("98765-43210");
-    expect(await anril.track("purchased", { phone: "+919876543210" })).toEqual({ status: "skipped", reason: "opted_out" });
-    expect(metaCalls()).toHaveLength(0);
-    await expect(anril.optOut("abc")).rejects.toThrow(/invalid phone/);
+    const res = await anril.track("signed_up", { phone: "9876543210", name: "Asha" });
+    expect(res.status).toBe("sent");
+    expect(JSON.parse(metaCalls()[0]!.body!).template.components[0].parameters[0].text).toBe("Asha");
   });
 
-  it("an opt-out added while a message is queued stops it", async () => {
-    const { anril, clock, metaCalls } = build();
-    expect(await anril.track("signed_up", { phone: "9876543210" })).toEqual({ status: "queued" });
-    await anril.optOut("9876543210");
-    clock.advance(31 * MIN);
+  it("a matched event is on the wire before any runDue call", async () => {
+    const { anril, metaCalls } = build();
+    await anril.track("purchased", { phone: "9876543210" });
+    expect(metaCalls()).toHaveLength(1);
+    expect(await anril.runDue()).toBe(0);
+    expect(metaCalls()).toHaveLength(1);
+  });
+
+  it("has no optOut API", () => {
+    const { anril } = build();
+    expect((anril as unknown as Record<string, unknown>).optOut).toBeUndefined();
+  });
+});
+
+describe("retry path (Meta or Anril unreachable)", () => {
+
+  it("a refused connection to Meta queues the send; runDue sends it a minute later, once", async () => {
+    const { anril, clock, metaCalls, control } = build();
+    control.metaDown = "connect";
+    expect(await anril.track("purchased", { phone: "9876543210", name: "Asha" })).toEqual({
+      status: "queued", reason: "network_error: TypeError",
+    });
+    control.metaDown = "no";
+    expect(await anril.runDue()).toBe(0); // not due for a minute
+    clock.advance(MIN);
+    expect(await anril.runDue()).toBe(1);
+    expect(await anril.runDue()).toBe(0);
+    expect(metaCalls()).toHaveLength(2); // the refused attempt, then the one retry
+    expect(JSON.parse(metaCalls()[1]!.body!).template.components[0].parameters[0].text).toBe("Asha");
+  });
+
+  it("Meta 503 is retried", async () => {
+    const { anril, clock, control } = build();
+    control.metaDown = 503;
+    expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("queued");
+    control.metaDown = "no";
+    clock.advance(MIN);
+    expect(await anril.runDue()).toBe(1);
+  });
+
+  it("a Meta rejection (400) and a read timeout are final, never retried", async () => {
+    const rejected = build({ metaStatus: 400 });
+    expect((await rejected.anril.track("purchased", { phone: "9876543210" })).status).toBe("failed");
+    rejected.clock.advance(5 * MIN);
+    expect(await rejected.anril.runDue()).toBe(0);
+    expect(rejected.metaCalls()).toHaveLength(1);
+
+    const slow = build();
+    slow.control.metaDown = "read-timeout";
+    expect((await slow.anril.track("purchased", { phone: "9876543210" })).status).toBe("failed");
+    slow.control.metaDown = "no";
+    slow.clock.advance(5 * MIN);
+    expect(await slow.anril.runDue()).toBe(0);
+    expect(slow.metaCalls()).toHaveLength(1); // the one attempt; never repeated
+  });
+
+  it("gives up an hour after the event and counts one failure", async () => {
+    const { anril, clock, control, usageCalls } = build();
+    control.metaDown = "connect";
+    await anril.track("purchased", { phone: "9876543210" });
+    for (let i = 0; i < 59; i += 1) {
+      clock.advance(MIN);
+      expect(await anril.runDue()).toBe(0);
+    }
+    clock.advance(MIN);
+    expect(await anril.runDue()).toBe(0);
+    control.metaDown = "no";
+    clock.advance(5 * MIN);
+    expect(await anril.runDue()).toBe(0); // given up: not sent late
+    await anril.reportUsage({ force: true });
+    expect(JSON.parse(usageCalls()[0]!.body!).rows).toEqual([
+      { day: "2026-10-07", event: "purchased", template_id: "tp1", sent: 0, failed: 1 },
+    ]);
+  });
+
+  it("Anril unreachable with no usable bundle parks the send; runDue sends once a bundle is back", async () => {
+    const { anril, clock, metaCalls, control } = build();
+    control.bundleDown = true;
+    expect(await anril.track("purchased", { phone: "9876543210", name: "Asha" })).toEqual({
+      status: "queued", reason: "anril_unreachable",
+    });
+    expect(metaCalls()).toHaveLength(0);
+    clock.advance(MIN);
+    await expect(anril.runDue()).rejects.toBeInstanceOf(BundleUnavailable); // still down; row stays queued
+    control.bundleDown = false;
+    expect(await anril.runDue()).toBe(1);
+    expect(JSON.parse(metaCalls()[0]!.body!).template.components[0].parameters[0].text).toBe("Asha");
+  });
+
+  it("a parked send gives up after an hour even while Anril is down", async () => {
+    const { anril, clock, metaCalls, control } = build();
+    control.bundleDown = true;
+    await anril.track("purchased", { phone: "9876543210" });
+    clock.advance(61 * MIN);
+    expect(await anril.runDue()).toBe(0); // no bundle needed to give up
+    control.bundleDown = false;
+    clock.advance(MIN);
     expect(await anril.runDue()).toBe(0);
     expect(metaCalls()).toHaveLength(0);
   });
 });
 
-describe("delayed queue", () => {
-  it("queues a delayed rule and runDue sends it only once the delay is up", async () => {
-    const { anril, clock, metaCalls } = build();
-    expect(await anril.track("signed_up", { phone: "9876543210", name: "Asha" })).toEqual({ status: "queued" });
-    expect(metaCalls()).toHaveLength(0);
-    clock.advance(29 * MIN);
-    expect(await anril.runDue()).toBe(0);
-    clock.advance(2 * MIN);
-    expect(await anril.runDue()).toBe(1);
-    expect(await anril.runDue()).toBe(0);
-    expect(metaCalls()).toHaveLength(1);
-    expect(JSON.parse(metaCalls()[0]!.body!).template.components[0].parameters[0].text).toBe("Asha");
+describe("old store files", () => {
+  it("a store with opt_outs and dedupe history still opens, and both are ignored", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "aps-")), "old.db");
+    const { default: Database } = await import("better-sqlite3");
+    const old = new Database(path);
+    old.exec(`
+      CREATE TABLE sends (id TEXT PRIMARY KEY, phone TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT,
+        status TEXT NOT NULL, reason TEXT, send_at TEXT, sent_at TEXT, created_at TEXT NOT NULL, name TEXT,
+        extra TEXT, claimed_at TEXT);
+      CREATE INDEX sends_dedupe ON sends (phone, event, created_at);
+      CREATE INDEX sends_due ON sends (status, send_at);
+      CREATE TABLE opt_outs (phone TEXT PRIMARY KEY);
+      CREATE TABLE counters (day TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT NOT NULL,
+        sent INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, event, template_id));
+      CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      INSERT INTO opt_outs (phone) VALUES ('+919876543210');
+      INSERT INTO sends (id, phone, event, template_id, status, created_at)
+        VALUES ('old', '+919876543210', 'purchased', 'tp1', 'sent', '2026-10-07T10:00:00.000000Z');
+    `);
+    old.close();
+    const keys = makeKeys();
+    const { fn, calls } = mockFetch({
+      bundle: () => json(200, envelope(keys, bundleData(T0))),
+      meta: () => json(200, { messages: [{ id: "wamid.old" }] }),
+    });
+    const anril = new AnrilPrivateSend({
+      licenseKey: LICENSE_KEY, metaToken: META_TOKEN, phoneNumberId: PHONE_ID, anrilPublicKey: keys.publicB64,
+      store: `sqlite:${path}`, anrilBaseUrl: BASE, fetch: fn, clock: () => new Date(T0),
+    });
+    open.push(anril);
+    expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("sent");
+    expect(calls.filter((c) => c.url.startsWith("https://graph.facebook.com"))).toHaveLength(1);
+  });
+});
+
+describe("old bundles (quiet hours / delay)", () => {
+  const oldQuiet = { start: "00:00", end: "23:59", tz: "Asia/Kolkata", categories: ["UTILITY", "MARKETING"] };
+
+  it("an old bundle with quiet_hours and delay_minutes is accepted and ignored: sends at once", async () => {
+    const data = bundleData(T0);
+    const old = {
+      ...data,
+      quiet_hours: oldQuiet,
+      rules: data.rules.map((r) => ({ ...r, delay_minutes: 30 })),
+    };
+    const { anril, metaCalls } = build({ bundle: old });
+    expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("sent");
+    expect((await anril.track("signed_up", { phone: "9123456789" })).status).toBe("sent");
+    expect(metaCalls()).toHaveLength(2);
   });
 
-  it("a queued message also blocks a duplicate track", async () => {
-    const { anril } = build();
-    await anril.track("signed_up", { phone: "9876543210" });
-    expect(await anril.track("signed_up", { phone: "9876543210" })).toEqual({ status: "skipped", reason: "duplicate" });
-  });
+  for (const quiet of ["garbage", { start: "25:99", tz: "Nowhere/Land" }, ["x"]]) {
+    it(`a malformed quiet_hours (${JSON.stringify(quiet)}) no longer rejects the bundle`, async () => {
+      const { anril } = build({ bundle: { ...bundleData(T0), quiet_hours: quiet } });
+      expect((await anril.track("purchased", { phone: "9876543210" })).status).toBe("sent");
+    });
+  }
 });
 
 describe("stuck sending rows", () => {
@@ -336,7 +469,7 @@ describe.skipIf(process.platform === "win32")("sqlite file permissions", () => {
     const dir = mkdtempSync(join(tmpdir(), "aps-"));
     const path = join(dir, "new.db");
     const store = await SqliteStore.open(path);
-    await store.addOptOut("+919876543210");
+    await store.setMeta("k", "v");
     expect(statSync(path).mode & 0o777).toBe(0o600);
     for (const suffix of ["-wal", "-shm"]) {
       try {

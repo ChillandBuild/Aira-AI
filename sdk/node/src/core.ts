@@ -36,6 +36,7 @@ const EVENT_ALIASES: ReadonlyMap<string, string> = new Map(Object.entries({
   bought: "purchased", paid: "purchased", sale: "purchased",
 }));
 
+const CUSTOM_EVENT_RE = /^[a-z][a-z0-9_]{1,39}$/;
 const PHONE_KEYS = ["phone", "mobile", "phone_number", "mobile_number", "whatsapp", "whatsapp_number", "contact", "number"];
 const NAME_KEYS = ["name", "full_name", "customer_name", "your_name"];
 const URL_KEYS = ["page_url", "url", "link"];
@@ -78,11 +79,17 @@ function first(lowered: Map<string, unknown>, keys: readonly string[]): string {
   return "";
 }
 
-/** null for an event we do not know. Missing/empty means "interested". */
+/**
+ * Missing/empty means "interested". A built-in alias maps to its event; otherwise the trimmed, lowercased
+ * text is accepted as a custom event slug if it matches [a-z][a-z0-9_]{1,39} (no mapping is invented for
+ * it; the bundle decides whether a rule exists). null for anything else (the caller rejects it).
+ */
 export function normalizeEvent(raw: string | null | undefined): string | null {
   if (!raw) return "interested";
-  const slug = pyStrip(raw).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-  return EVENT_ALIASES.get(slug) ?? null;
+  const trimmed = pyStrip(raw).toLowerCase();
+  const alias = EVENT_ALIASES.get(trimmed.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, ""));
+  if (alias) return alias;
+  return CUSTOM_EVENT_RE.test(trimmed) ? trimmed : null;
 }
 
 function collectExtra(payload: JsonRecord): Record<string, string> {

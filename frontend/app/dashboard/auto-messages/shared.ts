@@ -1,4 +1,4 @@
-import type { AutoMessageEvent, AutoMessageSend, AutoMessageVarSource } from "@/lib/api";
+import type { AutoMessageEvent, AutoMessageSend, AutoMessageVarSource, AutoMessageVariable } from "@/lib/api";
 
 export const EVENTS: {
   id: AutoMessageEvent;
@@ -30,62 +30,124 @@ export const EVENTS: {
   },
 ];
 
+/** Labels of the built-in events. Custom events carry their own label from GET /events. */
 export const EVENT_LABEL: Record<AutoMessageEvent, string> = {
   interested: "Interested",
   signed_up: "Signed up",
   purchased: "Purchased",
 };
 
+/** One row of "Your messages": a built-in event or one the owner added. */
+export interface EventInfo {
+  key: AutoMessageEvent;
+  label: string;
+  description: string | null;
+  custom: boolean;
+}
+
+/** Plain line for an event with no message, e.g. "No message. People who sign up get nothing." */
+export function nobodyLine(ev: EventInfo): string {
+  const builtin = EVENTS.find((e) => e.id === ev.key);
+  return `No message. ${builtin ? builtin.nobody : `Nothing is sent when ${ev.label} happens.`}`;
+}
+
+export const MAX_EVENT_KEY_LEN = 40;
+const EVENT_KEY_RE = /^[a-z][a-z0-9_]{1,39}$/;
+
+/** The code a developer sends, built from the name an owner typed. Mirrors the backend's
+ *  derive_event_key: lowercase, spaces and hyphens become "_", other characters are dropped,
+ *  repeats collapse. null when nothing valid is left (must start with a letter, 2-40 characters). */
+export function deriveEventKey(label: string): string | null {
+  const text = label
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .replace(/[^a-z0-9_]/g, "")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, MAX_EVENT_KEY_LEN)
+    .replace(/^_+|_+$/g, "");
+  return EVENT_KEY_RE.test(text) ? text : null;
+}
+
 export const VAR_SOURCES: { id: AutoMessageVarSource; label: string }[] = [
   { id: "first_name", label: "Customer's first name" },
   { id: "full_name", label: "Customer's full name" },
   { id: "page_url", label: "Page they came from" },
   { id: "phone", label: "Customer's number" },
-  { id: "extra", label: "A field you send (e.g. order_id)" },
+  { id: "extra", label: "Value your app sends" },
   { id: "text", label: "Fixed text" },
 ];
 
-export const DELAYS: { minutes: number; label: string }[] = [
-  { minutes: 0, label: "Instantly" },
-  { minutes: 1, label: "After 1 minute" },
-  { minutes: 5, label: "After 5 minutes" },
-  { minutes: 15, label: "After 15 minutes" },
-  { minutes: 30, label: "After 30 minutes" },
-  { minutes: 60, label: "After 1 hour" },
-  { minutes: 180, label: "After 3 hours" },
-  { minutes: 1440, label: "Next day" },
-];
-
-export function delayLabel(minutes: number): string {
-  const known = DELAYS.find((d) => d.minutes === minutes);
-  if (known) return known.label;
-  if (minutes < 60) return `After ${minutes} minutes`;
-  return `After ${Math.round(minutes / 60)} hours`;
+/** Plain text of a variable for the WhatsApp preview, using the same sample values a real preview send uses. */
+export function sampleValue(v: AutoMessageVariable): string {
+  switch (v.source) {
+    case "first_name":
+      return "Priya";
+    case "full_name":
+      return "Priya";
+    case "page_url":
+      return "https://example.com/page";
+    case "phone":
+      return "98765 43210";
+    case "extra":
+      return (v.key ?? "").trim() || "value";
+    case "text":
+      return (v.value ?? "").trim() || "your text";
+  }
 }
 
 export const SOURCE_LABEL: Record<AutoMessageSend["source"], string> = {
   website: "Website form",
   api: "App / API",
   store: "Shop counter",
+  partner: "Partner API",
 };
 
-/** Plain-words reason for a send that didn't go out. */
+/** What the Event column says when an app sent a template ID directly and no event was involved. */
+export const SENT_BY_APP = "Sent by your app";
+
+/** Plain words for the codes the backend writes to auto_message_sends.reason. */
+const REASON_TEXT: Record<string, string> = {
+  no_rule: "No message is set up for this event yet",
+  // Retired checks: no new row gets these reasons, but old rows still carry them.
+  duplicate: "Skipped: this person was already messaged recently",
+  opted_out: "Skipped: customer had asked not to be messaged",
+  template_not_approved: "The template is no longer approved by Meta",
+  rule_removed_or_off: "The message was turned off before it was due",
+  quiet_hours: "Held back until the morning",
+  interrupted: "Interrupted before it went out",
+  not_on_whatsapp: "This number is not on WhatsApp",
+};
+
+/** Meta error codes, in the same words the backend uses for preview sends. A failed live send stores
+ *  Meta's raw JSON reply in reason, so these are matched from its "code" field. */
+const META_CODE_TEXT: Record<string, string> = {
+  "131026": "WhatsApp couldn't deliver to this number. Check that it is on WhatsApp.",
+  "131030": "This number isn't on your WhatsApp test list yet.",
+  "131056": "WhatsApp is slowing this account down. Try again in a minute.",
+  "130429": "WhatsApp is slowing this account down. Try again in a minute.",
+  "132000": "The template and its values don't match. Check the message's variables.",
+  "132001": "WhatsApp can't find this template. It may have been deleted.",
+  "132005": "The template and its values don't match. Check the message's variables.",
+  "132012": "The template and its values don't match. Check the message's variables.",
+  "190": "Your WhatsApp connection has expired. Reconnect it in Settings.",
+};
+
+const META_CODE_RE = /"code"\s*:\s*(\d+)/;
+const META_MESSAGE_RE = /"message"\s*:\s*"([^"]+)"/;
+const GENERIC_FAILURE = "WhatsApp could not send this message";
+
+/** Plain-words reason for a send that didn't go out (or is waiting). */
 export function reasonText(status: AutoMessageSend["status"], reason: string | null): string | null {
   if (!reason) return null;
-  switch (reason) {
-    case "no_rule":
-      return "No message is set up for this event yet";
-    case "duplicate":
-      return "Already messaged about this in the last 24 hours";
-    case "opted_out":
-      return "Customer asked not to be messaged";
-    case "template_not_approved":
-      return "The template is no longer approved by Meta";
-    case "rule_removed_or_off":
-      return "The message was turned off before it was due";
-    default:
-      return status === "failed" ? `WhatsApp refused it: ${reason}` : reason;
-  }
+  const known = REASON_TEXT[reason];
+  if (known) return known;
+  if (status !== "failed") return reason.includes("_") && !reason.includes(" ") ? reason.replace(/_/g, " ") : reason;
+  const code = META_CODE_RE.exec(reason)?.[1];
+  if (code && META_CODE_TEXT[code]) return META_CODE_TEXT[code];
+  const message = META_MESSAGE_RE.exec(reason)?.[1];
+  return message ? `WhatsApp refused it: ${message.slice(0, 150)}` : GENERIC_FAILURE;
 }
 
 export const STATUS_STYLE: Record<AutoMessageSend["status"], { label: string; cls: string }> = {
@@ -103,26 +165,17 @@ export function formatWhen(iso: string): string {
   return sameDay ? time : `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, ${time}`;
 }
 
-/** Splits a template body into text and {{n}} chips for the preview. */
-export function splitBody(body: string): ({ text: string } | { variable: number })[] {
-  const parts: ({ text: string } | { variable: number })[] = [];
-  const re = /\{\{\s*(\d+)\s*\}\}/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(body))) {
-    if (m.index > last) parts.push({ text: body.slice(last, m.index) });
-    parts.push({ variable: Number(m[1]) });
-    last = m.index + m[0].length;
-  }
-  if (last < body.length) parts.push({ text: body.slice(last) });
-  return parts;
-}
+/** Visible keyboard focus on every interactive element. */
+export const focusRing = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+
+/** 44px tap area on phones; the visual size stays small on desktop. */
+export const tapArea = "max-sm:min-h-[44px] max-sm:min-w-[44px]";
 
 export const inputCls =
-  "w-full rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink placeholder:text-ink-muted focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:opacity-60";
+  `w-full rounded-xl border border-border bg-white px-3 py-2 font-body text-sm text-ink placeholder:text-ink-muted focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 max-sm:min-h-[44px]`;
 
 export const ghostBtn =
-  "inline-flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 font-label text-xs font-semibold text-ink-secondary transition-all hover:border-primary/40 hover:text-primary disabled:opacity-40";
+  `inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-3 py-1.5 font-label text-xs font-semibold text-ink-secondary transition-all hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40 ${focusRing} ${tapArea}`;
 
 export const primaryBtn =
-  "inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-50";
+  `inline-flex items-center justify-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 ${focusRing} ${tapArea}`;

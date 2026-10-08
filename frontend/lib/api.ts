@@ -468,7 +468,8 @@ export interface MarketplaceStatus {
   leads_this_month: number;
 }
 
-export type AutoMessageEvent = "interested" | "signed_up" | "purchased";
+/** An event key: one of the built-ins (interested, signed_up, purchased) or a tenant's own custom key. */
+export type AutoMessageEvent = string;
 export type AutoMessageVarSource =
   | "first_name" | "full_name" | "page_url" | "phone" | "extra" | "text";
 
@@ -479,15 +480,67 @@ export interface AutoMessageVariable {
   fallback?: string | null;
 }
 
-export interface AutoMessageRule {
+/** A rule as stored (what POST / PATCH return). */
+export interface AutoMessageRuleRow {
   id: string;
   event: AutoMessageEvent;
   template_id: string;
-  delay_minutes: number;
   variables: AutoMessageVariable[];
   button_param: AutoMessageVariable | null;
   enabled: boolean;
   created_at: string;
+}
+
+/** A rule as GET /rules returns it: the stored row plus two computed flags. */
+export interface AutoMessageRule extends AutoMessageRuleRow {
+  /** At least one message for this event has gone out. */
+  has_sent: boolean;
+  /** The rule's template is still APPROVED by Meta. */
+  template_approved: boolean;
+}
+
+export interface AutoMessageBuiltinEvent {
+  key: string;
+  label: string;
+  description: string;
+}
+
+export interface AutoMessageCustomEvent {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  created_at: string;
+}
+
+export interface AutoMessageEvents {
+  builtin: AutoMessageBuiltinEvent[];
+  custom: AutoMessageCustomEvent[];
+  /** Most custom events a tenant may have. */
+  limit: number;
+}
+
+export interface AutoMessageSetup {
+  ingest_url: string | null;
+  form_script_url: string | null;
+  /** The tenant sends from its own server, so the hosted website form is off. */
+  private_send_on: boolean;
+}
+
+export interface AutoMessageSummary {
+  sent: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface AutoMessageSendsPage {
+  sends: AutoMessageSend[];
+  has_more: boolean;
+}
+
+export interface AutoMessagePreviewResult {
+  status: "sent" | "failed";
+  reason: string | null;
 }
 
 export interface AutoMessageTemplate {
@@ -523,21 +576,15 @@ export interface AutoMessageSend {
   lead_id: string | null;
   phone: string;
   name: string | null;
-  event: AutoMessageEvent;
-  source: "website" | "api" | "store";
+  /** null when an app sent a template ID directly (source "partner"). */
+  event: AutoMessageEvent | null;
+  source: "website" | "api" | "store" | "partner";
   template_name: string | null;
   status: "queued" | "sending" | "sent" | "failed" | "skipped";
   reason: string | null;
   send_at: string;
   sent_at: string | null;
   created_at: string;
-}
-
-export interface AutoMessageResult {
-  status: string;
-  event: AutoMessageEvent;
-  message_status: AutoMessageSend["status"];
-  reason: string | null;
 }
 
 export interface WabaTemplate {
@@ -2643,23 +2690,40 @@ export const api = {
     },
   },
   autoMessages: {
-    setup: () =>
-      apiFetch<{ ingest_url: string | null; form_script_url: string | null }>("/api/v1/auto-messages/setup"),
-    rotateToken: () =>
-      apiFetch<{ ingest_url: string; form_script_url: string }>("/api/v1/auto-messages/setup/token", { method: "POST" }),
+    setup: () => apiFetch<AutoMessageSetup>("/api/v1/auto-messages/setup"),
+    rotateToken: () => apiFetch<AutoMessageSetup>("/api/v1/auto-messages/setup/token", { method: "POST" }),
+    events: () => apiFetch<AutoMessageEvents>("/api/v1/auto-messages/events"),
+    createEvent: (data: { label: string; description?: string }) =>
+      apiFetch<AutoMessageCustomEvent>("/api/v1/auto-messages/events", { method: "POST", body: JSON.stringify(data) }),
+    updateEvent: (key: string, data: { label?: string; description?: string }) =>
+      apiFetch<AutoMessageCustomEvent>(`/api/v1/auto-messages/events/${encodeURIComponent(key)}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    deleteEvent: (key: string) =>
+      apiFetch<{ deleted: boolean }>(`/api/v1/auto-messages/events/${encodeURIComponent(key)}`, { method: "DELETE" }),
     rules: () => apiFetch<{ rules: AutoMessageRule[] }>("/api/v1/auto-messages/rules"),
-    createRule: (data: Omit<AutoMessageRule, "id" | "created_at">) =>
-      apiFetch<AutoMessageRule>("/api/v1/auto-messages/rules", { method: "POST", body: JSON.stringify(data) }),
-    updateRule: (id: string, data: Partial<Omit<AutoMessageRule, "id" | "created_at" | "event">>) =>
-      apiFetch<AutoMessageRule>(`/api/v1/auto-messages/rules/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    createRule: (data: Omit<AutoMessageRuleRow, "id" | "created_at">) =>
+      apiFetch<AutoMessageRuleRow>("/api/v1/auto-messages/rules", { method: "POST", body: JSON.stringify(data) }),
+    updateRule: (id: string, data: Partial<Omit<AutoMessageRuleRow, "id" | "created_at" | "event">>) =>
+      apiFetch<AutoMessageRuleRow>(`/api/v1/auto-messages/rules/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     deleteRule: (id: string) =>
       apiFetch<{ deleted: boolean }>(`/api/v1/auto-messages/rules/${id}`, { method: "DELETE" }),
+    previewRule: (id: string, phone: string) =>
+      apiFetch<AutoMessagePreviewResult>(`/api/v1/auto-messages/rules/${id}/preview`, {
+        method: "POST",
+        body: JSON.stringify({ phone }),
+      }),
     templates: () => apiFetch<{ templates: AutoMessageTemplate[] }>("/api/v1/auto-messages/templates"),
-    quickAdd: (data: { name?: string; phone: string; event: AutoMessageEvent }) =>
-      apiFetch<AutoMessageResult>("/api/v1/auto-messages/quick-add", { method: "POST", body: JSON.stringify(data) }),
-    counterRecent: () => apiFetch<{ sends: AutoMessageSend[] }>("/api/v1/auto-messages/quick-add/recent"),
-    sends: (status?: string) =>
-      apiFetch<{ sends: AutoMessageSend[] }>(`/api/v1/auto-messages/sends${status ? `?status=${status}` : ""}`),
+    summary: () => apiFetch<AutoMessageSummary>("/api/v1/auto-messages/summary"),
+    sends: (params: { status?: string; event?: string; limit?: number; offset?: number } = {}) => {
+      const q = new URLSearchParams();
+      if (params.status) q.set("status", params.status);
+      if (params.event) q.set("event", params.event);
+      q.set("limit", String(params.limit ?? 10));
+      q.set("offset", String(params.offset ?? 0));
+      return apiFetch<AutoMessageSendsPage>(`/api/v1/auto-messages/sends?${q.toString()}`);
+    },
     privateSend: () => apiFetch<PrivateSendStatus>("/api/v1/auto-messages/private-send"),
   },
   marketplace: {

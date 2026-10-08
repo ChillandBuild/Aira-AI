@@ -156,13 +156,9 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/auto-messages") {
-    let tabLabel = "Messages";
-    if (tab === "connect") tabLabel = "Website & apps";
-    if (tab === "counter") tabLabel = "Shop counter";
-    if (tab === "activity") tabLabel = "Activity";
     return {
-      title: `Auto-Messages / ${tabLabel}`,
-      description: "Send instant WhatsApp templates when leads come from your website, apps or shop.",
+      title: "Auto-Messages",
+      description: "Send your approved WhatsApp template when something happens: a form fill, a sign-up or a purchase.",
     };
   }
   if (pathname === "/dashboard/templates") {

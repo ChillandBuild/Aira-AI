@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from anril_private_send import LicenseError
+from anril_connector import LicenseError
 from conftest import LICENSE_KEY, TEMPLATE_ID
 
 ALLOWED_ROW_KEYS = {"day", "event", "template_id", "sent", "failed"}
@@ -76,7 +76,7 @@ def test_usage_force_bypasses_throttle(client, anril, clock):
 def test_throttle_survives_a_new_process(private_key, clock, anril, tmp_path):
     """Cron runs a fresh process each minute, so the throttle lives in the store, not in memory."""
     import httpx
-    from anril_private_send import AnrilPrivateSend
+    from anril_connector import AnrilPrivateSend
     from conftest import META_TOKEN, PHONE_NUMBER_ID, public_b64
 
     def make():
@@ -127,7 +127,7 @@ def test_422_is_logged_with_code_only_and_does_not_raise(client, anril, clock, c
     client.track("purchased", "9876543210", name="Asha Rao")
     anril.usage_status = 422
     anril.usage_json = {"error": "template 'tpl-1' not yours", "code": "unknown_template"}
-    with caplog.at_level(logging.WARNING, logger="anril_private_send"):
+    with caplog.at_level(logging.WARNING, logger="anril_connector"):
         assert client.report_usage() == 0
     messages = " ".join(r.getMessage() for r in caplog.records)
     assert "unknown_template" in messages
@@ -147,7 +147,7 @@ def test_422_does_not_wedge_reporting(client, anril, clock):
 
 
 def test_422_on_one_batch_still_sends_the_others(client, anril, monkeypatch):
-    import anril_private_send.client as mod
+    import anril_connector.client as mod
     monkeypatch.setattr(mod, "MAX_USAGE_ROWS", 1)
     client.track("purchased", "9876543210")
     client._store.bump_counter("2026-10-07", "signed_up", "tpl-2", 1, 0)

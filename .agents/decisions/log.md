@@ -165,7 +165,7 @@
 | **119_telecmi_agent_password** | TeleCMI credentials support for voice call lines |
 
 
-## DB Migrations Index (120–219, generated from filenames)
+## DB Migrations Index (120–222, generated from filenames)
 
 Scope is the filename; the *why* lives in the dated entries below (grep the number). 196/197 do not exist (deleted); two files share 144. Regenerate with `ls backend/supabase/migrations` — do not hand-edit.
 
@@ -274,6 +274,9 @@ Scope is the filename; the *why* lives in the dated entries below (grep the numb
 | **217** | message templates short code |
 | **218** | private send |
 | **219** | message templates variable map |
+| **220** | rbac new page permissions |
+| **221** | auto message events |
+| **222** | partner sends log |
 
 ---
 
@@ -1751,3 +1754,20 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - The 3 source-string tests logged failing on 2026-08-24 (`test_outbound_number_routing`, `test_ai_reply_llm_wiring`, `test_whatsapp_audio_webhook`) now pass (29/29 in those files), so the entry was removed from the backlog.
 - Removed backlog sections already marked FIXED or superseded (second_brain_close false positives, Astro Tamil config, two old tooling-gap pointers). Their history is in this log (2026-09-11, 2026-09-24) and in the backlog's "Local tooling gaps" section.
 - Worth keeping from the removed tooling note: `second-brain-close` runs `find … -newer graphify-out/manifest.json`. If that manifest ever goes missing, the check wrongly reads "no code changed".
+
+### 2026-10-07 — Auto Messages v2: one in-place page, custom events, quiet hours
+- **Why:** usage was zero (no tenant had a rule), so the page could be reshaped freely; events were locked to three and the editor was a pop-up.
+- **Decision:** shop counter and the Zapier/Pabbly card removed (the event link lives on the Developer page now); clients add their own events (≤ 20 per tenant, code never changes); quiet hours cover Marketing templates only (21:00–09:00 IST wait for 09:00, Utility sends any time); the editor opens in place on the event row; the event link, "Send from your server" keys, public key and reply mode moved to the Developer page; SDK renamed `anril-connector` v1.1.0 (Python module `anril_connector`, class `AnrilPrivateSend` kept). Follow-up sequences (day-2 nudge) deferred until a client is live and asks.
+- **221_auto_message_events.sql — apply to live BEFORE the backend deploy (live apply status not checked when this was written).** `GET /auto-messages/rules` calls the `auto_message_sent_events` RPC (service_role only), so it errors without it. Creates `auto_message_events` (custom events; RLS select-only for members), drops the event CHECK on `auto_message_rules` (and `auto_message_sends` if present), adds an index on `auto_message_sends (tenant_id, status, event)`. Additive, so safe to apply first.
+
+### 2026-10-08 — Auto Messages: one engine, instant, no checks
+- **Why:** the user chose AstroTamil-friendly simplicity: one engine, every message instant, no hidden skips (a customer who got nothing with no visible reason was the worst outcome). If a check is ever needed it comes back as opt-in configuration, never as a silent default.
+- **Decision:**
+  - **Removed everywhere** (hosted engine `services/auto_messages.py`, Private Send bundle `services/private_send.py`, both SDKs, Partner API): opt-out check, 24-hour no-repeat, quiet hours (Marketing 21:00-09:00) and the per-rule wait. `auto_message_rules.delay_minutes` stays as a column, always 0, and the API no longer accepts it (ignored if sent). The bundle has no `quiet_hours` and rules have no `delay_minutes`; plug-ins ignore both if an older backend sends them. The only skip left is `no_rule`.
+  - **SDK:** `track()` inserts a queued row and delivers it in the same call; `run_due` is retry-only (connect failure, Meta 429/503; retry after 1 min, `failed/gave_up` after 1 h); `track` returns `queued/anril_unreachable` instead of raising `BundleUnavailable`. Contract: `sdk/spec/CONTRACT.md`.
+  - **Private Send `reply_mode` now defaults to `aira`** (replies reach Anril's inbox); `client` is opt-in. `get_reply_mode` in `services/private_send.py` is the only reader.
+  - **Partner API event mode:** `POST /api/v1/intake/partner/send-template` takes exactly one of `template_code` (unchanged, AstroTamil) or the new `event` (+ `phone`, `name?`, `extra?`, `reference?`); event mode uses the tenant's Auto Messages rule, sends at once and returns 409 `private_send_on` while the tenant sends from its own server. Code: `services/partner_events.py`, `services/intake.py`. Never creates a lead; only the website form / hosted ingest does, and their `private_send_on` guard stays.
+  - **Partner sends are logged:** every send-template call, sent or failed, writes one `auto_message_sends` row with `source='partner'` (`event` NULL in `template_code` mode, `reference` in `extra`). A log failure never blocks the send; `send-text` is untouched. Auto Messages Activity shows them as "Sent by your app · Partner API".
+  - **Developer page:** `DoorChooser` has two rows, "Anril sends for you" (send-template, with a "Send an event instead" subsection, `EventModeSubsection.tsx`) and "Your server sends". The old `EventLinkSection` / `EventTryIt` were removed.
+- **222_partner_sends_log.sql — NOT applied live; written and dry-run verified on a throwaway Postgres.** Widens the `auto_message_sends.source` CHECK to include `'partner'`, makes `event` nullable, and redefines `auto_message_sent_events()` to skip NULL events. Additive, safe to apply before the backend deploy. **Apply 221, then 222, before the backend deploy** (221 is also not applied live yet). The numbers moved up one because keerthi-sarav's `220_rbac_new_page_permissions.sql` (applied live) took 220.
+- **Per-account partner send mode:** `POST /partner/send-template` takes a `template_code` OR an `event` depending on the account's setting `partner_send_mode` (`template` default, `event`), chosen by an admin on the Developer page (`GET`/`PUT /api/v1/intake/partner/send-mode`, `settings.view`/`settings.manage`, no migration). The other shape is 400 `wrong_mode`, nothing sent or logged; the old "both fields → invalid_request" is gone. Why: one way per account removes per-call confusion about which shape a call should have, and AstroTamil has no row so it stays on `template` with nothing to change in their app. Code: `services/partner_send_mode.py`, `services/intake.py`, `developer/SendModePicker.tsx`.

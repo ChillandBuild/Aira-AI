@@ -1,6 +1,6 @@
-"""Local state for the plug-in: dedupe, opt-outs, delayed queue, daily counters, bundle cache.
+"""Local state for the plug-in: the send log and retry queue, daily counters, bundle cache.
 Everything stays on the client's machine. SqliteStore (stdlib) is the default; PostgresStore needs
-`pip install anril-private-send[postgres]`."""
+`pip install anril-connector[postgres]`."""
 from __future__ import annotations
 
 import json
@@ -26,13 +26,11 @@ class Store(Protocol):
     def get_meta(self, key: str) -> Optional[str]: ...
     def set_meta(self, key: str, value: str) -> None: ...
     def delete_meta(self, key: str) -> None: ...
-    def is_opted_out(self, phone: str) -> bool: ...
-    def add_opt_out(self, phone: str) -> None: ...
-    def has_recent_send(self, phone: str, event: str, since: datetime) -> bool: ...
     def insert_send(self, row: Dict[str, Any]) -> str: ...
     def claim_send(self, send_id: str, now: datetime) -> bool: ...
     def finish_send(self, send_id: str, status: str, reason: Optional[str], sent_at: Optional[datetime]) -> None: ...
     def due_sends(self, now: datetime, limit: int) -> List[Dict[str, Any]]: ...
+    def retry_send(self, send_id: str, send_at: datetime, reason: Optional[str]) -> None: ...
     def fail_stuck(self, before: datetime) -> int: ...
     def bump_counter(self, day: str, event: str, template_id: str, sent: int, failed: int) -> None: ...
     def counters(self, days: Sequence[str]) -> List[Dict[str, Any]]: ...
@@ -44,9 +42,7 @@ _SCHEMA = (
         id TEXT PRIMARY KEY, phone TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT,
         status TEXT NOT NULL, reason TEXT, send_at TEXT, sent_at TEXT, created_at TEXT NOT NULL,
         name TEXT, extra TEXT, claimed_at TEXT)""",
-    "CREATE INDEX IF NOT EXISTS sends_dedupe ON sends (phone, event, created_at)",
     "CREATE INDEX IF NOT EXISTS sends_due ON sends (status, send_at)",
-    "CREATE TABLE IF NOT EXISTS opt_outs (phone TEXT PRIMARY KEY)",
     """CREATE TABLE IF NOT EXISTS counters (
         day TEXT NOT NULL, event TEXT NOT NULL, template_id TEXT NOT NULL,
         sent INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0,
@@ -87,19 +83,6 @@ class _SqlStore:
     def delete_meta(self, key: str) -> None:
         self._exec("DELETE FROM meta WHERE key = ?", key)
 
-    def is_opted_out(self, phone: str) -> bool:
-        rows, _ = self._exec("SELECT phone FROM opt_outs WHERE phone = ?", phone)
-        return bool(rows)
-
-    def add_opt_out(self, phone: str) -> None:
-        self._exec("INSERT INTO opt_outs (phone) VALUES (?) ON CONFLICT (phone) DO NOTHING", phone)
-
-    def has_recent_send(self, phone: str, event: str, since: datetime) -> bool:
-        rows, _ = self._exec(
-            "SELECT id FROM sends WHERE phone = ? AND event = ? AND status IN ('queued', 'sending', 'sent') "
-            "AND created_at >= ? LIMIT 1", phone, event, iso(since))
-        return bool(rows)
-
     def insert_send(self, row: Dict[str, Any]) -> str:
         send_id = row.get("id") or str(uuid.uuid4())
         full = {**{c: None for c in _SEND_COLUMNS}, **row, "id": send_id}
@@ -124,6 +107,12 @@ class _SqlStore:
             "SELECT * FROM sends WHERE status = 'queued' AND send_at <= ? ORDER BY send_at LIMIT ?", iso(now), limit)
         return [{**r, "extra": json.loads(r["extra"]) if r.get("extra") else {}} for r in rows]
 
+    def retry_send(self, send_id: str, send_at: datetime, reason: Optional[str]) -> None:
+        """A claimed send that provably never reached Meta goes back to 'queued' for run_due."""
+        self._exec(
+            "UPDATE sends SET status = 'queued', send_at = ?, reason = ?, claimed_at = NULL "
+            "WHERE id = ? AND status = 'sending'", iso(send_at), reason[:300] if reason else None, send_id)
+
     def fail_stuck(self, before: datetime) -> int:
         """'sending' rows left by a crash are failed, never re-sent: Meta may already have delivered them."""
         _, count = self._exec(
@@ -144,7 +133,7 @@ class _SqlStore:
 
 
 class SqliteStore(_SqlStore):
-    def __init__(self, path: str = "anril_private_send.db"):
+    def __init__(self, path: str = "anril_connector.db"):
         super().__init__()
         is_new_file = path != ":memory:" and not os.path.exists(path)
         self._conn = sqlite3.connect(path, timeout=30, isolation_level=None, check_same_thread=False)
@@ -174,7 +163,7 @@ class PostgresStore(_SqlStore):
             import psycopg
             from psycopg.rows import dict_row
         except ImportError as exc:
-            raise ImportError("PostgresStore needs psycopg: pip install 'anril-private-send[postgres]'") from exc
+            raise ImportError("PostgresStore needs psycopg: pip install 'anril-connector[postgres]'") from exc
         self._conn = psycopg.connect(dsn, autocommit=True, row_factory=dict_row)
         self._init_schema()
 
@@ -193,7 +182,7 @@ def make_store(spec: Union[str, Store]) -> Store:
     if not isinstance(spec, str):
         return spec
     if spec.startswith("sqlite:///"):
-        return SqliteStore(spec[len("sqlite:///"):] or "anril_private_send.db")
+        return SqliteStore(spec[len("sqlite:///"):] or "anril_connector.db")
     if spec.startswith(("postgres://", "postgresql://")):
         return PostgresStore(spec)
     raise ValueError("store must be a sqlite:/// or postgresql:// URL, or a Store object")

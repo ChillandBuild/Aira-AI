@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from anril_private_send import AnrilPrivateSend
+from anril_connector import AnrilPrivateSend
 
 LICENSE_KEY = "aps_live_" + "A" * 32
 META_TOKEN = "EAAG-secret-meta-token"
@@ -34,9 +34,9 @@ def default_payload(now: datetime = T0, **overrides) -> dict:
         "offline_grace_hours": 6,
         "limits": {"monthly_cap": 50000, "used": 10, "blocked": False},
         "rules": [
-            {"id": "r1", "event": "purchased", "template_id": TEMPLATE_ID, "delay_minutes": 0,
+            {"id": "r1", "event": "purchased", "template_id": TEMPLATE_ID,
              "variables": [{"source": "first_name", "fallback": "there"}], "button_param": None, "enabled": True},
-            {"id": "r2", "event": "signed_up", "template_id": SLOW_TEMPLATE_ID, "delay_minutes": 30,
+            {"id": "r2", "event": "signed_up", "template_id": SLOW_TEMPLATE_ID,
              "variables": [], "button_param": None, "enabled": True},
         ],
         "templates": [
@@ -81,6 +81,7 @@ class FakeAnril:
         self.usage_status = 200
         self.usage_json = {"ok": True, "accepted": 1}
         self.meta_status = 200
+        self.meta_network_error = None  # an httpx exception class raised instead of answering Meta
         self.meta_json = {"messages": [{"id": "wamid.ABC"}]}
         self.requests = []
 
@@ -102,6 +103,8 @@ class FakeAnril:
         if request.url.path.endswith("/private-send/usage"):
             return httpx.Response(self.usage_status, json=self.usage_json)
         if request.url.host == "graph.facebook.com":
+            if self.meta_network_error:
+                raise self.meta_network_error("meta down")
             return httpx.Response(self.meta_status, json=self.meta_json)
         return httpx.Response(404)
 

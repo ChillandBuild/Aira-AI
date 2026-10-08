@@ -14,6 +14,13 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
+import { usePrivateSend } from "@/app/dashboard/auto-messages/PrivateSend";
+import { DoorChooser } from "./DoorChooser";
+import { ErrorLine } from "./DevSection";
+import { EventModeSubsection } from "./EventModeSubsection";
+import type { PartnerSendMode } from "./privateSendClient";
+import { SendModePicker, usePartnerSendMode } from "./SendModePicker";
+import { SendFromServerSection } from "./SendFromServerSection";
 
 /*
   Developer — the page another company's developer reads to connect their own
@@ -161,10 +168,14 @@ async function hmacSha256Hex(secret: string, body: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function SignatureCalculator({ tenantId }: { tenantId: string }) {
+function SignatureCalculator({ tenantId, mode }: { tenantId: string; mode: PartnerSendMode | null }) {
   const sample = useMemo(
-    () => JSON.stringify({ tenant_id: tenantId || "<tenant-id>", template_code: "123456", phone: "+919876543210", variables: ["Ansar", "Free Question"], reference: "question:42" }),
-    [tenantId],
+    () => JSON.stringify(
+      mode === "event"
+        ? { tenant_id: tenantId || "<tenant-id>", phone: "+919876543210", event: "purchased", name: "Priya", extra: { order_id: "INV-1042" }, reference: "order:1042" }
+        : { tenant_id: tenantId || "<tenant-id>", template_code: "123456", phone: "+919876543210", variables: ["Ansar", "Free Question"], reference: "question:42" },
+    ),
+    [tenantId, mode],
   );
   const [secret, setSecret] = useState("");
   const [body, setBody] = useState(sample);
@@ -288,6 +299,9 @@ export default function DeveloperPage() {
   const [config, setConfig] = useState<PartnerConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"curl" | "python" | "node">("python");
+  const privateSend = usePrivateSend();
+  const { mode: sendMode, failed: sendModeFailed, setMode: setSendMode } = usePartnerSendMode();
+  const isTemplateMode = sendMode === "template";
 
   const load = useCallback(async () => {
     try {
@@ -319,9 +333,14 @@ export default function DeveloperPage() {
         </div>
         <nav className="flex flex-wrap gap-1.5 text-[11px] font-semibold text-ink-secondary">
           {[
-            ["connection", "Connection"], ["auth", "Signing"], ["send-template", "Send template"],
-            ["send-text", "Send text"], ["variables", "Variables"], ["anril-id", "Anril ID"],
-            ["errors", "Errors"], ["callbacks", "Callbacks"], ["samples", "Code"], ["checklist", "Go-live"],
+            ["which-door", "Which one?"],
+            ...(privateSend ? [["send-from-server", "From your server"]] : []),
+            ["connection", "Connection"], ["auth", "Signing"], ["send-template", "Send"],
+            ["send-text", "Send text"],
+            ...(isTemplateMode ? [["variables", "Variables"], ["anril-id", "Anril ID"]] : []),
+            ["errors", "Errors"], ["callbacks", "Callbacks"],
+            ...(isTemplateMode ? [["samples", "Code"]] : []),
+            ["checklist", "Go-live"],
           ].map(([id, label]) => (
             <a key={id} href={`#${id}`} className="rounded-full border border-border bg-white px-2.5 py-1 hover:border-primary-300 hover:text-ink">{label}</a>
           ))}
@@ -343,6 +362,8 @@ export default function DeveloperPage() {
           <AlertTriangle size={14} /> Could not load your connection details ({error}). The contract below is still correct.
         </div>
       )}
+
+      <DoorChooser sendFromServerOn={privateSend !== null} />
 
       {/* 1. Connection */}
       <Section id="connection" icon={KeyRound} title="Your connection" intro="Three things identify your app to Anril. Two are shown here; the third is a secret that Anril's operations team gives you directly.">
@@ -394,29 +415,52 @@ export default function DeveloperPage() {
           <code className="ml-1 font-mono">{`{"error":"Unauthorized","code":"unauthorized"}`}</code>. That is deliberate: it stops anyone probing which tenants exist.
           Non-JSON bodies return 400 <code className="font-mono">invalid_json</code>.
         </p>
-        <SignatureCalculator tenantId={tenantId} />
+        <SignatureCalculator tenantId={tenantId} mode={sendMode} />
       </Section>
 
-      {/* 3. Send template */}
-      <Section id="send-template" icon={Send} title="Send a WhatsApp template" intro="The call your app makes when a customer should get a message outside WhatsApp's 24-hour window: a receipt, a status change, an answer ready.">
-        <Code copy>{`POST ${API_URL}${paths.send_template}`}</Code>
-        <Table
-          head={["Field", "Required", "Meaning"]}
-          rows={[
-            ["tenant_id", "yes", "Your Tenant ID from above."],
-            ["template_code", "yes", "The 6-digit Anril ID of an APPROVED template (see Anril ID below)."],
-            ["phone", "yes", <>Recipient. <code className="font-mono">+919876543210</code>, <code className="font-mono">919876543210</code> or a bare 10-digit Indian mobile all work.</>],
-            ["variables", "no", "List of strings for the body placeholders {{1}}, {{2}}… in order. Extra values are dropped; too few is a 400."],
-            ["reference", "no", "Up to 120 characters, stored with the log only. Use your own id (e.g. order:42) so you can trace a send later."],
-          ]}
-        />
-        <p className="text-xs font-semibold text-ink">Success — HTTP 200</p>
-        <Code copy={false}>{`{"ok": true, "message_id": "wamid.HBg…", "template": {"code": "123456", "name": "order_update", "language": "en"}}`}</Code>
-        <p className="text-xs">
-          <code className="font-mono">message_id</code> is Meta&apos;s id for the message. Keep it with your log; it is what support asks for when a message is questioned.
-          Only templates whose placeholders are all in the body are supported: a template with a variable in the header or in a URL button is refused as
-          <code className="ml-1 font-mono">unsupported_template</code>.
-        </p>
+      {/* 3. Send: one way per account, chosen here */}
+      <Section
+        id="send-template"
+        icon={Send}
+        title={sendMode === null ? "Send a WhatsApp message" : isTemplateMode ? "Send a WhatsApp template" : "Send a WhatsApp event"}
+        intro={
+          isTemplateMode
+            ? "The call your app makes when a customer should get a message outside WhatsApp's 24-hour window: a receipt, a status change, an answer ready."
+            : "Each account's app calls one signed address in one way: with a template ID or with an event. Pick this account's way below."
+        }
+      >
+        {sendMode && <SendModePicker mode={sendMode} onSaved={setSendMode} />}
+        {sendMode === null && sendModeFailed && (
+          <ErrorLine message="Couldn't load how this account sends. Reload the page to try again." />
+        )}
+        {sendMode === null && !sendModeFailed && (
+          <div className="h-24 animate-pulse rounded-2xl bg-border-subtle" aria-busy="true" aria-label="Loading send settings" />
+        )}
+        {isTemplateMode && (
+          <>
+          <Code copy>{`POST ${API_URL}${paths.send_template}`}</Code>
+          <Table
+            head={["Field", "Required", "Meaning"]}
+            rows={[
+              ["tenant_id", "yes", "Your Tenant ID from above."],
+              ["template_code", "yes", "The 6-digit Anril ID of an APPROVED template (see Anril ID below)."],
+              ["phone", "yes", <>Recipient. <code className="font-mono">+919876543210</code>, <code className="font-mono">919876543210</code> or a bare 10-digit Indian mobile all work.</>],
+              ["variables", "no", "List of strings for the body placeholders {{1}}, {{2}}… in order. Extra values are dropped; too few is a 400."],
+              ["reference", "no", "Up to 120 characters, stored with the log only. Use your own id (e.g. order:42) so you can trace a send later."],
+            ]}
+          />
+          <p className="text-xs font-semibold text-ink">Success — HTTP 200</p>
+          <Code copy={false}>{`{"ok": true, "message_id": "wamid.HBg…", "template": {"code": "123456", "name": "order_update", "language": "en"}}`}</Code>
+          <p className="text-xs">
+            <code className="font-mono">message_id</code> is Meta&apos;s id for the message. Keep it with your log; it is what support asks for when a message is questioned.
+            Only templates whose placeholders are all in the body are supported: a template with a variable in the header or in a URL button is refused as
+            <code className="ml-1 font-mono">unsupported_template</code>.
+          </p>
+          </>
+        )}
+        {sendMode === "event" && (
+          <EventModeSubsection apiUrl={API_URL} sendTemplatePath={paths.send_template} tenantId={tenantId} />
+        )}
       </Section>
 
       {/* 4. Send text */}
@@ -434,29 +478,33 @@ export default function DeveloperPage() {
         <Code copy={false}>{`{"ok": true, "message_id": "wamid.HBg…"}`}</Code>
       </Section>
 
-      {/* 5. Variables */}
-      <Section id="variables" icon={Hash} title="Template variables" intro="A template's body may contain numbered placeholders. Your values fill them in order.">
-        <ul className="list-disc space-y-1.5 pl-5">
-          <li><code className="font-mono">variables[0]</code> fills <code className="font-mono">{"{{1}}"}</code>, <code className="font-mono">variables[1]</code> fills <code className="font-mono">{"{{2}}"}</code>, and so on.</li>
-          <li>Send <strong>more</strong> values than the template has placeholders and the extras are ignored. This lets your app always send one fixed set and let each template pick what it uses.</li>
-          <li>Send <strong>fewer</strong> and the request is refused with 400 <code className="font-mono">variables_mismatch</code>, because WhatsApp would refuse it too.</li>
-          <li>Values must not contain new lines or tabs, and WhatsApp limits each to 1024 characters. Collapse whitespace before sending.</li>
-        </ul>
-        <p className="text-xs">
-          A good pattern: decide one fixed set for your whole app, for example <code className="font-mono">[customer name, order or service name, your brand]</code>, and send it on every call.
-          A template written as &ldquo;Hi <code className="font-mono">{"{{1}}"}</code>, your <code className="font-mono">{"{{2}}"}</code> is ready&rdquo; uses the first two; one with no placeholders uses none. Same code, no per-template logic.
-        </p>
-      </Section>
+      {isTemplateMode && (
+        <>
+          {/* 5. Variables */}
+          <Section id="variables" icon={Hash} title="Template variables" intro="A template's body may contain numbered placeholders. Your values fill them in order.">
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li><code className="font-mono">variables[0]</code> fills <code className="font-mono">{"{{1}}"}</code>, <code className="font-mono">variables[1]</code> fills <code className="font-mono">{"{{2}}"}</code>, and so on.</li>
+              <li>Send <strong>more</strong> values than the template has placeholders and the extras are ignored. This lets your app always send one fixed set and let each template pick what it uses.</li>
+              <li>Send <strong>fewer</strong> and the request is refused with 400 <code className="font-mono">variables_mismatch</code>, because WhatsApp would refuse it too.</li>
+              <li>Values must not contain new lines or tabs, and WhatsApp limits each to 1024 characters. Collapse whitespace before sending.</li>
+            </ul>
+            <p className="text-xs">
+              A good pattern: decide one fixed set for your whole app, for example <code className="font-mono">[customer name, order or service name, your brand]</code>, and send it on every call.
+              A template written as &ldquo;Hi <code className="font-mono">{"{{1}}"}</code>, your <code className="font-mono">{"{{2}}"}</code> is ready&rdquo; uses the first two; one with no placeholders uses none. Same code, no per-template logic.
+            </p>
+          </Section>
 
-      {/* 6. Anril ID */}
-      <Section id="anril-id" icon={Hash} title="Where the Anril ID comes from" intro="Every template in this account has a 6-digit Anril ID. It is what your app stores and sends as template_code.">
-        <ul className="list-disc space-y-1.5 pl-5">
-          <li>Open <strong>Templates</strong> in this dashboard. Each card, table row and detail view shows the ID with a copy button. The search box also finds a template by its ID.</li>
-          <li>Only an <strong>APPROVED</strong> template can be sent. A pending or rejected one returns 409 <code className="font-mono">template_not_approved</code>.</li>
-          <li>The ID is unique inside this account only. Another Anril account, or a separate test installation, gives the same WhatsApp template a different number. Always copy the ID from the account you are sending through.</li>
-          <li>Templates themselves are created and submitted to Meta from the Templates page. Your app never creates templates through this API.</li>
-        </ul>
-      </Section>
+          {/* 6. Anril ID */}
+          <Section id="anril-id" icon={Hash} title="Where the Anril ID comes from" intro="Every template in this account has a 6-digit Anril ID. It is what your app stores and sends as template_code.">
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Open <strong>Templates</strong> in this dashboard. Each card, table row and detail view shows the ID with a copy button. The search box also finds a template by its ID.</li>
+              <li>Only an <strong>APPROVED</strong> template can be sent. A pending or rejected one returns 409 <code className="font-mono">template_not_approved</code>.</li>
+              <li>The ID is unique inside this account only. Another Anril account, or a separate test installation, gives the same WhatsApp template a different number. Always copy the ID from the account you are sending through.</li>
+              <li>Templates themselves are created and submitted to Meta from the Templates page. Your app never creates templates through this API.</li>
+            </ul>
+          </Section>
+        </>
+      )}
 
       {/* 7. Errors */}
       <Section id="errors" icon={AlertTriangle} title="Error codes" intro="Every error is JSON with ok:false, a stable code for your program and a readable error for your log.">
@@ -465,7 +513,8 @@ export default function DeveloperPage() {
           rows={[
             ["401", "unauthorized", "Bad or missing signature, unknown tenant_id, or no secret on file. Always identical."],
             ["400", "invalid_json", "Body is not valid JSON."],
-            ["400", "invalid_request", "template_code missing, variables not a list, text empty or too long."],
+            ["400", "invalid_request", "template_code missing (event on an Event account), variables not a list, text empty or too long."],
+            ["400", "wrong_mode", "The call does not match how this account sends: an event on a Template ID account, or a template_code on an Event account. Switch the setting in Send above, or change the call."],
             ["400", "invalid_phone", "Phone could not be read as a mobile number."],
             ["400", "variables_mismatch", "Fewer values than the template's placeholders."],
             ["400", "unsupported_template", "Template has a header or URL-button variable."],
@@ -495,31 +544,35 @@ export default function DeveloperPage() {
         </p>
       </Section>
 
-      {/* 9. Code samples */}
-      <Section id="samples" icon={Code2} title="Code samples" intro="Each one sends a template with two values. Your Tenant ID and the real URL are already filled in.">
-        <div className="flex gap-1 rounded-xl bg-surface-subtle p-1 text-xs font-semibold">
-          {(["python", "node", "curl"] as const).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`rounded-lg px-3 py-1.5 transition-colors ${tab === t ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-ink"}`}
-            >
-              {t === "python" ? "Python" : t === "node" ? "Node.js" : "curl"}
-            </button>
-          ))}
-        </div>
-        <Code copy>{code[tab]}</Code>
-        {IS_LOCAL_API && (
-          <p className="text-xs text-amber-800">
-            The URL in this sample is a local test copy of Anril. Replace it with the live base URL from your Anril contact before deploying.
-          </p>
-        )}
-        <p className="text-xs">
-          Call it from a background job or a thread, never on the request that your own user is waiting on: a slow network to Anril must not slow your app down.
-          Keep a log row per send with your <code className="font-mono">reference</code>, the returned <code className="font-mono">message_id</code> and any error.
-        </p>
-      </Section>
+      {isTemplateMode && (
+        <>
+          {/* 9. Code samples */}
+          <Section id="samples" icon={Code2} title="Code samples" intro="Each one sends a template with two values. Your Tenant ID and the real URL are already filled in.">
+            <div className="flex gap-1 rounded-xl bg-surface-subtle p-1 text-xs font-semibold">
+              {(["python", "node", "curl"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTab(t)}
+                  className={`rounded-lg px-3 py-1.5 transition-colors ${tab === t ? "bg-white text-primary shadow-sm" : "text-ink-muted hover:text-ink"}`}
+                >
+                  {t === "python" ? "Python" : t === "node" ? "Node.js" : "curl"}
+                </button>
+              ))}
+            </div>
+            <Code copy>{code[tab]}</Code>
+            {IS_LOCAL_API && (
+              <p className="text-xs text-amber-800">
+                The URL in this sample is a local test copy of Anril. Replace it with the live base URL from your Anril contact before deploying.
+              </p>
+            )}
+            <p className="text-xs">
+              Call it from a background job or a thread, never on the request that your own user is waiting on: a slow network to Anril must not slow your app down.
+              Keep a log row per send with your <code className="font-mono">reference</code>, the returned <code className="font-mono">message_id</code> and any error.
+            </p>
+          </Section>
+        </>
+      )}
 
       {/* 10. Checklist */}
       <Section id="checklist" icon={ListChecks} title="Go-live checklist">
@@ -527,12 +580,20 @@ export default function DeveloperPage() {
           <li>Shared secret received from Anril operations and stored in your server&apos;s environment, not in code.</li>
           <li>Tenant ID and API base URL from the top of this page in your config.</li>
           <li>Your signature matches the calculator above for the same body and secret.</li>
-          <li>The templates you need exist under <strong>Templates</strong> and show <strong>APPROVED</strong>.</li>
-          <li>Each template&apos;s Anril ID is stored where your app can change it without a deploy.</li>
+          {sendMode === "event" ? (
+            <li>Every event your app sends has a message set on the <strong>Auto Messages</strong> page, and its template shows <strong>APPROVED</strong>.</li>
+          ) : (
+            <>
+              <li>The templates you need exist under <strong>Templates</strong> and show <strong>APPROVED</strong>.</li>
+              <li>Each template&apos;s Anril ID is stored where your app can change it without a deploy.</li>
+            </>
+          )}
           <li>One test send to your own number returns <code className="font-mono">ok:true</code> and arrives on the phone.</li>
           <li>Your app logs every send with its reference, message id and error, and switches a message off without a deploy.</li>
         </ol>
       </Section>
+
+      <SendFromServerSection status={privateSend} />
     </div>
   );
 }

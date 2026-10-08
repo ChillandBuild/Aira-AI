@@ -38,7 +38,7 @@ class UsageRow(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     day: date
-    event: str = Field(pattern="^(interested|signed_up|purchased)$")
+    event: str = Field(pattern="^[a-z][a-z0-9_]{1,39}$")
     template_id: UUID
     sent: int = Field(ge=0, le=svc.MAX_DAILY_PER_TEMPLATE)
     failed: int = Field(ge=0, le=svc.MAX_DAILY_PER_TEMPLATE)

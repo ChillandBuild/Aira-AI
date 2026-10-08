@@ -23,7 +23,6 @@ export interface BundleRule {
   id: string;
   event: string;
   template_id: string;
-  delay_minutes?: number | null;
   variables?: unknown[] | null;
   button_param?: unknown;
   enabled?: boolean;
@@ -33,6 +32,7 @@ export interface BundleTemplate {
   id: string;
   name: string;
   language?: string;
+  category?: string;
   body_text?: string;
   header_text?: string | null;
   header_media_type?: string | null;

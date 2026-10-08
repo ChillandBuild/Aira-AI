@@ -6,11 +6,24 @@ import type { FetchFn } from "./http.js";
 
 export const GRAPH_BASE = "https://graph.facebook.com";
 const META_TIMEOUT_MS = 15_000;
+const RETRYABLE_STATUSES: readonly number[] = [429, 503];
+/** Socket-level codes where the connection was never made (fetch reports them as err.cause.code). */
+const NEVER_CONNECTED_CODES: readonly string[] = [
+  "ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN", "ENETUNREACH", "EHOSTUNREACH", "UND_ERR_CONNECT_TIMEOUT",
+];
+
+/** Only a failed connect is safe to repeat; a read timeout or reset may mean Meta already took the message. */
+function neverArrived(err: unknown): boolean {
+  const code = (err as { cause?: { code?: unknown } } | null)?.cause?.code;
+  return typeof code === "string" && NEVER_CONNECTED_CODES.includes(code);
+}
 
 export interface MetaOutcome {
   ok: boolean;
   messageId?: string;
   reason?: string;
+  /** The request provably never reached Meta, so sending it again cannot double-send. */
+  retryable?: boolean;
 }
 
 /** Same body as backend/app/services/meta_cloud.py::send_template_message. */
@@ -59,8 +72,8 @@ export async function sendTemplate(
       signal: AbortSignal.timeout(META_TIMEOUT_MS),
     });
   } catch (err) {
-    return { ok: false, reason: `network_error: ${err instanceof Error ? err.name : "Error"}` };
+    return { ok: false, reason: `network_error: ${err instanceof Error ? err.name : "Error"}`, retryable: neverArrived(err) };
   }
-  if (!resp.ok) return { ok: false, reason: await errorReason(resp) };
+  if (!resp.ok) return { ok: false, reason: await errorReason(resp), retryable: RETRYABLE_STATUSES.includes(resp.status) };
   return { ok: true, messageId: await messageIdOf(resp) };
 }

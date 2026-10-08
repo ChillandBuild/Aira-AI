@@ -39,6 +39,9 @@ BLOCK_NUMERATOR, BLOCK_DENOMINATOR = 11, 10
 DEFAULT_GRACE_HOURS = 6
 MIN_GRACE_HOURS, MAX_GRACE_HOURS = 1, 72
 REPLY_MODES = ("client", "aira")
+# "client" unsubscribes Anril from the WHOLE WhatsApp number (inbox and AI go dark), so it
+# must be an explicit choice; a tenant that never picked keeps Anril receiving replies.
+DEFAULT_REPLY_MODE = "aira"
 DASHBOARD_DAYS = 30
 MISMATCH_FLOOR = 20
 MISMATCH_RATIO = 0.1
@@ -57,7 +60,7 @@ REPLY_MODE_KEY = "private_send_reply_mode"
 GRACE_KEY = "private_send_offline_grace_hours"
 CAP_KEY = "private_send_monthly_cap"
 
-_RULE_COLUMNS = "id, event, template_id, delay_minutes, variables, button_param, enabled"
+_RULE_COLUMNS = "id, event, template_id, variables, button_param, enabled"
 _TEMPLATE_COLUMNS = (
     "id, name, language, category, status, body_text, header_text, header_media_type, "
     "header_media_url, buttons"
@@ -106,6 +109,15 @@ def create_key(db, tenant_id: str) -> dict:
     if not inserted:
         raise PrivateSendError(500, "key_not_saved", "Could not save the key")
     return {"id": inserted[0]["id"], "key": full, "key_prefix": prefix}
+
+
+def has_active_key(db, tenant_id: str) -> bool:
+    """True when the tenant sends from its own server ("Send from your server" is on)."""
+    rows = (
+        db.table("private_send_keys").select("id")
+        .eq("tenant_id", tenant_id).eq("status", "active").limit(1).execute()
+    ).data or []
+    return bool(rows)
 
 
 def revoke_key(db, tenant_id: str, key_id: str) -> None:
@@ -219,7 +231,7 @@ def is_enabled(db, tenant_id: str) -> bool:
 
 def get_reply_mode(tenant_id: str) -> str:
     value = get_setting(REPLY_MODE_KEY, tenant_id=tenant_id)
-    return value if value in REPLY_MODES else "client"
+    return value if value in REPLY_MODES else DEFAULT_REPLY_MODE
 
 
 def get_grace_hours(tenant_id: str) -> int:
@@ -317,7 +329,7 @@ def _public_template(t: dict) -> dict:
 def _public_rule(r: dict) -> dict:
     return {
         "id": r["id"], "event": r["event"], "template_id": r["template_id"],
-        "delay_minutes": r.get("delay_minutes") or 0, "variables": r.get("variables") or [],
+        "variables": r.get("variables") or [],
         "button_param": r.get("button_param"), "enabled": True,
     }
 
@@ -395,7 +407,11 @@ def record_usage(db, tenant_id: str, rows: list[dict]) -> int:
     The upsert and the growth maths happen in one Postgres function
     (record_private_send_usage, migration 218): stored totals only ever rise, so a plug-in
     reinstall (counters back to 0) or two concurrent calls can't meter the same messages
-    twice. We bill exactly what the function says grew."""
+    twice. We bill exactly what the function says grew.
+
+    `event` is only a label (slug shape is checked by the route's UsageRow). It is NOT
+    checked against the tenant's events: an owner may delete a custom event after the
+    plug-in already sent for it, and rejecting that row would drop the whole batch."""
     _check_templates_belong_to_tenant(db, tenant_id, rows)
     payload = _merge_duplicate_rows(rows)
     try:
