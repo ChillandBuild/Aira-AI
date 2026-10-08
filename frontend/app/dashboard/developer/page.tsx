@@ -126,7 +126,7 @@ function Section({ id, icon: Icon, title, intro, children }: {
 function Code({ children, copy }: { children: string; copy?: boolean }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-2xl border border-border-subtle bg-[#1c1917] p-4 font-mono text-[12px] leading-relaxed text-[#f5f3ef]">
+      <pre className="overflow-x-auto rounded-2xl border border-border-subtle bg-[#0A1528] p-4 font-mono text-[12px] leading-relaxed text-[#f5f3ef]">
         {children}
       </pre>
       {copy !== false && (

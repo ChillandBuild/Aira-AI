@@ -136,7 +136,7 @@ export default function LeadDetailPanel({
 
   if (selectedLeadLoading) {
     return (
-      <div className="py-16 flex flex-col items-center justify-center bg-[#faf8f5] rounded-2xl mx-5 mt-5">
+      <div className="py-16 flex flex-col items-center justify-center bg-[#f8fafc] rounded-2xl mx-5 mt-5">
         <RefreshCw size={32} className="animate-spin text-orange-400 mb-2" />
         <p className="font-body text-sm text-amber-700/60 font-medium">Loading lead profile...</p>
       </div>
@@ -145,10 +145,10 @@ export default function LeadDetailPanel({
 
   if (!selectedLead) {
     return (
-      <div className="py-16 flex flex-col items-center justify-center text-center bg-[#faf8f5] rounded-2xl mx-5 mt-5 px-6">
+      <div className="py-16 flex flex-col items-center justify-center text-center bg-[#f8fafc] rounded-2xl mx-5 mt-5 px-6">
         <User size={32} className="text-[#d6cfc9] mb-2" />
-        <p className="font-body text-sm text-[#57534e] font-semibold">Couldn&apos;t load this lead</p>
-        <p className="font-body text-xs text-[#a8a29e] mt-1">The request failed. Select the lead again or pick another from the queue.</p>
+        <p className="font-body text-sm text-[#334155] font-semibold">Couldn&apos;t load this lead</p>
+        <p className="font-body text-xs text-[#94a3b8] mt-1">The request failed. Select the lead again or pick another from the queue.</p>
       </div>
     );
   }
@@ -164,7 +164,7 @@ export default function LeadDetailPanel({
       ? { label: "Active today", sublabel: "Hot window — call now", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200", dot: "bg-emerald-500 animate-pulse" }
       : hoursSinceInbound < 168
       ? { label: "Active this week", sublabel: "Replied recently", color: "text-amber-700", bg: "bg-amber-50 border-amber-200", dot: "bg-amber-400" }
-      : { label: "Gone cold", sublabel: "No recent WhatsApp activity", color: "text-[#78716c]", bg: "bg-[#faf8f5] border-[#e8e3db]", dot: "bg-[#d6cfc9]" };
+      : { label: "Gone cold", sublabel: "No recent WhatsApp activity", color: "text-[#475569]", bg: "bg-[#f8fafc] border-[#e2e8f0]", dot: "bg-[#d6cfc9]" };
 
   const recentCallLogs = selectedLeadCallLogs.slice(0, 7);
   const recentMessages = selectedLeadMessages.slice(-4);
@@ -191,7 +191,7 @@ export default function LeadDetailPanel({
     score >= 8 ? "from-rose-500 to-red-600" :
     score >= 6 ? "from-amber-500 to-orange-600" :
     score >= 4 ? "from-primary to-primary-600" :
-    "from-[#a8a29e] to-[#78716c]";
+    "from-[#94a3b8] to-[#475569]";
   const circumference = 2 * Math.PI * 28;
   const strokeDashoffset = circumference - (score / 10) * circumference;
 
@@ -212,7 +212,7 @@ export default function LeadDetailPanel({
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
-    <div className="flex flex-col bg-[#faf8f5]">
+    <div className="flex flex-col bg-[#f8fafc]">
       <div className="sticky top-0 z-20">
       {/* Header */}
       <div className="bg-gradient-to-br from-[#1a1c3d] via-[#12132e] to-[#0c0d1f] text-white p-6 relative overflow-hidden shadow-md">
@@ -250,7 +250,7 @@ export default function LeadDetailPanel({
                     {callStatus === "ringing" ? "Ringing..." : "Connected"}
                   </span>
                   {callStatus === "connected" && (
-                    <span className="font-mono text-sm font-bold text-emerald-400 bg-[#292524]/80 px-3 py-1 rounded-lg border border-[#44403c]/50">
+                    <span className="font-mono text-sm font-bold text-emerald-400 bg-[#13284A]/80 px-3 py-1 rounded-lg border border-[#1e293b]/50">
                       {Math.floor(callDuration / 60).toString().padStart(2, '0')}:
                       {(callDuration % 60).toString().padStart(2, '0')}
                     </span>
@@ -262,11 +262,11 @@ export default function LeadDetailPanel({
               ) : (
                 <p className="text-[#d6cfc9] font-label text-sm mt-1.5 tracking-wide flex flex-wrap items-center gap-1.5">
                   <span className="font-bold text-white">{formatPhone(selectedLead.phone)}</span>
-                  <span className="text-[#78716c]">•</span>
+                  <span className="text-[#475569]">•</span>
                   <span>Score: {selectedLead.score}/10</span>
-                  <span className="text-[#78716c]">•</span>
+                  <span className="text-[#475569]">•</span>
                   <span>{selectedLead.channel || selectedLead.source || "Direct"}</span>
-                  <span className="text-[#78716c]">•</span>
+                  <span className="text-[#475569]">•</span>
                   <span>{selectedLead.assigned_at ? `Assigned ${timeAgo(selectedLead.assigned_at)}` : "Unassigned"}</span>
                 </p>
               )}
@@ -280,7 +280,7 @@ export default function LeadDetailPanel({
                 className={`px-4 py-2.5 rounded-2xl border font-label text-xs font-bold transition-all text-[#d6cfc9] hover:text-white ${
                   confirmRelease === selectedLead.id
                     ? "bg-red-600 border-red-500 text-white animate-pulse"
-                    : "border-[#44403c]/60 bg-[#1c1917]/40 hover:bg-[#1c1917]"
+                    : "border-[#1e293b]/60 bg-[#0A1528]/40 hover:bg-[#0A1528]"
                 }`}
               >
                 {confirmRelease === selectedLead.id ? "Release?" : "Release Lead"}
@@ -299,7 +299,7 @@ export default function LeadDetailPanel({
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex border-b border-[#e8e3db] bg-white">
+      <div className="flex border-b border-[#e2e8f0] bg-white">
         {[
           { id: "overview", label: "Overview" },
           { id: "notes", label: "Notes & Log" },
@@ -311,7 +311,7 @@ export default function LeadDetailPanel({
             className={`px-6 py-4 font-display text-xs font-black tracking-wider uppercase border-b-2 text-center transition-all ${
               activeProfileTab === t.id
                 ? "border-orange-500 text-orange-700"
-                : "border-transparent text-[#a8a29e] hover:text-[#57534e]"
+                : "border-transparent text-[#94a3b8] hover:text-[#334155]"
             }`}
           >
             {t.label}
@@ -327,8 +327,8 @@ export default function LeadDetailPanel({
           <>
             {/* ── Quick Note + Send details on WhatsApp ── */}
             <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
-              <div className="min-w-0 flex-1 bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-                <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
+              <div className="min-w-0 flex-1 bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                <h3 className="font-display text-xs font-black text-[#13284A] tracking-widest uppercase flex items-center gap-1.5">
                   <StickyNote size={12} className="text-orange-400" /> Quick Note
                 </h3>
                 <input
@@ -336,14 +336,14 @@ export default function LeadDetailPanel({
                   value={quickNoteTitle}
                   onChange={(e) => setQuickNoteTitle(e.target.value)}
                   placeholder="Title (optional)"
-                  className="w-full px-3 py-2 rounded-xl bg-[#faf8f5]/40 border border-[#e8e3db] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-300 focus:bg-white transition-all"
+                  className="w-full px-3 py-2 rounded-xl bg-[#f8fafc]/40 border border-[#e2e8f0] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-orange-300 focus:bg-white transition-all"
                 />
                 <textarea
                   value={quickNoteContent}
                   onChange={(e) => setQuickNoteContent(e.target.value)}
                   placeholder="Outcome summary… e.g. Interested, wants demo tomorrow 5 PM"
                   rows={4}
-                  className="w-full p-3 rounded-xl bg-[#faf8f5]/40 border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-orange-300 focus:bg-white transition-all resize-none"
+                  className="w-full p-3 rounded-xl bg-[#f8fafc]/40 border border-[#e2e8f0] font-body text-xs focus:outline-none focus:ring-2 focus:ring-orange-300 focus:bg-white transition-all resize-none"
                 />
 
                 {/* ── Tags + Schedule Call toggles ── */}
@@ -354,7 +354,7 @@ export default function LeadDetailPanel({
                     className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
                       tagsExpanded || quickNoteTags.length > 0
                         ? "bg-orange-50 border-orange-200 text-orange-700"
-                        : "bg-white border-[#e8e3db] text-[#57534e] hover:border-orange-300 hover:text-orange-600"
+                        : "bg-white border-[#e2e8f0] text-[#334155] hover:border-orange-300 hover:text-orange-600"
                     }`}
                   >
                     <Tag size={11} /> Tags{quickNoteTags.length > 0 ? ` (${quickNoteTags.length})` : ""}
@@ -385,7 +385,7 @@ export default function LeadDetailPanel({
                           className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                             selected
                               ? "bg-orange-500 border-orange-500 text-white"
-                              : "bg-white border-[#e8e3db] text-[#57534e] hover:border-orange-300 hover:text-orange-600"
+                              : "bg-white border-[#e2e8f0] text-[#334155] hover:border-orange-300 hover:text-orange-600"
                           }`}
                         >
                           {tag}
@@ -425,7 +425,7 @@ export default function LeadDetailPanel({
                     role="checkbox"
                     aria-checked={quickNotePinned}
                     onClick={() => setQuickNotePinned(!quickNotePinned)}
-                    className="flex items-center gap-1.5 font-body text-[11px] text-[#57534e]"
+                    className="flex items-center gap-1.5 font-body text-[11px] text-[#334155]"
                   >
                     <TickMark checked={quickNotePinned} size="sm" />
                     Pin this note
@@ -451,7 +451,7 @@ export default function LeadDetailPanel({
             </div>
 
             {/* ── AI Pre-Call Brief ── */}
-            <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
                 <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-orange-600/80 flex items-center gap-1.5">
                   <Sparkles size={11} className="text-orange-500" /> AI Pre-Call Brief
@@ -467,10 +467,10 @@ export default function LeadDetailPanel({
               </div>
               {selectedLeadBrief ? (
                 <div className="space-y-2.5">
-                  <p className="font-body text-xs text-[#44403c] leading-relaxed">{selectedLeadBrief.brief}</p>
-                  <div className="bg-[#faf8f5] border border-[#e8e3db] rounded-xl px-3 py-2.5">
+                  <p className="font-body text-xs text-[#1e293b] leading-relaxed">{selectedLeadBrief.brief}</p>
+                  <div className="bg-[#f8fafc] border border-[#e2e8f0] rounded-xl px-3 py-2.5">
                     <p className="font-label text-[9px] text-orange-600 uppercase font-extrabold tracking-wider mb-1">💡 Suggested Opener</p>
-                    <p className="font-body text-xs text-[#292524] italic leading-relaxed">&quot;{selectedLeadBrief.opener}&quot;</p>
+                    <p className="font-body text-xs text-[#13284A] italic leading-relaxed">&quot;{selectedLeadBrief.opener}&quot;</p>
                   </div>
                 </div>
               ) : (
@@ -481,42 +481,42 @@ export default function LeadDetailPanel({
             </div>
 
             {/* ── Lead Source ── */}
-            <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#f0ece4] text-[#57534e] rounded-xl shrink-0">
+                <div className="p-2 bg-[#f1f5f9] text-[#334155] rounded-xl shrink-0">
                   <Inbox size={16} />
                 </div>
                 <div>
                   <p className="font-label text-[9px] text-orange-500/80 uppercase tracking-wider font-extrabold">Lead Source</p>
-                  <p className="font-body text-sm font-semibold text-[#292524] mt-0.5">
+                  <p className="font-body text-sm font-semibold text-[#13284A] mt-0.5">
                     {selectedLead.channel || selectedLead.source || "Organic Inbound"} — {selectedLead.ad_campaign_name || selectedLead.template_name || "Organic Traffic"}
                   </p>
                 </div>
               </div>
-              <span className="font-label text-xs text-[#a8a29e] font-medium whitespace-nowrap">
+              <span className="font-label text-xs text-[#94a3b8] font-medium whitespace-nowrap">
                 {selectedLead.assigned_at ? timeAgo(selectedLead.assigned_at) : "recent"}
               </span>
             </div>
 
             {/* ── Pipeline Stats ── */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
-                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e] mb-1.5">Days in Pipeline</p>
-                <p className="font-display text-3xl font-extrabold text-[#292524]">
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
+                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8] mb-1.5">Days in Pipeline</p>
+                <p className="font-display text-3xl font-extrabold text-[#13284A]">
                   {daysInPipeline !== null ? daysInPipeline : "—"}
                 </p>
-                <p className="font-label text-[10px] text-[#a8a29e] mt-1">
+                <p className="font-label text-[10px] text-[#94a3b8] mt-1">
                   {assignedAt
                     ? `assigned ${assignedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`
                     : "no assignment date"}
                 </p>
               </div>
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
-                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e] mb-1.5">Last Contact</p>
-                <p className="font-display text-3xl font-extrabold text-[#292524]">
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
+                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8] mb-1.5">Last Contact</p>
+                <p className="font-display text-3xl font-extrabold text-[#13284A]">
                   {daysSinceLastContact !== null ? `${daysSinceLastContact}d` : "—"}
                 </p>
-                <p className="font-label text-[10px] text-[#a8a29e] mt-1">
+                <p className="font-label text-[10px] text-[#94a3b8] mt-1">
                   {lastCallLog ? timeAgo(lastCallLog.created_at) : "No calls yet"}
                 </p>
               </div>
@@ -530,32 +530,32 @@ export default function LeadDetailPanel({
               <div className={`border rounded-2xl p-4 flex items-start gap-3 shadow-sm ${engagementSignal.bg}`}>
                 <span className={`w-2.5 h-2.5 rounded-full shrink-0 mt-1 ${engagementSignal.dot}`} />
                 <div>
-                  <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e]">WhatsApp Activity</p>
+                  <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8]">WhatsApp Activity</p>
                   <p className={`font-body text-sm font-extrabold mt-0.5 ${engagementSignal.color}`}>{engagementSignal.label}</p>
-                  <p className="font-label text-[9px] text-[#a8a29e] mt-0.5">{engagementSignal.sublabel}</p>
+                  <p className="font-label text-[9px] text-[#94a3b8] mt-0.5">{engagementSignal.sublabel}</p>
                   {lastInbound && (
-                    <p className="font-label text-[9px] text-[#a8a29e] mt-0.5">{timeAgo(selectedLead.last_inbound_at!)}</p>
+                    <p className="font-label text-[9px] text-[#94a3b8] mt-0.5">{timeAgo(selectedLead.last_inbound_at!)}</p>
                   )}
                 </div>
               </div>
 
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
-                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e] mb-2.5">📞 Call History</p>
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
+                <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8] mb-2.5">📞 Call History</p>
                 {recentCallLogs.length === 0 ? (
-                  <p className="font-body text-xs text-[#a8a29e]">No calls yet</p>
+                  <p className="font-body text-xs text-[#94a3b8]">No calls yet</p>
                 ) : (
                   <div className="flex items-center gap-2 flex-wrap">
                     {recentCallLogs.map((log) => (
                       <div key={log.id} className="group relative">
-                        <div className={`w-6 h-6 rounded-full ring-2 ring-offset-1 ring-[#f0ece4] ${TONE_DOT[callResultTone(callResultKey(log))]} cursor-default shadow-sm`} />
-                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:block z-20 bg-[#292524] text-white text-[9px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xl">
+                        <div className={`w-6 h-6 rounded-full ring-2 ring-offset-1 ring-[#f1f5f9] ${TONE_DOT[callResultTone(callResultKey(log))]} cursor-default shadow-sm`} />
+                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden group-hover:block z-20 bg-[#13284A] text-white text-[9px] font-bold px-2.5 py-1.5 rounded-xl whitespace-nowrap shadow-xl">
                           {callResultLabel(callResultKey(log)) ?? "Not wrapped up"} · {timeAgo(log.created_at)}
-                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#292524]" />
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#13284A]" />
                         </div>
                       </div>
                     ))}
                     {selectedLeadCallLogs.length > 7 && (
-                      <span className="font-label text-[9px] text-[#a8a29e] font-bold">+{selectedLeadCallLogs.length - 7}</span>
+                      <span className="font-label text-[9px] text-[#94a3b8] font-bold">+{selectedLeadCallLogs.length - 7}</span>
                     )}
                   </div>
                 )}
@@ -564,7 +564,7 @@ export default function LeadDetailPanel({
 
             {/* ── WhatsApp Context Strip ── */}
             {recentMessages.length > 0 && (
-              <div className="bg-gradient-to-br from-[#075e54]/5 to-teal-50/30 border border-teal-200/40 rounded-2xl p-4 shadow-sm">
+              <div className="bg-gradient-to-br from-primary-950/5 to-teal-50/30 border border-teal-200/40 rounded-2xl p-4 shadow-sm">
                 <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-teal-700/70 mb-3 flex items-center gap-1.5">
                   <MessageSquare size={11} /> Last WhatsApp Conversation
                 </p>
@@ -573,11 +573,11 @@ export default function LeadDetailPanel({
                     <div key={msg.id} className={`flex ${msg.direction === "inbound" ? "justify-start" : "justify-end"}`}>
                       <div className={`max-w-[78%] px-3 py-2 rounded-2xl text-xs font-body leading-relaxed shadow-sm ${
                         msg.direction === "inbound"
-                          ? "bg-white text-[#44403c] rounded-tl-sm border border-[#f0ece4]"
-                          : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
+                          ? "bg-white text-[#1e293b] rounded-tl-sm border border-[#f1f5f9]"
+                          : "bg-primary-50 border border-primary-100 text-ink rounded-tr-sm"
                       }`}>
                         <MessageBubbleContent message={msg} />
-                        <p className="text-[9px] text-[#a8a29e] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
+                        <p className="text-[9px] text-[#94a3b8] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
                       </div>
                     </div>
                   ))}
@@ -587,21 +587,21 @@ export default function LeadDetailPanel({
 
             {/* ── Recent Interactions ── */}
             {selectedLeadNotes?.notes && selectedLeadNotes.notes.length > 0 && (
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
                 <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-display text-xs font-black text-[#292524] flex items-center gap-1.5 tracking-widest uppercase">
+                  <h3 className="font-display text-xs font-black text-[#13284A] flex items-center gap-1.5 tracking-widest uppercase">
                     <MessageSquare size={12} className="text-orange-400" /> Recent Interactions
                   </h3>
                   <button onClick={() => setActiveProfileTab("notes")} className="text-xs text-orange-500 font-bold hover:underline">
                     View all →
                   </button>
                 </div>
-                <div className="relative border-l-2 border-[#e8e3db] pl-4 ml-2 space-y-3">
+                <div className="relative border-l-2 border-[#e2e8f0] pl-4 ml-2 space-y-3">
                   {selectedLeadNotes.notes.slice(0, 3).map((n) => (
                     <div key={n.id} className="relative">
                       <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-orange-400 border-2 border-white" />
-                      <span className="block text-[9px] text-[#a8a29e] font-bold mb-1">{timeAgo(n.created_at)}</span>
-                      <div className="font-body text-xs text-[#57534e] bg-[#faf8f5]/40 border border-[#e8e3db]/60 p-3 rounded-xl leading-relaxed">
+                      <span className="block text-[9px] text-[#94a3b8] font-bold mb-1">{timeAgo(n.created_at)}</span>
+                      <div className="font-body text-xs text-[#334155] bg-[#f8fafc]/40 border border-[#e2e8f0]/60 p-3 rounded-xl leading-relaxed">
                         {n.content}
                       </div>
                     </div>
@@ -612,7 +612,7 @@ export default function LeadDetailPanel({
 
             {/* ── Pitch Script ── */}
             {telecallingConfig?.scripts?.[selectedLead.segment] && (
-              <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
+              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <h3 className="font-display text-xs font-black text-orange-900 tracking-widest uppercase flex items-center gap-1.5">
                     <Sparkles size={12} className="text-orange-500" /> Pitch Script (SEG {selectedLead.segment})
@@ -623,7 +623,7 @@ export default function LeadDetailPanel({
                   </button>
                 </div>
                 {scriptExpanded && (
-                  <div className="mt-2.5 bg-[#faf8f5] border border-[#e8e3db] p-3 rounded-xl text-[#44403c] font-body text-xs leading-relaxed whitespace-pre-wrap">
+                  <div className="mt-2.5 bg-[#f8fafc] border border-[#e2e8f0] p-3 rounded-xl text-[#1e293b] font-body text-xs leading-relaxed whitespace-pre-wrap">
                     {telecallingConfig.scripts[selectedLead.segment]}
                   </div>
                 )}
@@ -635,29 +635,29 @@ export default function LeadDetailPanel({
         {activeProfileTab === "notes" && (
           <div className="space-y-4">
             {/* ── Call Stats Strip ── */}
-            <div className="bg-white border border-[#e8e3db] rounded-2xl p-4 shadow-sm">
-              <div className="grid grid-cols-4 divide-x divide-[#f0ece4] text-center">
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-4 shadow-sm">
+              <div className="grid grid-cols-4 divide-x divide-[#f1f5f9] text-center">
                 <div className="px-3">
-                  <p className="font-display text-2xl font-extrabold text-[#292524]">{totalCalls}</p>
-                  <p className="font-label text-[9px] text-[#a8a29e] uppercase tracking-wider font-bold mt-0.5">Total Calls</p>
+                  <p className="font-display text-2xl font-extrabold text-[#13284A]">{totalCalls}</p>
+                  <p className="font-label text-[9px] text-[#94a3b8] uppercase tracking-wider font-bold mt-0.5">Total Calls</p>
                 </div>
                 <div className="px-3">
                   <p className="font-display text-2xl font-extrabold text-emerald-600">{connectedCalls}</p>
-                  <p className="font-label text-[9px] text-[#a8a29e] uppercase tracking-wider font-bold mt-0.5">Connected</p>
+                  <p className="font-label text-[9px] text-[#94a3b8] uppercase tracking-wider font-bold mt-0.5">Connected</p>
                 </div>
                 <div className="px-3">
-                  <p className="font-display text-xl font-extrabold text-[#292524]">
+                  <p className="font-display text-xl font-extrabold text-[#13284A]">
                     {avgDurationSecs > 0
                       ? `${Math.floor(avgDurationSecs / 60)}m${avgDurationSecs % 60 > 0 ? ` ${avgDurationSecs % 60}s` : ""}`
                       : "—"}
                   </p>
-                  <p className="font-label text-[9px] text-[#a8a29e] uppercase tracking-wider font-bold mt-0.5">Avg Duration</p>
+                  <p className="font-label text-[9px] text-[#94a3b8] uppercase tracking-wider font-bold mt-0.5">Avg Duration</p>
                 </div>
                 <div className="px-3">
-                  <p className="font-display text-xl font-extrabold text-[#292524] leading-tight">
+                  <p className="font-display text-xl font-extrabold text-[#13284A] leading-tight">
                     {lastCallLog ? timeAgo(lastCallLog.created_at) : "—"}
                   </p>
-                  <p className="font-label text-[9px] text-[#a8a29e] uppercase tracking-wider font-bold mt-0.5">Last Contact</p>
+                  <p className="font-label text-[9px] text-[#94a3b8] uppercase tracking-wider font-bold mt-0.5">Last Contact</p>
                 </div>
               </div>
             </div>
@@ -671,7 +671,7 @@ export default function LeadDetailPanel({
                   className={`px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-colors ${
                     noteFilter === f
                       ? "bg-orange-500 text-white shadow-sm"
-                      : "bg-white border border-[#e8e3db] text-[#78716c] hover:text-[#44403c]"
+                      : "bg-white border border-[#e2e8f0] text-[#475569] hover:text-[#1e293b]"
                   }`}
                 >
                   {f === "all" ? "All" : f === "notes" ? "Notes" : f === "calls" ? "Calls" : "WhatsApp"}
@@ -680,9 +680,9 @@ export default function LeadDetailPanel({
             </div>
 
             {/* ── Timeline ── */}
-            <div className="bg-white border border-[#e8e3db] rounded-2xl p-5 shadow-sm">
+            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-display text-xs font-black text-[#292524] flex items-center gap-1.5 tracking-widest uppercase">
+                <h3 className="font-display text-xs font-black text-[#13284A] flex items-center gap-1.5 tracking-widest uppercase">
                   <Inbox size={12} className="text-orange-400" /> Interaction Timeline
                 </h3>
                 <button onClick={() => setHistoryLead(selectedLead)} className="text-xs text-orange-500 font-bold hover:underline">
@@ -691,20 +691,20 @@ export default function LeadDetailPanel({
               </div>
 
               {noteFilter === "all" && timelineItems.length === 0 && (
-                <div className="p-6 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl text-xs text-[#a8a29e] font-medium">
+                <div className="p-6 bg-[#f8fafc]/40 border border-[#e2e8f0] text-center rounded-xl text-xs text-[#94a3b8] font-medium">
                   No interactions logged for this lead.
                 </div>
               )}
 
               {/* All — merged chronological */}
               {noteFilter === "all" && timelineItems.length > 0 && (
-                <div className="relative border-l-2 border-[#e8e3db] pl-4 ml-2 space-y-4">
+                <div className="relative border-l-2 border-[#e2e8f0] pl-4 ml-2 space-y-4">
                   {timelineItems.map((item) => (
                     <div key={`${item.type}-${item.id}`} className="relative">
                       <span className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
                         item.type === "note" ? "bg-orange-400" : item.type === "call" ? "bg-primary-400" : "bg-teal-400"
                       }`} />
-                      <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
+                      <div className="text-[9px] text-[#94a3b8] font-bold mb-1 flex items-center gap-1">
                         {item.type === "note" && <><StickyNote size={9} className="text-orange-400" /> Note · {timeAgo(item.created_at)}</>}
                         {item.type === "call" && <><Phone size={9} className="text-primary-400" /> Call · {timeAgo(item.created_at)}</>}
                         {item.type === "message" && <><MessageSquare size={9} className="text-teal-500" /> WhatsApp · {timeAgo(item.created_at)}</>}
@@ -714,18 +714,18 @@ export default function LeadDetailPanel({
                           {item.is_pinned && (
                             <span className="self-start text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-black text-[7px]">PINNED</span>
                           )}
-                          <div className="font-body text-xs text-[#57534e] bg-[#faf8f5]/40 border border-[#e8e3db]/60 p-3.5 rounded-xl leading-relaxed">
+                          <div className="font-body text-xs text-[#334155] bg-[#f8fafc]/40 border border-[#e2e8f0]/60 p-3.5 rounded-xl leading-relaxed">
                             {item.content}
                           </div>
                         </div>
                       )}
                       {item.type === "call" && (
                         <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
-                          <span className="font-label text-xs font-bold text-[#44403c]">
+                          <span className="font-label text-xs font-bold text-[#1e293b]">
                             {callResultLabel(callResultKey(item)) ?? "Call logged"}
                           </span>
                           {(item.duration_seconds ?? 0) > 0 && (
-                            <span className="font-mono text-[10px] text-[#a8a29e]">
+                            <span className="font-mono text-[10px] text-[#94a3b8]">
                               {Math.floor((item.duration_seconds ?? 0) / 60)}m {(item.duration_seconds ?? 0) % 60}s
                             </span>
                           )}
@@ -735,8 +735,8 @@ export default function LeadDetailPanel({
                         <div className={`flex ${item.direction === "inbound" ? "justify-start" : "justify-end"}`}>
                           <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs font-body leading-relaxed shadow-sm ${
                             item.direction === "inbound"
-                              ? "bg-white border border-[#e8e3db] text-[#44403c] rounded-tl-sm"
-                              : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
+                              ? "bg-white border border-[#e2e8f0] text-[#1e293b] rounded-tl-sm"
+                              : "bg-primary-50 border border-primary-100 text-ink rounded-tr-sm"
                           }`}>
                             <MessageBubbleContent
                               message={{
@@ -760,18 +760,18 @@ export default function LeadDetailPanel({
                     {selectedLeadNotes.notes.map((n) => (
                       <div key={n.id} className="relative">
                         <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-orange-400 border-2 border-white" />
-                        <div className="flex justify-between items-center text-[9px] text-[#a8a29e] font-bold mb-1">
+                        <div className="flex justify-between items-center text-[9px] text-[#94a3b8] font-bold mb-1">
                           <span className="flex items-center gap-1"><StickyNote size={9} className="text-orange-400" /> {timeAgo(n.created_at)}</span>
                           {n.is_pinned && <span className="text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full font-black text-[7px]">PINNED</span>}
                         </div>
-                        <div className="font-body text-xs text-[#57534e] bg-[#faf8f5]/40 border border-[#e8e3db]/60 p-3.5 rounded-xl leading-relaxed">
+                        <div className="font-body text-xs text-[#334155] bg-[#f8fafc]/40 border border-[#e2e8f0]/60 p-3.5 rounded-xl leading-relaxed">
                           {n.content}
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-6 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl text-xs text-[#a8a29e] font-medium">
+                  <div className="p-6 bg-[#f8fafc]/40 border border-[#e2e8f0] text-center rounded-xl text-xs text-[#94a3b8] font-medium">
                     No notes logged for this lead.
                   </div>
                 )
@@ -784,15 +784,15 @@ export default function LeadDetailPanel({
                     {selectedLeadCallLogs.map((log) => (
                       <div key={log.id} className="relative">
                         <span className="absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary-400 border-2 border-white" />
-                        <div className="text-[9px] text-[#a8a29e] font-bold mb-1 flex items-center gap-1">
+                        <div className="text-[9px] text-[#94a3b8] font-bold mb-1 flex items-center gap-1">
                           <Phone size={9} className="text-primary-400" /> {timeAgo(log.created_at)}
                         </div>
                         <div className="bg-primary-light/40 border border-primary-muted p-3 rounded-xl flex items-center justify-between">
-                          <span className="font-label text-xs font-bold text-[#44403c]">
+                          <span className="font-label text-xs font-bold text-[#1e293b]">
                             {callResultLabel(callResultKey(log)) ?? "Call logged"}
                           </span>
                           {(log.duration_seconds ?? 0) > 0 && (
-                            <span className="font-mono text-[10px] text-[#a8a29e]">
+                            <span className="font-mono text-[10px] text-[#94a3b8]">
                               {Math.floor((log.duration_seconds ?? 0) / 60)}m {(log.duration_seconds ?? 0) % 60}s
                             </span>
                           )}
@@ -801,7 +801,7 @@ export default function LeadDetailPanel({
                     ))}
                   </div>
                 ) : (
-                  <div className="p-6 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl text-xs text-[#a8a29e] font-medium">
+                  <div className="p-6 bg-[#f8fafc]/40 border border-[#e2e8f0] text-center rounded-xl text-xs text-[#94a3b8] font-medium">
                     No call logs found for this lead.
                   </div>
                 )
@@ -815,17 +815,17 @@ export default function LeadDetailPanel({
                       <div key={msg.id} className={`flex ${msg.direction === "inbound" ? "justify-start" : "justify-end"}`}>
                         <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-xs font-body leading-relaxed shadow-sm ${
                           msg.direction === "inbound"
-                            ? "bg-white border border-[#e8e3db] text-[#44403c] rounded-tl-sm"
-                            : "bg-[#dcf8c6] text-[#292524] rounded-tr-sm"
+                            ? "bg-white border border-[#e2e8f0] text-[#1e293b] rounded-tl-sm"
+                            : "bg-primary-50 border border-primary-100 text-ink rounded-tr-sm"
                         }`}>
                           <MessageBubbleContent message={msg} />
-                          <p className="text-[9px] text-[#a8a29e] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
+                          <p className="text-[9px] text-[#94a3b8] mt-0.5 text-right">{timeAgo(msg.created_at)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="p-6 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl text-xs text-[#a8a29e] font-medium">
+                  <div className="p-6 bg-[#f8fafc]/40 border border-[#e2e8f0] text-center rounded-xl text-xs text-[#94a3b8] font-medium">
                     No WhatsApp messages found.
                   </div>
                 )
@@ -888,16 +888,16 @@ function ScriptPanel() {
     return (
       <div className="p-8 text-center">
         <div className="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full mx-auto" />
-        <p className="text-xs text-[#a8a29e] mt-2">Loading scripts...</p>
+        <p className="text-xs text-[#94a3b8] mt-2">Loading scripts...</p>
       </div>
     );
   }
 
   if (activeScripts.length === 0) {
     return (
-      <div className="p-8 bg-[#faf8f5]/40 border border-[#e8e3db] text-center rounded-xl">
+      <div className="p-8 bg-[#f8fafc]/40 border border-[#e2e8f0] text-center rounded-xl">
         <FileText size={24} className="text-[#d6cfc9] mx-auto mb-2" />
-        <p className="text-xs text-[#a8a29e] font-medium">No active scripts configured.</p>
+        <p className="text-xs text-[#94a3b8] font-medium">No active scripts configured.</p>
         <p className="text-[10px] text-[#d6cfc9] mt-1">Create one in Telecalling &rarr; Scripts.</p>
       </div>
     );
@@ -906,11 +906,11 @@ function ScriptPanel() {
   if (!selectedScript) {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
-          <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5">
+        <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-2 mb-2">
+          <h3 className="font-display text-xs font-black text-[#13284A] tracking-widest uppercase flex items-center gap-1.5">
             <FileText size={12} className="text-primary shrink-0" /> Select Script
           </h3>
-          <span className="text-[10px] text-[#a8a29e] font-bold">
+          <span className="text-[10px] text-[#94a3b8] font-bold">
             {activeScripts.length} Active
           </span>
         </div>
@@ -923,20 +923,20 @@ function ScriptPanel() {
                 setSelectedScript(s);
                 setCurrentStep(0);
               }}
-              className="w-full bg-white hover:bg-primary-light/40 border border-[#e8e3db] hover:border-primary-muted rounded-xl p-3.5 text-left transition-all duration-200 group flex items-start gap-3 shadow-sm hover:shadow"
+              className="w-full bg-white hover:bg-primary-light/40 border border-[#e2e8f0] hover:border-primary-muted rounded-xl p-3.5 text-left transition-all duration-200 group flex items-start gap-3 shadow-sm hover:shadow"
             >
               <div className="w-8 h-8 rounded-lg bg-primary-light border border-primary-muted flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <FileText size={16} className="text-primary" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="font-display text-xs font-bold text-[#292524] truncate group-hover:text-primary transition-colors">
+                <h4 className="font-display text-xs font-bold text-[#13284A] truncate group-hover:text-primary transition-colors">
                   {s.name}
                 </h4>
-                <p className="font-body text-[10px] text-[#a8a29e] mt-0.5">
+                <p className="font-body text-[10px] text-[#94a3b8] mt-0.5">
                   {s.steps?.length || 0} conversational steps
                 </p>
               </div>
-              <ChevronRight size={14} className="text-[#a8a29e] self-center group-hover:translate-x-0.5 transition-transform shrink-0" />
+              <ChevronRight size={14} className="text-[#94a3b8] self-center group-hover:translate-x-0.5 transition-transform shrink-0" />
             </button>
           ))}
         </div>
@@ -949,20 +949,20 @@ function ScriptPanel() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between border-b border-[#e8e3db] pb-2 mb-2">
+      <div className="flex items-center justify-between border-b border-[#e2e8f0] pb-2 mb-2">
         <button
           onClick={() => setSelectedScript(null)}
           className="inline-flex items-center gap-1.5 text-[10px] font-bold text-primary hover:text-primary-dark transition-colors uppercase tracking-wider font-label"
         >
           &larr; Back to all scripts
         </button>
-        <span className="text-[10px] text-[#a8a29e] font-bold">
+        <span className="text-[10px] text-[#94a3b8] font-bold">
           Step {currentStep + 1} of {steps.length}
         </span>
       </div>
 
       <div className="flex items-center justify-between">
-        <h3 className="font-display text-xs font-black text-[#292524] tracking-widest uppercase flex items-center gap-1.5 truncate max-w-[70%]">
+        <h3 className="font-display text-xs font-black text-[#13284A] tracking-widest uppercase flex items-center gap-1.5 truncate max-w-[70%]">
           <FileText size={12} className="text-primary shrink-0" /> {selectedScript.name}
         </h3>
       </div>
@@ -973,9 +973,9 @@ function ScriptPanel() {
             {step.order}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-body text-sm text-[#292524] leading-relaxed whitespace-pre-wrap">{step.text}</p>
+            <p className="font-body text-sm text-[#13284A] leading-relaxed whitespace-pre-wrap">{step.text}</p>
             {step.note && (
-              <p className="font-body text-xs text-[#a8a29e] italic mt-2">{step.note}</p>
+              <p className="font-body text-xs text-[#94a3b8] italic mt-2">{step.note}</p>
             )}
           </div>
         </div>
@@ -1002,7 +1002,7 @@ function ScriptPanel() {
         <button
           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
           disabled={currentStep === 0}
-          className="flex-1 py-2 bg-[#f0ece4] hover:bg-[#e8e3db] text-[#44403c] rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
+          className="flex-1 py-2 bg-[#f1f5f9] hover:bg-[#e2e8f0] text-[#1e293b] rounded-xl text-xs font-bold disabled:opacity-30 transition-all"
         >
           Previous
         </button>
@@ -1025,12 +1025,12 @@ function ScriptPanel() {
               i === currentStep
                 ? "bg-primary-light text-primary font-bold border border-primary-muted"
                 : i < currentStep
-                ? "text-[#a8a29e] hover:bg-[#faf8f5]"
-                : "text-[#57534e] hover:bg-[#faf8f5]"
+                ? "text-[#94a3b8] hover:bg-[#f8fafc]"
+                : "text-[#334155] hover:bg-[#f8fafc]"
             }`}
           >
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${
-              i === currentStep ? "bg-primary text-white" : i < currentStep ? "bg-[#e8e3db] text-[#78716c]" : "bg-[#f0ece4] text-[#a8a29e]"
+              i === currentStep ? "bg-primary text-white" : i < currentStep ? "bg-[#e2e8f0] text-[#475569]" : "bg-[#f1f5f9] text-[#94a3b8]"
             }`}>
               {s.order}
             </span>

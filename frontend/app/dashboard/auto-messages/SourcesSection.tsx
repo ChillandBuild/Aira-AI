@@ -15,7 +15,7 @@ function FormPreview() {
       <p className="text-[15px] font-semibold text-[#1a1a1a]">Get details on WhatsApp</p>
       <div className="rounded-lg border border-[#cfcfcf] px-3 py-2 text-[13px] text-[#9a9a9a]">Your name</div>
       <div className="rounded-lg border border-[#cfcfcf] px-3 py-2 text-[13px] text-[#9a9a9a]">WhatsApp number</div>
-      <div className="rounded-lg bg-[#25d366] py-2 text-center text-[13px] font-semibold text-white">Send me details</div>
+      <div className="rounded-lg bg-primary-800 py-2 text-center text-[13px] font-semibold text-white">Send me details</div>
       <p className="text-[11px] text-[#666]">We&apos;ll send you updates on WhatsApp.</p>
     </div>
   );

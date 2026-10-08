@@ -115,7 +115,7 @@ export function ClientDetailSidebar({
       <div
         onClick={() => onSectionChange(item.key)}
         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
-          active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"
+          active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#0A1528] hover:bg-[#f1f5f9]"
         }`}
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -140,7 +140,7 @@ export function ClientDetailSidebar({
         onClick={() => onSectionChange(item.key)}
         className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 group ${
           indent ? "ml-4" : ""
-        } ${active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#1c1917] hover:bg-[#f0ece4]"}`}
+        } ${active ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : !enabled ? "opacity-40" : "text-[#0A1528] hover:bg-[#f1f5f9]"}`}
       >
         <div className="flex items-center gap-3 min-w-0">
           <item.icon size={16} className={`flex-shrink-0 ${active ? "text-[var(--primary-800)]" : ""}`} />
@@ -153,10 +153,10 @@ export function ClientDetailSidebar({
 
   return (
     <aside
-      className="fixed left-0 h-[calc(100vh-4rem)] w-[240px] bg-background border-r border-[#e8e3db] flex flex-col z-30 select-none"
+      className="fixed left-0 h-[calc(100vh-4rem)] w-[240px] bg-background border-r border-[#e2e8f0] flex flex-col z-30 select-none"
       style={{ top: "64px", height: "calc(100vh - 64px)" }}
     >
-      <div className="px-4 py-4 border-b border-[#e8e3db]">
+      <div className="px-4 py-4 border-b border-[#e2e8f0]">
         <button
           onClick={() => router.push("/operator")}
           className="flex items-center gap-1.5 text-xs text-ink-secondary hover:text-ink transition-colors mb-2"
@@ -177,7 +177,7 @@ export function ClientDetailSidebar({
             onClick={() => setTcExpanded(!tcExpanded)}
             className={`flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 ${
               ["tc-upload", "tc-dialer", "tc-scheduled", "tc-notes"].includes(activeSection)
-                ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : isEnabled("telecalling") ? "text-[#1c1917] hover:bg-[#f0ece4]" : "text-[#1c1917] opacity-40"
+                ? "bg-[var(--primary-50)] text-[var(--primary-800)]" : isEnabled("telecalling") ? "text-[#0A1528] hover:bg-[#f1f5f9]" : "text-[#0A1528] opacity-40"
             }`}
           >
             <div className="flex items-center gap-3 min-w-0">
@@ -198,7 +198,7 @@ export function ClientDetailSidebar({
           )}
         </div>
 
-        <div className="pt-3 mt-3 border-t border-[#e8e3db]">
+        <div className="pt-3 mt-3 border-t border-[#e2e8f0]">
           <p className="px-3 py-1 text-[10px] font-semibold text-ink-muted uppercase tracking-widest">Operator</p>
           {OPERATOR_NAV.map(item => (
             <NavItemRow key={item.key} item={item} />

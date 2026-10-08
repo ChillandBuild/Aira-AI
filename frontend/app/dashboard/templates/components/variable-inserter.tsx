@@ -152,7 +152,7 @@ export default function VariableInserter({
               <span
                 key={v}
                 className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold"
-                style={{ background: "#DCF8C6", color: "#075E54" }}
+                style={{ background: "var(--primary-50)", color: "var(--primary-900)" }}
               >
                 {`{{${v}}}`}
               </span>

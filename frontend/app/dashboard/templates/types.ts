@@ -74,7 +74,7 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string; dot: stri
   APPROVED: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
   PENDING: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
   REJECTED: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  PAUSED: { bg: 'bg-[#f0ece4]', text: 'text-[#57534e]', dot: 'bg-[#a8a29e]' },
+  PAUSED: { bg: 'bg-[#f1f5f9]', text: 'text-[#334155]', dot: 'bg-[#94a3b8]' },
 };
 
 export const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {

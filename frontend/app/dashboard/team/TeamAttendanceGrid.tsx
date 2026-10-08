@@ -193,23 +193,23 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
           <CalendarCheck size={16} className="text-primary" /> Team Attendance
         </h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-            <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Attendance:</span>
+          <div className="flex items-center gap-1.5 bg-[#f8fafc] p-1.5 rounded-xl border border-[#e2e8f0]">
+            <span className="font-label text-[10px] text-[#475569] font-bold uppercase pl-1">Export Attendance:</span>
             <input
               type="date"
               value={from}
               max={to}
               onChange={(e) => setFrom(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-xs text-[#13284A] focus:outline-none"
             />
-            <span className="text-[#a8a29e] text-xs">to</span>
+            <span className="text-[#94a3b8] text-xs">to</span>
             <input
               type="date"
               value={to}
               min={from}
               max={maxHolidayDate}
               onChange={(e) => setTo(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-xs text-[#13284A] focus:outline-none"
             />
             <button
               onClick={handleExportCsv}
@@ -228,7 +228,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
               max={maxHolidayDate}
               onChange={(e) => setHolidayDate(e.target.value)}
               disabled={!canManageTeam}
-              className="px-1.5 py-0.5 rounded bg-white border border-sky-200 font-body text-xs text-[#292524] focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-sky-200 font-body text-xs text-[#13284A] focus:outline-none"
             />
             <button
               onClick={handleMarkHoliday}
@@ -258,7 +258,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
             max={today}
             onChange={(e) => setMarkDate(e.target.value)}
             disabled={!canManageTeam}
-            className="px-2 py-1 rounded bg-white border border-[#e8e3db] font-body text-[11px] text-[#292524] h-7 focus:outline-none"
+            className="px-2 py-1 rounded bg-white border border-[#e2e8f0] font-body text-[11px] text-[#13284A] h-7 focus:outline-none"
           />
           <button
             onClick={() => handleMark("present")}
@@ -279,38 +279,38 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
-        <div className="bg-[#faf8f5] rounded-xl p-3 border border-[#f0ece4] flex flex-col justify-between shadow-sm">
-          <div className="p-1.5 rounded-lg bg-[#f0ece4] w-fit mb-1 text-[#57534e]"><Users size={14} /></div>
+        <div className="bg-[#f8fafc] rounded-xl p-3 border border-[#f1f5f9] flex flex-col justify-between shadow-sm">
+          <div className="p-1.5 rounded-lg bg-[#f1f5f9] w-fit mb-1 text-[#334155]"><Users size={14} /></div>
           <div>
-            <span className="block text-base font-display font-black text-[#292524] leading-tight">{data?.callers.length ?? 0}</span>
-            <span className="text-[#78716c] font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Total Team</span>
+            <span className="block text-base font-display font-black text-[#13284A] leading-tight">{data?.callers.length ?? 0}</span>
+            <span className="text-[#475569] font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Total Team</span>
           </div>
         </div>
         <div className="bg-emerald-50 rounded-xl p-3 border border-emerald-100 flex flex-col justify-between shadow-sm">
           <div className="p-1.5 rounded-lg bg-emerald-100 w-fit mb-1 text-emerald-600"><UserCheck size={14} /></div>
           <div>
-            <span className="block text-base font-display font-black text-[#292524] leading-tight">{data?.summary.present_today ?? 0}</span>
+            <span className="block text-base font-display font-black text-[#13284A] leading-tight">{data?.summary.present_today ?? 0}</span>
             <span className="text-emerald-700 font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Present Today</span>
           </div>
         </div>
         <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 flex flex-col justify-between shadow-sm">
           <div className="p-1.5 rounded-lg bg-rose-100 w-fit mb-1 text-rose-600"><UserX size={14} /></div>
           <div>
-            <span className="block text-base font-display font-black text-[#292524] leading-tight">{data?.summary.absent_today ?? 0}</span>
+            <span className="block text-base font-display font-black text-[#13284A] leading-tight">{data?.summary.absent_today ?? 0}</span>
             <span className="text-rose-700 font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Absent Today</span>
           </div>
         </div>
         <div className="bg-sky-50 rounded-xl p-3 border border-sky-100 flex flex-col justify-between shadow-sm">
           <div className="p-1.5 rounded-lg bg-sky-100 w-fit mb-1 text-sky-600"><Sun size={14} /></div>
           <div>
-            <span className="block text-base font-display font-black text-[#292524] leading-tight">{holidayCount}</span>
+            <span className="block text-base font-display font-black text-[#13284A] leading-tight">{holidayCount}</span>
             <span className="text-sky-700 font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Holidays (Range)</span>
           </div>
         </div>
         <div className="bg-primary-light rounded-xl p-3 border border-primary-muted flex flex-col justify-between shadow-sm">
           <div className="p-1.5 rounded-lg bg-primary-light w-fit mb-1 text-primary"><Percent size={14} /></div>
           <div>
-            <span className="block text-base font-display font-black text-[#292524] leading-tight">
+            <span className="block text-base font-display font-black text-[#13284A] leading-tight">
               {data ? Math.round(data.summary.attendance_rate_month * 100) : 0}%
             </span>
             <span className="text-primary font-label text-[9px] uppercase font-bold tracking-wider mt-0.5 block">Attendance (Month)</span>
@@ -342,7 +342,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
                   <tr
                     key={c.caller_id}
                     className={`border-t border-border-subtle transition-colors ${
-                      isSelected ? "bg-primary/5 font-bold animate-pulse" : "hover:bg-[#faf8f5]/40"
+                      isSelected ? "bg-primary/5 font-bold animate-pulse" : "hover:bg-[#f8fafc]/40"
                     }`}
                   >
                     <td className={`px-2 py-1.5 font-label font-semibold whitespace-nowrap sticky left-0 transition-colors ${
@@ -378,7 +378,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
 
       {/* 6-Month Overview */}
       {selectedCallerId && !loading && data && data.callers.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-border-subtle bg-[#faf8f5]/30 rounded-xl p-3">
+        <div className="mt-5 pt-4 border-t border-border-subtle bg-[#f8fafc]/30 rounded-xl p-3">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <h3 className="font-display text-xs font-bold text-primary flex items-center gap-1.5">
               <span className="w-1.5 h-3 bg-primary rounded-full inline-block" />
@@ -401,7 +401,7 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
                   key={m.key}
                   className="rounded-xl border border-border-subtle/80 bg-surface p-1.5 sm:p-2 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-150"
                 >
-                  <div className="text-center text-[10px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">{m.label}</div>
+                  <div className="text-center text-[10px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#f8fafc] py-0.5 rounded-md border border-[#f1f5f9]">{m.label}</div>
                   <div className="grid grid-cols-7 gap-[1.5px] mb-1">
                     {WEEKDAY_LABELS.map((d, i) => (
                       <div key={i} className="text-center text-[7px] font-label font-semibold text-ink-muted/50 uppercase">{d}</div>
@@ -427,8 +427,8 @@ export default function TeamAttendanceGrid({ selectedCallerId, selectedCallerNam
                           cellClass = "bg-gradient-to-br from-sky-400 to-sky-500 border border-sky-500/20 shadow-[0_1px_2px_rgba(14,165,233,0.15)] hover:from-sky-500 hover:to-sky-600";
                           textClass = "text-white font-bold";
                         } else {
-                          cellClass = "bg-[#faf8f5] border border-[#f0ece4] hover:bg-[#f0ece4]";
-                          textClass = "text-[#a8a29e]/80 font-medium";
+                          cellClass = "bg-[#f8fafc] border border-[#f1f5f9] hover:bg-[#f1f5f9]";
+                          textClass = "text-[#94a3b8]/80 font-medium";
                         }
 
                         return (

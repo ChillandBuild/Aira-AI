@@ -119,7 +119,7 @@ export default function VariableMapEditor({ templateId, bodyText, saved, canEdit
     <div className="bg-white rounded-3xl border border-border-subtle p-6 shadow-sm">
       <div className="flex items-start justify-between gap-4 border-b border-border-subtle pb-3">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-700">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700">
             <SlidersHorizontal size={15} />
           </span>
           <div>
@@ -150,7 +150,7 @@ export default function VariableMapEditor({ templateId, bodyText, saved, canEdit
             <div key={n} className="grid grid-cols-[3.25rem_1fr] items-start gap-3 py-3">
               <span
                 className="mt-2 inline-flex justify-center rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold"
-                style={{ background: "#DCF8C6", color: "#075E54" }}
+                style={{ background: "var(--primary-50)", color: "var(--primary-900)" }}
               >
                 {`{{${n}}}`}
               </span>

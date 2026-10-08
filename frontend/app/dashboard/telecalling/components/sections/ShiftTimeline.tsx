@@ -71,21 +71,21 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
           <h2 className="font-display text-base font-bold text-primary">Shift Timeline Visualizer</h2>
           <p className="font-label text-xs text-on-surface-muted">Analyze live calling activity blocks, status transitions, and gaps.</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-          <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Date:</span>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none" />
+        <div className="flex items-center gap-1.5 bg-[#f8fafc] p-1.5 rounded-xl border border-[#e2e8f0]">
+          <span className="font-label text-[10px] text-[#475569] font-bold uppercase pl-1">Date:</span>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="px-1.5 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-xs text-[#13284A] focus:outline-none" />
         </div>
       </div>
 
       {loading ? (
         <div className="py-12 flex flex-col items-center justify-center">
-          <Loader2 className="animate-spin text-[#a8a29e] mb-2" size={24} />
-          <p className="text-xs text-[#a8a29e]">Fetching timeline details...</p>
+          <Loader2 className="animate-spin text-[#94a3b8] mb-2" size={24} />
+          <p className="text-xs text-[#94a3b8]">Fetching timeline details...</p>
         </div>
       ) : (
         <div className="space-y-6">
           <div className="relative pt-4">
-            <div className="w-full h-10 bg-[#e8e3db] rounded-xl relative border border-[#d6cfc9]/50 shadow-inner overflow-hidden">
+            <div className="w-full h-10 bg-[#e2e8f0] rounded-xl relative border border-[#d6cfc9]/50 shadow-inner overflow-hidden">
               {events.map((event) => {
                 if (event.type === "status" && event.status === "break") {
                   return (
@@ -114,7 +114,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                 return null;
               })}
             </div>
-            <div className="flex justify-between text-[10px] text-[#a8a29e] font-bold px-1 mt-2">
+            <div className="flex justify-between text-[10px] text-[#94a3b8] font-bold px-1 mt-2">
               {(() => {
                 const hourLabels: string[] = [];
                 for (let h = START_HOUR; h <= END_HOUR; h += 2) {
@@ -130,22 +130,22 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
             </div>
           </div>
 
-          <div className="bg-[#faf8f5]/50 rounded-2xl p-4 border border-[#f0ece4] max-h-[300px] overflow-y-auto space-y-2">
-            <span className="font-label text-[10px] text-[#a8a29e] font-bold uppercase tracking-wider block mb-2">Detailed Log Checklist</span>
+          <div className="bg-[#f8fafc]/50 rounded-2xl p-4 border border-[#f1f5f9] max-h-[300px] overflow-y-auto space-y-2">
+            <span className="font-label text-[10px] text-[#94a3b8] font-bold uppercase tracking-wider block mb-2">Detailed Log Checklist</span>
             {events.length === 0 ? (
-              <p className="text-xs text-[#a8a29e] text-center py-4">No events logged for this day.</p>
+              <p className="text-xs text-[#94a3b8] text-center py-4">No events logged for this day.</p>
             ) : (
               events.map((event) => (
-                <div key={event.id} className="flex items-center justify-between py-2 border-b border-[#f0ece4] text-xs text-[#57534e]">
+                <div key={event.id} className="flex items-center justify-between py-2 border-b border-[#f1f5f9] text-xs text-[#334155]">
                   <div className="flex items-center gap-2.5">
-                    <Clock size={12} className="text-[#a8a29e]" />
-                    <span className="font-bold text-[#44403c]">{formatIST(event.started_at)}</span>
-                    <span className="text-[#a8a29e]">·</span>
+                    <Clock size={12} className="text-[#94a3b8]" />
+                    <span className="font-bold text-[#1e293b]">{formatIST(event.started_at)}</span>
+                    <span className="text-[#94a3b8]">·</span>
                     {event.type === "status" ? (
-                      <span>Status changed to <span className="font-bold text-[#292524] capitalize">{event.status}</span></span>
+                      <span>Status changed to <span className="font-bold text-[#13284A] capitalize">{event.status}</span></span>
                     ) : (
                       <span>
-                        Called <span className="font-bold text-[#292524]">{event.lead_name || formatPhone(event.lead_phone)}</span>
+                        Called <span className="font-bold text-[#13284A]">{event.lead_name || formatPhone(event.lead_phone)}</span>
                         {" ("}
                         <span className="font-medium">{event.duration_seconds || 0}s</span>
                         {")"}
@@ -158,7 +158,7 @@ export default function ShiftTimeline({ callerId, statsFrom, shiftStartHour, shi
                     </span>
                   )}
                   {event.type === "status" && (
-                    <span className="px-2 py-0.5 bg-[#f0ece4] text-[#57534e] font-bold text-[9px] uppercase rounded border border-[#e8e3db]">
+                    <span className="px-2 py-0.5 bg-[#f1f5f9] text-[#334155] font-bold text-[9px] uppercase rounded border border-[#e2e8f0]">
                       Shift Status
                     </span>
                   )}

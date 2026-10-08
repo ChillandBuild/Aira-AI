@@ -11,7 +11,7 @@ export default function ChannelsPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[400px]">
-      <p className="font-body text-sm text-[#78716c]">Redirecting to Account Settings…</p>
+      <p className="font-body text-sm text-[#475569]">Redirecting to Account Settings…</p>
     </div>
   );
 }

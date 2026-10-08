@@ -42,7 +42,7 @@ export function computeDelta(
 }
 
 export function deltaColor(d: Delta | null): string {
-  if (!d || d.direction === "flat") return "text-[#a8a29e]";
+  if (!d || d.direction === "flat") return "text-[#94a3b8]";
   return d.isGood ? "text-emerald-600" : "text-rose-600";
 }
 

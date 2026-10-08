@@ -76,13 +76,13 @@ export default function FeedbackOversight() {
   if (visible.length === 0) return null;
 
   return (
-    <section aria-labelledby="feedback-oversight-title" className="rounded-3xl border border-[#e8e3db] bg-[#faf8f5] p-5 shadow-sm">
+    <section aria-labelledby="feedback-oversight-title" className="rounded-3xl border border-[#e2e8f0] bg-[#f8fafc] p-5 shadow-sm">
       <div className="mb-3 flex items-center gap-2">
         <AlertCircle size={16} className="text-amber-600" />
-        <h3 id="feedback-oversight-title" className="font-display text-base font-extrabold text-[#1c1917]">
+        <h3 id="feedback-oversight-title" className="font-display text-base font-extrabold text-[#0A1528]">
           Call feedback &amp; sync
         </h3>
-        <button onClick={load} aria-label="Refresh" className="ml-auto text-[#a8a29e] hover:text-[#44403c]">
+        <button onClick={load} aria-label="Refresh" className="ml-auto text-[#94a3b8] hover:text-[#1e293b]">
           <RefreshCw size={14} />
         </button>
       </div>
@@ -92,9 +92,9 @@ export default function FeedbackOversight() {
           const expanded = openCaller === row.caller_id;
           const calls = pending.filter((p) => p.caller_id === row.caller_id);
           return (
-            <li key={row.caller_id} className="rounded-2xl border border-[#f0ece4] bg-white p-3">
+            <li key={row.caller_id} className="rounded-2xl border border-[#f1f5f9] bg-white p-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-body text-sm font-bold text-[#292524]">{row.name || "Telecaller"}</span>
+                <span className="font-body text-sm font-bold text-[#13284A]">{row.name || "Telecaller"}</span>
                 {row.pending_count > 0 && (
                   <button
                     onClick={() => setOpenCaller(expanded ? null : row.caller_id)}
@@ -120,19 +120,19 @@ export default function FeedbackOversight() {
               {expanded && (
                 <ul className="mt-3 space-y-2">
                   {calls.map((log) => (
-                    <li key={log.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#faf8f5] px-3 py-2">
+                    <li key={log.id} className="flex items-center justify-between gap-3 rounded-xl bg-[#f8fafc] px-3 py-2">
                       <div className="min-w-0">
-                        <p className="truncate font-body text-xs font-bold text-[#292524]">
+                        <p className="truncate font-body text-xs font-bold text-[#13284A]">
                           {log.leads?.name || "Unnamed lead"} ({formatPhone(log.leads?.phone || "")})
                         </p>
-                        <p className="font-label text-[11px] text-[#78716c]">
+                        <p className="font-label text-[11px] text-[#475569]">
                           {pendingCallLabel(log)} · {new Date(log.created_at).toLocaleString()}
                         </p>
                       </div>
                       <button
                         onClick={() => dismiss(log)}
                         disabled={busyId === log.id}
-                        className="shrink-0 rounded-lg border border-[#e8e3db] px-3 py-1 font-label text-xs font-bold text-[#44403c] hover:bg-white disabled:opacity-50"
+                        className="shrink-0 rounded-lg border border-[#e2e8f0] px-3 py-1 font-label text-xs font-bold text-[#1e293b] hover:bg-white disabled:opacity-50"
                       >
                         Dismiss
                       </button>

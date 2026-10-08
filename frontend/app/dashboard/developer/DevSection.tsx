@@ -34,7 +34,7 @@ export function DevSection({ id, icon: Icon, title, intro, children }: {
 export function CodeBox({ code, copy = true }: { code: string; copy?: boolean }) {
   return (
     <div className="relative">
-      <pre className="overflow-x-auto rounded-2xl border border-border-subtle bg-[#1c1917] p-4 pr-20 font-mono text-[12px] leading-relaxed text-[#f5f3ef]">
+      <pre className="overflow-x-auto rounded-2xl border border-border-subtle bg-[#0A1528] p-4 pr-20 font-mono text-[12px] leading-relaxed text-[#f5f3ef]">
         {code}
       </pre>
       {copy && (

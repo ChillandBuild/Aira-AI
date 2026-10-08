@@ -1085,7 +1085,7 @@ function ScriptsTab() {
                     <span className="font-display text-sm font-bold text-on-surface truncate">{s.name}</span>
 
                     {!s.active && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f0ece4] text-[#a8a29e] border border-[#e8e3db]">Inactive</span>
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-[#f1f5f9] text-[#94a3b8] border border-[#e2e8f0]">Inactive</span>
                     )}
                   </div>
                   <p className="font-body text-xs text-on-surface-muted mt-1">{s.steps.length} step{s.steps.length !== 1 ? "s" : ""}</p>
@@ -1132,7 +1132,7 @@ function ScriptsTab() {
         const currentSimStep = formSteps[safeSimStepIdx] || { text: "", note: "", branches: [] };
         return (
           <Portal>
-            <div className="fixed inset-0 z-dialog bg-[#faf8f5] flex flex-col animate-fade-in overflow-hidden">
+            <div className="fixed inset-0 z-dialog bg-[#f8fafc] flex flex-col animate-fade-in overflow-hidden">
               {/* Full Screen Header */}
               <div className="bg-surface border-b border-surface-mid p-6 flex items-center justify-between shrink-0 shadow-sm">
                 <div className="flex items-center gap-3">
@@ -1166,7 +1166,7 @@ function ScriptsTab() {
               </div>
 
               {/* Split-pane Editor Body */}
-              <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-[#faf8f5]">
+              <div className="flex-grow flex flex-col lg:flex-row overflow-hidden bg-[#f8fafc]">
                 {/* Left Pane: Form Editor (60% width on large screens) */}
                 <div className="w-full lg:w-[60%] flex flex-col h-full border-r border-surface-mid overflow-hidden">
                   <div className="flex-grow overflow-y-auto p-6 lg:p-8 space-y-6">

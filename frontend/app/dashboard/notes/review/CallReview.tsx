@@ -35,8 +35,8 @@ const SEGMENTS: { id: "A" | "B" | "C" | "D"; label: string }[] = [
   { id: "D", label: "Not interested" },
 ];
 const PROCESSING_POLL_MS = 10_000;
-const CARD = "bg-white border border-[#e8e3db] rounded-2xl";
-const EYEBROW = "font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e]";
+const CARD = "bg-white border border-[#e2e8f0] rounded-2xl";
+const EYEBROW = "font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8]";
 
 /** Local-midnight ISO with the browser's offset, so "today" means the admin's today. */
 function localIso(d: Date): string {
@@ -104,7 +104,7 @@ function StatusPill({ call }: { call: Pick<CallLog, "score" | "score_status" | "
   if ((call.score_status === "scored" || call.score_status === "provisional") && call.score != null) {
     return <span className={cn(base, "font-mono", scoreColor(call.score))}>{call.score.toFixed(1)}</span>;
   }
-  const muted = cn(base, "bg-[#faf8f5] text-[#a8a29e] border-[#e8e3db]");
+  const muted = cn(base, "bg-[#f8fafc] text-[#94a3b8] border-[#e2e8f0]");
   if (call.score_status === "early_exit") return <span className={muted}>Early exit</span>;
   if (call.score_status === "not_connected") return <span className={muted}>Not connected</span>;
   if (call.score_status === "very_short") return <span className={muted}>Under 30s</span>;
@@ -133,7 +133,7 @@ function FilterSelect({
       htmlFor={id}
       className={cn(
         "relative flex items-center h-9 pl-3 pr-7 rounded-xl border bg-white transition-colors",
-        active ? "border-[var(--primary-200)] bg-[var(--primary-50)]" : "border-[#e8e3db]",
+        active ? "border-[var(--primary-200)] bg-[var(--primary-50)]" : "border-[#e2e8f0]",
       )}
     >
       <span className="sr-only">{label}</span>
@@ -143,7 +143,7 @@ function FilterSelect({
         onChange={(e) => onChange(e.target.value)}
         className={cn(
           "appearance-none bg-transparent font-body text-xs font-bold focus:outline-none cursor-pointer",
-          active ? "text-primary" : "text-[#292524]",
+          active ? "text-primary" : "text-[#13284A]",
         )}
       >
         <option value="">{anyLabel}</option>
@@ -153,7 +153,7 @@ function FilterSelect({
           </option>
         ))}
       </select>
-      <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+      <ChevronDown size={13} className="absolute right-2.5 text-[#94a3b8] pointer-events-none" />
     </label>
   );
 }
@@ -265,10 +265,10 @@ export default function CallReview() {
   return (
     <div className="flex flex-col gap-3 pb-6 min-h-full lg:h-[calc(100vh-4rem)] lg:min-h-0">
       {/* Locked header: Filter bar + KPI Cards. On desktop the page is one fixed-height frame, so only the panes below scroll. */}
-      <div className="sticky top-14 md:top-16 lg:static lg:shrink-0 z-20 space-y-2 pb-2 pt-2 bg-[#faf8f5]/95 backdrop-blur-md border-b border-[#f0ece4]/60 px-2 sm:px-3 md:px-4">
+      <div className="sticky top-14 md:top-16 lg:static lg:shrink-0 z-20 space-y-2 pb-2 pt-2 bg-[#f8fafc]/95 backdrop-blur-md border-b border-[#f1f5f9]/60 px-2 sm:px-3 md:px-4">
         {/* Filter bar */}
         <div className={cn(CARD, "p-2.5 shadow-sm flex flex-wrap items-center gap-2 bg-white/90 backdrop-blur-sm")}>
-          <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#faf8f5] border border-[#f0ece4]" role="group" aria-label="Date range">
+          <div className="flex p-0.5 gap-0.5 rounded-xl bg-[#f8fafc] border border-[#f1f5f9]" role="group" aria-label="Date range">
             {PRESETS.map((p) => (
               <button
                 key={p.id}
@@ -276,7 +276,7 @@ export default function CallReview() {
                 aria-pressed={preset === p.id}
                 className={cn(
                   "px-3 py-1.5 rounded-lg font-label text-xs font-bold transition-all",
-                  preset === p.id ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  preset === p.id ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
                 )}
               >
                 {p.label}
@@ -292,9 +292,9 @@ export default function CallReview() {
                 max={to}
                 onChange={(e) => setFrom(e.target.value)}
                 aria-label="From date"
-                className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+                className="h-9 px-2 rounded-xl border border-[#e2e8f0] bg-white font-body text-xs"
               />
-              <span className="font-label text-xs text-[#a8a29e]">to</span>
+              <span className="font-label text-xs text-[#94a3b8]">to</span>
               <input
                 id="review-to"
                 type="date"
@@ -302,11 +302,11 @@ export default function CallReview() {
                 min={from}
                 onChange={(e) => setTo(e.target.value)}
                 aria-label="To date"
-                className="h-9 px-2 rounded-xl border border-[#e8e3db] bg-white font-body text-xs"
+                className="h-9 px-2 rounded-xl border border-[#e2e8f0] bg-white font-body text-xs"
               />
             </div>
           )}
-          <label htmlFor="review-caller" className="relative flex items-center h-9 pl-2 pr-7 gap-2 rounded-xl border border-[#e8e3db] bg-white">
+          <label htmlFor="review-caller" className="relative flex items-center h-9 pl-2 pr-7 gap-2 rounded-xl border border-[#e2e8f0] bg-white">
             <span className="w-6 h-6 rounded-full bg-primary text-white grid place-items-center font-label text-[10px] font-extrabold shrink-0">
               {selectedCaller ? initial(selectedCaller.name) : <Users size={12} />}
             </span>
@@ -317,7 +317,7 @@ export default function CallReview() {
                 setCallerId(e.target.value);
                 setSelectedId(null);
               }}
-              className="appearance-none bg-transparent font-body text-xs font-bold text-[#292524] focus:outline-none cursor-pointer max-w-[180px] truncate"
+              className="appearance-none bg-transparent font-body text-xs font-bold text-[#13284A] focus:outline-none cursor-pointer max-w-[180px] truncate"
             >
               <option value="">All telecallers</option>
               {callers.map((c) => (
@@ -326,10 +326,10 @@ export default function CallReview() {
                 </option>
               ))}
             </select>
-            <ChevronDown size={13} className="absolute right-2.5 text-[#a8a29e] pointer-events-none" />
+            <ChevronDown size={13} className="absolute right-2.5 text-[#94a3b8] pointer-events-none" />
           </label>
-          <label htmlFor="review-search" className="flex-1 min-w-[200px] flex items-center h-9 px-3 gap-2 rounded-xl border border-[#e8e3db] bg-white">
-            <Search size={14} className="text-[#a8a29e] shrink-0" />
+          <label htmlFor="review-search" className="flex-1 min-w-[200px] flex items-center h-9 px-3 gap-2 rounded-xl border border-[#e2e8f0] bg-white">
+            <Search size={14} className="text-[#94a3b8] shrink-0" />
             <input
               id="review-search"
               value={search}
@@ -389,12 +389,12 @@ export default function CallReview() {
               sub: callerId ? `${kpi.uncalled} assigned lead${kpi.uncalled === 1 ? "" : "s"} not called` : "in this range",
             },
           ].map((k) => (
-            <div key={k.label} className="px-3.5 py-2.5 border-[#f0ece4] border-l border-t -ml-px -mt-px min-w-0">
+            <div key={k.label} className="px-3.5 py-2.5 border-[#f1f5f9] border-l border-t -ml-px -mt-px min-w-0">
               <p className={EYEBROW}>{k.label}</p>
-              <p className="font-heading text-xl sm:text-2xl font-extrabold text-[#292524] tabular-nums mt-0.5 truncate">
-                {loading ? <span className="inline-block w-10 h-6 rounded bg-[#f0ece4] animate-pulse align-middle" /> : k.value}
+              <p className="font-heading text-xl sm:text-2xl font-extrabold text-[#13284A] tabular-nums mt-0.5 truncate">
+                {loading ? <span className="inline-block w-10 h-6 rounded bg-[#f1f5f9] animate-pulse align-middle" /> : k.value}
               </p>
-              <p className="font-label text-[11px] text-[#78716c] truncate">{k.sub}</p>
+              <p className="font-label text-[11px] text-[#475569] truncate">{k.sub}</p>
             </div>
           ))}
         </div>
@@ -404,7 +404,7 @@ export default function CallReview() {
       {/* Panes */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)] gap-4 items-start lg:items-stretch lg:flex-1 lg:min-h-0 lg:grid-rows-1 pt-1 px-2 sm:px-3 md:px-4">
         <aside className={cn(CARD, "flex flex-col lg:h-full lg:min-h-0 min-w-0")}>
-          <div className="flex flex-wrap gap-1 p-3 border-b border-[#f0ece4]">
+          <div className="flex flex-wrap gap-1 p-3 border-b border-[#f1f5f9]">
             {tabs.map((t) => (
               <button
                 key={t.id}
@@ -414,7 +414,7 @@ export default function CallReview() {
                   "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border font-label text-[11px] font-bold transition-colors",
                   activeTab === t.id
                     ? "bg-[var(--primary-50)] border-[var(--primary-200)] text-primary"
-                    : "bg-white border-[#e8e3db] text-[#78716c] hover:text-[#292524]",
+                    : "bg-white border-[#e2e8f0] text-[#475569] hover:text-[#13284A]",
                 )}
               >
                 {t.label}
@@ -431,8 +431,8 @@ export default function CallReview() {
               <p className="py-10 px-4 text-center font-body text-xs text-rose-700">{error}. Refresh the page to try again.</p>
             ) : visible.length === 0 ? (
               <div className="py-10 px-4 text-center">
-                <p className="font-body text-sm font-semibold text-[#78716c]">No leads match these filters</p>
-                <p className="font-label text-xs text-[#a8a29e] mt-1">Try a wider date range, another telecaller or another tab.</p>
+                <p className="font-body text-sm font-semibold text-[#475569]">No leads match these filters</p>
+                <p className="font-label text-xs text-[#94a3b8] mt-1">Try a wider date range, another telecaller or another tab.</p>
               </div>
             ) : (
               visible.map((r) => (
@@ -444,18 +444,18 @@ export default function CallReview() {
                     "w-full grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors",
                     selected?.id === r.id
                       ? "bg-[var(--primary-50)] border-[var(--primary-200)]"
-                      : "border-transparent hover:bg-[#faf8f5]",
+                      : "border-transparent hover:bg-[#f8fafc]",
                   )}
                 >
                   <span className="w-9 h-9 rounded-full bg-primary text-white grid place-items-center font-label text-sm font-extrabold">
                     {initial(r.name || r.phone)}
                   </span>
                   <span className="min-w-0">
-                    <span className="block font-body text-[13px] font-bold text-[#292524] truncate">
+                    <span className="block font-body text-[13px] font-bold text-[#13284A] truncate">
                       {r.name || formatPhone(r.phone) || "Unknown lead"}
                     </span>
-                    {r.name && <span className="block font-label text-[11px] text-[#78716c] truncate">{formatPhone(r.phone)}</span>}
-                    <span className="block font-label text-[11px] text-[#a8a29e] truncate">
+                    {r.name && <span className="block font-label text-[11px] text-[#475569] truncate">{formatPhone(r.phone)}</span>}
+                    <span className="block font-label text-[11px] text-[#94a3b8] truncate">
                       {r.last_call_at ? `Called ${timeAgo(r.last_call_at)}` : "Not called yet"}
                       {r.calls > 0 && ` · ${r.calls} call${r.calls === 1 ? "" : "s"}`}
                       {r.notes > 0 && ` · ${r.notes} note${r.notes === 1 ? "" : "s"}`}
@@ -479,8 +479,8 @@ export default function CallReview() {
               <div className="w-14 h-14 rounded-2xl bg-[var(--primary-50)] text-primary grid place-items-center mb-3">
                 <Phone size={22} />
               </div>
-              <h3 className="font-heading text-lg font-extrabold text-[#292524]">Pick a lead</h3>
-              <p className="font-body text-sm text-[#78716c] mt-1 max-w-sm">
+              <h3 className="font-heading text-lg font-extrabold text-[#13284A]">Pick a lead</h3>
+              <p className="font-body text-sm text-[#475569] mt-1 max-w-sm">
                 Choose a lead on the left to see each call&apos;s recording, score, summary and transcript, with the notes saved for it.
               </p>
             </div>
@@ -532,17 +532,17 @@ function LeadWorkspace({
 
   return (
     <>
-      <header className="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-[#f0ece4] lg:shrink-0">
+      <header className="flex flex-wrap items-center gap-4 px-5 py-4 border-b border-[#f1f5f9] lg:shrink-0">
         <span className="w-12 h-12 rounded-full bg-primary text-white grid place-items-center font-heading text-lg font-extrabold">
           {initial(lead.name || lead.phone)}
         </span>
         <div className="flex-1 min-w-[200px]">
-          <h2 className="font-heading text-xl font-extrabold text-[#292524] flex flex-wrap items-center gap-2">
+          <h2 className="font-heading text-xl font-extrabold text-[#13284A] flex flex-wrap items-center gap-2">
             {lead.name || formatPhone(lead.phone) || "Unknown lead"}
             {lead.segment && <SegmentBadge segment={lead.segment} />}
           </h2>
-          <p className="font-label text-xs text-[#78716c] mt-0.5">
-            {formatPhone(lead.phone)} · Assigned to <b className="text-[#292524]">{lead.assigned_to ? callerName(lead.assigned_to) : "nobody"}</b>
+          <p className="font-label text-xs text-[#475569] mt-0.5">
+            {formatPhone(lead.phone)} · Assigned to <b className="text-[#13284A]">{lead.assigned_to ? callerName(lead.assigned_to) : "nobody"}</b>
           </p>
         </div>
         <dl className="flex gap-5">
@@ -553,7 +553,7 @@ function LeadWorkspace({
           ].map(([k, v]) => (
             <div key={k}>
               <dt className={EYEBROW}>{k}</dt>
-              <dd className="font-heading text-base font-extrabold text-[#292524] tabular-nums">{v}</dd>
+              <dd className="font-heading text-base font-extrabold text-[#13284A] tabular-nums">{v}</dd>
             </div>
           ))}
         </dl>
@@ -566,14 +566,14 @@ function LeadWorkspace({
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] lg:flex-1 lg:min-h-0 lg:overflow-y-auto">
-        <div className="p-4 flex flex-col gap-3 min-w-0 xl:border-r border-[#f0ece4]">
+        <div className="p-4 flex flex-col gap-3 min-w-0 xl:border-r border-[#f1f5f9]">
           <p className={EYEBROW}>Calls in this range</p>
           {loading ? (
             <div className="py-10 flex justify-center">
               <Loader2 size={18} className="animate-spin text-primary" />
             </div>
           ) : calls.length === 0 ? (
-            <p className="rounded-2xl border border-[#e8e3db] bg-[#faf8f5] p-4 font-body text-xs text-[#78716c]">
+            <p className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-4 font-body text-xs text-[#475569]">
               No calls in the selected dates.{lead.assigned ? " This lead is assigned to the telecaller and still waiting for a call." : ""}
             </p>
           ) : (
@@ -586,11 +586,11 @@ function LeadWorkspace({
                     aria-pressed={call?.id === c.id}
                     className={cn(
                       "shrink-0 min-w-[175px] text-left rounded-xl border px-3 py-2 transition-all",
-                      call?.id === c.id ? "border-primary ring-2 ring-[var(--primary-100)]" : "border-[#e8e3db] hover:bg-[#faf8f5]",
+                      call?.id === c.id ? "border-primary ring-2 ring-[var(--primary-100)]" : "border-[#e2e8f0] hover:bg-[#f8fafc]",
                     )}
                   >
-                    <span className="block font-body text-[11px] font-bold text-[#292524] whitespace-nowrap">{callWhen(c.created_at)}</span>
-                    <span className="block font-label text-[10px] text-[#a8a29e] mt-0.5 mb-1.5 truncate">
+                    <span className="block font-body text-[11px] font-bold text-[#13284A] whitespace-nowrap">{callWhen(c.created_at)}</span>
+                    <span className="block font-label text-[10px] text-[#94a3b8] mt-0.5 mb-1.5 truncate">
                       {formatDuration(c.duration_seconds)} · {callerName(c.caller_id)}
                     </span>
                     <StatusPill call={c} />
@@ -619,13 +619,13 @@ function CallDetail({
   const resultKey = callResultKey(call);
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="rounded-2xl border border-[#e8e3db] p-3.5 flex flex-col gap-3">
+      <div className="rounded-2xl border border-[#e2e8f0] p-3.5 flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="font-body text-sm font-bold text-[#292524]">
+            <p className="font-body text-sm font-bold text-[#13284A]">
               {callWhen(call.created_at)} · {formatDuration(call.duration_seconds)}
             </p>
-            <p className="font-label text-[11px] text-[#78716c]">by {callerName(call.caller_id)}</p>
+            <p className="font-label text-[11px] text-[#475569]">by {callerName(call.caller_id)}</p>
           </div>
           {resultKey && (
             <span className={cn("px-2 py-0.5 rounded-full border font-label text-[10px] font-bold", TONE_CHIP[callResultTone(resultKey)])}>
@@ -636,20 +636,20 @@ function CallDetail({
         {call.recording_url ? (
           <audio key={call.id} src={call.recording_url} controls className="w-full h-9" />
         ) : (
-          <p className="font-label text-[11px] italic text-[#a8a29e]">No recording for this call.</p>
+          <p className="font-label text-[11px] italic text-[#94a3b8]">No recording for this call.</p>
         )}
       </div>
       {call.provider === "telecmi" ? (
         <CallAiDetail log={call} onChanged={onChanged} />
       ) : (
         call.ai_summary?.brief && (
-          <p className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5 font-body text-[11px] leading-relaxed text-[#44403c]">{call.ai_summary.brief}</p>
+          <p className="rounded-xl border border-[#f1f5f9] bg-white px-3 py-2.5 font-body text-[11px] leading-relaxed text-[#1e293b]">{call.ai_summary.brief}</p>
         )
       )}
       {call.ai_summary?.next_action && (
-        <div className="rounded-xl border border-[#f0ece4] bg-white px-3 py-2.5">
+        <div className="rounded-xl border border-[#f1f5f9] bg-white px-3 py-2.5">
           <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-primary mb-1">Next step</p>
-          <p className="font-body text-[11px] leading-relaxed text-[#44403c]">{call.ai_summary.next_action}</p>
+          <p className="font-body text-[11px] leading-relaxed text-[#1e293b]">{call.ai_summary.next_action}</p>
         </div>
       )}
     </div>
@@ -684,7 +684,7 @@ function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: st
   }
 
   return (
-    <aside className="p-4 flex flex-col gap-2.5 bg-[#faf8f5] rounded-b-2xl xl:rounded-bl-none xl:rounded-r-2xl min-w-0">
+    <aside className="p-4 flex flex-col gap-2.5 bg-[#f8fafc] rounded-b-2xl xl:rounded-bl-none xl:rounded-r-2xl min-w-0">
       <p className={cn(EYEBROW, "flex items-center gap-1.5")}>
         <StickyNote size={11} /> All notes on this lead · {notes.length}
       </p>
@@ -693,23 +693,23 @@ function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: st
           <Loader2 size={16} className="animate-spin text-primary" />
         </div>
       ) : notes.length === 0 ? (
-        <p className="font-body text-xs text-[#a8a29e]">No notes yet.</p>
+        <p className="font-body text-xs text-[#94a3b8]">No notes yet.</p>
       ) : (
         notes.map((n) => (
-          <div key={n.id} className={cn("rounded-xl border bg-white p-2.5 flex flex-col gap-1", n.is_pinned ? "border-amber-200" : "border-[#e8e3db]")}>
-            <div className="flex items-center gap-1.5 font-label text-[11px] text-[#78716c]">
+          <div key={n.id} className={cn("rounded-xl border bg-white p-2.5 flex flex-col gap-1", n.is_pinned ? "border-amber-200" : "border-[#e2e8f0]")}>
+            <div className="flex items-center gap-1.5 font-label text-[11px] text-[#475569]">
               <span className="w-[18px] h-[18px] rounded-full bg-primary text-white grid place-items-center text-[9px] font-extrabold">
                 {initial(author(n))}
               </span>
-              <b className="text-[#292524] truncate">{author(n)}</b>
+              <b className="text-[#13284A] truncate">{author(n)}</b>
               <span className="shrink-0">{n.created_at ? noteWhen(n.created_at) : ""}</span>
               {n.is_pinned && <Pin size={11} className="ml-auto text-amber-600 shrink-0" aria-label="Pinned" />}
             </div>
-            <p className="font-body text-xs text-[#57534e] whitespace-pre-wrap break-words">{n.content}</p>
+            <p className="font-body text-xs text-[#334155] whitespace-pre-wrap break-words">{n.content}</p>
             {!!n.tags?.length && (
               <div className="flex flex-wrap gap-1">
                 {n.tags.map((t) => (
-                  <span key={t} className="px-1.5 py-0.5 rounded-full border border-[#e8e3db] bg-[#faf8f5] font-label text-[9px] font-bold text-[#78716c]">
+                  <span key={t} className="px-1.5 py-0.5 rounded-full border border-[#e2e8f0] bg-[#f8fafc] font-label text-[9px] font-bold text-[#475569]">
                     {t}
                   </span>
                 ))}
@@ -718,7 +718,7 @@ function NotesRail({ leadId, callerName }: { leadId: string; callerName: (id: st
           </div>
         ))
       )}
-      <div className="rounded-xl border border-[#e8e3db] bg-white p-2 flex flex-col gap-1.5 mt-1">
+      <div className="rounded-xl border border-[#e2e8f0] bg-white p-2 flex flex-col gap-1.5 mt-1">
         <textarea
           id={`review-note-${leadId}`}
           value={draft}

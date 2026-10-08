@@ -131,17 +131,17 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
       <div className="grid flex-1 grid-cols-1 gap-4 pb-4 xl:grid-cols-12 xl:min-h-0 xl:pb-0">
         {/* Left Side: Lead List (4/12) */}
         <div className="flex flex-col gap-5 pr-0 xl:col-span-4 xl:min-h-0 xl:pr-1">
-          <div className="flex flex-1 flex-col rounded-3xl border border-[#e8e3db] bg-[#faf8f5] p-4 shadow-sm xl:min-h-0 xl:p-5">
+          <div className="flex flex-1 flex-col rounded-3xl border border-[#e2e8f0] bg-[#f8fafc] p-4 shadow-sm xl:min-h-0 xl:p-5">
             <div className="flex items-center justify-between mb-4 shrink-0">
               <div>
-                <h2 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Queue</h2>
-                <p className="font-body text-xs text-[#78716c] mt-0.5">{myLeads.length} leads assigned</p>
+                <h2 className="font-display text-xl font-extrabold text-[#0A1528] tracking-tight">Lead Queue</h2>
+                <p className="font-body text-xs text-[#475569] mt-0.5">{myLeads.length} leads assigned</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleDownloadCSV}
                   disabled={exporting || myLeads.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#e8e3db]/80 rounded-xl font-label text-xs font-bold hover:bg-[#faf8f5] transition-all text-[#44403c] shadow-sm hover:border-primary hover:text-primary disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#e2e8f0]/80 rounded-xl font-label text-xs font-bold hover:bg-[#f8fafc] transition-all text-[#1e293b] shadow-sm hover:border-primary hover:text-primary disabled:opacity-50 hover:scale-[1.01] active:scale-[0.99]"
                   title="Download CSV of all assigned leads"
                 >
                   {exporting ? <RefreshCw size={12} className="animate-spin text-primary" /> : <Download size={12} />}
@@ -162,19 +162,19 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
             {/* Search */}
             <div className="mb-4 shrink-0">
               <div className="relative">
-                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
                 <input
                   type="text"
                   placeholder="Search by name or phone..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#faf8f5] border border-[#e8e3db] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-inner"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#f8fafc] border border-[#e2e8f0] rounded-xl text-xs font-body focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-inner"
                 />
               </div>
             </div>
 
             {/* Sub-tabs */}
-            <div className="flex gap-0.5 p-0.5 bg-[#e8e3db]/60 rounded-2xl shrink-0 mb-4">
+            <div className="flex gap-0.5 p-0.5 bg-[#e2e8f0]/60 rounded-2xl shrink-0 mb-4">
               {[
                 { id: "new", label: `To Call (${newLeads.length})` },
                 { id: "callback", label: `Callbacks (${callbackLeads.length})` },
@@ -187,7 +187,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                   key={tab.id}
                   onClick={() => setQueueSubTab(tab.id as typeof queueSubTab)}
                   className={`flex-1 py-1.5 px-0 rounded-xl font-label text-[9.5px] font-extrabold text-center whitespace-nowrap transition-all ${
-                    queueSubTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-amber-700/70 hover:text-[#292524]"
+                    queueSubTab === tab.id ? "bg-white text-orange-600 shadow-sm" : "text-amber-700/70 hover:text-[#13284A]"
                   }`}
                 >
                   {tab.label}
@@ -204,19 +204,19 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
               </div>
             ) : myLeads.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col justify-center items-center">
-                <div className="w-12 h-12 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
+                <div className="w-12 h-12 bg-[#f8fafc] rounded-full flex items-center justify-center text-[#94a3b8] border border-[#f1f5f9] mb-3">
                   <Inbox size={18} />
                 </div>
-                <p className="font-body text-sm font-semibold text-[#78716c]">No leads assigned to you</p>
-                <p className="font-label text-xs text-[#a8a29e] mt-1">Queue automations will route hot leads as they arrive.</p>
+                <p className="font-body text-sm font-semibold text-[#475569]">No leads assigned to you</p>
+                <p className="font-label text-xs text-[#94a3b8] mt-1">Queue automations will route hot leads as they arrive.</p>
               </div>
             ) : activeSubTabLeads.length === 0 ? (
               <div className="text-center py-12 flex-1 flex flex-col justify-center items-center">
-                <div className="w-12 h-12 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
+                <div className="w-12 h-12 bg-[#f8fafc] rounded-full flex items-center justify-center text-[#94a3b8] border border-[#f1f5f9] mb-3">
                   <Inbox size={18} />
                 </div>
-                <p className="font-body text-sm font-semibold text-[#78716c]">No matching leads found</p>
-                <p className="font-label text-xs text-[#a8a29e] mt-1">Try switching tabs or adjusting your search query.</p>
+                <p className="font-body text-sm font-semibold text-[#475569]">No matching leads found</p>
+                <p className="font-label text-xs text-[#94a3b8] mt-1">Try switching tabs or adjusting your search query.</p>
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2 pr-1">
@@ -238,19 +238,19 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                     callBtnBg = "bg-amber-500 hover:bg-amber-600 shadow-amber-500/10";
                   } else if (isClosedLeadStatus(lead.call_status)) {
                     borderAccent = "border-l-[#d6cfc9]";
-                    avatarBg = "bg-[#a8a29e]";
-                    callBtnBg = "bg-[#a8a29e] hover:bg-[#78716c] shadow-[#78716c]/10";
+                    avatarBg = "bg-[#94a3b8]";
+                    callBtnBg = "bg-[#94a3b8] hover:bg-[#475569] shadow-[#475569]/10";
                   }
 
                   return [
                     showHeader && (
                       <div key={`${section}-header`} className="flex items-center gap-2 py-1">
-                        <div className="h-px flex-1 bg-[#e8e3db]" />
-                        <div className="flex max-w-[80%] items-center gap-2 rounded-full border border-[#e8e3db] bg-white px-2.5 py-1 shadow-sm">
-                          <span className="truncate font-label text-[9.5px] font-black uppercase tracking-wide text-[#57534e]">{queueSectionLabel[section]}</span>
-                          <span className="shrink-0 rounded-full bg-[#faf8f5] px-1.5 py-0.5 font-label text-[8px] font-bold text-[#78716c]">{queueSectionDetail[section]}</span>
+                        <div className="h-px flex-1 bg-[#e2e8f0]" />
+                        <div className="flex max-w-[80%] items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-2.5 py-1 shadow-sm">
+                          <span className="truncate font-label text-[9.5px] font-black uppercase tracking-wide text-[#334155]">{queueSectionLabel[section]}</span>
+                          <span className="shrink-0 rounded-full bg-[#f8fafc] px-1.5 py-0.5 font-label text-[8px] font-bold text-[#475569]">{queueSectionDetail[section]}</span>
                         </div>
-                        <div className="h-px flex-1 bg-[#e8e3db]" />
+                        <div className="h-px flex-1 bg-[#e2e8f0]" />
                       </div>
                     ),
                     <div
@@ -259,7 +259,7 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                       className={`rounded-2xl border-y border-r border-l-[6px] transition-all duration-200 cursor-pointer p-3 flex items-center justify-between gap-3 ${borderAccent} ${
                         isSelected
                           ? "bg-gradient-to-r from-primary-light/70 to-primary-50/20 border-primary-muted shadow-[0_4px_15px_rgba(var(--primary-500-rgb),0.06)] ring-1 ring-primary/10 translate-x-1"
-                          : "bg-[#faf8f5]/30 border-[#f0ece4] hover:bg-[#faf8f5] hover:shadow-sm"
+                          : "bg-[#f8fafc]/30 border-[#f1f5f9] hover:bg-[#f8fafc] hover:shadow-sm"
                       }`}
                     >
                       <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -268,16 +268,16 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="font-body text-sm font-bold text-[#292524] truncate">{lead.name || formatPhone(lead.phone)}</p>
+                            <p className="font-body text-sm font-bold text-[#13284A] truncate">{lead.name || formatPhone(lead.phone)}</p>
                             <SegmentBadge segment={lead.segment} />
                             {lead.call_status === "callback" && (
                               <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-label text-[8px] font-black uppercase">CALL LATER</span>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <p className="font-label text-xs text-[#78716c]">{lead.name ? formatPhone(lead.phone) : ""}</p>
+                            <p className="font-label text-xs text-[#475569]">{lead.name ? formatPhone(lead.phone) : ""}</p>
                           </div>
-                          <div className="flex items-center gap-1 text-[10px] text-[#a8a29e] mt-0.5">
+                          <div className="flex items-center gap-1 text-[10px] text-[#94a3b8] mt-0.5">
                             <Clock size={10} />
                             {lead.call_status === "callback" ? (
                               <span>Customer asked to call later</span>
@@ -309,28 +309,28 @@ export default function CallerView({ callerId, readOnly = false }: { callerId: s
         </div>
 
         {/* Right Side: Lead Profile (8/12) */}
-        <div className="hidden min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#e8e3db] bg-[#faf8f5] shadow-sm xl:col-span-8 xl:flex xl:min-h-0">
+        <div className="hidden min-h-[380px] flex-col overflow-hidden rounded-3xl border border-[#e2e8f0] bg-[#f8fafc] shadow-sm xl:col-span-8 xl:flex xl:min-h-0">
           <div className="flex-1 overflow-y-auto">
             {!cockpit.selectedLeadId ? (
-              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#faf8f5]/40 to-primary-light/10">
+              <div className="min-h-full flex flex-col items-center justify-center p-12 text-center bg-gradient-to-br from-[#f8fafc]/40 to-primary-light/10">
                 <div className="relative mb-6">
                   <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-full scale-150 animate-pulse" />
-                  <div className="relative p-6 rounded-3xl bg-white border border-[#f0ece4] shadow-md text-primary">
+                  <div className="relative p-6 rounded-3xl bg-white border border-[#f1f5f9] shadow-md text-primary">
                     <Sparkles size={38} className="text-primary" />
                   </div>
                 </div>
-                <h3 className="font-display text-xl font-extrabold text-[#1c1917] tracking-tight">Lead Profile Workspace</h3>
-                <p className="font-body text-sm text-[#78716c] max-w-md mt-2 leading-relaxed">
+                <h3 className="font-display text-xl font-extrabold text-[#0A1528] tracking-tight">Lead Profile Workspace</h3>
+                <p className="font-body text-sm text-[#475569] max-w-md mt-2 leading-relaxed">
                   Choose a lead from your active queue on the left to review campaign source attribution details, previous calls history, and log feedback notes.
                 </p>
                 <div className="grid grid-cols-2 gap-4 mt-8 w-full max-w-xs">
-                  <div className="p-4 bg-white border border-[#f0ece4] border-t-4 border-t-sky-400 rounded-2xl shadow-sm text-left">
-                    <span className="text-[10px] font-bold text-[#a8a29e] uppercase tracking-wider block">Total Queue</span>
-                    <span className="text-xl font-bold text-[#292524] mt-1 block">{myLeads.length}</span>
+                  <div className="p-4 bg-white border border-[#f1f5f9] border-t-4 border-t-sky-400 rounded-2xl shadow-sm text-left">
+                    <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider block">Total Queue</span>
+                    <span className="text-xl font-bold text-[#13284A] mt-1 block">{myLeads.length}</span>
                   </div>
-                  <div className="p-4 bg-white border border-[#f0ece4] border-t-4 border-t-amber-400 rounded-2xl shadow-sm text-left">
-                    <span className="text-[10px] font-bold text-[#a8a29e] uppercase tracking-wider block">Today Callbacks</span>
-                    <span className="text-xl font-bold text-[#292524] mt-1 block">{cockpit.todayCallbacks.length}</span>
+                  <div className="p-4 bg-white border border-[#f1f5f9] border-t-4 border-t-amber-400 rounded-2xl shadow-sm text-left">
+                    <span className="text-[10px] font-bold text-[#94a3b8] uppercase tracking-wider block">Today Callbacks</span>
+                    <span className="text-xl font-bold text-[#13284A] mt-1 block">{cockpit.todayCallbacks.length}</span>
                   </div>
                 </div>
               </div>

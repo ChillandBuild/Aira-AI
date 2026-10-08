@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AiraLogo } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 
 interface LegalPageShellProps {
   title: string;
@@ -15,7 +15,7 @@ export function LegalPageShell({ title, subtitle, effectiveDate, children }: Leg
       <header className="border-b border-border">
         <div className="max-w-3xl mx-auto px-6 py-6 flex items-center justify-between">
           <Link href="/" aria-label="Anril home">
-            <AiraLogo height={26} className="text-primary" />
+            <AnrilLogo height={26} className="text-ink" />
           </Link>
           <nav className="flex gap-5 text-sm text-ink-secondary">
             <Link href="/privacy-policy" className="hover:text-primary transition-colors">

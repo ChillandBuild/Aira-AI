@@ -13,11 +13,11 @@ import SalePicker from "./SalePicker";
 const CONNECT_ICON: Record<CallConnect, typeof PhoneCall> = {
   connected: PhoneCall, not_picked: PhoneMissed, busy: PhoneOff, switched_off: Power,
 };
-const LABEL = "font-label text-[10px] text-[#a8a29e] uppercase tracking-wider font-extrabold block mb-2";
+const LABEL = "font-label text-[10px] text-[#94a3b8] uppercase tracking-wider font-extrabold block mb-2";
 
 function chip(selected: boolean): string {
   return `px-3 py-1.5 rounded-full border font-label text-[11px] font-bold transition-all ${
-    selected ? "bg-primary border-primary text-white shadow-sm" : "bg-[#faf8f5] border-[#e8e3db] text-[#57534e] hover:border-primary-muted hover:text-primary"
+    selected ? "bg-primary border-primary text-white shadow-sm" : "bg-[#f8fafc] border-[#e2e8f0] text-[#334155] hover:border-primary-muted hover:text-primary"
   }`;
 }
 
@@ -74,20 +74,20 @@ export default function WrapupModal({
   const setTime = (iso: string | null) => onChange({ ...draft, nextActionAt: iso, retrySuggested: false });
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#1c1917]/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0A1528]/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="wrapup-title"
-        className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl border border-[#e8e3db] bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 sm:max-h-[92vh] sm:rounded-3xl sm:zoom-in-95"
+        className="flex max-h-[88vh] w-full max-w-lg flex-col rounded-t-3xl border border-[#e2e8f0] bg-white shadow-2xl animate-in fade-in slide-in-from-bottom-4 sm:max-h-[92vh] sm:rounded-3xl sm:zoom-in-95"
       >
-        <div className="border-b border-[#f0ece4] px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
+        <div className="border-b border-[#f1f5f9] px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
           <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 font-label text-[10px] font-black uppercase tracking-wider text-amber-700">
             {provider === "sim_basic" ? "SIM call" : "Cloud call"}
           </span>
-          <h3 id="wrapup-title" className="mt-2 font-display text-xl font-bold text-[#1c1917]">Wrap up the call</h3>
-          <p className="mt-0.5 font-body text-xs text-[#a8a29e]">
-            with <span className="font-semibold text-[#44403c]">{callee}</span>
+          <h3 id="wrapup-title" className="mt-2 font-display text-xl font-bold text-[#0A1528]">Wrap up the call</h3>
+          <p className="mt-0.5 font-body text-xs text-[#94a3b8]">
+            with <span className="font-semibold text-[#1e293b]">{callee}</span>
           </p>
         </div>
 
@@ -97,21 +97,21 @@ export default function WrapupModal({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="font-label text-[10px] font-black uppercase tracking-wider text-primary">Call timing</p>
-                  <p className="mt-0.5 font-body text-[11px] text-[#78716c]">Anril can&apos;t read SIM call time, so check it before saving.</p>
+                  <p className="mt-0.5 font-body text-[11px] text-[#475569]">Anril can&apos;t read SIM call time, so check it before saving.</p>
                 </div>
-                <span className="whitespace-nowrap rounded-xl bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#292524]">
+                <span className="whitespace-nowrap rounded-xl bg-white px-3 py-1.5 font-mono text-xs font-bold text-[#13284A]">
                   {seconds !== null ? `${Math.floor(seconds / 60)}m ${seconds % 60}s` : "0m"}
                 </span>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {([["Started", simTiming.startedAt, simTiming.setStartedAt], ["Ended", simTiming.endedAt, simTiming.setEndedAt]] as const).map(([label, value, set]) => (
                   <label key={label} className="block">
-                    <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">{label}</span>
+                    <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#94a3b8]">{label}</span>
                     <input
                       type="datetime-local"
                       value={value}
                       onChange={(e) => set(e.target.value)}
-                      className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </label>
                 ))}
@@ -134,20 +134,20 @@ export default function WrapupModal({
                     title={blocked ? "The call record shows nobody answered" : undefined}
                     onClick={() => onChange(selectConnect(draft, o.value, context))}
                     className={`flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-40 ${
-                      selected ? "border-primary bg-primary text-white shadow-md" : "border-[#e8e3db] bg-[#faf8f5] text-[#44403c] hover:bg-[#f0ece4]"
+                      selected ? "border-primary bg-primary text-white shadow-md" : "border-[#e2e8f0] bg-[#f8fafc] text-[#1e293b] hover:bg-[#f1f5f9]"
                     }`}
                   >
                     <Icon size={15} className="shrink-0" />
                     <span className="min-w-0">
                       <span className="block font-label text-xs font-bold">{o.label}</span>
-                      <span className={`block font-label text-[10px] ${selected ? "text-white/75" : "text-[#a8a29e]"}`}>{o.hint}</span>
+                      <span className={`block font-label text-[10px] ${selected ? "text-white/75" : "text-[#94a3b8]"}`}>{o.hint}</span>
                     </span>
                   </button>
                 );
               })}
             </div>
             {provider === "telecmi" && context?.connect_prefill && draft.manualStatus === context.connect_prefill && (
-              <p className="mt-2 font-label text-[10px] text-[#a8a29e]">Filled in from the call record. Change it if it&apos;s wrong.</p>
+              <p className="mt-2 font-label text-[10px] text-[#94a3b8]">Filled in from the call record. Change it if it&apos;s wrong.</p>
             )}
           </section>
 
@@ -175,7 +175,7 @@ export default function WrapupModal({
                       aria-pressed={selected}
                       onClick={() => onChange(selectOutcome(draft, o.value))}
                       className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left font-label text-xs font-bold transition-all ${
-                        selected ? `${TONE_CHIP[o.tone]} ring-2 ring-primary/30 ring-offset-1` : "border-[#e8e3db] bg-white text-[#44403c] hover:bg-[#faf8f5]"
+                        selected ? `${TONE_CHIP[o.tone]} ring-2 ring-primary/30 ring-offset-1` : "border-[#e2e8f0] bg-white text-[#1e293b] hover:bg-[#f8fafc]"
                       }`}
                     >
                       <span aria-hidden className="text-base leading-none">{o.emoji}</span>
@@ -217,7 +217,7 @@ export default function WrapupModal({
                   </button>
                 ))}
               </div>
-              <p className="mt-2 font-label text-[10px] text-[#a8a29e]">Your admin gets an alert to hand this lead to someone who speaks it.</p>
+              <p className="mt-2 font-label text-[10px] text-[#94a3b8]">Your admin gets an alert to hand this lead to someone who speaks it.</p>
             </section>
           )}
 
@@ -256,13 +256,13 @@ export default function WrapupModal({
               placeholder="What did the customer say? Need, budget, next step…"
               rows={3}
               maxLength={2000}
-              className="w-full resize-none rounded-2xl border border-[#e8e3db] bg-[#faf8f5] px-4 py-3 font-body text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full resize-none rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-4 py-3 font-body text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </section>
         </div>
 
-        <div className="space-y-2 border-t border-[#f0ece4] px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-7 sm:pb-5">
-          {problem && draft.manualStatus && <p className="text-center font-label text-[11px] text-[#a8a29e]">{problem}</p>}
+        <div className="space-y-2 border-t border-[#f1f5f9] px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] sm:px-7 sm:pb-5">
+          {problem && draft.manualStatus && <p className="text-center font-label text-[11px] text-[#94a3b8]">{problem}</p>}
           <button
             type="button"
             onClick={onSubmit}

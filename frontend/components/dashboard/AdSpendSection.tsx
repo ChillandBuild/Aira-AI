@@ -16,7 +16,7 @@ export function AdSpendSection() {
   return (
     <div className="card rounded-[32px] p-8">
       <h2 className="font-display font-bold text-ink mb-6 text-[18px]">Ad Spend</h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-[#f0ece4]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 divide-x divide-[#f1f5f9]">
         <div>
           <div className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Campaigns</div>
           <div className="font-display font-bold text-[32px] text-ink tracking-tight mt-2">{data.totals.campaigns}</div>

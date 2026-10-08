@@ -14,7 +14,7 @@ interface SalePickerProps {
   onChange: (patch: SalePatch) => void;
 }
 
-const STEP = "grid h-6 w-6 place-items-center rounded-lg border border-[#e8e3db] text-[#57534e] hover:bg-[#faf8f5]";
+const STEP = "grid h-6 w-6 place-items-center rounded-lg border border-[#e2e8f0] text-[#334155] hover:bg-[#f8fafc]";
 const MAX_PRODUCTS = 20;
 
 /** Converted: products from the catalog (price comes from the catalog) or one amount. */
@@ -53,8 +53,8 @@ export default function SalePicker({ mode, products, amountRupees, catalogItems,
           {products.length > 0 && (
             <ul className="space-y-1.5">
               {products.map((p) => (
-                <li key={p.catalogItemId} className="flex items-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-2.5 py-2">
-                  <span className="min-w-0 flex-1 truncate font-body text-xs font-semibold text-[#292524]">{p.name}</span>
+                <li key={p.catalogItemId} className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-2.5 py-2">
+                  <span className="min-w-0 flex-1 truncate font-body text-xs font-semibold text-[#13284A]">{p.name}</span>
                   <div className="flex items-center gap-1">
                     <button type="button" aria-label={`One less ${p.name}`} onClick={() => setQty(p.catalogItemId, p.qty - 1)} className={STEP}>
                       <Minus size={11} />
@@ -64,12 +64,12 @@ export default function SalePicker({ mode, products, amountRupees, catalogItems,
                       <Plus size={11} />
                     </button>
                   </div>
-                  <span className="w-16 text-right font-label text-[11px] font-bold tabular-nums text-[#44403c]">{formatRupees((p.pricePaise ?? 0) * p.qty)}</span>
+                  <span className="w-16 text-right font-label text-[11px] font-bold tabular-nums text-[#1e293b]">{formatRupees((p.pricePaise ?? 0) * p.qty)}</span>
                   <button
                     type="button"
                     aria-label={`Remove ${p.name}`}
                     onClick={() => onChange({ products: products.filter((x) => x.catalogItemId !== p.catalogItemId) })}
-                    className="text-[#a8a29e] hover:text-rose-600"
+                    className="text-[#94a3b8] hover:text-rose-600"
                   >
                     <X size={13} />
                   </button>
@@ -82,7 +82,7 @@ export default function SalePicker({ mode, products, amountRupees, catalogItems,
             onChange={(e) => add(e.target.value)}
             aria-label="Add a product"
             disabled={atLimit || catalogItems.length === 0}
-            className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs text-[#44403c] focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-body text-xs text-[#1e293b] focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           >
             <option value="">
               {atLimit ? `Limit reached — ${MAX_PRODUCTS} products max` : catalogItems.length === 0 ? "No products yet — enter the amount instead" : "Add a product…"}
@@ -96,8 +96,8 @@ export default function SalePicker({ mode, products, amountRupees, catalogItems,
           {products.length > 0 && <p className="text-right font-label text-xs font-bold text-emerald-800">Total {formatRupees(total)}</p>}
         </>
       ) : (
-        <label className="flex items-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2">
-          <span className="font-label text-sm font-bold text-[#57534e]">₹</span>
+        <label className="flex items-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2">
+          <span className="font-label text-sm font-bold text-[#334155]">₹</span>
           <input
             inputMode="decimal"
             value={amountRupees}

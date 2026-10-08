@@ -31,10 +31,10 @@ const TAG_CARD_BG: Record<string, string> = {
   "Pricing": "bg-primary-50/70 border-primary-100",
   "Visit": "bg-green-50/70 border-green-100",
   "Brochure": "bg-teal-50/70 border-teal-100",
-  "Not interested": "bg-[#f0ece4]/70 border-[#e8e3db]",
+  "Not interested": "bg-[#f1f5f9]/70 border-[#e2e8f0]",
   "Hot lead": "bg-orange-50/70 border-orange-100",
 };
-const DEFAULT_CARD_BG = "bg-white border-[#e8e3db]";
+const DEFAULT_CARD_BG = "bg-white border-[#e2e8f0]";
 const PINNED_CARD_BG = "bg-amber-50/60 border-amber-200";
 
 // Notes saved with a Title show "Title\n\nBody" — split them so the title can
@@ -63,7 +63,7 @@ const TAG_DOT_COLOR: Record<string, string> = {
   "Pricing": "bg-primary-400",
   "Visit": "bg-green-400",
   "Brochure": "bg-teal-400",
-  "Not interested": "bg-[#a8a29e]",
+  "Not interested": "bg-[#94a3b8]",
   "Hot lead": "bg-orange-400",
 };
 
@@ -90,7 +90,7 @@ export function outcomeDotColor(log: Pick<CallLog, "outcome" | "manual_status">)
 // ─── Sentiment ──────────────────────────────────────────────────────────────────
 const SENTIMENT_CHIP_COLOR: Record<string, string> = {
   positive: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  neutral: "bg-[#f0ece4] text-[#57534e] border-[#e8e3db]",
+  neutral: "bg-[#f1f5f9] text-[#334155] border-[#e2e8f0]",
   negative: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
@@ -105,7 +105,7 @@ const SENTIMENT_DOT_COLOR: Record<string, string> = {
 };
 
 export function sentimentDotColor(sentiment?: string | null): string {
-  return (sentiment && SENTIMENT_DOT_COLOR[sentiment.toLowerCase()]) || "bg-[#e8e3db]";
+  return (sentiment && SENTIMENT_DOT_COLOR[sentiment.toLowerCase()]) || "bg-[#e2e8f0]";
 }
 
 // Small dot-row showing sentiment per call, oldest → newest (logs arrive newest-first)
@@ -137,7 +137,7 @@ export function TimelineItem({
 }) {
   return (
     <div className="relative pl-6 pb-3 last:pb-0">
-      {!isLast && <span className="absolute left-[4.5px] top-3 bottom-0 w-px bg-[#e8e3db]" />}
+      {!isLast && <span className="absolute left-[4.5px] top-3 bottom-0 w-px bg-[#e2e8f0]" />}
       <span className={`absolute left-0 top-2 w-[11px] h-[11px] rounded-full ring-4 ring-white ${color}`} />
       {children}
     </div>
@@ -149,7 +149,7 @@ export const SEGMENT_COLORS: Record<string, string> = {
   A: "bg-rose-100 text-rose-600",
   B: "bg-[var(--primary-50)] text-primary",
   C: "bg-blue-50 text-blue-600",
-  D: "bg-[#f0ece4] text-[#78716c]",
+  D: "bg-[#f1f5f9] text-[#475569]",
 };
 export const SEGMENT_LABELS: Record<string, string> = {
   A: "Hot", B: "Warm", C: "Cold", D: "Not Interested",
@@ -198,14 +198,14 @@ export function TagSelector({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-[#e8e3db] font-label text-xs text-[#78716c] hover:text-[#292524] hover:bg-[#faf8f5] transition-colors"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-[#e2e8f0] font-label text-xs text-[#475569] hover:text-[#13284A] hover:bg-[#f8fafc] transition-colors"
       >
         <Tag size={11} />
         {selected.length > 0 ? `${selected.length} tag${selected.length > 1 ? "s" : ""}` : "Add tags"}
       </button>
       {open && (
-        <div className="absolute bottom-full mb-1 left-0 z-30 w-56 bg-white rounded-xl shadow-lg border border-[#e8e3db] p-3 space-y-2">
-          <p className="font-label text-[10px] text-[#a8a29e] uppercase tracking-wider">Select tags</p>
+        <div className="absolute bottom-full mb-1 left-0 z-30 w-56 bg-white rounded-xl shadow-lg border border-[#e2e8f0] p-3 space-y-2">
+          <p className="font-label text-[10px] text-[#94a3b8] uppercase tracking-wider">Select tags</p>
           <div className="flex flex-wrap gap-1.5">
             {PRESET_TAGS.map((t) => (
               <button
@@ -214,7 +214,7 @@ export function TagSelector({
                 className={`px-2 py-0.5 rounded-full border font-label text-[10px] font-semibold transition-all ${
                   selected.includes(t.label)
                     ? t.color + " ring-2 ring-offset-1 ring-current"
-                    : "bg-[#faf8f5] border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
+                    : "bg-[#f8fafc] border-[#e2e8f0] text-[#94a3b8] hover:border-[#d6cfc9]"
                 }`}
               >
                 {t.label}
@@ -227,13 +227,13 @@ export function TagSelector({
               onChange={(e) => setCustom(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
               placeholder="Custom tag…"
-              className="flex-1 px-2 py-1 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-label text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 px-2 py-1 rounded-lg bg-[#f8fafc] border border-[#e2e8f0] font-label text-xs focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button onClick={addCustom} className="px-2 py-1 rounded-lg bg-primary text-white font-label text-xs hover:bg-primary/90">
               <Plus size={11} />
             </button>
           </div>
-          <button onClick={() => setOpen(false)} className="w-full text-center font-label text-[10px] text-[#a8a29e] hover:text-[#44403c]">Done</button>
+          <button onClick={() => setOpen(false)} className="w-full text-center font-label text-[10px] text-[#94a3b8] hover:text-[#1e293b]">Done</button>
         </div>
       )}
     </div>
@@ -280,14 +280,14 @@ export function AiSummaryCard({
     // processing stage (or Retry when it failed) instead of an on-demand button.
     if (log.provider !== "telecmi" || !log.ai_status) return null;
     return (
-      <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[#e8e3db] shadow-sm hover:shadow-md transition-shadow">
+      <div className="p-4 bg-white rounded-2xl border border-[#e2e8f0] border-l-4 border-l-[#e2e8f0] shadow-sm hover:shadow-md transition-shadow">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           className="w-full flex items-center justify-between gap-2 text-left"
         >
           <div className="flex-1 min-w-0">
-            <p className="font-label text-xs font-semibold text-[#44403c]">
+            <p className="font-label text-xs font-semibold text-[#1e293b]">
               {formatDateTime(log.created_at)}
               {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
             </p>
@@ -297,12 +297,12 @@ export function AiSummaryCard({
               </span>
             )}
           </div>
-          <span className="p-1.5 rounded-lg text-[#a8a29e] shrink-0">
+          <span className="p-1.5 rounded-lg text-[#94a3b8] shrink-0">
             {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </span>
         </button>
         {open && (
-          <div className="mt-3 space-y-2.5 pt-3 border-t border-[#f0ece4]">
+          <div className="mt-3 space-y-2.5 pt-3 border-t border-[#f1f5f9]">
             {log.recording_url && (
               <audio controls preload="none" src={log.recording_url} className="w-full h-8" />
             )}
@@ -314,14 +314,14 @@ export function AiSummaryCard({
   }
 
   return (
-    <div className="p-4 bg-white rounded-2xl border border-[#e8e3db] border-l-4 border-l-[var(--primary-100)] shadow-sm hover:shadow-md transition-shadow">
+    <div className="p-4 bg-white rounded-2xl border border-[#e2e8f0] border-l-4 border-l-[var(--primary-100)] shadow-sm hover:shadow-md transition-shadow">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-2 text-left"
       >
         <div className="flex-1 min-w-0">
-          <p className="font-label text-xs font-semibold text-[#44403c]">
+          <p className="font-label text-xs font-semibold text-[#1e293b]">
             {formatDateTime(log.created_at)}
             {log.duration_seconds != null && ` · ${log.duration_seconds}s`}
           </p>
@@ -338,21 +338,21 @@ export function AiSummaryCard({
             )}
           </div>
           {s.brief && !open && (
-            <p className="font-body text-xs text-[#78716c] mt-1.5 truncate max-w-xl">
+            <p className="font-body text-xs text-[#475569] mt-1.5 truncate max-w-xl">
               {s.brief}
             </p>
           )}
         </div>
-        <span className="p-1.5 rounded-lg text-[#a8a29e] shrink-0">
+        <span className="p-1.5 rounded-lg text-[#94a3b8] shrink-0">
           {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </span>
       </button>
       {open && (
-        <div className="mt-3 space-y-2 pt-3 border-t border-[#f0ece4]">
+        <div className="mt-3 space-y-2 pt-3 border-t border-[#f1f5f9]">
           {s.brief && (
-            <div className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl">
+            <div className="p-3 bg-[#f8fafc] border border-[#f1f5f9] rounded-xl">
               <p className="font-label text-[10px] font-bold text-primary uppercase tracking-wide mb-1">Call Brief</p>
-              <p className="font-body text-xs text-[#44403c] leading-relaxed font-medium">
+              <p className="font-body text-xs text-[#1e293b] leading-relaxed font-medium">
                 {s.brief}
               </p>
             </div>
@@ -366,8 +366,8 @@ export function AiSummaryCard({
             const prev = prevSummary?.[k];
             const changed = !!prev && prev !== v;
             return (
-              <p key={k} className="font-body text-xs text-[#57534e]">
-                <span className="font-semibold text-[#292524]">{SUMMARY_FIELD_LABELS[k]}:</span> {v}
+              <p key={k} className="font-body text-xs text-[#334155]">
+                <span className="font-semibold text-[#13284A]">{SUMMARY_FIELD_LABELS[k]}:</span> {v}
                 {changed && (
                   <span className="ml-1.5 px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 font-label text-[9px] font-bold align-middle">
                     was {prev}
@@ -394,14 +394,14 @@ export function AiSummaryCard({
             <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
               <audio ref={audioRef} controls src={log.recording_url} className="w-full h-8" />
               <div className="flex items-center gap-1">
-                <span className="font-label text-[9px] text-[#a8a29e] uppercase mr-1">Speed</span>
+                <span className="font-label text-[9px] text-[#94a3b8] uppercase mr-1">Speed</span>
                 {PLAYBACK_RATES.map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => setPlaybackRate(r)}
                     className={`px-1.5 py-0.5 rounded font-label text-[9px] font-bold transition-colors ${
-                      rate === r ? "bg-primary text-white" : "bg-[#f0ece4] text-[#78716c] hover:bg-[#e8e3db]"
+                      rate === r ? "bg-primary text-white" : "bg-[#f1f5f9] text-[#475569] hover:bg-[#e2e8f0]"
                     }`}
                   >
                     {r}x

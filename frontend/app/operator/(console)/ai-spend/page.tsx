@@ -256,15 +256,15 @@ export default function AiSpendPage() {
                     <div style={{ width: "100%", minWidth: `${data.daily.length * MIN_BAR_WIDTH}px` }}>
                       <ResponsiveContainer width="100%" height={200}>
                         <BarChart data={data.daily} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                           <XAxis
                             dataKey="date"
-                            tick={{ fontSize: 10, fill: "#a8a29e" }}
+                            tick={{ fontSize: 10, fill: "#94a3b8" }}
                             tickFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                           />
-                          <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} tickFormatter={fmt} allowDecimals={false} />
+                          <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={fmt} allowDecimals={false} />
                           <Tooltip
-                            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
+                            contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
                             labelFormatter={(d) => new Date(String(d)).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                             formatter={(value, name) => [fmt(Number(value) || 0), PROVIDER_LABELS[String(name)] || String(name)]}
                           />

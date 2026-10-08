@@ -38,7 +38,7 @@ function LeadBadge({ note, onClick }: { note: NoteWithLead; onClick?: () => void
       <div className="w-5 h-5 rounded-full bg-primary text-white flex items-center justify-center font-display text-[9px] font-bold shrink-0">
         {lead.name ? lead.name.charAt(0).toUpperCase() : <User size={9} />}
       </div>
-      <span className="font-label text-xs font-bold text-[#44403c] truncate">
+      <span className="font-label text-xs font-bold text-[#1e293b] truncate">
         {lead.name || formatPhone(lead.phone)}
       </span>
       <span className={`px-1.5 py-0.5 rounded font-label text-[8px] font-black uppercase shrink-0 ${SEGMENT_COLORS[lead.segment]}`}>
@@ -66,7 +66,7 @@ export default function NoteCard({
           onChange={(e) => onContentChange(e.target.value)}
           rows={3}
           autoFocus
-          className="w-full px-3 py-2 rounded-lg bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+          className="w-full px-3 py-2 rounded-lg bg-white border border-[#e2e8f0] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
         />
         <div className="flex items-center justify-between gap-2 flex-wrap mt-2">
           <div className="flex items-center gap-3">
@@ -78,7 +78,7 @@ export default function NoteCard({
               className="flex select-none items-center gap-1.5"
             >
               <TickMark checked={editPinned} size="sm" />
-              <span className="font-label text-xs text-[#78716c]">Pinned</span>
+              <span className="font-label text-xs text-[#475569]">Pinned</span>
             </button>
             <TagSelector selected={editTags} onChange={onTagsChange} />
           </div>
@@ -88,7 +88,7 @@ export default function NoteCard({
               {saving ? "Saving…" : "Save"}
             </button>
             <button onClick={onCancel}
-              className="px-3 py-1.5 bg-white border border-[#e8e3db] rounded-lg font-label text-xs font-semibold hover:bg-[#faf8f5] transition-colors">
+              className="px-3 py-1.5 bg-white border border-[#e2e8f0] rounded-lg font-label text-xs font-semibold hover:bg-[#f8fafc] transition-colors">
               Cancel
             </button>
           </div>
@@ -118,27 +118,27 @@ export default function NoteCard({
               onClick={() => setExpanded((v) => !v)}
               className="flex-1 min-w-0 flex items-center gap-1.5 text-left"
             >
-              <p className="flex-1 min-w-0 font-body text-sm font-bold text-[#292524] truncate">{title}</p>
-              {expanded ? <ChevronUp size={12} className="text-[#a8a29e] shrink-0" /> : <ChevronDown size={12} className="text-[#a8a29e] shrink-0" />}
+              <p className="flex-1 min-w-0 font-body text-sm font-bold text-[#13284A] truncate">{title}</p>
+              {expanded ? <ChevronUp size={12} className="text-[#94a3b8] shrink-0" /> : <ChevronDown size={12} className="text-[#94a3b8] shrink-0" />}
             </button>
           ) : (
-            <p className="flex-1 min-w-0 font-body text-sm text-[#44403c] truncate">{note.content}</p>
+            <p className="flex-1 min-w-0 font-body text-sm text-[#1e293b] truncate">{note.content}</p>
           )}
           <div className="flex items-center gap-1.5 shrink-0">
             {(note.tags ?? []).slice(0, 2).map((t) => <TagChip key={t} label={t} />)}
           </div>
-          <span className="font-label text-[10px] text-[#a8a29e] shrink-0">{formatDateTime(note.created_at)}</span>
+          <span className="font-label text-[10px] text-[#94a3b8] shrink-0">{formatDateTime(note.created_at)}</span>
           <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={onStartEdit} className="p-1.5 rounded-lg hover:bg-white transition-colors text-[#a8a29e] hover:text-[#44403c]">
+            <button onClick={onStartEdit} className="p-1.5 rounded-lg hover:bg-white transition-colors text-[#94a3b8] hover:text-[#1e293b]">
               <Pencil size={12} />
             </button>
-            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-[#a8a29e] hover:text-red-500">
+            <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-[#94a3b8] hover:text-red-500">
               <Trash2 size={12} />
             </button>
           </div>
         </div>
         {title && expanded && (
-          <p className="mt-2 pt-2 border-t border-black/5 font-body text-xs text-[#57534e] whitespace-pre-wrap">{body || "—"}</p>
+          <p className="mt-2 pt-2 border-t border-black/5 font-body text-xs text-[#334155] whitespace-pre-wrap">{body || "—"}</p>
         )}
       </div>
     );
@@ -158,15 +158,15 @@ export default function NoteCard({
             onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-1.5 w-full text-left"
           >
-            <p className="flex-1 min-w-0 font-body text-sm font-bold text-[#292524] truncate">{title}</p>
-            {expanded ? <ChevronUp size={12} className="text-[#a8a29e] shrink-0" /> : <ChevronDown size={12} className="text-[#a8a29e] shrink-0" />}
+            <p className="flex-1 min-w-0 font-body text-sm font-bold text-[#13284A] truncate">{title}</p>
+            {expanded ? <ChevronUp size={12} className="text-[#94a3b8] shrink-0" /> : <ChevronDown size={12} className="text-[#94a3b8] shrink-0" />}
           </button>
           {expanded && (
-            <p className="font-body text-sm text-[#44403c] whitespace-pre-wrap line-clamp-6 mt-1.5">{body || "—"}</p>
+            <p className="font-body text-sm text-[#1e293b] whitespace-pre-wrap line-clamp-6 mt-1.5">{body || "—"}</p>
           )}
         </>
       ) : (
-        <p className="font-body text-sm text-[#44403c] whitespace-pre-wrap line-clamp-6">{note.content}</p>
+        <p className="font-body text-sm text-[#1e293b] whitespace-pre-wrap line-clamp-6">{note.content}</p>
       )}
       {(note.tags ?? []).length > 0 && (
         <div className="flex items-center gap-1.5 mt-3 flex-wrap">
@@ -174,12 +174,12 @@ export default function NoteCard({
         </div>
       )}
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-black/5">
-        <span className="font-label text-[10px] text-[#a8a29e]">{formatDateTime(note.created_at)}</span>
+        <span className="font-label text-[10px] text-[#94a3b8]">{formatDateTime(note.created_at)}</span>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onStartEdit} className="p-1.5 rounded-lg hover:bg-white transition-colors text-[#a8a29e] hover:text-[#44403c]">
+          <button onClick={onStartEdit} className="p-1.5 rounded-lg hover:bg-white transition-colors text-[#94a3b8] hover:text-[#1e293b]">
             <Pencil size={12} />
           </button>
-          <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-[#a8a29e] hover:text-red-500">
+          <button onClick={onDelete} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-[#94a3b8] hover:text-red-500">
             <Trash2 size={12} />
           </button>
         </div>

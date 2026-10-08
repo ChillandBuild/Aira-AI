@@ -2020,7 +2020,7 @@ export default function OutboundLeadsPage() {
                   {/* Phone Mockup */}
                   <div className="border border-surface-mid rounded-[24px] overflow-hidden bg-[#efeae2] shadow-inner relative max-w-sm mx-auto">
                     {/* Phone Header */}
-                    <div className="bg-[#075e54] text-white px-3 py-2 flex items-center gap-2">
+                    <div className="bg-primary-950 text-white px-3 py-2 flex items-center gap-2">
                       <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-display text-[10px] font-bold shrink-0">
                         A
                       </div>
@@ -2193,12 +2193,12 @@ export default function OutboundLeadsPage() {
                         <p className="font-display text-xl font-bold text-amber-600">{riskSummary.high_no_reply_count}</p>
                         <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Silent 2+</p>
                       </div>
-                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
-                        <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.opted_out_count}</p>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e2e8f0]">
+                        <p className="font-display text-xl font-bold text-[#334155]">{riskSummary.opted_out_count}</p>
                         <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Opted Out</p>
                       </div>
-                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e8e3db]">
-                        <p className="font-display text-xl font-bold text-[#57534e]">{riskSummary.tag_opted_out_count}</p>
+                      <div className="p-2.5 bg-white/95 rounded-xl border border-[#e2e8f0]">
+                        <p className="font-display text-xl font-bold text-[#334155]">{riskSummary.tag_opted_out_count}</p>
                         <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold mt-0.5">Tag Opt-Out</p>
                       </div>
                       <div className="p-2.5 bg-white/95 rounded-xl border border-green-100">
@@ -2314,7 +2314,7 @@ export default function OutboundLeadsPage() {
                 {/* Phone Mockup */}
                 <div className="border border-surface-mid rounded-[24px] overflow-hidden bg-[#efeae2] shadow-inner relative max-w-sm mx-auto">
                   {/* Phone Header */}
-                  <div className="bg-[#075e54] text-white px-3 py-2 flex items-center gap-2">
+                  <div className="bg-primary-950 text-white px-3 py-2 flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center font-display text-[10px] font-bold shrink-0">
                       A
                     </div>

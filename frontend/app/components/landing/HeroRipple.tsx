@@ -26,8 +26,8 @@ interface Mote {
   phase: number; // twinkle phase
 }
 
-const RING_VIOLET = PRIMARY_RGB[600]; // #7c3aed
-const RING_DEEP = PRIMARY_RGB[800]; // #5b21b6
+const RING_VIOLET = PRIMARY_RGB[600]; // brand primary-600
+const RING_DEEP = PRIMARY_RGB[800]; // brand primary-800 (teal)
 
 /**
  * The hero's living atmosphere. Slow violet light-motes drift like wind/breath,

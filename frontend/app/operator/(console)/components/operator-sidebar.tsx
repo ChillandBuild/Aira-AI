@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { AiraLogo } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 import { AlertBell } from "./alert-bell";
 import { ConfirmModal } from "@/components/ConfirmModal";
 
@@ -48,7 +48,7 @@ export function OperatorSidebar({ userEmail }: { userEmail: string }) {
         {/* Left: Logo + Nav */}
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
-            <AiraLogo className="h-5 w-auto text-ink" />
+            <AnrilLogo className="h-5 w-auto text-ink" />
             <span className="text-[10px] font-semibold text-primary uppercase tracking-[0.15em] bg-primary-light rounded px-2 py-0.5">
               Operator
             </span>

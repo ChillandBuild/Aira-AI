@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { API_URL } from "@/lib/api";
-import { AiraLogo } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 
 export default function OperatorLoginPage() {
   const router = useRouter();
@@ -62,7 +62,7 @@ export default function OperatorLoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-2">
-            <AiraLogo className="h-7 w-auto text-ink" />
+            <AnrilLogo className="h-7 w-auto text-ink" />
           </div>
           <p className="text-xs text-ink-muted mt-1.5 uppercase tracking-widest font-semibold font-label">
             Operator Console

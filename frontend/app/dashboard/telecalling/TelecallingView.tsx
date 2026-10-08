@@ -43,8 +43,8 @@ export function TelecallingView({ initialRole, initialCallerId, initialPermissio
 
   if (!canViewTelecalling) {
     return (
-      <div className="flex min-h-[400px] items-center justify-center rounded-3xl border border-[#e8e3db] bg-[#faf8f5] p-8 text-center">
-        <p className="font-body text-sm text-[#78716c]">This section is not available for this role.</p>
+      <div className="flex min-h-[400px] items-center justify-center rounded-3xl border border-[#e2e8f0] bg-[#f8fafc] p-8 text-center">
+        <p className="font-body text-sm text-[#475569]">This section is not available for this role.</p>
       </div>
     );
   }

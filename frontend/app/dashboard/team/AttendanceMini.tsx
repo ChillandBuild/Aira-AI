@@ -114,23 +114,23 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Filters */}
-          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-            <span className="font-label text-[9px] text-[#78716c] font-bold uppercase pl-1">Filter:</span>
+          <div className="flex items-center gap-1.5 bg-[#f8fafc] p-1.5 rounded-xl border border-[#e2e8f0]">
+            <span className="font-label text-[9px] text-[#475569] font-bold uppercase pl-1">Filter:</span>
             <input
               type="date"
               value={fromFilter}
               max={toFilter}
               onChange={(e) => setFromFilter(e.target.value)}
-              className="px-1 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-[10px] text-[#292524] focus:outline-none w-24"
+              className="px-1 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-[10px] text-[#13284A] focus:outline-none w-24"
             />
-            <span className="text-[#a8a29e] text-[10px]">to</span>
+            <span className="text-[#94a3b8] text-[10px]">to</span>
             <input
               type="date"
               value={toFilter}
               min={fromFilter}
               max={today}
               onChange={(e) => setToFilter(e.target.value)}
-              className="px-1 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-[10px] text-[#292524] focus:outline-none w-24"
+              className="px-1 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-[10px] text-[#13284A] focus:outline-none w-24"
             />
             <button
               onClick={handleExportCsv}
@@ -151,7 +151,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
             <UserCheck size={14} />
           </div>
           <div>
-            <span className="block font-display font-black text-[#1c1917] leading-none text-lg">
+            <span className="block font-display font-black text-[#0A1528] leading-none text-lg">
               {presentCount}
             </span>
             <span className="text-emerald-700 font-label text-[8px] uppercase font-bold tracking-wider mt-0.5 block">
@@ -165,7 +165,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
             <UserX size={14} />
           </div>
           <div>
-            <span className="block font-display font-black text-[#1c1917] leading-none text-lg">
+            <span className="block font-display font-black text-[#0A1528] leading-none text-lg">
               {absentCount}
             </span>
             <span className="text-rose-700 font-label text-[8px] uppercase font-bold tracking-wider mt-0.5 block">
@@ -179,7 +179,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
             <Percent size={14} />
           </div>
           <div>
-            <span className="block font-display font-black text-[#1c1917] leading-none text-lg">
+            <span className="block font-display font-black text-[#0A1528] leading-none text-lg">
               {rate}%
             </span>
             <span className="text-primary font-label text-[8px] uppercase font-bold tracking-wider mt-0.5 block">
@@ -191,14 +191,14 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
 
       {/* Admin Attendance Marker Panel */}
       {!readOnly && (
-        <div className="flex flex-wrap items-center gap-2 mb-6 p-3 rounded-2xl bg-[#faf8f5] border border-[#e8e3db]/60 shadow-inner">
-          <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Mark Attendance:</span>
+        <div className="flex flex-wrap items-center gap-2 mb-6 p-3 rounded-2xl bg-[#f8fafc] border border-[#e2e8f0]/60 shadow-inner">
+          <span className="font-label text-[10px] text-[#475569] font-bold uppercase pl-1">Mark Attendance:</span>
           <input
             type="date"
             value={markDate}
             max={today}
             onChange={(e) => setMarkDate(e.target.value)}
-            className="input h-8 px-2.5 text-xs w-auto border border-[#e8e3db] focus:outline-none rounded-xl"
+            className="input h-8 px-2.5 text-xs w-auto border border-[#e2e8f0] focus:outline-none rounded-xl"
           />
           <button
             onClick={() => mark("present")}
@@ -237,7 +237,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
               key={m.key}
               className="rounded-xl border border-border-subtle/80 bg-surface p-1.5 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-150 max-w-[170px] w-full mx-auto"
             >
-              <div className="text-center text-[9.5px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#faf8f5] py-0.5 rounded-md border border-[#f0ece4]">
+              <div className="text-center text-[9.5px] font-label font-bold text-primary mb-1.5 tracking-wide bg-[#f8fafc] py-0.5 rounded-md border border-[#f1f5f9]">
                 {m.label}
               </div>
               <div className="grid grid-cols-7 gap-[1px] mb-1">
@@ -270,8 +270,8 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
                         "bg-gradient-to-br from-sky-400 to-sky-500 border border-sky-500/20 shadow-[0_1px_2px_rgba(14,165,233,0.15)] hover:from-sky-500 hover:to-sky-600 hover:scale-105 transition-all cursor-pointer";
                       textClass = "text-white font-bold";
                     } else {
-                      cellClass = "bg-[#faf8f5] border border-[#f0ece4] hover:bg-[#f0ece4]";
-                      textClass = "text-[#a8a29e]/80 font-medium";
+                      cellClass = "bg-[#f8fafc] border border-[#f1f5f9] hover:bg-[#f1f5f9]";
+                      textClass = "text-[#94a3b8]/80 font-medium";
                     }
 
                     return (
@@ -303,7 +303,7 @@ export default function AttendanceMini({ callerId, readOnly = false }: Attendanc
           <span className="w-2.5 h-2.5 rounded bg-gradient-to-br from-sky-400 to-sky-500 inline-block border border-sky-500/10 shadow-sm" /> Holiday
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded bg-[#faf8f5] inline-block border border-[#f0ece4]" /> Future / No Data
+          <span className="w-2.5 h-2.5 rounded bg-[#f8fafc] inline-block border border-[#f1f5f9]" /> Future / No Data
         </div>
       </div>
     </div>

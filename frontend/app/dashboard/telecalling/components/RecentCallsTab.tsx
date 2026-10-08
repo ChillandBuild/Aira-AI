@@ -62,11 +62,11 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
   if (logs.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center py-12 text-center">
-        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mb-3">
+        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#94a3b8] border border-[#f1f5f9] mb-3">
           <Phone size={18} />
         </div>
-        <p className="font-body text-sm font-semibold text-[#78716c]">No calls yet</p>
-        <p className="font-label text-xs text-[#a8a29e] mt-1">Calls appear here as soon as they end.</p>
+        <p className="font-body text-sm font-semibold text-[#475569]">No calls yet</p>
+        <p className="font-label text-xs text-[#94a3b8] mt-1">Calls appear here as soon as they end.</p>
       </div>
     );
   }
@@ -74,12 +74,12 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
   return (
     <div className="flex-1 overflow-y-auto pr-1">
       <div className="flex items-center justify-between mb-2">
-        <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#a8a29e]">
+        <p className="font-label text-[9px] uppercase tracking-widest font-extrabold text-[#94a3b8]">
           Last {logs.length} calls
         </p>
         <button
           onClick={() => void load()}
-          className="flex items-center gap-1 font-label text-[9px] font-bold uppercase tracking-wider text-[#a8a29e] hover:text-[#57534e] transition-colors"
+          className="flex items-center gap-1 font-label text-[9px] font-bold uppercase tracking-wider text-[#94a3b8] hover:text-[#334155] transition-colors"
         >
           <RefreshCw size={10} /> Refresh
         </button>
@@ -90,29 +90,29 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
           const expanded = expandedId === log.id;
           const resultKey = callResultKey(log);
           return (
-            <div key={log.id} className="bg-white border border-[#e8e3db] rounded-2xl shadow-sm overflow-hidden">
+            <div key={log.id} className="bg-white border border-[#e2e8f0] rounded-2xl shadow-sm overflow-hidden">
               <button
                 onClick={() => setExpandedId(expanded ? null : log.id)}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[#faf8f5] transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-[#f8fafc] transition-colors"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="font-body text-xs font-bold text-[#292524] truncate">
+                  <p className="font-body text-xs font-bold text-[#13284A] truncate">
                     {log.leads?.name || formatPhone(log.leads?.phone) || "Unknown lead"}
                   </p>
-                  <p className="font-label text-[10px] text-[#a8a29e] mt-0.5 truncate">
+                  <p className="font-label text-[10px] text-[#94a3b8] mt-0.5 truncate">
                     by {log.callers?.name || "Admin"}
                   </p>
                 </div>
                 <ChevronDown
                   size={13}
-                  className={`shrink-0 text-[#a8a29e] transition-transform ${expanded ? "rotate-180" : ""}`}
+                  className={`shrink-0 text-[#94a3b8] transition-transform ${expanded ? "rotate-180" : ""}`}
                 />
               </button>
 
               {expanded && (
-                <div className="px-3 pb-3 pt-2 border-t border-[#f0ece4] space-y-2.5">
+                <div className="px-3 pb-3 pt-2 border-t border-[#f1f5f9] space-y-2.5">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="font-label text-[10px] text-[#a8a29e]">
+                    <span className="font-label text-[10px] text-[#94a3b8]">
                       {timeAgo(log.created_at)} · {formatDuration(log.duration_seconds)}
                     </span>
                     {resultKey && (
@@ -125,13 +125,13 @@ export default function RecentCallsTab({ callerId, onSelectLead }: RecentCallsTa
                   {log.recording_url ? (
                     <audio src={log.recording_url} controls className="w-full h-8" />
                   ) : (
-                    <p className="font-label text-[10px] italic text-[#a8a29e]">No recording for this call.</p>
+                    <p className="font-label text-[10px] italic text-[#94a3b8]">No recording for this call.</p>
                   )}
                   {log.provider === "telecmi" ? (
                     <CallAiDetail log={log} onChanged={() => void load(true)} />
                   ) : (
                     log.ai_summary?.brief && (
-                      <p className="font-body text-[11px] leading-relaxed text-[#57534e]">{log.ai_summary.brief}</p>
+                      <p className="font-body text-[11px] leading-relaxed text-[#334155]">{log.ai_summary.brief}</p>
                     )
                   )}
                   {log.lead_id && onSelectLead && (

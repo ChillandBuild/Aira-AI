@@ -139,13 +139,13 @@ function PerformanceKpiCard({
   tone?: string;
 }) {
   return (
-    <div className={cn("group flex items-center gap-4 rounded-2xl border border-[#e8e3db]/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md border-t-4", tone)}>
+    <div className={cn("group flex items-center gap-4 rounded-2xl border border-[#e2e8f0]/80 bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md border-t-4", tone)}>
       <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} />
       </span>
       <span className="min-w-0">
-        <span className="block font-display text-2xl font-bold leading-none tabular-nums text-[#1c1917]">{value}</span>
-        <span className="mt-0.5 block font-label text-xs font-medium text-[#a8a29e]">{label}</span>
+        <span className="block font-display text-2xl font-bold leading-none tabular-nums text-[#0A1528]">{value}</span>
+        <span className="mt-0.5 block font-label text-xs font-medium text-[#94a3b8]">{label}</span>
         <span className="mt-1 block truncate font-body text-[9px] leading-none text-stone-400" title={description}>
           {description}
         </span>
@@ -555,11 +555,11 @@ export function AdPerformanceTab() {
             </button>
             {showColumns && (
               <div role="dialog" aria-label="Customize ad performance columns"
-                className="absolute right-0 top-11 z-30 flex max-h-[22rem] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e8e3db] bg-white p-3 shadow-xl">
+                className="absolute right-0 top-11 z-30 flex max-h-[22rem] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal size={13} className="text-primary-600" />
-                    <span className="font-label text-xs font-bold text-[#292524]">Customize metrics</span>
+                    <span className="font-label text-xs font-bold text-[#13284A]">Customize metrics</span>
                   </div>
                   <button type="button" onClick={() => setVisibleMetrics(new Set(DEFAULT_METRICS))}
                     className="flex items-center gap-1 font-label text-[10px] font-bold text-primary-600 hover:text-primary-800">
@@ -637,7 +637,7 @@ export function AdPerformanceTab() {
                   <option value="">All campaigns</option>
                   {(filters?.campaigns ?? []).map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
                 </select>
-                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
             <div>
@@ -648,7 +648,7 @@ export function AdPerformanceTab() {
                   <option value="">All ad sets</option>
                   {adsetOptions.map((adset) => <option key={adset.id} value={adset.id}>{adset.name}</option>)}
                 </select>
-                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
             <div>
@@ -658,7 +658,7 @@ export function AdPerformanceTab() {
                   <option value="">All creatives</option>
                   {creativeOptions.map((creative) => <option key={creative.id} value={creative.id}>{creative.name}</option>)}
                 </select>
-                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
             <div>
@@ -675,7 +675,7 @@ export function AdPerformanceTab() {
                     <option key={filter.key} value={filter.key}>{filter.label}</option>
                   ))}
                 </select>
-                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
           </div>
@@ -710,8 +710,8 @@ export function AdPerformanceTab() {
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50">
               <Megaphone size={24} className="text-primary-400" />
             </div>
-            <h3 className="mb-1 text-base font-bold text-[#44403c]">No Click-to-WhatsApp data for this account</h3>
-            <p className="max-w-md text-sm leading-relaxed text-[#a8a29e]">
+            <h3 className="mb-1 text-base font-bold text-[#1e293b]">No Click-to-WhatsApp data for this account</h3>
+            <p className="max-w-md text-sm leading-relaxed text-[#94a3b8]">
               Validate the Meta Ads card in Settings, then run Sync now. Ads from previously connected accounts stay hidden.
             </p>
           </div>
@@ -843,7 +843,7 @@ export function AdPerformanceTab() {
                       );
                     })}
                   </select>
-                  <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+                  <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
                 </div>
               </div>
 

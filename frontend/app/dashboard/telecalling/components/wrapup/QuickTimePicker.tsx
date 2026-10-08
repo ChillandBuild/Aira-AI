@@ -13,8 +13,8 @@ interface QuickTimePickerProps {
 
 const CHIP = "px-3 py-1.5 rounded-full border font-label text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed";
 const ON = "bg-primary border-primary text-white shadow-sm";
-const OFF = "bg-white border-[#e8e3db] text-[#57534e] hover:border-primary-muted hover:text-primary";
-const INPUT = "flex-1 min-w-0 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary";
+const OFF = "bg-white border-[#e2e8f0] text-[#334155] hover:border-primary-muted hover:text-primary";
+const INPUT = "flex-1 min-w-0 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary";
 
 /** In 1 hour · This evening 6 PM · Tomorrow 10 AM · Pick a date & time — all in IST. */
 export default function QuickTimePicker({ value, onChange, now, optional = false, suggested = null }: QuickTimePickerProps) {
@@ -65,7 +65,7 @@ export default function QuickTimePicker({ value, onChange, now, optional = false
               setCustom(false);
               onChange(null);
             }}
-            className={`${CHIP} inline-flex items-center gap-1 bg-white border-[#e8e3db] text-[#a8a29e] hover:text-rose-600`}
+            className={`${CHIP} inline-flex items-center gap-1 bg-white border-[#e2e8f0] text-[#94a3b8] hover:text-rose-600`}
           >
             <X size={11} /> No follow-up
           </button>
@@ -75,12 +75,12 @@ export default function QuickTimePicker({ value, onChange, now, optional = false
         <div className="flex items-center gap-2">
           <input type="date" aria-label="Date" value={inputs.date} min={toIstInputs(now).date} onChange={(e) => setPart("date", e.target.value)} className={INPUT} />
           <input type="time" aria-label="Time" value={inputs.time} onChange={(e) => setPart("time", e.target.value)} className={INPUT} />
-          <span className="font-label text-[10px] font-bold text-[#a8a29e]">IST</span>
+          <span className="font-label text-[10px] font-bold text-[#94a3b8]">IST</span>
         </div>
       )}
       {picked && (
-        <p className="font-label text-[11px] text-[#57534e]">
-          <span className="font-bold text-[#292524]">{formatIstWhen(picked, now)}</span>
+        <p className="font-label text-[11px] text-[#334155]">
+          <span className="font-bold text-[#13284A]">{formatIstWhen(picked, now)}</span>
           {value === suggested && (
             <span className="ml-1.5 rounded-full bg-primary-light px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-primary">
               Suggested

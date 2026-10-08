@@ -35,21 +35,21 @@ export default function NumpadDialer({ value, onChange, onDial, dialing, disable
   };
 
   return (
-    <div className="w-full max-w-[280px] mx-auto bg-white border border-[#e8e3db]/80 rounded-3xl p-4 shadow-sm flex flex-col gap-3">
-      <div className="flex items-center gap-1 bg-[#faf8f5] border border-[#e8e3db]/80 rounded-2xl px-3 py-2.5">
+    <div className="w-full max-w-[280px] mx-auto bg-white border border-[#e2e8f0]/80 rounded-3xl p-4 shadow-sm flex flex-col gap-3">
+      <div className="flex items-center gap-1 bg-[#f8fafc] border border-[#e2e8f0]/80 rounded-2xl px-3 py-2.5">
         <input
           type="text"
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Enter number to dial..."
-          className="flex-1 bg-transparent font-body text-base font-bold text-[#292524] text-center tracking-wider outline-none"
+          className="flex-1 bg-transparent font-body text-base font-bold text-[#13284A] text-center tracking-wider outline-none"
         />
         {value.length > 0 && (
           <button
             onClick={handleBackspace}
             disabled={disabled}
-            className="text-[#a8a29e] hover:text-[#57534e] transition-colors p-1"
+            className="text-[#94a3b8] hover:text-[#334155] transition-colors p-1"
           >
             <Delete size={16} />
           </button>
@@ -62,10 +62,10 @@ export default function NumpadDialer({ value, onChange, onDial, dialing, disable
             key={btn.digit}
             onClick={() => handleDigitClick(btn.digit)}
             disabled={disabled}
-            className="flex flex-col items-center justify-center bg-[#faf8f5] border border-[#e8e3db]/60 hover:bg-[var(--primary-50)] hover:border-[var(--primary-100)] hover:text-[var(--primary-800)] active:scale-95 rounded-2xl py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#faf8f5] disabled:hover:text-inherit"
+            className="flex flex-col items-center justify-center bg-[#f8fafc] border border-[#e2e8f0]/60 hover:bg-[var(--primary-50)] hover:border-[var(--primary-100)] hover:text-[var(--primary-800)] active:scale-95 rounded-2xl py-2.5 transition-all disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-[#f8fafc] disabled:hover:text-inherit"
           >
-            <span className="font-display text-base font-extrabold text-[#292524] hover:text-inherit">{btn.digit}</span>
-            <span className="font-label text-[7.5px] text-[#a8a29e] font-bold tracking-wider uppercase mt-0.5">{btn.sub || "\u00A0"}</span>
+            <span className="font-display text-base font-extrabold text-[#13284A] hover:text-inherit">{btn.digit}</span>
+            <span className="font-label text-[7.5px] text-[#94a3b8] font-bold tracking-wider uppercase mt-0.5">{btn.sub || "\u00A0"}</span>
           </button>
         ))}
 

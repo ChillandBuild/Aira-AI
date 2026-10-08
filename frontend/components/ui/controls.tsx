@@ -89,7 +89,7 @@ export function SwitchPill({
             height={s.icon}
             viewBox="0 0 24 24"
             fill="none"
-            stroke="#a8a29e"
+            stroke="#94a3b8"
             strokeWidth={3.5}
             strokeLinecap="round"
             aria-hidden

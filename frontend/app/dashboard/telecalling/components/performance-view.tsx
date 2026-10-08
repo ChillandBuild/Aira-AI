@@ -242,19 +242,19 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
       <div className="flex items-center gap-2 text-xs">
         {selectedCallerId ? (
           <>
-            <span className="font-body text-[#78716c]">
-              Showing: <span className="font-bold text-[#292524]">{selectedCallerName}</span>
+            <span className="font-body text-[#475569]">
+              Showing: <span className="font-bold text-[#13284A]">{selectedCallerName}</span>
             </span>
             <button
               onClick={() => setSelectedCallerId(null)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#e8e3db] text-[#a8a29e] hover:text-[#44403c] hover:bg-[#faf8f5] transition-colors text-[10px] font-bold"
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-[#e2e8f0] text-[#94a3b8] hover:text-[#1e293b] hover:bg-[#f8fafc] transition-colors text-[10px] font-bold"
             >
               <X size={10} /> Clear
             </button>
           </>
         ) : (
-          <span className="font-body text-[#78716c]">
-            Showing: <span className="font-bold text-[#292524]">Team Overview</span>
+          <span className="font-body text-[#475569]">
+            Showing: <span className="font-bold text-[#13284A]">Team Overview</span>
           </span>
         )}
       </div>
@@ -291,20 +291,20 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
                 : "Sort by connect rate or idle time to manage team output."}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 bg-[#faf8f5] p-1.5 rounded-xl border border-[#e8e3db]">
-            <span className="font-label text-[10px] text-[#78716c] font-bold uppercase pl-1">Export Performance:</span>
+          <div className="flex items-center gap-1.5 bg-[#f8fafc] p-1.5 rounded-xl border border-[#e2e8f0]">
+            <span className="font-label text-[10px] text-[#475569] font-bold uppercase pl-1">Export Performance:</span>
             <input
               type="date"
               value={exportSince}
               onChange={(e) => setExportSince(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-xs text-[#13284A] focus:outline-none"
             />
-            <span className="text-[#a8a29e] text-xs">to</span>
+            <span className="text-[#94a3b8] text-xs">to</span>
             <input
               type="date"
               value={exportUntil}
               onChange={(e) => setExportUntil(e.target.value)}
-              className="px-1.5 py-0.5 rounded bg-white border border-[#e8e3db] font-body text-xs text-[#292524] focus:outline-none"
+              className="px-1.5 py-0.5 rounded bg-white border border-[#e2e8f0] font-body text-xs text-[#13284A] focus:outline-none"
             />
             <button
               onClick={handleExportCsv}
@@ -320,14 +320,14 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-[#f0ece4] text-[#a8a29e] font-label uppercase text-[10px] font-bold">
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("name")}>Agent Name {sortIcon("name")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("calls_today")}>Calls Today {sortIcon("calls_today")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
-                <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
+              <tr className="border-b border-[#f1f5f9] text-[#94a3b8] font-label uppercase text-[10px] font-bold">
+                <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("name")}>Agent Name {sortIcon("name")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("calls_today")}>Calls Today {sortIcon("calls_today")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("connect_rate")}>Connect Rate {sortIcon("connect_rate")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("avg_talk_seconds")}>Avg Talk Time {sortIcon("avg_talk_seconds")}</th>
+                <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("idle_minutes_today")}>Idle Minutes {sortIcon("idle_minutes_today")}</th>
                 {evaluationVisible && (
-                  <th className="py-3 px-4 cursor-pointer hover:text-[#292524]" onClick={() => handleSort("overall_score")} title="Average of this period's scored calls">Avg Score {sortIcon("overall_score")}</th>
+                  <th className="py-3 px-4 cursor-pointer hover:text-[#13284A]" onClick={() => handleSort("overall_score")} title="Average of this period's scored calls">Avg Score {sortIcon("overall_score")}</th>
                 )}
                 <th className="py-3 px-4">Bunking Alert</th>
                 <th className="py-3 px-4">Daily Target</th>
@@ -336,13 +336,13 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
             <tbody>
               {loadingStats ? (
                 <tr>
-                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#a8a29e] font-medium">
-                    <Loader2 className="animate-spin text-[#a8a29e] inline mr-2" size={16} /> Loading performance logs...
+                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#94a3b8] font-medium">
+                    <Loader2 className="animate-spin text-[#94a3b8] inline mr-2" size={16} /> Loading performance logs...
                   </td>
                 </tr>
               ) : getSortedPerformers().length === 0 ? (
                 <tr>
-                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#a8a29e]">No performance records for today.</td>
+                  <td colSpan={leaderboardColumnCount} className="text-center py-8 text-[#94a3b8]">No performance records for today.</td>
                 </tr>
               ) : (
                 getSortedPerformers().map((row) => {
@@ -354,25 +354,25 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
                   return (
                     <tr
                       key={row.caller_id}
-                      className={`border-b border-[#f0ece4] hover:bg-[#faf8f5]/50 transition-colors ${selectedCallerId === row.caller_id ? "bg-primary/5" : ""}`}
+                      className={`border-b border-[#f1f5f9] hover:bg-[#f8fafc]/50 transition-colors ${selectedCallerId === row.caller_id ? "bg-primary/5" : ""}`}
                     >
-                      <td className="py-3.5 px-4 font-bold text-[#292524]">{row.name}</td>
-                      <td className="py-3.5 px-4 text-[#57534e] font-semibold">{row.calls_today}</td>
-                      <td className="py-3.5 px-4 text-[#57534e] font-semibold">
+                      <td className="py-3.5 px-4 font-bold text-[#13284A]">{row.name}</td>
+                      <td className="py-3.5 px-4 text-[#334155] font-semibold">{row.calls_today}</td>
+                      <td className="py-3.5 px-4 text-[#334155] font-semibold">
                         {row.connect_rate ? `${Math.round(row.connect_rate * 100)}%` : "0%"}
                       </td>
-                      <td className="py-3.5 px-4 text-[#57534e] font-medium">
+                      <td className="py-3.5 px-4 text-[#334155] font-medium">
                         {formatTalk(row.avg_talk_seconds)}
                       </td>
-                      <td className="py-3.5 px-4 text-[#57534e] font-medium">
+                      <td className="py-3.5 px-4 text-[#334155] font-medium">
                         {row.idle_minutes_today ? `${Math.round(row.idle_minutes_today)} min` : "0 min"}
                       </td>
                       {evaluationVisible && (
-                        <td className="py-3.5 px-4 text-[#292524] font-bold text-sm">
+                        <td className="py-3.5 px-4 text-[#13284A] font-bold text-sm">
                           {row.overall_score != null ? (
                             <>
                               {row.overall_score.toFixed(1)}/100
-                              <span className="block font-label text-[10px] font-semibold text-[#a8a29e]">
+                              <span className="block font-label text-[10px] font-semibold text-[#94a3b8]">
                                 {row.scored_calls ?? 0} scored
                               </span>
                             </>
@@ -387,7 +387,7 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
                             <ShieldAlert size={10} /> Idle Gap Alert
                           </span>
                         ) : (
-                          <span className="text-[#a8a29e] font-medium">—</span>
+                          <span className="text-[#94a3b8] font-medium">—</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4">
@@ -397,7 +397,7 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
                             min="0"
                             value={currentTarget}
                             onChange={(e) => setEditingTarget({ ...editingTarget, [row.caller_id]: parseInt(e.target.value) || 0 })}
-                            className="w-14 px-1.5 py-1 rounded bg-white border border-[#e8e3db] text-center font-bold font-body text-xs text-[#292524] focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-14 px-1.5 py-1 rounded bg-white border border-[#e2e8f0] text-center font-bold font-body text-xs text-[#13284A] focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                           {(editingTarget[row.caller_id] !== undefined) && (
                             <button
@@ -453,7 +453,7 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
       <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15 overflow-hidden">
         <button
           onClick={() => setToolsOpen((o) => !o)}
-          className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#faf8f5]/50 transition-colors"
+          className="w-full flex items-center justify-between px-6 py-4 hover:bg-[#f8fafc]/50 transition-colors"
         >
           <div className="text-left">
             <h2 className="font-display text-base font-bold text-primary">Tools</h2>
@@ -461,7 +461,7 @@ export default function PerformanceView({ callers, adminCaller, callingProvider 
               {evaluationVisible ? "QA call review & bulk lead assignment." : "Bulk lead assignment."}
             </p>
           </div>
-          {toolsOpen ? <ChevronUp size={16} className="text-[#a8a29e]" /> : <ChevronDown size={16} className="text-[#a8a29e]" />}
+          {toolsOpen ? <ChevronUp size={16} className="text-[#94a3b8]" /> : <ChevronDown size={16} className="text-[#94a3b8]" />}
         </button>
         {toolsOpen && (
           <div className={evaluationVisible ? "px-6 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-8" : "px-6 pb-6"}>

@@ -303,7 +303,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-[#e8e3db] bg-background px-4 md:left-[220px] md:h-16 md:gap-4 md:px-6">
+    <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between gap-3 border-b border-[#e2e8f0] bg-background px-4 md:left-[220px] md:h-16 md:gap-4 md:px-6">
       {/* Left side: menu trigger + title and description */}
       <div className="flex min-w-0 items-center gap-3">
         <MoreMenu />
@@ -334,7 +334,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
             <button
               type="button"
               onClick={accordion.toggleAll}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#e8e3db] bg-white px-3 py-1.5 font-label text-[11px] font-bold text-[#57534e] transition-all hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#e2e8f0] bg-white px-3 py-1.5 font-label text-[11px] font-bold text-[#334155] transition-all hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25"
             >
               {accordion.allOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
               {accordion.allOpen ? "Collapse all" : "Expand all"}
@@ -343,7 +343,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/outbound-leads" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["upload", "history", "tags", "opted-out"] as const).map((t) => (
               <button
                 key={t}
@@ -356,7 +356,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "upload" && !tab))
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 {t === "upload" ? "Broadcast Message" : t === "history" ? "Broadcast History" : t === "tags" ? "Tags" : "Opted-Out"}
@@ -366,7 +366,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/numbers" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["pool", "activity"] as const).map((t) => (
               <button
                 key={t}
@@ -381,7 +381,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "pool" && tab !== "activity"))
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 {t === "pool" ? "Active Pool" : "Activity Log"}
@@ -391,7 +391,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/knowledge" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["documents", "description"] as const).map((t) => {
               // Documents (RAG) leads and is the canonical no-param URL; the
               // Description follows it. `?tab=documents` stays valid for old links.
@@ -411,7 +411,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                     "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                     isActive
                       ? "bg-white text-primary shadow-sm"
-                      : "text-[#78716c] hover:text-[#292524]"
+                      : "text-[#475569] hover:text-[#13284A]"
                   )}
                 >
                   {t === "documents" ? "Documents (RAG)" : "Description"}
@@ -422,7 +422,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/analytics" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["overview", "channels", "inbound", "templates"] as const).map((t) => (
               <button
                 key={t}
@@ -437,7 +437,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "overview" && !tab))
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 {t === "overview" ? "Overview" : t === "channels" ? "Channels" : t === "inbound" ? "Inbound" : "Templates"}
@@ -448,7 +448,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/leads" && (
           <div className="mr-2 hidden items-center gap-2 xl:flex">
-          <nav aria-label="Lead sections" className="order-2 flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+          <nav aria-label="Lead sections" className="order-2 flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
             {([
               { key: "leads", label: "Leads" },
               { key: "reengagement", label: "Re-engagement" },
@@ -467,7 +467,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   }}
                   className={cn(
                     "rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
-                    isActive ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                    isActive ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
                   )}
                 >
                   {label}
@@ -476,7 +476,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
             })}
           </nav>
           {tab !== "reengagement" && (
-          <nav aria-label="Lead segments" className="order-1 flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+          <nav aria-label="Lead segments" className="order-1 flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
             {([
               { key: "A", label: "Hot" },
               { key: "B", label: "Warm" },
@@ -494,7 +494,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 }}
                 className={cn(
                   "rounded-xl px-2.5 py-1.5 font-label text-[11px] font-bold transition-all",
-                  leadSegment === key ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  leadSegment === key ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
                 )}
               >
                 {label}
@@ -506,7 +506,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/team" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["performance", "log"] as const).map((t) => (
               <button
                 key={t}
@@ -522,7 +522,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
                   (tab === t || (t === "performance" && !tab))
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 {t === "performance" ? <TrendingUp size={13} /> : <ClipboardList size={13} />}
@@ -533,7 +533,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/roles" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["roles", "users", "audit"] as const).map((item) => (
               <button
                 key={item}
@@ -547,7 +547,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                 }}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 font-label text-xs font-bold capitalize transition-all",
-                  rolesTab === item ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]",
+                  rolesTab === item ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
                 )}
               >
                 {item === "roles" ? <ShieldCheck size={13} /> : item === "users" ? <Users size={13} /> : <ScrollText size={13} />}
@@ -564,7 +564,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
         )}
 
         {pathname === "/dashboard/telecalling/upload" && (
-          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+          <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
             {(["upload", "history", "scripts"] as const).map((t) => (
               <button
                 key={t}
@@ -577,7 +577,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   (tab === t || (t === "upload" && !tab))
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 {t === "upload" ? "Upload Contacts" : t === "history" ? "Upload History" : "Scripts"}
@@ -588,14 +588,14 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         {pathname === "/dashboard/notes" && !isCallReview && (
           <>
-            <div className="hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            <div className="hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
               <button
                 onClick={() => changeNotesPageMode("by_lead")}
                 className={cn(
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   notesPageMode === "by_lead"
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 By Lead
@@ -606,20 +606,20 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
                   notesPageMode === "all_notes"
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#78716c] hover:text-[#292524]"
+                    : "text-[#475569] hover:text-[#13284A]"
                 )}
               >
                 All Notes
               </button>
             </div>
-            <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 md:flex">
+            <div className="mr-2 hidden gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 md:flex">
               <button
                 onClick={() => changeNotesViewMode("grid")}
                 className={cn(
                   "p-1.5 rounded-xl transition-all",
                   notesViewMode === "grid"
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#a8a29e] hover:text-[#44403c]"
+                    : "text-[#94a3b8] hover:text-[#1e293b]"
                 )}
                 title="Grid view"
               >
@@ -631,7 +631,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
                   "p-1.5 rounded-xl transition-all",
                   notesViewMode === "list"
                     ? "bg-white text-primary shadow-sm"
-                    : "text-[#a8a29e] hover:text-[#44403c]"
+                    : "text-[#94a3b8] hover:text-[#1e293b]"
                 )}
                 title="List view"
               >
@@ -645,7 +645,7 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
 
         <button
           onClick={onOpenCalendar}
-          className="hidden h-[34px] items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-transparent px-3 font-mono text-[13px] font-semibold tracking-wide text-[#1c1917] transition-all hover:bg-[#f0ece4] sm:flex"
+          className="hidden h-[34px] items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-transparent px-3 font-mono text-[13px] font-semibold tracking-wide text-[#0A1528] transition-all hover:bg-[#f1f5f9] sm:flex"
           title="Schedule & Notes"
         >
           <Clock size={13} className="opacity-50" />

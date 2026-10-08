@@ -73,7 +73,7 @@ const GLYPH: Record<Channel, (p: { size: number }) => JSX.Element> = {
 
 /** Brand discs. Instagram gets its gradient; the rest are flat brand colours. */
 const DISC: Record<Channel, string> = {
-  whatsapp: "bg-[#25D366]",
+  whatsapp: "bg-primary-800",
   instagram: "bg-[radial-gradient(circle_at_28%_106%,#fdf497_0%,#fd5949_45%,#d6249f_60%,#285AEB_90%)]",
   facebook: "bg-[#1877F2]",
   telegram: "bg-[linear-gradient(180deg,#37BBFE_0%,#007DBB_100%)]",

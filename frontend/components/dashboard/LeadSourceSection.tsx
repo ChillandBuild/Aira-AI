@@ -51,7 +51,7 @@ export function LeadSourceSection({ overview }: { overview: AnalyticsOverview })
           );
         })}
       </div>
-      <div className="mt-5 pt-5 border-t border-[#f0ece4] flex items-center justify-between">
+      <div className="mt-5 pt-5 border-t border-[#f1f5f9] flex items-center justify-between">
         <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">Ad-attributed</span>
         <span className="text-sm font-mono font-semibold text-ink">
           {overview.ad_attributed_leads_today} of {total} ({adAttributedPct}%)

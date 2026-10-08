@@ -124,7 +124,7 @@ export function SampleInputs({
           <div key={n} className="grid grid-cols-[minmax(52px,max-content)_minmax(0,1fr)] items-center gap-2">
             <span
               className="justify-self-start whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold"
-              style={{ background: "#DCF8C6", color: "#075E54" }}
+              style={{ background: "var(--primary-50)", color: "var(--primary-900)" }}
             >
               {chipLabel(n)}
             </span>

@@ -236,7 +236,7 @@ export default function NewTemplatePage() {
       <div className="mb-6">
         <Link
           href="/dashboard/templates"
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#f0ece4] text-[#1c1917]/80 hover:text-[#1c1917] font-label text-sm font-semibold transition-all border border-[#e8e3db] bg-transparent"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-[#f1f5f9] text-[#0A1528]/80 hover:text-[#0A1528] font-label text-sm font-semibold transition-all border border-[#e2e8f0] bg-transparent"
         >
           <ArrowLeft size={14} /> Back to Templates
         </Link>

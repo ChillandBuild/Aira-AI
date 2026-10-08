@@ -160,7 +160,7 @@ export type SectionStatus = {
 
 const STATUS_STYLES: Record<SectionStatus["tone"], string> = {
   on: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  off: "bg-[#f0ece4] text-ink-secondary ring-border",
+  off: "bg-[#f1f5f9] text-ink-secondary ring-border",
   warn: "bg-amber-50 text-amber-700 ring-amber-200",
 };
 

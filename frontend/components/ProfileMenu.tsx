@@ -41,7 +41,7 @@ export function ProfileMenu() {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-1 transition-colors hover:bg-[#f0ece4]"
+        className="flex items-center gap-2 rounded-full py-0.5 pl-0.5 pr-1 transition-colors hover:bg-[#f1f5f9]"
         title={tenantName ?? undefined}
       >
         <span
@@ -51,7 +51,7 @@ export function ProfileMenu() {
           {initials}
         </span>
         {tenantName && (
-          <span className="hidden max-w-[150px] truncate font-body text-sm font-semibold text-[#1c1917] sm:block">
+          <span className="hidden max-w-[150px] truncate font-body text-sm font-semibold text-[#0A1528] sm:block">
             {tenantName}
           </span>
         )}
@@ -59,14 +59,14 @@ export function ProfileMenu() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#e8e3db] rounded-2xl shadow-xl z-50 overflow-hidden py-1">
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#f0ece4]">
+          <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#e2e8f0] rounded-2xl shadow-xl z-50 overflow-hidden py-1">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-[#f1f5f9]">
               <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-full bg-yellow-100 text-yellow-800 font-bold text-sm">
                 {initials}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-[#1c1917] truncate">{tenantName || fullName}</p>
-                <p className="text-xs text-[#78716c] truncate">{email}</p>
+                <p className="text-sm font-semibold text-[#0A1528] truncate">{tenantName || fullName}</p>
+                <p className="text-xs text-[#475569] truncate">{email}</p>
               </div>
             </div>
 
@@ -74,18 +74,18 @@ export function ProfileMenu() {
               <Link
                 href="/dashboard/settings/account"
                 onClick={() => setOpen(false)}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#13284A] hover:bg-[#f8fafc] transition-colors text-left"
               >
-                <UserCircle size={16} className="text-[#78716c]" />
+                <UserCircle size={16} className="text-[#475569]" />
                 <span>Profile & Business</span>
               </Link>
               {isTelecaller && (
                 <Link
                   href="/dashboard/profile"
                   onClick={() => setOpen(false)}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#13284A] hover:bg-[#f8fafc] transition-colors text-left"
                 >
-                  <TrendingUp size={16} className="text-[#78716c]" />
+                  <TrendingUp size={16} className="text-[#475569]" />
                   <span>My performance</span>
                 </Link>
               )}
@@ -94,18 +94,18 @@ export function ProfileMenu() {
                   setOpen(false);
                   setFeedbackOpen(true);
                 }}
-                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left"
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#13284A] hover:bg-[#f8fafc] transition-colors text-left"
               >
-                <MessageSquarePlus size={16} className="text-[#78716c]" />
+                <MessageSquarePlus size={16} className="text-[#475569]" />
                 <span>Feedback</span>
               </button>
             </div>
 
-            <div className="border-t border-[#f0ece4] my-1" />
+            <div className="border-t border-[#f1f5f9] my-1" />
 
             <div className="py-1">
-              <button onClick={logout} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#292524] hover:bg-[#faf8f5] transition-colors text-left">
-                <LogOut size={16} className="text-[#78716c]" />
+              <button onClick={logout} className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#13284A] hover:bg-[#f8fafc] transition-colors text-left">
+                <LogOut size={16} className="text-[#475569]" />
                 <span>Sign out</span>
               </button>
             </div>

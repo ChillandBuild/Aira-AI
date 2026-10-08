@@ -1,52 +1,45 @@
-import { SVGProps, useId } from "react";
+import { SVGProps } from "react";
 
-export function AiraLogo(props: SVGProps<SVGSVGElement>) {
-  const { width, height = 36, style, ...rest } = props;
-  const calculatedWidth = width ?? (typeof height === "number" ? Math.round(height * (1167 / 265)) : undefined);
-  const uid = useId();
-  const gradientId1 = `airaLogoLinear1-${uid}`;
-  const gradientId2 = `airaLogoLinear2-${uid}`;
-  const gradientId3 = `airaLogoLinear3-${uid}`;
+// "anril AI" wordmark: Manrope ExtraBold (800) glyphs converted to paths, so it
+// renders identically everywhere without loading the font.
+// Letters follow currentColor (navy via text-ink, white via text-white); the
+// i's dot and "AI" are the teal accent. On navy, pass tone="dark" so the accent
+// switches to the light teal (#038285 on navy is only ~3.9:1).
+const VIEW_BOX = { x: 80, y: -1470, width: 6264, height: 1500 };
+const ASPECT = VIEW_BOX.width / VIEW_BOX.height;
+const ACCENT_ON_LIGHT = "var(--primary-800)";
+const ACCENT_ON_DARK = "#3fbcbf";
+
+const LETTERS =
+  "M440 30Q324 30 243.5 -14.5Q163 -59 121.5 -133.5Q80 -208 80 -298Q80 -373 103.0 -435.0Q126 -497 177.5 -544.5Q229 -592 316 -624Q376 -646 459.0 -663.0Q542 -680 647.0 -695.5Q752 -711 878 -730L780 -676Q780 -772 734.0 -817.0Q688 -862 580 -862Q520 -862 455.0 -833.0Q390 -804 364 -730L118 -808Q159 -942 272.0 -1026.0Q385 -1110 580 -1110Q723 -1110 834.0 -1066.0Q945 -1022 1002 -914Q1034 -854 1040.0 -794.0Q1046 -734 1046 -660V0H808V-222L842 -176Q763 -67 671.5 -18.5Q580 30 440 30ZM498 -184Q573 -184 624.5 -210.5Q676 -237 706.5 -271.0Q737 -305 748 -328Q769 -372 772.5 -430.5Q776 -489 776 -528L856 -508Q735 -488 660.0 -474.5Q585 -461 539.0 -450.0Q493 -439 458 -426Q418 -410 393.5 -391.5Q369 -373 357.5 -351.0Q346 -329 346 -302Q346 -265 364.5 -238.5Q383 -212 417.0 -198.0Q451 -184 498 -184Z M2022 0V-510Q2022 -547 2018.0 -604.5Q2014 -662 1993.0 -720.0Q1972 -778 1924.5 -817.0Q1877 -856 1790 -856Q1755 -856 1715.0 -845.0Q1675 -834 1640.0 -802.5Q1605 -771 1582.5 -710.0Q1560 -649 1560 -548L1404 -622Q1404 -750 1456.0 -862.0Q1508 -974 1612.5 -1043.0Q1717 -1112 1876 -1112Q2003 -1112 2083.0 -1069.0Q2163 -1026 2207.5 -960.0Q2252 -894 2271.0 -822.5Q2290 -751 2294.0 -692.0Q2298 -633 2298 -606V0ZM1284 0V-1080H1526V-722H1560V0Z M2538 0V-1080H2778V-816L2752 -850Q2773 -906 2808.0 -952.0Q2843 -998 2894 -1028Q2933 -1052 2979.0 -1065.5Q3025 -1079 3074.0 -1082.5Q3123 -1086 3172 -1080V-826Q3127 -840 3067.5 -835.5Q3008 -831 2960 -808Q2912 -786 2879.0 -749.5Q2846 -713 2829.0 -663.5Q2812 -614 2812 -552V0Z M3362 0V-1080H3634V0Z M3934 0V-1470H4206V0Z";
+const I_DOT = "M3362 -1230V-1470H3634V-1230Z";
+const AI =
+  "M4606.0 0 5046.0 -1440H5452.0L5892.0 0H5612.0L5220.0 -1270H5272.0L4886.0 0ZM4870.0 -300V-554H5630.0V-300Z M6072.0 0V-1440H6344.0V0Z";
+
+type AnrilLogoProps = SVGProps<SVGSVGElement> & {
+  /** "dark" when the logo sits on navy: uses the light teal accent. */
+  tone?: "light" | "dark";
+};
+
+export function AnrilLogo({ width, height = 36, tone = "light", ...rest }: AnrilLogoProps) {
+  const calculatedWidth = width ?? (typeof height === "number" ? Math.round(height * ASPECT) : undefined);
+  const accent = tone === "dark" ? ACCENT_ON_DARK : ACCENT_ON_LIGHT;
 
   return (
     <svg
       width={calculatedWidth}
       height={height}
-      viewBox="588 580 1192 282"
+      viewBox={`${VIEW_BOX.x} ${VIEW_BOX.y} ${VIEW_BOX.width} ${VIEW_BOX.height}`}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       preserveAspectRatio="xMidYMid meet"
-      style={{ overflow: "visible", ...style }}
+      role="img"
+      aria-label="Anril AI"
       {...rest}
     >
-      <path d="M600.9,846.17L742.29,598.11C743.5,596.58 747.31,592.36 751.24,590.4C755.2,588.42 759.31,588.07 761.26,588.03C763.02,587.94 767.39,588.1 771.82,590.59C775.63,592.72 779.32,597.45 780.26,598.94C827.37,682.98 871.51,762.14 918.45,845.9C920.28,849.17 917.92,853.21 914.17,853.21L870.37,853.21C868.79,853.21 867.33,852.35 866.56,850.97L761.18,660.67L656.57,850.41C655.81,851.8 654.35,852.66 652.76,852.66L604.67,852.66C601.34,852.67 599.24,849.08 600.88,846.18L600.9,846.17Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
-      <path d="M1042.04,591.65L1042.04,849.46C1042.04,851.458 1040.418,853.08 1038.42,853.08L999.95,853.08C997.952,853.08 996.33,851.458 996.33,849.46L996.33,591.65C996.33,589.652 997.952,588.03 999.95,588.03L1038.42,588.03C1040.418,588.03 1042.04,589.652 1042.04,591.65Z" fill="currentColor" />
-      <path d="M1137.43,592.79C1137.54,603.54 1137.65,614.29 1137.76,625.04C1137.79,628.14 1140.31,630.63 1143.41,630.63L1325.62,630.38C1330.07,630.57 1340.15,631.65 1349.33,638.89C1367.41,653.13 1364.77,677.64 1364.57,679.27C1364.14,682.82 1362.29,694.47 1352.38,704.41C1342.23,714.6 1330.23,716.37 1326.73,716.76C1267.87,716.41 1209.01,716.07 1150.16,715.72C1143.21,715.68 1137.55,721.3 1137.55,728.25C1137.5,767.87 1137.46,807.5 1137.41,847.12C1137.41,850.39 1140.06,853.05 1143.33,853.05L1175.86,853.05C1179.13,853.05 1181.78,850.4 1181.78,847.13L1181.78,758.96L1281.4,758.96L1346.92,853.06L1398.96,853.06C1401.56,853.06 1403.06,850.11 1401.53,848.01C1379.67,818.04 1357.81,788.06 1335.96,758.09C1344.63,756.7 1364.22,752.31 1381.6,736.17C1410.48,709.33 1409.47,672.07 1409.22,666.2C1408.91,657.86 1407.08,640.63 1395.61,623.55C1375.75,593.97 1342.96,588.63 1337.16,587.79L1142.39,587.79C1139.63,587.79 1137.4,590.04 1137.43,592.8L1137.43,592.79Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd" />
-      <g>
-        <path d="M1455.89,848.48L1591.66,599.28C1592.85,597.45 1595.56,593.84 1600.39,591.29C1604.27,589.24 1607.86,588.74 1609.95,588.62C1611.75,588.55 1616.19,588.62 1620.71,591.42C1623.91,593.4 1625.77,595.9 1626.71,597.38C1673.17,681.26 1719.64,765.13 1766.1,849.01C1767.14,850.9 1765.78,853.21 1763.63,853.21L1717.07,853.21C1714.9,853.21 1712.9,852.02 1711.87,850.1L1609.77,660.56L1508.09,849.91C1507.05,851.84 1505.03,853.04 1502.84,853.02L1458.37,852.67C1456.23,852.65 1454.89,850.36 1455.91,848.49L1455.89,848.48Z" fill={`url(#${gradientId1})`} fillRule="evenodd" clipRule="evenodd" />
-        <path d="M1607.62,775.65L1566.6,850.01C1565.79,851.48 1566.85,853.28 1568.53,853.28L1650.57,853.28C1652.25,853.28 1653.32,851.48 1652.5,850.01L1611.48,775.65C1610.64,774.13 1608.45,774.13 1607.61,775.65L1607.62,775.65Z" fill={`url(#${gradientId2})`} fillRule="evenodd" clipRule="evenodd" />
-        <path d="M757.42,775.65L716.4,850.01C715.59,851.48 716.65,853.28 718.33,853.28L800.37,853.28C802.05,853.28 803.12,851.48 802.3,850.01L761.28,775.65C760.44,774.13 758.25,774.13 757.41,775.65L757.42,775.65Z" fill={`url(#${gradientId3})`} fillRule="evenodd" clipRule="evenodd" />
-      </g>
-      <defs>
-        <linearGradient id={gradientId1} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-321.02,312.39,-312.39,-321.02,1766.41,640.02)">
-          <stop offset="0" stopColor="var(--primary-800)" />
-          <stop offset="0.29" stopColor="var(--primary-800)" />
-          <stop offset="0.99" stopColor="var(--primary-950)" />
-          <stop offset="1" stopColor="var(--primary-950)" />
-        </linearGradient>
-        <linearGradient id={gradientId2} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(7476.113943,0,0,7476.113943,136988.859737,64885.413)">
-          <stop offset="0" stopColor="var(--primary-800)" />
-          <stop offset="0.29" stopColor="var(--primary-800)" />
-          <stop offset="0.99" stopColor="var(--primary-950)" />
-          <stop offset="1" stopColor="var(--primary-950)" />
-        </linearGradient>
-        <linearGradient id={gradientId3} x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(7476.113943,0,0,7476.113943,62631.176512,64885.413)">
-          <stop offset="0" stopColor="var(--primary-800)" />
-          <stop offset="0.29" stopColor="var(--primary-800)" />
-          <stop offset="0.99" stopColor="var(--primary-950)" />
-          <stop offset="1" stopColor="var(--primary-950)" />
-        </linearGradient>
-      </defs>
+      <path d={LETTERS} fill="currentColor" />
+      <path d={I_DOT} fill={accent} />
+      <path d={AI} fill={accent} />
     </svg>
   );
 }

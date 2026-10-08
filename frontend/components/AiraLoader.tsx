@@ -18,20 +18,20 @@ export function AiraLoader({ showRetryAfterMs, onRetry }: AiraLoaderProps) {
   }, [showRetryAfterMs]);
 
   return (
-    <div className="fixed inset-0 z-dialog flex flex-col items-center justify-center bg-[#f0ece4] p-4 text-center">
+    <div className="fixed inset-0 z-dialog flex flex-col items-center justify-center bg-[#f1f5f9] p-4 text-center">
       <div className="flex flex-col items-center gap-4">
         {!showRetry && (
           <div
-            className="h-10 w-10 rounded-full border-[3px] border-[#e8e3db] border-t-[#1c1917]"
+            className="h-10 w-10 rounded-full border-[3px] border-[#e2e8f0] border-t-[#0A1528]"
             style={{ animation: "spin 0.75s linear infinite" }}
           />
         )}
-        <span className="text-xs font-medium tracking-widest text-[#78716c] uppercase">
+        <span className="text-xs font-medium tracking-widest text-[#475569] uppercase">
           Anril
         </span>
         {showRetry && (
           <div className="mt-4 max-w-sm animate-in fade-in duration-300">
-            <p className="font-body text-sm text-[#78716c] mb-3">
+            <p className="font-body text-sm text-[#475569] mb-3">
               Couldn&apos;t reach the server. The backend may be waking up — this can take 30–60 seconds.
             </p>
             {onRetry && (

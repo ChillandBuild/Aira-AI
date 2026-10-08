@@ -11,55 +11,64 @@ const config: Config = {
       colors: {
         background: "#ffffff",
         surface: "#ffffff",
-        "surface-mid": "#f0ece4",
+        "surface-mid": "#f1f5f9",
         "surface-low": "#ffffff",
         "surface-subtle": "#ffffff",
 
-        // Full shade scale anchored on the brand primary (= violet-800 in
-        // Tailwind's default palette). Added so every violet/purple/indigo
-        // utility class in the app can resolve to ONE consistent scale
-        // instead of three near-identical Tailwind palettes.
-        // DEFAULT/dark/light/muted are unchanged values, kept as aliases so
-        // existing bg-primary / bg-primary-dark / etc. usages don't move.
+        // Brand primary = Anril teal #038285 (800 = DEFAULT). Every button,
+        // link, active tab and highlight reads this one scale.
+        // 950 is deliberately NAVY #0A1528, not a deeper teal: the "darkest
+        // brand" uses (dark panels, gradients) are navy sections.
+        // DEFAULT/dark/light/muted are aliases so existing bg-primary /
+        // bg-primary-dark / etc. usages keep working.
         primary: {
-          DEFAULT: "#5b21b6",
-          50: "#f5f3ff",
-          100: "#ede9fe",
-          200: "#ddd6fe",
-          300: "#c4b5fd",
-          400: "#a78bfa",
-          500: "#8b5cf6",
-          600: "#7c3aed",
-          700: "#6d28d9",
-          800: "#5b21b6",
-          900: "#4c1d95",
-          950: "#2e1065",
-          dark: "#4c1d95",
-          light: "#f5f3ff",
-          muted: "#ede9fe",
+          DEFAULT: "#038285",
+          50: "#effbfb",
+          100: "#d5f4f4",
+          200: "#ade9ea",
+          300: "#78d6d8",
+          400: "#3fbcbf",
+          500: "#1aa3a6",
+          600: "#0b9396",
+          700: "#068a8d",
+          800: "#038285",
+          900: "#04585b",
+          950: "#0A1528",
+          dark: "#04585b",
+          light: "#effbfb",
+          muted: "#d5f4f4",
         },
 
-        ink: "#1c1917",
-        "ink-secondary": "#78716c",
-        "ink-muted": "#a8a29e",
+        // Navy: headings, body text, dark sections. navy-accent is the light
+        // teal for text/icons ON navy (#038285 on navy is only ~3.9:1).
+        navy: {
+          DEFAULT: "#0A1528",
+          800: "#13284A",
+          700: "#1E3A5F",
+        },
+        "navy-accent": "#3fbcbf",
 
-        border: "#e8e3db",
-        "border-subtle": "#f0ece4",
+        ink: "#0A1528",
+        "ink-secondary": "#475569",
+        "ink-muted": "#94a3b8",
 
-        success: "#059669",
+        border: "#e2e8f0",
+        "border-subtle": "#f1f5f9",
+
+        success: "#15803d",
         warning: "#d97706",
         danger: "#e11d48",
 
-        secondary: "#1c1917",
-        "secondary-light": "#78716c",
-        "secondary-bg": "#f0ece4",
-        "secondary-text": "#1c1917",
-        tertiary: "#292524",
-        "on-surface": "#1c1917",
-        "on-surface-muted": "#a8a29e",
+        secondary: "#0A1528",
+        "secondary-light": "#475569",
+        "secondary-bg": "#f1f5f9",
+        "secondary-text": "#0A1528",
+        tertiary: "#13284A",
+        "on-surface": "#0A1528",
+        "on-surface-muted": "#94a3b8",
 
         "segment-a-bg": "#ecfdf5",
-        "segment-a-text": "#059669",
+        "segment-a-text": "#15803d",
         "segment-a-border": "#bbf7d0",
         "segment-b-bg": "#fffbeb",
         "segment-b-text": "#d97706",
@@ -81,10 +90,10 @@ const config: Config = {
         mono: ["var(--font-mono)", "monospace"],
       },
       boxShadow: {
-        card: "0 2px 16px -2px rgba(28,25,23,.07), 0 1px 4px -1px rgba(28,25,23,.04)",
-        "card-hover": "0 8px 28px -4px rgba(28,25,23,.12), 0 3px 8px -2px rgba(28,25,23,.05)",
-        sidebar: "0 4px 30px rgba(28,25,23,.03)",
-        sm: "0 1px 2px rgba(28,25,23,.04)",
+        card: "0 2px 16px -2px rgba(10,21,40,.07), 0 1px 4px -1px rgba(10,21,40,.04)",
+        "card-hover": "0 8px 28px -4px rgba(10,21,40,.12), 0 3px 8px -2px rgba(10,21,40,.05)",
+        sidebar: "0 4px 30px rgba(10,21,40,.03)",
+        sm: "0 1px 2px rgba(10,21,40,.04)",
       },
       borderRadius: {
         card: "1.25rem",
@@ -93,8 +102,8 @@ const config: Config = {
         "3xl": "1.25rem",
       },
       backgroundImage: {
-        "brand-gradient": "linear-gradient(135deg, var(--primary-950) 0%, var(--primary-800) 100%)",
-        "warm-base": "linear-gradient(180deg, #ffffff 0%, #f0ece4 100%)",
+        "brand-gradient": "linear-gradient(135deg, #0A1528 0%, #13284A 100%)",
+        "warm-base": "linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)",
       },
       zIndex: {
         // Shared stacking convention for the dashboard shell. The mobile

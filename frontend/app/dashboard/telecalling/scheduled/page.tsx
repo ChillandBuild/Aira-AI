@@ -208,7 +208,7 @@ export default function ScheduledCallsPage() {
     const caller = cb.assigned_caller;
     if (!caller) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-[#f0ece4] text-[#57534e] border border-[#e8e3db]">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-[#f1f5f9] text-[#334155] border border-[#e2e8f0]">
           <User size={11} />
           Unassigned
         </span>
@@ -222,7 +222,7 @@ export default function ScheduledCallsPage() {
         ? { state: "Active", wrap: "bg-emerald-50 text-emerald-700 border-emerald-200/60", dot: "bg-emerald-500" }
         : caller.status === "break"
           ? { state: "On break", wrap: "bg-amber-50 text-amber-700 border-amber-200/60", dot: "bg-amber-500" }
-          : { state: "Logged out", wrap: "bg-[#f0ece4] text-[#78716c] border-[#e8e3db]", dot: "bg-[#a8a29e]" };
+          : { state: "Logged out", wrap: "bg-[#f1f5f9] text-[#475569] border-[#e2e8f0]", dot: "bg-[#94a3b8]" };
 
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border ${variants.wrap}`}>
@@ -240,7 +240,7 @@ export default function ScheduledCallsPage() {
     { key: "overdue" as const, label: "Overdue", icon: AlertTriangle, iconColor: "text-rose-500", bgGradient: "from-rose-50/70 to-red-50/20", borderColor: "border-rose-200/60", badgeColor: "bg-rose-100 text-rose-700" },
     { key: "today" as const, label: "Today", icon: Clock, iconColor: "text-amber-500", bgGradient: "from-amber-50/70 to-orange-50/20", borderColor: "border-amber-200/60", badgeColor: "bg-amber-100 text-amber-700" },
     { key: "tomorrow" as const, label: "Tomorrow", icon: Calendar, iconColor: "text-primary", bgGradient: "from-primary-light/70 to-primary-50/20", borderColor: "border-primary-muted/60", badgeColor: "bg-primary-light text-primary" },
-    { key: "upcoming" as const, label: "Upcoming", icon: ChevronRight, iconColor: "text-[#78716c]", bgGradient: "from-[#faf8f5]/70 to-gray-50/20", borderColor: "border-[#e8e3db]/60", badgeColor: "bg-[#f0ece4] text-[#57534e]" },
+    { key: "upcoming" as const, label: "Upcoming", icon: ChevronRight, iconColor: "text-[#475569]", bgGradient: "from-[#f8fafc]/70 to-gray-50/20", borderColor: "border-[#e2e8f0]/60", badgeColor: "bg-[#f1f5f9] text-[#334155]" },
   ];
 
   return (
@@ -269,12 +269,12 @@ export default function ScheduledCallsPage() {
           <RefreshCw size={32} className="animate-spin text-primary" />
         </div>
       ) : callbacks.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border border-[#e8e3db]/60 shadow-sm">
-          <div className="w-14 h-14 bg-[#faf8f5] rounded-full flex items-center justify-center text-[#a8a29e] border border-[#f0ece4] mx-auto mb-4">
+        <div className="text-center py-20 bg-white rounded-3xl border border-[#e2e8f0]/60 shadow-sm">
+          <div className="w-14 h-14 bg-[#f8fafc] rounded-full flex items-center justify-center text-[#94a3b8] border border-[#f1f5f9] mx-auto mb-4">
             <Inbox size={22} />
           </div>
-          <h3 className="font-display text-lg font-bold text-[#44403c]">No scheduled callbacks</h3>
-          <p className="font-body text-sm text-[#a8a29e] mt-1 max-w-sm mx-auto">
+          <h3 className="font-display text-lg font-bold text-[#1e293b]">No scheduled callbacks</h3>
+          <p className="font-body text-sm text-[#94a3b8] mt-1 max-w-sm mx-auto">
             Schedule callbacks from the Dialer workspace to view them on the shared board.
           </p>
         </div>
@@ -285,7 +285,7 @@ export default function ScheduledCallsPage() {
             if (items.length === 0) return null;
             return (
               <div key={key} className={`bg-gradient-to-br ${bgGradient} border ${borderColor} rounded-3xl p-6 shadow-sm`}>
-                <h2 className="font-display text-xs font-black uppercase tracking-widest flex items-center gap-2 mb-4 text-[#292524]">
+                <h2 className="font-display text-xs font-black uppercase tracking-widest flex items-center gap-2 mb-4 text-[#13284A]">
                   <Icon size={14} className={iconColor} />
                   {label}
                   <span className={`px-2 py-0.5 rounded-full font-label text-[10px] font-bold ${badgeColor}`}>
@@ -312,16 +312,16 @@ export default function ScheduledCallsPage() {
                             ? "border-primary-muted hover:border-primary-muted hover:shadow-primary-light/50 bg-gradient-to-r from-white to-primary-light/10"
                             : isAssignedToMe
                               ? "border-emerald-200 bg-gradient-to-r from-white to-emerald-50/10"
-                              : "border-[#f0ece4] hover:border-[#e8e3db]"
+                              : "border-[#f1f5f9] hover:border-[#e2e8f0]"
                         } hover:shadow-md hover:scale-[1.01]`}
                       >
                         {/* Left Info Column */}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-body text-sm font-bold text-[#292524] truncate">
+                            <p className="font-body text-sm font-bold text-[#13284A] truncate">
                               {cb.lead.name ?? "Unnamed"}
                             </p>
-                            <span className="font-label text-[10px] text-[#78716c] font-semibold">
+                            <span className="font-label text-[10px] text-[#475569] font-semibold">
                               {formatPhone(cb.lead.phone ?? "")}
                             </span>
                             {cb.lead.segment && (
@@ -342,7 +342,7 @@ export default function ScheduledCallsPage() {
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap mt-2">
-                            <span className="font-label text-[10px] text-[#a8a29e] flex items-center gap-1">
+                            <span className="font-label text-[10px] text-[#94a3b8] flex items-center gap-1">
                               <Clock size={10} />
                               {new Date(cb.scheduled_for).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
                             </span>
@@ -351,7 +351,7 @@ export default function ScheduledCallsPage() {
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200/60"
                                 : isClaimed
                                   ? "bg-primary-light text-primary border-primary-muted/60"
-                                  : "bg-[#faf8f5] text-[#78716c] border-[#f0ece4]"
+                                  : "bg-[#f8fafc] text-[#475569] border-[#f1f5f9]"
                             }`}>
                               {isClaimed ? <Zap size={10} /> : <User size={10} />}
                               {isClaimed
@@ -363,7 +363,7 @@ export default function ScheduledCallsPage() {
                                     : "Auto-scheduled"}
                             </span>
                             {cb.message_preview && (
-                              <span className="font-label text-[10px] text-[#78716c] bg-[#faf8f5] border border-[#f0ece4] px-2 py-0.5 rounded-lg truncate max-w-[240px]">
+                              <span className="font-label text-[10px] text-[#475569] bg-[#f8fafc] border border-[#f1f5f9] px-2 py-0.5 rounded-lg truncate max-w-[240px]">
                                 {cb.message_preview}
                               </span>
                             )}
@@ -388,7 +388,7 @@ export default function ScheduledCallsPage() {
                               <button
                                 onClick={() => handleMarkDone(cb.id)}
                                 disabled={markingDone === cb.id}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-[#f0ece4] text-[#57534e] rounded-xl font-label text-[10px] font-bold hover:bg-[#e8e3db] transition-all disabled:opacity-50"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-[#f1f5f9] text-[#334155] rounded-xl font-label text-[10px] font-bold hover:bg-[#e2e8f0] transition-all disabled:opacity-50"
                               >
                                 {markingDone === cb.id ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
                                 Done
@@ -406,7 +406,7 @@ export default function ScheduledCallsPage() {
                           )}
 
                           {actsAsCaller && !isAssignedToMe && !isTakeoverEligible && (
-                            <div className="flex items-center gap-1 px-3 py-1.5 bg-[#faf8f5] text-[#a8a29e] rounded-xl font-label text-[10px] border border-[#f0ece4]">
+                            <div className="flex items-center gap-1 px-3 py-1.5 bg-[#f8fafc] text-[#94a3b8] rounded-xl font-label text-[10px] border border-[#f1f5f9]">
                               <Shield size={11} />
                               Locked
                             </div>
@@ -416,7 +416,7 @@ export default function ScheduledCallsPage() {
                             <button
                               onClick={() => handleMarkDone(cb.id)}
                               disabled={markingDone === cb.id}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-[#f0ece4] text-[#57534e] rounded-xl font-label text-[10px] font-bold hover:bg-[#e8e3db] transition-all disabled:opacity-50"
+                              className="flex items-center gap-1.5 px-4 py-2 bg-[#f1f5f9] text-[#334155] rounded-xl font-label text-[10px] font-bold hover:bg-[#e2e8f0] transition-all disabled:opacity-50"
                             >
                               {markingDone === cb.id ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
                               Done (Admin)
@@ -435,26 +435,26 @@ export default function ScheduledCallsPage() {
 
       {/* Context Handoff Modal */}
       {handoffCallback && (
-        <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-[#1c1917]/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl border border-[#f0ece4] max-h-[90vh] flex flex-col animate-zoom-in">
+        <div className="fixed inset-0 z-dialog flex items-center justify-center p-4 bg-[#0A1528]/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-4xl border border-[#f1f5f9] max-h-[90vh] flex flex-col animate-zoom-in">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-[#f0ece4] shrink-0">
+            <div className="flex items-center justify-between pb-4 border-b border-[#f1f5f9] shrink-0">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="p-1.5 bg-primary-light rounded-lg text-primary">
                     <Zap size={18} />
                   </span>
-                  <h2 className="font-display text-xl font-bold text-[#292524]">
+                  <h2 className="font-display text-xl font-bold text-[#13284A]">
                     Claim Callback
                   </h2>
                 </div>
-                <p className="font-body text-xs text-[#78716c] mt-1">
+                <p className="font-body text-xs text-[#475569] mt-1">
                   Claim this overdue callback. Once claimed, the lead is assigned to you.
                 </p>
               </div>
               <button
                 onClick={() => setHandoffCallback(null)}
-                className="p-1.5 rounded-lg hover:bg-[#faf8f5] text-[#a8a29e] hover:text-[#57534e] transition-colors"
+                className="p-1.5 rounded-lg hover:bg-[#f8fafc] text-[#94a3b8] hover:text-[#334155] transition-colors"
               >
                 <X size={18} />
               </button>
@@ -464,21 +464,21 @@ export default function ScheduledCallsPage() {
             <div className="flex-1 overflow-y-auto py-6 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-[300px]">
               {/* Left Column: Lead Info & Notes History */}
               <div className="space-y-4 flex flex-col min-w-0">
-                <div className="bg-[#faf8f5] rounded-2xl p-4 border border-[#f0ece4] shrink-0">
-                  <h3 className="font-display text-xs font-bold text-[#a8a29e] uppercase tracking-wider mb-3">
+                <div className="bg-[#f8fafc] rounded-2xl p-4 border border-[#f1f5f9] shrink-0">
+                  <h3 className="font-display text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-3">
                     Lead Details
                   </h3>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-[10px] text-[#a8a29e] font-medium uppercase">Name</p>
-                      <p className="text-sm font-bold text-[#292524] truncate">{handoffCallback.lead.name || "Unnamed"}</p>
+                      <p className="text-[10px] text-[#94a3b8] font-medium uppercase">Name</p>
+                      <p className="text-sm font-bold text-[#13284A] truncate">{handoffCallback.lead.name || "Unnamed"}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#a8a29e] font-medium uppercase">Phone</p>
-                      <p className="text-sm font-bold text-[#292524]">{formatPhone(handoffCallback.lead.phone ?? "")}</p>
+                      <p className="text-[10px] text-[#94a3b8] font-medium uppercase">Phone</p>
+                      <p className="text-sm font-bold text-[#13284A]">{formatPhone(handoffCallback.lead.phone ?? "")}</p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#a8a29e] font-medium uppercase">Segment</p>
+                      <p className="text-[10px] text-[#94a3b8] font-medium uppercase">Segment</p>
                       <span className={`inline-block px-2 py-0.5 rounded font-label text-[9px] font-black uppercase mt-0.5 ${
                         handoffCallback.lead.segment === "A" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
                         handoffCallback.lead.segment === "B" ? "bg-blue-50 text-blue-700 border border-blue-200" :
@@ -486,44 +486,44 @@ export default function ScheduledCallsPage() {
                       }`}>SEG {handoffCallback.lead.segment || "D"}</span>
                     </div>
                     <div>
-                      <p className="text-[10px] text-[#a8a29e] font-medium uppercase">Lead Score</p>
+                      <p className="text-[10px] text-[#94a3b8] font-medium uppercase">Lead Score</p>
                       <div className="flex items-center gap-1 mt-0.5">
                         <Award size={12} className="text-primary" />
-                        <span className="text-xs font-bold text-[#292524]">{handoffCallback.lead.score ?? 0}</span>
+                        <span className="text-xs font-bold text-[#13284A]">{handoffCallback.lead.score ?? 0}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex-1 flex flex-col min-h-[200px]">
-                  <h3 className="font-display text-xs font-bold text-[#a8a29e] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <h3 className="font-display text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <FileText size={12} />
                     Touch Notes History
                   </h3>
-                  <div className="flex-1 overflow-y-auto border border-[#f0ece4] rounded-2xl p-4 space-y-3 bg-white max-h-[300px]">
+                  <div className="flex-1 overflow-y-auto border border-[#f1f5f9] rounded-2xl p-4 space-y-3 bg-white max-h-[300px]">
                     {loadingHandoff ? (
                       <div className="flex items-center justify-center h-full py-8">
-                        <RefreshCw size={20} className="animate-spin text-[#a8a29e]" />
+                        <RefreshCw size={20} className="animate-spin text-[#94a3b8]" />
                       </div>
                     ) : notes.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-8 text-[#a8a29e]">
+                      <div className="flex flex-col items-center justify-center py-8 text-[#94a3b8]">
                         <MessageSquare size={24} className="stroke-[1.5] mb-1.5" />
                         <p className="text-xs font-medium">No touch notes found for this lead.</p>
                       </div>
                     ) : (
                       notes.map((note) => (
-                        <div key={note.id} className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl relative hover:border-[#e8e3db] transition-colors">
+                        <div key={note.id} className="p-3 bg-[#f8fafc] border border-[#f1f5f9] rounded-xl relative hover:border-[#e2e8f0] transition-colors">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-[9px] text-[#a8a29e] font-semibold">{timeAgo(note.created_at)}</span>
+                            <span className="text-[9px] text-[#94a3b8] font-semibold">{timeAgo(note.created_at)}</span>
                             {note.is_pinned && (
                               <span className="text-[9px] font-bold text-primary bg-primary-light px-1 rounded">Pinned</span>
                             )}
                           </div>
-                          <p className="text-xs text-[#44403c] whitespace-pre-wrap">{note.content}</p>
+                          <p className="text-xs text-[#1e293b] whitespace-pre-wrap">{note.content}</p>
                           {note.structured && Object.keys(note.structured).length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-[#e8e3db]/50 flex flex-wrap gap-2">
+                            <div className="mt-2 pt-2 border-t border-[#e2e8f0]/50 flex flex-wrap gap-2">
                               {Object.entries(note.structured).map(([k, v]) => v && (
-                                <span key={k} className="text-[8px] bg-[#e8e3db]/60 text-[#57534e] px-1.5 py-0.5 rounded capitalize font-medium">
+                                <span key={k} className="text-[8px] bg-[#e2e8f0]/60 text-[#334155] px-1.5 py-0.5 rounded capitalize font-medium">
                                   {k.replace("_", " ")}: {v}
                                 </span>
                               ))}
@@ -539,69 +539,69 @@ export default function ScheduledCallsPage() {
               {/* Right Column: Previous Call Logs & AI Evaluation */}
               <div className="space-y-4 flex flex-col min-w-0">
                 <div className="flex-1 flex flex-col min-h-[350px]">
-                  <h3 className="font-display text-xs font-bold text-[#a8a29e] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <h3 className="font-display text-xs font-bold text-[#94a3b8] uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Activity size={12} />
                     Recent Calls &amp; AI Summaries
                   </h3>
-                  <div className="flex-1 overflow-y-auto border border-[#f0ece4] rounded-2xl p-4 space-y-3 bg-white max-h-[420px]">
+                  <div className="flex-1 overflow-y-auto border border-[#f1f5f9] rounded-2xl p-4 space-y-3 bg-white max-h-[420px]">
                     {loadingHandoff ? (
                       <div className="flex items-center justify-center h-full py-8">
-                        <RefreshCw size={20} className="animate-spin text-[#a8a29e]" />
+                        <RefreshCw size={20} className="animate-spin text-[#94a3b8]" />
                       </div>
                     ) : callLogs.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-12 text-[#a8a29e]">
+                      <div className="flex flex-col items-center justify-center py-12 text-[#94a3b8]">
                         <Phone size={24} className="stroke-[1.5] mb-1.5" />
                         <p className="text-xs font-medium">No previous call records available.</p>
                       </div>
                     ) : (
                       callLogs.map((log) => (
-                        <div key={log.id} className="p-3 bg-[#faf8f5] border border-[#f0ece4] rounded-xl space-y-2 hover:border-[#e8e3db] transition-colors">
+                        <div key={log.id} className="p-3 bg-[#f8fafc] border border-[#f1f5f9] rounded-xl space-y-2 hover:border-[#e2e8f0] transition-colors">
                           <div className="flex items-center justify-between">
                             <span className={`px-2 py-0.5 rounded border text-[8px] font-bold uppercase ${TONE_CHIP[callResultTone(callResultKey(log))]}`}>
                               {callResultLabel(callResultKey(log)) ?? "Not wrapped up"}
                             </span>
-                            <span className="text-[9px] text-[#a8a29e]">{timeAgo(log.created_at)}</span>
+                            <span className="text-[9px] text-[#94a3b8]">{timeAgo(log.created_at)}</span>
                           </div>
 
                           {log.duration_seconds && (
-                            <p className="text-[10px] text-[#78716c] font-medium">
+                            <p className="text-[10px] text-[#475569] font-medium">
                               Duration: {Math.floor(log.duration_seconds / 60)}m {log.duration_seconds % 60}s
                             </p>
                           )}
 
                           {log.ai_summary && (
-                            <div className="mt-2 bg-white rounded-lg p-2.5 border border-[#e8e3db]/50 space-y-1.5">
-                              <div className="flex items-center gap-1 mb-1 pb-1 border-b border-[#f0ece4]">
-                                <span className="text-[9px] font-bold text-[#57534e] flex items-center gap-1">
+                            <div className="mt-2 bg-white rounded-lg p-2.5 border border-[#e2e8f0]/50 space-y-1.5">
+                              <div className="flex items-center gap-1 mb-1 pb-1 border-b border-[#f1f5f9]">
+                                <span className="text-[9px] font-bold text-[#334155] flex items-center gap-1">
                                   <Sparkles size={10} className="text-primary" />
                                   AI Evaluation
                                 </span>
                               </div>
                               {(log.ai_summary.course || log.ai_summary.product) && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Course Interest:</span> {log.ai_summary.course || log.ai_summary.product}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Course Interest:</span> {log.ai_summary.course || log.ai_summary.product}</p>
                               )}
                               {log.ai_summary.brief && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Brief:</span> {log.ai_summary.brief}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Brief:</span> {log.ai_summary.brief}</p>
                               )}
                               {log.ai_summary.budget && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Budget:</span> {log.ai_summary.budget}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Budget:</span> {log.ai_summary.budget}</p>
                               )}
                               {log.ai_summary.timeline && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Timeline:</span> {log.ai_summary.timeline}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Timeline:</span> {log.ai_summary.timeline}</p>
                               )}
                               {log.ai_summary.sentiment && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Sentiment:</span> {log.ai_summary.sentiment}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Sentiment:</span> {log.ai_summary.sentiment}</p>
                               )}
                               {log.ai_summary.next_action && (
-                                <p className="text-[10px] text-[#57534e]"><span className="font-semibold text-[#44403c]">Next Action:</span> {log.ai_summary.next_action}</p>
+                                <p className="text-[10px] text-[#334155]"><span className="font-semibold text-[#1e293b]">Next Action:</span> {log.ai_summary.next_action}</p>
                               )}
                             </div>
                           )}
 
                           {log.transcript_preview && (
-                            <div className="bg-[#f0ece4]/50 rounded p-2 mt-1.5">
-                              <p className="text-[9px] font-bold text-[#78716c] mb-0.5">Transcript Snippet</p>
-                              <p className="text-[10px] text-[#57534e] line-clamp-2 italic">&ldquo;{log.transcript_preview.first}&rdquo;</p>
+                            <div className="bg-[#f1f5f9]/50 rounded p-2 mt-1.5">
+                              <p className="text-[9px] font-bold text-[#475569] mb-0.5">Transcript Snippet</p>
+                              <p className="text-[10px] text-[#334155] line-clamp-2 italic">&ldquo;{log.transcript_preview.first}&rdquo;</p>
                             </div>
                           )}
                         </div>
@@ -613,10 +613,10 @@ export default function ScheduledCallsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#f0ece4] shrink-0">
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#f1f5f9] shrink-0">
               <button
                 onClick={() => setHandoffCallback(null)}
-                className="px-4 py-2 bg-[#f0ece4] text-[#57534e] hover:bg-[#e8e3db] rounded-xl font-label text-[11px] font-bold transition-all"
+                className="px-4 py-2 bg-[#f1f5f9] text-[#334155] hover:bg-[#e2e8f0] rounded-xl font-label text-[11px] font-bold transition-all"
               >
                 Cancel
               </button>

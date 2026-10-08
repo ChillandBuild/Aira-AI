@@ -82,7 +82,7 @@ export default function NeedsAttention({ onViewLead }: NeedsAttentionProps) {
           value={type}
           onChange={(e) => setType(e.target.value as CallAlertType | "")}
           aria-label="Filter by type"
-          className="rounded-lg border border-[#e8e3db] bg-white px-2.5 py-1.5 font-label text-xs text-[#292524]"
+          className="rounded-lg border border-[#e2e8f0] bg-white px-2.5 py-1.5 font-label text-xs text-[#13284A]"
         >
           <option value="">All types</option>
           {(Object.keys(TYPE_LABEL) as CallAlertType[]).map((t) => (
@@ -92,11 +92,11 @@ export default function NeedsAttention({ onViewLead }: NeedsAttentionProps) {
       </div>
 
       {loading && rows.length === 0 ? (
-        <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-[#a8a29e]" /></div>
+        <div className="flex justify-center py-8"><Loader2 size={18} className="animate-spin text-[#94a3b8]" /></div>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center font-body text-sm text-[#a8a29e]">Nothing needs attention.</p>
+        <p className="py-8 text-center font-body text-sm text-[#94a3b8]">Nothing needs attention.</p>
       ) : (
-        <ul className="divide-y divide-[#f0ece4]">
+        <ul className="divide-y divide-[#f1f5f9]">
           {rows.map((a) => {
             const lead = a.call_logs?.leads;
             const leadId = a.call_logs?.lead_id;
@@ -106,16 +106,16 @@ export default function NeedsAttention({ onViewLead }: NeedsAttentionProps) {
                   {TYPE_LABEL[a.type]}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-body text-xs font-bold text-[#292524] truncate">
+                  <p className="font-body text-xs font-bold text-[#13284A] truncate">
                     {a.callers?.name ?? "All telecallers"}
-                    {lead && <span className="font-semibold text-[#78716c]"> · {lead.name || formatPhone(lead.phone ?? "")}</span>}
+                    {lead && <span className="font-semibold text-[#475569]"> · {lead.name || formatPhone(lead.phone ?? "")}</span>}
                   </p>
-                  {a.quote && <p className="font-body text-[11px] text-[#57534e] mt-0.5 break-words">{a.quote}</p>}
-                  <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">{timeAgo(a.created_at)}</p>
+                  {a.quote && <p className="font-body text-[11px] text-[#334155] mt-0.5 break-words">{a.quote}</p>}
+                  <p className="font-label text-[10px] text-[#94a3b8] mt-0.5">{timeAgo(a.created_at)}</p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   {leadId && (
-                    <button type="button" onClick={() => onViewLead(leadId)} className="inline-flex items-center gap-1 rounded-lg border border-[#e8e3db] bg-white px-2.5 py-1.5 font-label text-[10px] font-extrabold text-[#57534e] hover:bg-[#faf8f5]">
+                    <button type="button" onClick={() => onViewLead(leadId)} className="inline-flex items-center gap-1 rounded-lg border border-[#e2e8f0] bg-white px-2.5 py-1.5 font-label text-[10px] font-extrabold text-[#334155] hover:bg-[#f8fafc]">
                       <Eye size={11} /> Open
                     </button>
                   )}
@@ -129,7 +129,7 @@ export default function NeedsAttention({ onViewLead }: NeedsAttentionProps) {
         </ul>
       )}
       {rows.length < total && (
-        <button type="button" onClick={() => void load(type, page + 1)} disabled={loading} className="mt-3 w-full rounded-lg border border-[#e8e3db] py-2 font-label text-xs font-bold text-[#57534e] hover:bg-[#faf8f5] disabled:opacity-60">
+        <button type="button" onClick={() => void load(type, page + 1)} disabled={loading} className="mt-3 w-full rounded-lg border border-[#e2e8f0] py-2 font-label text-xs font-bold text-[#334155] hover:bg-[#f8fafc] disabled:opacity-60">
           {loading ? "Loading…" : "Load more"}
         </button>
       )}

@@ -442,7 +442,7 @@ export default function FollowUpsSettingsPage() {
                     <div className="rounded-xl border border-border-subtle bg-surface-subtle/60 p-4">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100/70 text-indigo-700">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-100/70 text-primary-700">
                             <Moon className="h-3.5 w-3.5" />
                           </div>
                           <div>
@@ -454,7 +454,7 @@ export default function FollowUpsSettingsPage() {
                             </p>
                           </div>
                         </div>
-                        <span className="font-label text-[10px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-200/60 px-2 py-0.5 rounded-full">
+                        <span className="font-label text-[10px] font-bold uppercase tracking-wider text-primary-700 bg-primary-50 border border-primary-200/60 px-2 py-0.5 rounded-full">
                           IST (UTC+5:30)
                         </span>
                       </div>
@@ -504,7 +504,7 @@ export default function FollowUpsSettingsPage() {
 
                       {/* Summary */}
                       <div className="mt-2.5 flex items-center gap-1.5 font-body text-[11px] text-ink-secondary">
-                        <Clock className="h-3 w-3 text-indigo-600 shrink-0" />
+                        <Clock className="h-3 w-3 text-primary-600 shrink-0" />
                         <span>
                           Held between <strong className="text-ink">{formatTime12h(quietStart)}</strong> and{" "}
                           <strong className="text-ink">{formatTime12h(quietEnd)} IST</strong>

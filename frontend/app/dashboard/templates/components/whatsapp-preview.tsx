@@ -32,7 +32,7 @@ function renderBody(text: string, samples?: Record<number, string>) {
       <span
         key={i}
         className="inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold"
-        style={{ background: "#DCF8C6", color: "#075E54" }}
+        style={{ background: "var(--primary-50)", color: "var(--primary-900)" }}
       >
         {samples?.[Number(part.slice(2, -2))]?.trim() || part}
       </span>
@@ -110,7 +110,7 @@ export default function WhatsAppPreview({
         {/* WhatsApp header bar */}
         <div
           className="flex items-center gap-3 px-4 py-2.5"
-          style={{ background: "#075E54" }}
+          style={{ background: "var(--primary-950)" }}
         >
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">
             A

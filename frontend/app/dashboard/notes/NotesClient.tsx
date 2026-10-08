@@ -245,13 +245,13 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
       {pageMode === "all_notes" ? (
         <div className="space-y-4">
           {/* Filters bar */}
-          <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4 space-y-3">
+          <div className="bg-[#f8fafc] rounded-2xl border border-[#e2e8f0] p-4 space-y-3">
             <div className="relative">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               <input
                 type="text" placeholder="Search notes, lead name or phone…" value={boardSearch}
                 onChange={(e) => setBoardSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e2e8f0] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -260,7 +260,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                   key={seg}
                   onClick={() => setBoardSegment(boardSegment === seg ? null : seg)}
                   className={`px-2.5 py-1 rounded-full border font-label text-[10px] font-black uppercase transition-all ${
-                    boardSegment === seg ? `${SEGMENT_COLORS[seg]} border-transparent` : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
+                    boardSegment === seg ? `${SEGMENT_COLORS[seg]} border-transparent` : "bg-white border-[#e2e8f0] text-[#94a3b8] hover:border-[#d6cfc9]"
                   }`}
                 >
                   {SEGMENT_LABELS[seg]}
@@ -269,12 +269,12 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
               <button
                 onClick={() => setBoardPinnedOnly((v) => !v)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full border font-label text-[10px] font-bold uppercase transition-all ${
-                  boardPinnedOnly ? "bg-amber-100 text-amber-700 border-transparent" : "bg-white border-[#e8e3db] text-[#a8a29e] hover:border-[#d6cfc9]"
+                  boardPinnedOnly ? "bg-amber-100 text-amber-700 border-transparent" : "bg-white border-[#e2e8f0] text-[#94a3b8] hover:border-[#d6cfc9]"
                 }`}
               >
                 <Pin size={10} /> Pinned
               </button>
-              {boardTags.length > 0 && <span className="w-px h-4 bg-[#e8e3db] mx-1" />}
+              {boardTags.length > 0 && <span className="w-px h-4 bg-[#e2e8f0] mx-1" />}
               {boardTags.map((t) => (
                 <button
                   key={t}
@@ -290,9 +290,9 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
           </div>
 
           {allNotesLoading ? (
-            <p className="font-body text-sm text-[#a8a29e] px-2">Loading…</p>
+            <p className="font-body text-sm text-[#94a3b8] px-2">Loading…</p>
           ) : filteredAllNotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-[#a8a29e]">
+            <div className="flex flex-col items-center justify-center h-64 text-[#94a3b8]">
               <StickyNote size={40} className="mb-3 opacity-30" />
               <p className="font-body text-sm">No notes match your filters.</p>
             </div>
@@ -313,18 +313,18 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
       ) : (
         <div className="grid grid-cols-12 gap-4">
           {/* Left: lead list */}
-          <div className="col-span-4 bg-[#faf8f5] rounded-3xl p-5 shadow-sm border border-[#e8e3db] flex flex-col" style={{ maxHeight: "calc(100vh - 160px)" }}>
+          <div className="col-span-4 bg-[#f8fafc] rounded-3xl p-5 shadow-sm border border-[#e2e8f0] flex flex-col" style={{ maxHeight: "calc(100vh - 160px)" }}>
             <div className="relative mb-4 shrink-0">
-              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               <input
                 type="text" placeholder="Search by name or phone…" value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e8e3db] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-white border border-[#e2e8f0] font-body text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 pr-1">
               {sortedLeads.length === 0 && (
-                <p className="font-body text-sm text-[#a8a29e] px-2">No leads found.</p>
+                <p className="font-body text-sm text-[#94a3b8] px-2">No leads found.</p>
               )}
               {sortedLeads.map((lead) => (
                 <button
@@ -333,7 +333,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                   className={`w-full text-left rounded-2xl border p-3 flex items-center gap-3 transition-all ${
                     selected?.id === lead.id
                       ? "bg-white border-primary-muted shadow-sm ring-1 ring-primary/10"
-                      : "bg-white/60 border-[#f0ece4] hover:bg-white hover:shadow-sm"
+                      : "bg-white/60 border-[#f1f5f9] hover:bg-white hover:shadow-sm"
                   }`}
                 >
                   <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-display text-xs font-bold shrink-0">
@@ -341,18 +341,18 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
-                      <p className="font-body text-sm font-bold text-[#292524] truncate max-w-[110px]">
+                      <p className="font-body text-sm font-bold text-[#13284A] truncate max-w-[110px]">
                         {lead.name || formatPhone(lead.phone)}
                       </p>
                       <span className={`px-1.5 py-0.5 rounded font-label text-[8px] font-black uppercase shrink-0 ${SEGMENT_COLORS[lead.segment]}`}>
                         {SEGMENT_LABELS[lead.segment]}
                       </span>
                     </div>
-                    <p className="font-label text-xs text-[#78716c] mt-0.5">
+                    <p className="font-label text-xs text-[#475569] mt-0.5">
                       {lead.name ? formatPhone(lead.phone) : ""}
                     </p>
                     {lastCalledMap[lead.id] && (
-                      <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">Called {timeAgo(lastCalledMap[lead.id])}</p>
+                      <p className="font-label text-[10px] text-[#94a3b8] mt-0.5">Called {timeAgo(lastCalledMap[lead.id])}</p>
                     )}
                   </div>
                 </button>
@@ -363,41 +363,41 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
           {/* Right: lead notes */}
           <div className="col-span-8 space-y-4 overflow-y-auto" style={{ maxHeight: "calc(100vh - 160px)" }}>
             {!selected ? (
-              <div className="flex flex-col items-center justify-center h-64 text-[#a8a29e] bg-[#faf8f5] rounded-3xl border border-[#e8e3db]">
+              <div className="flex flex-col items-center justify-center h-64 text-[#94a3b8] bg-[#f8fafc] rounded-3xl border border-[#e2e8f0]">
                 <StickyNote size={40} className="mb-3 opacity-30" />
                 <p className="font-body text-sm">Select a lead to view notes</p>
               </div>
             ) : (
               <>
                 {/* Lead header */}
-                <div className="bg-gradient-to-r from-primary-light via-white to-white rounded-2xl border border-[#e8e3db] p-5 shadow-sm flex items-center justify-between">
+                <div className="bg-gradient-to-r from-primary-light via-white to-white rounded-2xl border border-[#e2e8f0] p-5 shadow-sm flex items-center justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-primary-500 text-white flex items-center justify-center font-display text-base font-bold shrink-0 shadow-sm">
                       {selected.name ? selected.name.charAt(0).toUpperCase() : <User size={18} />}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="font-display text-lg font-extrabold text-[#1c1917] truncate">
+                      <h2 className="font-display text-lg font-extrabold text-[#0A1528] truncate">
                         {selected.name || formatPhone(selected.phone)}
                       </h2>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {selected.name && (
-                          <span className="font-label text-xs text-[#78716c]">{formatPhone(selected.phone)}</span>
+                          <span className="font-label text-xs text-[#475569]">{formatPhone(selected.phone)}</span>
                         )}
                         <SegmentBadge segment={selected.segment} />
                       </div>
                     </div>
                   </div>
-                  <button onClick={() => setSelected(null)} className="p-2 rounded-lg hover:bg-white transition-colors text-[#a8a29e] shrink-0">
+                  <button onClick={() => setSelected(null)} className="p-2 rounded-lg hover:bg-white transition-colors text-[#94a3b8] shrink-0">
                     <X size={16} />
                   </button>
                 </div>
 
                 {notesLoading ? (
-                  <p className="font-body text-sm text-[#a8a29e] px-2">Loading…</p>
+                  <p className="font-body text-sm text-[#94a3b8] px-2">Loading…</p>
                 ) : (
                   <>
                     {/* Section tabs (Call Notes / Call Summaries) */}
-                    <div className="flex border-b border-[#e8e3db] bg-white rounded-t-2xl">
+                    <div className="flex border-b border-[#e2e8f0] bg-white rounded-t-2xl">
                       {[
                         { id: "notes" as const, label: "Call Notes", count: leadNoteItems.length },
                         { id: "summary" as const, label: "Call Summaries", count: aiLogs.length },
@@ -408,13 +408,13 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                           className={`px-6 py-3 font-display text-xs font-black tracking-wider uppercase border-b-2 text-center transition-all flex items-center gap-1.5 ${
                             detailTab === t.id
                               ? "border-primary text-primary"
-                              : "border-transparent text-[#a8a29e] hover:text-[#57534e]"
+                              : "border-transparent text-[#94a3b8] hover:text-[#334155]"
                           }`}
                         >
                           {t.label}
                           {t.count > 0 && (
                             <span className={`px-1.5 py-0.5 rounded-full font-label text-[10px] normal-case font-bold tracking-normal ${
-                              detailTab === t.id ? "bg-primary-light text-primary" : "bg-[#f0ece4] text-[#a8a29e]"
+                              detailTab === t.id ? "bg-primary-light text-primary" : "bg-[#f1f5f9] text-[#94a3b8]"
                             }`}>
                               {t.count}
                             </span>
@@ -425,9 +425,9 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
 
                     {/* Notes section */}
                     {detailTab === "notes" && (
-                    <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4">
+                    <div className="bg-[#f8fafc] rounded-2xl border border-[#e2e8f0] p-4">
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                        <h3 className="font-display text-sm font-extrabold text-[#1c1917] flex items-center gap-2">
+                        <h3 className="font-display text-sm font-extrabold text-[#0A1528] flex items-center gap-2">
                           <span className="w-6 h-6 rounded-lg bg-primary-light flex items-center justify-center">
                             <StickyNote size={13} className="text-primary" />
                           </span>
@@ -457,7 +457,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                       </div>
 
                       {filteredLeadNotes.length === 0 ? (
-                        <p className="font-body text-sm text-[#a8a29e]">
+                        <p className="font-body text-sm text-[#94a3b8]">
                           {filterTag ? `No notes tagged "${filterTag}".` : "No notes yet for this lead."}
                         </p>
                       ) : (
@@ -474,9 +474,9 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
 
                     {/* Summary (AI call summaries) */}
                     {detailTab === "summary" && (
-                    <div className="bg-[#faf8f5] rounded-2xl border border-[#e8e3db] p-4">
+                    <div className="bg-[#f8fafc] rounded-2xl border border-[#e2e8f0] p-4">
                       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                        <h3 className="font-display text-sm font-extrabold text-[#1c1917] flex items-center gap-2">
+                        <h3 className="font-display text-sm font-extrabold text-[#0A1528] flex items-center gap-2">
                           <span className="w-6 h-6 rounded-lg bg-primary-50 flex items-center justify-center">
                             <Sparkles size={13} className="text-primary-500" />
                           </span>
@@ -490,7 +490,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                         <SentimentTrend logs={aiLogs} />
                       </div>
                       {aiLogs.length === 0 ? (
-                        <p className="font-body text-sm text-[#a8a29e]">No AI summaries yet. They appear after calls are processed.</p>
+                        <p className="font-body text-sm text-[#94a3b8]">No AI summaries yet. They appear after calls are processed.</p>
                       ) : (
                         <div>
                           {aiLogs.map((log, i) => (
@@ -511,19 +511,19 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
 
                     {/* Add note composer (compact) */}
                     {detailTab === "notes" && (
-                    <div className="bg-white rounded-2xl border border-[#e8e3db] p-3 space-y-2 shadow-sm">
+                    <div className="bg-white rounded-2xl border border-[#e2e8f0] p-3 space-y-2 shadow-sm">
                       <div className="flex items-center gap-2">
                         <Plus size={12} className="text-primary shrink-0" />
                         <input
                           type="text" value={addTitle} onChange={(e) => setAddTitle(e.target.value)}
                           placeholder="Title (optional)"
-                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
+                          className="flex-1 px-2.5 py-1.5 rounded-lg bg-[#f8fafc] border border-[#e2e8f0] font-body text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all"
                         />
                       </div>
                       <textarea
                         value={addContent} onChange={(e) => setAddContent(e.target.value)}
                         placeholder="Add a new note…" rows={2}
-                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#faf8f5] border border-[#e8e3db] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                        className="w-full px-2.5 py-1.5 rounded-lg bg-[#f8fafc] border border-[#e2e8f0] font-body text-xs focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                       />
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
@@ -534,7 +534,7 @@ export function NotesClient({ fallbackLeads }: { fallbackLeads: { data: Lead[] }
                           className="flex select-none items-center gap-1.5"
                         >
                           <TickMark checked={addPinned} size="sm" />
-                          <span className="font-label text-xs text-[#78716c]">Pin note</span>
+                          <span className="font-label text-xs text-[#475569]">Pin note</span>
                         </button>
                         <TagSelector selected={addTags} onChange={setAddTags} />
                         <button

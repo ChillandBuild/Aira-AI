@@ -37,7 +37,7 @@ export default function DisconnectDialog({
 
           <div className="space-y-4 p-6">
             {error && <p className="rounded-xl bg-red-50 px-3 py-2 font-body text-xs text-red-700">{error}</p>}
-            <ul className="space-y-1.5 font-body text-sm text-[#57534e]">
+            <ul className="space-y-1.5 font-body text-sm text-[#334155]">
               {target.stops.map(clause => <li key={clause}>· {clause}</li>)}
               <li>· Anril&apos;s webhooks are unsubscribed at the provider</li>
               <li>· Stored tokens are deleted from Anril</li>

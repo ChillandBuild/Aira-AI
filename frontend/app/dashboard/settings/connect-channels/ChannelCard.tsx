@@ -79,7 +79,7 @@ export default function ChannelCard({
             <button
               type="button"
               onClick={onDisconnect}
-              className="rounded-lg px-2 py-1.5 font-label text-[10px] font-bold text-[#a8a29e] transition-colors hover:bg-red-50 hover:text-red-600"
+              className="rounded-lg px-2 py-1.5 font-label text-[10px] font-bold text-[#94a3b8] transition-colors hover:bg-red-50 hover:text-red-600"
             >
               Disconnect
             </button>

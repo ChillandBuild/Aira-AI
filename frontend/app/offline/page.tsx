@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { WifiOff } from "lucide-react";
-import { AiraLogo } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 
 export default function OfflinePage() {
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-ink">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-lg flex-col justify-center">
-        <AiraLogo height={34} className="mb-12 text-ink" aria-label="Anril AI" />
+        <AnrilLogo height={34} className="mb-12 text-ink" aria-label="Anril AI" />
 
         <div className="rounded-2xl border border-border bg-white p-8 shadow-card">
           <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-light text-primary">

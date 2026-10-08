@@ -82,9 +82,9 @@ const SEGMENT_FILTER_OPTIONS = [
 function ChannelBadge({ source }: { source: string }) {
   const cfg = CHANNEL_CONFIG[source] ?? {
     label: source,
-    color: "text-[#57534e]",
-    bg: "bg-[#f0ece4] border-[#e8e3db]",
-    dot: "bg-[#a8a29e]",
+    color: "text-[#334155]",
+    bg: "bg-[#f1f5f9] border-[#e2e8f0]",
+    dot: "bg-[#94a3b8]",
   };
   return (
     <span className={cn(
@@ -108,13 +108,13 @@ function StatCard({
   tone?: string;
 }) {
   return (
-    <div className={cn("bg-white rounded-2xl border border-[#e8e3db]/80 border-t-4 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group", tone)}>
+    <div className={cn("bg-white rounded-2xl border border-[#e2e8f0]/80 border-t-4 p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-all duration-200 group", tone)}>
       <div className={cn("w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110", gradient)}>
         <Icon size={19} className="text-white" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-[#1c1917] leading-none tabular-nums">{value}</p>
-        <p className="text-xs text-[#a8a29e] font-medium mt-0.5">{label}</p>
+        <p className="text-2xl font-bold text-[#0A1528] leading-none tabular-nums">{value}</p>
+        <p className="text-xs text-[#94a3b8] font-medium mt-0.5">{label}</p>
       </div>
     </div>
   );
@@ -126,14 +126,14 @@ function EmptyState() {
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-light flex items-center justify-center mb-4 shadow-sm">
         <RadioTower size={28} className="text-primary-400" />
       </div>
-      <h3 className="font-bold text-[#44403c] text-lg mb-1">No Inbound Leads Yet</h3>
-      <p className="text-sm text-[#a8a29e] max-w-sm leading-relaxed">
+      <h3 className="font-bold text-[#1e293b] text-lg mb-1">No Inbound Leads Yet</h3>
+      <p className="text-sm text-[#94a3b8] max-w-sm leading-relaxed">
         Leads will appear here when users message you via WhatsApp, Instagram DM,
         Facebook Messenger, or Telegram — whether from an ad or organically.
       </p>
       <div className="mt-5 flex items-center gap-2 flex-wrap justify-center">
         {["WhatsApp", "Instagram DM", "Facebook Messenger", "Telegram"].map((ch) => (
-          <span key={ch} className="px-3 py-1.5 rounded-full bg-[#f0ece4] text-[#78716c] text-xs font-medium border border-[#e8e3db]">
+          <span key={ch} className="px-3 py-1.5 rounded-full bg-[#f1f5f9] text-[#475569] text-xs font-medium border border-[#e2e8f0]">
             {ch}
           </span>
         ))}
@@ -197,7 +197,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
               <p className="text-[11px] text-on-surface-muted">Track WhatsApp leads from a Google campaign</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-[#a8a29e] hover:text-[#44403c] transition-colors">
+          <button onClick={onClose} className="text-[#94a3b8] hover:text-[#1e293b] transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -213,7 +213,7 @@ function GoogleAdsLinkModal({ onClose }: { onClose: () => void }) {
         />
 
         <label className="block font-label text-[10px] font-bold text-on-surface-muted uppercase tracking-wider mb-1.5">
-          Google Click ID <span className="normal-case font-normal text-[#a8a29e]">(optional — for spend sync later)</span>
+          Google Click ID <span className="normal-case font-normal text-[#94a3b8]">(optional — for spend sync later)</span>
         </label>
         <input
           value={gclid}
@@ -390,7 +390,7 @@ export function InboundLeadsClient({
                   setOrigin("all");
                   setSelectedSegment("");
                 }}
-                className="flex h-7 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#78716c] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
+                className="flex h-7 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#475569] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
               >
                 <X size={11} /> Clear all
               </button>
@@ -399,7 +399,7 @@ export function InboundLeadsClient({
           <div className="flex flex-wrap items-end gap-2.5">
             <div className="w-full sm:w-[300px]">
               <label className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Origin</label>
-              <div className="grid h-9 grid-cols-3 gap-1 rounded-full border border-[#e8e3db] bg-[#f8f5ef] p-1">
+              <div className="grid h-9 grid-cols-3 gap-1 rounded-full border border-[#e2e8f0] bg-[#f8f5ef] p-1">
                 {ORIGIN_OPTIONS.map((o) => (
                   <button
                     key={o.value}
@@ -407,7 +407,7 @@ export function InboundLeadsClient({
                     className={`rounded-full px-2 text-xs font-bold transition ${
                       origin === o.value
                         ? "bg-white text-primary shadow-sm ring-1 ring-primary-100"
-                        : "text-[#78716c] hover:bg-white/60 hover:text-[#44403c]"
+                        : "text-[#475569] hover:bg-white/60 hover:text-[#1e293b]"
                     }`}
                   >
                     {o.label}
@@ -443,7 +443,7 @@ export function InboundLeadsClient({
                     <option key={c.id} value={c.id}>{c.campaign_name}</option>
                   ))}
                 </select>
-                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
               </div>
             </div>
 
@@ -459,7 +459,7 @@ export function InboundLeadsClient({
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
-                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+                <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
               </div>
             </div>
 
@@ -512,7 +512,7 @@ export function InboundLeadsClient({
             <button
               onClick={() => mutateLeads()}
               disabled={leadsValidating}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all disabled:opacity-40 shadow-sm"
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] font-label text-xs font-bold transition-all disabled:opacity-40 shadow-sm"
             >
               <RefreshCw size={12} className={leadsValidating ? "animate-spin" : ""} />
               <span>Refresh</span>
@@ -573,7 +573,7 @@ export function InboundLeadsClient({
                       "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
                       lead.origin === "ad"
                         ? "border-primary-200 bg-primary-50 text-primary-700"
-                        : "border-[#e8e3db] bg-[#f0ece4] text-[#57534e]"
+                        : "border-[#e2e8f0] bg-[#f1f5f9] text-[#334155]"
                     )}>
                       {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
                     </span>
@@ -638,7 +638,7 @@ export function InboundLeadsClient({
                           "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border",
                           lead.origin === "ad"
                             ? "bg-primary-50 border-primary-200 text-primary-700"
-                            : "bg-[#f0ece4] border-[#e8e3db] text-[#57534e]"
+                            : "bg-[#f1f5f9] border-[#e2e8f0] text-[#334155]"
                         )}>
                           {lead.origin.charAt(0).toUpperCase() + lead.origin.slice(1)}
                         </span>

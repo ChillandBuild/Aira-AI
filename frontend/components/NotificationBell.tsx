@@ -69,7 +69,7 @@ export function NotificationBell() {
       case "sentiment_critical":
       case "intake_trigger_failed":
         return {
-          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-rose-500",
+          bg: "bg-[#f8fafc]/65 hover:bg-[#f1f5f9]/65 border-[#e2e8f0]/50 border-l-4 border-l-rose-500",
           iconBg: "bg-rose-100 text-rose-600",
           icon: <AlertCircle size={14} />,
         };
@@ -77,7 +77,7 @@ export function NotificationBell() {
       case "callback_claimable":
       case "break_overtime":
         return {
-          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-amber-500",
+          bg: "bg-[#f8fafc]/65 hover:bg-[#f1f5f9]/65 border-[#e2e8f0]/50 border-l-4 border-l-amber-500",
           iconBg: "bg-amber-100 text-amber-600",
           icon: <Clock size={14} />,
         };
@@ -86,7 +86,7 @@ export function NotificationBell() {
       case "callback_taken_over":
       default:
         return {
-          bg: "bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border-[#e8e3db]/50 border-l-4 border-l-primary",
+          bg: "bg-[#f8fafc]/65 hover:bg-[#f1f5f9]/65 border-[#e2e8f0]/50 border-l-4 border-l-primary",
           iconBg: "bg-primary-light text-primary",
           icon: <Info size={14} />,
         };
@@ -114,10 +114,10 @@ export function NotificationBell() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-          <div className="fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top))] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-3xl border border-[#e8e3db]/60 bg-white/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:max-h-[80vh] md:w-96">
+          <div className="fixed inset-x-3 top-[calc(4.5rem+env(safe-area-inset-top))] bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col overflow-hidden rounded-3xl border border-[#e2e8f0]/60 bg-white/95 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200 md:absolute md:inset-auto md:right-0 md:top-full md:mt-3 md:max-h-[80vh] md:w-96">
             {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-primary-50/65 border-b border-[#f0ece4] flex items-center justify-between">
-              <h3 className="font-display text-sm font-black text-[#292524] uppercase tracking-wider">
+            <div className="px-5 py-4 bg-gradient-to-br from-primary-light/65 to-primary-50/65 border-b border-[#f1f5f9] flex items-center justify-between">
+              <h3 className="font-display text-sm font-black text-[#13284A] uppercase tracking-wider">
                 Notification Center
               </h3>
               <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export function NotificationBell() {
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 text-[#a8a29e] hover:text-[#44403c] rounded-xl hover:bg-[#f0ece4]/50 transition-colors"
+                  className="p-1.5 text-[#94a3b8] hover:text-[#1e293b] rounded-xl hover:bg-[#f1f5f9]/50 transition-colors"
                 >
                   <X size={16} />
                 </button>
@@ -153,8 +153,8 @@ export function NotificationBell() {
                       <Smartphone size={16} />
                     </div>
                     <div>
-                      <p className="font-display text-xs font-black text-[#292524]">Enable phone alerts</p>
-                      <p className="mt-0.5 font-body text-[11px] leading-relaxed text-[#57534e]">
+                      <p className="font-display text-xs font-black text-[#13284A]">Enable phone alerts</p>
+                      <p className="mt-0.5 font-body text-[11px] leading-relaxed text-[#334155]">
                         Get notified when a new lead is assigned while Anril is in the background.
                       </p>
                     </div>
@@ -162,7 +162,7 @@ export function NotificationBell() {
                 </button>
               )}
               {totalUnread === 0 ? (
-                <div className="py-16 text-center text-sm text-[#a8a29e] font-body flex flex-col items-center gap-2">
+                <div className="py-16 text-center text-sm text-[#94a3b8] font-body flex flex-col items-center gap-2">
                   <CheckCircle2 size={32} className="text-[#d6cfc9]" />
                   All caught up!
                 </div>
@@ -180,7 +180,7 @@ export function NotificationBell() {
                           <div
                             key={cb.id}
                             onClick={handleCallbackClick}
-                            className="p-3.5 bg-[#faf8f5]/65 hover:bg-[#f0ece4]/65 border border-[#e8e3db]/50 border-l-4 border-l-amber-500 rounded-2xl transition-all flex gap-3 cursor-pointer group"
+                            className="p-3.5 bg-[#f8fafc]/65 hover:bg-[#f1f5f9]/65 border border-[#e2e8f0]/50 border-l-4 border-l-amber-500 rounded-2xl transition-all flex gap-3 cursor-pointer group"
                           >
                             <div className="mt-0.5 shrink-0">
                               <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
@@ -188,14 +188,14 @@ export function NotificationBell() {
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-display text-xs font-black text-[#292524] truncate">
+                              <p className="font-display text-xs font-black text-[#13284A] truncate">
                                 {cb.lead?.name || "Unnamed Lead"}
                               </p>
-                              <p className="font-body text-[11px] text-[#78716c] mt-0.5 truncate">
+                              <p className="font-body text-[11px] text-[#475569] mt-0.5 truncate">
                                 {cb.lead?.phone || "No phone"}
                               </p>
                               {cb.message_preview && (
-                                <p className="font-body text-[10px] text-[#78716c]/80 mt-1 italic line-clamp-1">
+                                <p className="font-body text-[10px] text-[#475569]/80 mt-1 italic line-clamp-1">
                                   &quot;{cb.message_preview}&quot;
                                 </p>
                               )}
@@ -215,10 +215,10 @@ export function NotificationBell() {
                   {/* Separator Line */}
                   {callbacks.length > 0 && notifications.length > 0 && (
                     <div className="flex items-center py-1.5 px-1">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-[#a8a29e] mr-2 shrink-0">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#94a3b8] mr-2 shrink-0">
                         Other Alerts
                       </span>
-                      <div className="h-[1px] bg-[#f0ece4] flex-1" />
+                      <div className="h-[1px] bg-[#f1f5f9] flex-1" />
                     </div>
                   )}
 
@@ -226,7 +226,7 @@ export function NotificationBell() {
                   {notifications.length > 0 && (
                     <div className="space-y-2">
                       {callbacks.length === 0 && (
-                        <div className="px-1.5 text-[10px] font-black uppercase tracking-widest text-[#a8a29e] flex items-center gap-1.5">
+                        <div className="px-1.5 text-[10px] font-black uppercase tracking-widest text-[#94a3b8] flex items-center gap-1.5">
                           <Bell size={11} />
                           System & Lead Alerts ({notifications.length})
                         </div>
@@ -260,13 +260,13 @@ export function NotificationBell() {
                                 </div>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-display text-xs font-black text-[#292524] truncate">
+                                <p className="font-display text-xs font-black text-[#13284A] truncate">
                                   {n.title}
                                 </p>
-                                <p className="font-body text-[11px] mt-0.5 leading-relaxed text-[#57534e]">
+                                <p className="font-body text-[11px] mt-0.5 leading-relaxed text-[#334155]">
                                   {cleanMessage}
                                 </p>
-                                <p className="font-label text-[8px] text-[#a8a29e] mt-1.5">
+                                <p className="font-label text-[8px] text-[#94a3b8] mt-1.5">
                                   {new Date(n.created_at).toLocaleString("en-US", {
                                     month: "short",
                                     day: "numeric",
@@ -277,7 +277,7 @@ export function NotificationBell() {
                               </div>
                               <button
                                 onClick={(e) => handleMarkRead(n.id, e)}
-                                className="shrink-0 self-center p-1.5 text-[#a8a29e] hover:text-primary hover:bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
+                                className="shrink-0 self-center p-1.5 text-[#94a3b8] hover:text-primary hover:bg-white rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xs"
                                 title="Dismiss"
                               >
                                 <CheckCircle2 size={16} />

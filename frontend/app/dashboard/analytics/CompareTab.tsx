@@ -17,7 +17,7 @@ import { canLoadComparison, ComparisonSelection, isCompleteSelection } from "@/c
 import { buildFunnel, buildOverviewCards, buildTrend, FunnelStep, PerformanceCard } from "./overviewPresentation";
 
 const CURRENT_COLOR = "var(--primary-800)";
-const PREVIOUS_COLOR = "#a8a29e";
+const PREVIOUS_COLOR = "#94a3b8";
 
 const SERIES_OPTIONS: { id: string; label: string }[] = [
   { id: "leads_inbound", label: "Inbound Leads" },
@@ -251,10 +251,10 @@ function SegmentMixChart({
     <div role="img" aria-label="Lead quality mix per day">
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-          <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
-          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Bar dataKey="hot" stackId="mix" fill={SEGMENT_MIX_COLORS.hot} name="Hot" />
           <Bar dataKey="warm" stackId="mix" fill={SEGMENT_MIX_COLORS.warm} name="Warm" />
@@ -347,10 +347,10 @@ function ComparisonChart({
     <div role="img" aria-label="Period comparison chart">
       <ResponsiveContainer width="100%" height={280}>
         <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
-          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+          <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+          <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           <Line
             type="monotone" dataKey="current" name={currentLabel}
@@ -517,7 +517,7 @@ export function CompareTab({
           <div className="flex flex-col justify-start gap-2 p-1">
             <button
               onClick={() => setRefreshKey((k) => k + 1)}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] font-label text-xs font-bold transition-all shadow-sm"
             >
               <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
               <span>Refresh</span>
@@ -555,10 +555,10 @@ export function CompareTab({
                         <stop offset="95%" stopColor="var(--primary-800)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
                     <Area type="monotone" dataKey="count" stroke="var(--primary-800)" fill="url(#leadGrad)" strokeWidth={2} dot={false} />
                   </AreaChart>
                 </ResponsiveContainer>

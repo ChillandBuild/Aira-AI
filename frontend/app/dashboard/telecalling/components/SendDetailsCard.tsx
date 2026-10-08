@@ -44,8 +44,8 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm">
-      <h3 className="flex items-center gap-1.5 font-display text-xs font-black uppercase tracking-widest text-[#292524]">
+    <div className="flex min-w-0 flex-1 flex-col gap-3 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
+      <h3 className="flex items-center gap-1.5 font-display text-xs font-black uppercase tracking-widest text-[#13284A]">
         <MessageCircle size={12} className="text-emerald-500" /> Send details on WhatsApp
       </h3>
       <span
@@ -66,14 +66,14 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
             onChange={(e) => setText(e.target.value)}
             rows={7}
             aria-label="Message"
-            className="w-full resize-none rounded-xl border border-[#e8e3db] bg-[#faf8f5]/40 p-3 font-body text-xs leading-relaxed transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            className="w-full resize-none rounded-xl border border-[#e2e8f0] bg-[#f8fafc]/40 p-3 font-body text-xs leading-relaxed transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-300"
           />
           <button type="button" disabled={readOnly || sending || !text.trim()} onClick={() => onSendText(text.trim())} className={SEND}>
             {sending ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />} Send
           </button>
         </>
       ) : context.templates.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[#e8e3db] bg-[#faf8f5] p-3 font-body text-[11px] leading-relaxed text-[#78716c]">
+        <p className="rounded-xl border border-dashed border-[#e2e8f0] bg-[#f8fafc] p-3 font-body text-[11px] leading-relaxed text-[#475569]">
           No approved templates yet. Add one under Templates (for example <span className="font-semibold">call_details_share</span>) and it shows here once Meta approves it.
         </p>
       ) : (
@@ -82,7 +82,7 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
             value={templateId}
             onChange={(e) => pickTemplate(e.target.value)}
             aria-label="Template"
-            className="w-full rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-body text-xs text-[#44403c] focus:outline-none focus:ring-2 focus:ring-emerald-300"
+            className="w-full rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-body text-xs text-[#1e293b] focus:outline-none focus:ring-2 focus:ring-emerald-300"
           >
             {context.templates.map((t) => (
               <option key={t.id} value={t.id}>{templateLabel(t)}</option>
@@ -90,20 +90,20 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
           </select>
           {template?.variables.map((v, i) => (
             <label key={v.key} className="block">
-              <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#a8a29e]">
+              <span className="mb-1 block font-label text-[9px] font-black uppercase tracking-wider text-[#94a3b8]">
                 {`{{${v.key}}}`} · {v.role ? VARIABLE_LABEL[v.role] : "Fill this in"}
               </span>
               <input
                 value={values[i] ?? ""}
                 onChange={(e) => setValues((prev) => prev.map((x, j) => (j === i ? e.target.value : x)))}
                 className={`w-full rounded-lg border px-2.5 py-1.5 font-body text-xs focus:outline-none focus:ring-2 focus:ring-emerald-300 ${
-                  (values[i] ?? "").trim() ? "border-[#e8e3db] bg-white" : "border-amber-300 bg-amber-50/50"
+                  (values[i] ?? "").trim() ? "border-[#e2e8f0] bg-white" : "border-amber-300 bg-amber-50/50"
                 }`}
               />
             </label>
           ))}
           {template && (
-            <div className="whitespace-pre-wrap rounded-xl border border-emerald-100 bg-[#dcf8c6]/60 p-3 font-body text-[11px] leading-relaxed text-[#292524]">
+            <div className="whitespace-pre-wrap rounded-xl border border-primary-100 bg-primary-50 p-3 font-body text-[11px] leading-relaxed text-[#13284A]">
               {renderTemplate(template.body_text, values)}
             </div>
           )}
@@ -118,7 +118,7 @@ export function SendDetailsView({ context, sending, readOnly = false, onSendText
           </button>
         </>
       )}
-      <p className="font-label text-[10px] text-[#a8a29e]">Sends from your business number and shows in Conversations.</p>
+      <p className="font-label text-[10px] text-[#94a3b8]">Sends from your business number and shows in Conversations.</p>
     </div>
   );
 }
@@ -129,10 +129,10 @@ const contextCache = new Map<string, SendDetailsContext>();
 /** Holds the card's space while the first answer loads, so Quick Note doesn't jump. */
 function SendDetailsSkeleton() {
   return (
-    <div aria-hidden className="flex min-w-0 flex-1 animate-pulse flex-col gap-3 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm">
+    <div aria-hidden className="flex min-w-0 flex-1 animate-pulse flex-col gap-3 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
       <div className="h-3 w-40 rounded bg-[#f0ece6]" />
       <div className="h-4 w-56 rounded-full bg-[#f5f2ed]" />
-      <div className="min-h-[120px] flex-1 rounded-xl bg-[#faf8f5]" />
+      <div className="min-h-[120px] flex-1 rounded-xl bg-[#f8fafc]" />
       <div className="h-8 rounded-xl bg-[#f0ece6]" />
     </div>
   );

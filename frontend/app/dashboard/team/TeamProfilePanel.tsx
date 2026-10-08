@@ -162,7 +162,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
 
   const statusColor = summary?.current_status === "active" ? "bg-emerald-500"
     : summary?.current_status === "break" ? "bg-amber-500"
-      : "bg-[#a8a29e]";
+      : "bg-[#94a3b8]";
   const statusLabel = summary?.current_status === "active" ? "Active"
     : summary?.current_status === "break" ? "On Break"
       : "Offline";
@@ -170,7 +170,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
   return (
     <div className="space-y-6 max-h-[calc(100vh-120px)] overflow-y-auto pr-2 pb-10 custom-scrollbar">
       {/* HEADER */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#292524] via-[#1c1917] to-[#1c1917] p-6">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#13284A] via-[#0A1528] to-[#0A1528] p-6">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white font-display text-lg font-bold shadow-lg">
@@ -195,15 +195,15 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
             <div className="absolute inset-0 flex items-center justify-center mt-[-4px]">
                <span className="text-white font-display text-sm font-bold">{avgScore}</span>
             </div>
-            <span className="text-[9px] font-label text-[#a8a29e] uppercase tracking-wide">Avg Score</span>
+            <span className="text-[9px] font-label text-[#94a3b8] uppercase tracking-wide">Avg Score</span>
           </div>
         </div>
-        <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 text-xs text-[#a8a29e] font-body">
+        <div className="flex flex-wrap gap-x-5 gap-y-1 mt-4 text-xs text-[#94a3b8] font-body">
           {summary?.first_login_at && (
-            <span>Login: <span className="text-[#e8e3db]">{format(new Date(summary.first_login_at), "h:mm a")}</span></span>
+            <span>Login: <span className="text-[#e2e8f0]">{format(new Date(summary.first_login_at), "h:mm a")}</span></span>
           )}
           {summary?.last_logout_at && (
-            <span>Logout: <span className="text-[#e8e3db]">{format(new Date(summary.last_logout_at), "h:mm a")}</span></span>
+            <span>Logout: <span className="text-[#e2e8f0]">{format(new Date(summary.last_logout_at), "h:mm a")}</span></span>
           )}
         </div>
       </div>
@@ -245,10 +245,10 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
           </div>
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={dailyTrend} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#a8a29e" }} interval={1} />
-              <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={1} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
               <Line type="monotone" dataKey="calls" stroke="#f59e0b" strokeWidth={2} dot={false} name="Calls" />
               <Line type="monotone" dataKey="converted" stroke="#10b981" strokeWidth={2} dot={false} name="Converted" />
             </LineChart>
@@ -295,11 +295,11 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
           ) : (
             <ResponsiveContainer width="100%" height={160}>
               <BarChart data={hourlyDistribution} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#a8a29e" }} interval={1} />
-                <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} interval={1} />
+                <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }}
+                  contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }}
                   labelFormatter={(h) => `${h}:00`}
                 />
                 <Bar dataKey="calls" fill="#6366f1" radius={[4, 4, 0, 0]} name="Calls" />
@@ -313,10 +313,10 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
       {summary && (
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-3">
-            <Clock size={14} className="text-[#78716c]" />
+            <Clock size={14} className="text-[#475569]" />
             <h3 className="font-display font-semibold text-ink text-xs">Time Distribution</h3>
           </div>
-          <div className="w-full h-3 rounded-full overflow-hidden flex bg-[#f0ece4]">
+          <div className="w-full h-3 rounded-full overflow-hidden flex bg-[#f1f5f9]">
             {timeDist.active > 0 && <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${timeDist.active}%` }} />}
             {timeDist.breakPct > 0 && <div className="h-full bg-amber-400 transition-all duration-500" style={{ width: `${timeDist.breakPct}%` }} />}
             {timeDist.idle > 0 && <div className="h-full bg-[#d6cfc9] transition-all duration-500" style={{ width: `${timeDist.idle}%` }} />}
@@ -353,7 +353,7 @@ export default function TeamProfilePanel({ callerId, callerName }: { callerId: s
                 const gap = ev as GapEvent;
                 return (
                   <div key={gap.id} className="relative pl-5 py-0.5">
-                    <div className="absolute -left-[5px] top-2 w-2 h-2 rounded-full bg-[#e8e3db] border-2 border-white" />
+                    <div className="absolute -left-[5px] top-2 w-2 h-2 rounded-full bg-[#e2e8f0] border-2 border-white" />
                     <p className="text-[10px] font-body text-ink-muted bg-surface-subtle inline-block px-2 py-1 rounded-md border border-dashed border-border-subtle">
                       Idle — {formatDuration(gap.duration_seconds)}
                     </p>

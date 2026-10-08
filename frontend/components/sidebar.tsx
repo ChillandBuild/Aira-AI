@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
-import { AiraLogo } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER, SETTINGS_ITEMS } from "@/components/settingsNavigation";
 import { useBrainCount } from "@/hooks/useBrainCount";
 import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
@@ -79,7 +79,7 @@ function CollapsedNavItem({
         )}
         <Icon
           size={16}
-          className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
+          className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover:text-[#0A1528] flex-shrink-0"}
         />
         {badge && (
           <span className="absolute -top-1 -right-1 flex items-center justify-center">
@@ -87,7 +87,7 @@ function CollapsedNavItem({
           </span>
         )}
       </Link>
-      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
         {label}
       </div>
     </div>
@@ -117,7 +117,7 @@ function MainNavItem({
         "flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border group",
         active
           ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-          : "border-transparent text-[#1c1917] hover:bg-stone-100 hover:text-[#1c1917]"
+          : "border-transparent text-[#0A1528] hover:bg-stone-100 hover:text-[#0A1528]"
       )}
     >
       {active && (
@@ -125,7 +125,7 @@ function MainNavItem({
       )}
       <Icon
         size={16}
-        className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover:text-[#1c1917] flex-shrink-0"}
+        className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover:text-[#0A1528] flex-shrink-0"}
       />
       <span
         className={cn(
@@ -255,7 +255,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
 
   if (roleLoading || subStatus === "loading") {
     return (
-      <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e8e3db] z-20", collapsed ? "w-16" : "w-[220px]")} />
+      <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] z-20", collapsed ? "w-16" : "w-[220px]")} />
     );
   }
 
@@ -289,13 +289,13 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
   const shouldHideLogo = hideLogo || (collapsed && isConversationsPage);
 
   return (
-    <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e8e3db] flex flex-col z-20 select-none", collapsed ? "w-16" : "w-[220px]")}>
+    <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] flex flex-col z-20 select-none", collapsed ? "w-16" : "w-[220px]")}>
       {/* Brand — h-16 (64px) matches the header so this bottom border and the
           header border form one continuous divider. shrink-0 is essential: the
           nav below overflows and would otherwise compress this box under flex
           pressure, lifting the divider above the header's fixed 64px line. */}
       {!shouldHideLogo && (
-        <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e8e3db]", collapsed ? "justify-center px-2" : "px-5")}>
+        <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e2e8f0]", collapsed ? "justify-center px-2" : "px-5")}>
           {collapsed ? (
             // Brand mark only: every page is already an icon in the rail below, so the
             // old "open menu" drawer was a second copy of the same navigation.
@@ -303,7 +303,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
             // eslint-disable-next-line @next/next/no-img-element
             <img src="/anril/icons/anril-icon.svg" alt="Anril" width={32} height={32} className="h-8 w-8" />
           ) : (
-            <AiraLogo className="h-6 w-auto text-[#1c1917]" />
+            <AnrilLogo className="h-6 w-auto text-ink" />
           )}
         </div>
       )}
@@ -526,7 +526,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               )}
               <Phone
                 size={16}
-                className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/tc:text-[#1c1917] flex-shrink-0"}
+                className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover/tc:text-[#0A1528] flex-shrink-0"}
               />
               {alertCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex items-center justify-center">
@@ -536,7 +536,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                 </span>
               )}
             </button>
-            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               Telecalling
             </div>
           </div>
@@ -560,10 +560,10 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               )}
               <Settings
                 size={16}
-                className={isSettingsActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#1c1917] group-hover/settings:text-[#1c1917] flex-shrink-0"}
+                className={isSettingsActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover/settings:text-[#0A1528] flex-shrink-0"}
               />
             </button>
-            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#1c1917] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
               Settings
             </div>
           </div>
@@ -578,7 +578,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                   setExpandedGroups((prev) => ({ ...prev, Settings: false }));
                   router.push("/dashboard");
                 }}
-                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#1c1917] transition-all hover:bg-stone-100"
+                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#0A1528] transition-all hover:bg-stone-100"
               >
                 <ChevronLeft size={16} />
                 <span>Settings</span>
@@ -589,7 +589,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                 if (groupItems.length === 0) return null;
                 return (
                   <div key={group} className="pt-2 first:pt-0">
-                    <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#a8a29e]">
+                    <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#94a3b8]">
                       {group}
                     </div>
                     {groupItems.map((item) => {
@@ -611,7 +611,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                             "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
                             active
                               ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                              : "border-transparent text-[#78716c] hover:text-[#1c1917] hover:bg-stone-100"
+                              : "border-transparent text-[#475569] hover:text-[#0A1528] hover:bg-stone-100"
                           )}
                         >
                           {active && (
@@ -839,12 +839,12 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
               onClick={() => toggleGroup("Telecalling")}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-stone-100"
+                isTcActive ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100"
               )}
             >
-              <Phone size={16} className={isTcActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+              <Phone size={16} className={isTcActive ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
               <span className="flex-1">Telecalling</span>
-              {showTc ? <ChevronDown size={14} className="text-[#a8a29e]" /> : <ChevronRight size={14} className="text-[#a8a29e]" />}
+              {showTc ? <ChevronDown size={14} className="text-[#94a3b8]" /> : <ChevronRight size={14} className="text-[#94a3b8]" />}
             </button>
 
             {/* Tree items */}
@@ -883,7 +883,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                           "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
                           active
                             ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                            : "border-transparent text-[#1c1917] hover:text-[#1c1917] hover:bg-stone-100"
+                            : "border-transparent text-[#0A1528] hover:text-[#0A1528] hover:bg-stone-100"
                         )}
                       >
                         {active && (
@@ -919,12 +919,12 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
                 onClick={() => toggleGroup("Settings")}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] hover:bg-stone-100"
+                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100"
                 )}
               >
-                <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#1c1917] group-hover:text-[#1c1917]"} />
+                <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
                 <span className="flex-1">Settings</span>
-                <ChevronRight size={14} className="text-[#a8a29e]" />
+                <ChevronRight size={14} className="text-[#94a3b8]" />
               </button>
             )}
             </div>
@@ -936,7 +936,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
           the bottom whatever page or group is open — it is reference material
           for a partner's developer, not a daily destination. */}
       {isSubscribed && canSettings && (
-        <div className={cn("shrink-0 border-t border-[#e8e3db]", collapsed ? "py-2 flex flex-col items-center" : "px-3 py-2")}>
+        <div className={cn("shrink-0 border-t border-[#e2e8f0]", collapsed ? "py-2 flex flex-col items-center" : "px-3 py-2")}>
           {collapsed ? (
             <CollapsedNavItem
               href="/dashboard/developer"

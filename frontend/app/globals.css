@@ -5,53 +5,56 @@
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
-  --surface-mid: #f0ece4;
+  --surface-mid: #f1f5f9;
   --surface-low: #ffffff;
-  --primary: #5b21b6;
-  --primary-dark: #4c1d95;
-  --primary-light: #f5f3ff;
-  --primary-muted: #ede9fe;
+  --primary: #038285;
+  --primary-dark: #04585b;
+  --primary-light: #effbfb;
+  --primary-muted: #d5f4f4;
   /* Full shade scale, same values as tailwind.config.ts theme.colors.primary.
      Lets inline styles and SVG fills reference one source of truth instead
      of repeating hex. --primary-800/900/50/100 duplicate the aliases above
      on purpose, for callers that prefer the numeric step. */
-  --primary-50: #f5f3ff;
-  --primary-100: #ede9fe;
-  --primary-200: #ddd6fe;
-  --primary-300: #c4b5fd;
-  --primary-400: #a78bfa;
-  --primary-500: #8b5cf6;
-  --primary-600: #7c3aed;
-  --primary-700: #6d28d9;
-  --primary-800: #5b21b6;
-  --primary-900: #4c1d95;
-  --primary-950: #2e1065;
+  --primary-50: #effbfb;
+  --primary-100: #d5f4f4;
+  --primary-200: #ade9ea;
+  --primary-300: #78d6d8;
+  --primary-400: #3fbcbf;
+  --primary-500: #1aa3a6;
+  --primary-600: #0b9396;
+  --primary-700: #068a8d;
+  --primary-800: #038285;
+  --primary-900: #04585b;
+  --primary-950: #0A1528;
   /* Same scale as "r, g, b" triplets, for rgba(var(--primary-NNN-rgb), .3)
      inside box-shadow / gradient strings that need an opacity Tailwind's
      class-based opacity modifier can't reach (arbitrary values, template
      literals). Mirrors lib/color-tokens.ts PRIMARY_RGB for canvas code. */
-  --primary-50-rgb: 245, 243, 255;
-  --primary-100-rgb: 237, 233, 254;
-  --primary-200-rgb: 221, 214, 254;
-  --primary-300-rgb: 196, 181, 253;
-  --primary-400-rgb: 167, 139, 250;
-  --primary-500-rgb: 139, 92, 246;
-  --primary-600-rgb: 124, 58, 237;
-  --primary-700-rgb: 109, 40, 217;
-  --primary-800-rgb: 91, 33, 182;
-  --primary-900-rgb: 76, 29, 149;
-  --primary-950-rgb: 46, 16, 101;
-  --ink: #1c1917;
-  --ink-secondary: #78716c;
-  --ink-muted: #a8a29e;
-  --border: #e8e3db;
-  --border-subtle: #f0ece4;
-  --success: #059669;
+  --primary-50-rgb: 239, 251, 251;
+  --primary-100-rgb: 213, 244, 244;
+  --primary-200-rgb: 173, 233, 234;
+  --primary-300-rgb: 120, 214, 216;
+  --primary-400-rgb: 63, 188, 191;
+  --primary-500-rgb: 26, 163, 166;
+  --primary-600-rgb: 11, 147, 150;
+  --primary-700-rgb: 6, 138, 141;
+  --primary-800-rgb: 3, 130, 133;
+  --primary-900-rgb: 4, 88, 91;
+  --primary-950-rgb: 10, 21, 40;
+  --ink: #0A1528;
+  --ink-secondary: #475569;
+  --ink-muted: #94a3b8;
+  --border: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --navy: #0A1528;
+  --navy-800: #13284A;
+  --navy-accent: #3fbcbf;
+  --success: #15803d;
   --warning: #d97706;
   --danger: #e11d48;
   --radius-card: 1.25rem;
-  --shadow-card: 0 2px 16px -2px rgba(28,25,23,.07), 0 1px 4px -1px rgba(28,25,23,.04);
-  --shadow-card-hover: 0 8px 28px -4px rgba(28,25,23,.12), 0 3px 8px -2px rgba(28,25,23,.05);
+  --shadow-card: 0 2px 16px -2px rgba(10,21,40,.07), 0 1px 4px -1px rgba(10,21,40,.04);
+  --shadow-card-hover: 0 8px 28px -4px rgba(10,21,40,.12), 0 3px 8px -2px rgba(10,21,40,.05);
 }
 
 * {
@@ -89,7 +92,7 @@ canvas {
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #e8e3db; border-radius: 99px; }
+::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
 ::-webkit-scrollbar-thumb:hover { background: #d6cfc9; }
 
 @layer utilities {
@@ -142,12 +145,12 @@ canvas {
   .badge-yellow { background: #fef3c7; color: #d97706; border: 1px solid #fde68a; }
   .badge-red { background: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
   .badge-blue { background: #dbeafe; color: #2563eb; border: 1px solid #bfdbfe; }
-  .badge-gray { background: #f0ece4; color: #78716c; border: 1px solid #e8e3db; }
+  .badge-gray { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
   .badge-violet { background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-muted); }
 
-  /* Button — violet primary */
+  /* Button — teal primary (hover darkens: white on lighter teal fails 4.5:1) */
   .btn-primary {
-    background: linear-gradient(135deg, #2e1065, #5b21b6);
+    background: linear-gradient(135deg, var(--primary-900), var(--primary-800));
     color: white;
     font-family: var(--font-manrope), sans-serif;
     font-weight: 600;
@@ -163,9 +166,9 @@ canvas {
     gap: 0.5rem;
   }
   .btn-primary:hover {
-    background: linear-gradient(135deg, #3b1882, #6d28d9);
+    background: var(--primary-900);
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(91,33,182,0.28);
+    box-shadow: 0 4px 14px rgba(var(--primary-800-rgb), 0.28);
   }
   .btn-primary:active {
     transform: translateY(0.5px);
@@ -177,10 +180,10 @@ canvas {
     box-shadow: none;
   }
   .btn-primary:disabled:hover {
-    background: linear-gradient(135deg, #2e1065, #5b21b6);
+    background: linear-gradient(135deg, var(--primary-900), var(--primary-800));
   }
 
-  /* Button — violet outline secondary */
+  /* Button — teal outline secondary */
   .btn-secondary {
     background: var(--primary-light);
     color: var(--primary);
@@ -216,7 +219,7 @@ canvas {
   button.bg-primary,
   label.bg-primary,
   a.bg-primary {
-    background: linear-gradient(135deg, #2e1065, #5b21b6) !important;
+    background: linear-gradient(135deg, var(--primary-900), var(--primary-800)) !important;
     color: white !important;
     border: none !important;
     transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, opacity 0.15s ease !important;
@@ -224,9 +227,9 @@ canvas {
   button.bg-primary:hover,
   label.bg-primary:hover,
   a.bg-primary:hover {
-    background: linear-gradient(135deg, #3b1882, #6d28d9) !important;
+    background: var(--primary-900) !important;
     transform: translateY(-1px) !important;
-    box-shadow: 0 4px 14px rgba(91, 33, 182, 0.28) !important;
+    box-shadow: 0 4px 14px rgba(var(--primary-800-rgb), 0.28) !important;
   }
   button.bg-primary:active,
   label.bg-primary:active,
@@ -242,7 +245,7 @@ canvas {
   }
   button.bg-primary:disabled:hover,
   button.bg-primary[disabled]:hover {
-    background: linear-gradient(135deg, #2e1065, #5b21b6) !important;
+    background: linear-gradient(135deg, var(--primary-900), var(--primary-800)) !important;
     transform: none !important;
     box-shadow: none !important;
   }
@@ -281,7 +284,7 @@ canvas {
   }
   .input:focus {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(91,33,182,0.08);
+    box-shadow: 0 0 0 3px rgba(var(--primary-800-rgb), 0.08);
   }
   .input::placeholder { color: var(--ink-muted); }
 

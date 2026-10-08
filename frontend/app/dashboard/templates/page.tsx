@@ -266,14 +266,14 @@ export default function TemplatesPage() {
               onClick={handleSyncAll}
               disabled={syncing || !canManageTemplates}
               title={canManageTemplates ? "Sync from Meta" : "Read-only role: sync is disabled"}
-              className="flex-1 px-3 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+              className="flex-1 px-3 py-2 bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
               <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
               {syncing ? "Syncing..." : "Sync"}
             </button>
             <Link
               href="/dashboard/templates/carousel"
-              className="flex-1 px-3 py-2 bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
+              className="flex-1 px-3 py-2 bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] rounded-xl font-label text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-1.5"
             >
               <Layers size={12} />
               Carousel
@@ -312,7 +312,7 @@ export default function TemplatesPage() {
           </div>
 
           <div className="relative min-w-[160px] flex-1">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a8a29e]" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -323,7 +323,7 @@ export default function TemplatesPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] hover:text-[#44403c] transition-colors"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-[#1e293b] transition-colors"
               >
                 <X size={12} />
               </button>
@@ -341,7 +341,7 @@ export default function TemplatesPage() {
               <option value="UTILITY">Utility</option>
               <option value="AUTHENTICATION">Authentication</option>
             </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
           </div>
 
           <div className="relative w-[130px] shrink-0 sm:w-[150px]">
@@ -356,7 +356,7 @@ export default function TemplatesPage() {
               <option value="REJECTED">Rejected</option>
               <option value="PAUSED">Paused</option>
             </select>
-            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#a8a29e] pointer-events-none" />
+            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -367,7 +367,7 @@ export default function TemplatesPage() {
                   setSelectedCategory("ALL");
                   setSelectedStatus("ALL");
                 }}
-                className="flex h-9 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#78716c] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
+                className="flex h-9 items-center gap-1 rounded-full border border-transparent px-2.5 text-[11px] font-semibold text-[#475569] transition-colors hover:border-red-100 hover:bg-red-50 hover:text-red-600"
               >
                 <X size={11} /> Clear
               </button>
@@ -379,7 +379,7 @@ export default function TemplatesPage() {
                 aria-label="Grid view"
                 title="Grid view"
                 className={`flex h-full items-center justify-center rounded-md px-2 transition-all ${
-                  viewMode === "GRID" ? "bg-white text-primary shadow-sm" : "text-[#a8a29e] hover:text-[#44403c]"
+                  viewMode === "GRID" ? "bg-white text-primary shadow-sm" : "text-[#94a3b8] hover:text-[#1e293b]"
                 }`}
               >
                 <Grid size={13} />
@@ -389,7 +389,7 @@ export default function TemplatesPage() {
                 aria-label="Table view"
                 title="Table view"
                 className={`flex h-full items-center justify-center rounded-md px-2 transition-all ${
-                  viewMode === "TABLE" ? "bg-white text-primary shadow-sm" : "text-[#a8a29e] hover:text-[#44403c]"
+                  viewMode === "TABLE" ? "bg-white text-primary shadow-sm" : "text-[#94a3b8] hover:text-[#1e293b]"
                 }`}
               >
                 <List size={13} />

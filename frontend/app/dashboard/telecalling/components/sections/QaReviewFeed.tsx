@@ -60,12 +60,12 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
       <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
         {loading && rows.length === 0 ? (
           <div className="py-12 flex items-center justify-center">
-            <Loader2 className="animate-spin text-[#a8a29e]" size={20} />
+            <Loader2 className="animate-spin text-[#94a3b8]" size={20} />
           </div>
         ) : rows.length === 0 ? (
           <div className="py-10 text-center">
-            <p className="font-body text-sm font-semibold text-[#78716c]">No scored calls in this period</p>
-            <p className="font-label text-xs text-[#a8a29e] mt-1">
+            <p className="font-body text-sm font-semibold text-[#475569]">No scored calls in this period</p>
+            <p className="font-label text-xs text-[#94a3b8] mt-1">
               Calls of 30 seconds or more with a recording and a marked outcome appear here once scored.
             </p>
           </div>
@@ -73,7 +73,7 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
           rows.map((log) => {
             const open = openId === log.id;
             return (
-              <div key={log.id} className="rounded-2xl border border-[#f0ece4] bg-[#faf8f5] overflow-hidden">
+              <div key={log.id} className="rounded-2xl border border-[#f1f5f9] bg-[#f8fafc] overflow-hidden">
                 <button
                   type="button"
                   onClick={() => setOpenId(open ? null : log.id)}
@@ -85,24 +85,24 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="font-body text-xs font-bold text-[#292524] truncate">
+                    <p className="font-body text-xs font-bold text-[#13284A] truncate">
                       {log.callers?.name || "Telecaller"}
-                      <span className="text-[#a8a29e] font-semibold"> → </span>
+                      <span className="text-[#94a3b8] font-semibold"> → </span>
                       {log.leads?.name || formatPhone(log.leads?.phone) || "Lead"}
                     </p>
-                    <p className="font-label text-[10px] text-[#a8a29e] mt-0.5">
+                    <p className="font-label text-[10px] text-[#94a3b8] mt-0.5">
                       {timeAgo(log.created_at)}
                       {callResultLabel(callResultKey(log)) ? ` · ${callResultLabel(callResultKey(log))}` : ""}
                     </p>
                   </div>
-                  <ChevronDown size={14} className={`shrink-0 text-[#a8a29e] transition-transform ${open ? "rotate-180" : ""}`} />
+                  <ChevronDown size={14} className={`shrink-0 text-[#94a3b8] transition-transform ${open ? "rotate-180" : ""}`} />
                 </button>
                 {open && (
-                  <div className="px-3.5 pb-3.5 pt-1 border-t border-[#f0ece4] space-y-2.5">
+                  <div className="px-3.5 pb-3.5 pt-1 border-t border-[#f1f5f9] space-y-2.5">
                     {log.recording_url ? (
                       <audio src={log.recording_url} controls preload="none" className="w-full h-8" />
                     ) : (
-                      <p className="font-label text-[10px] italic text-[#a8a29e]">Recording unavailable.</p>
+                      <p className="font-label text-[10px] italic text-[#94a3b8]">Recording unavailable.</p>
                     )}
                     <CallAiDetail log={log} />
                     {log.lead_id && (
@@ -128,7 +128,7 @@ export default function QaReviewFeed({ from, to, callerId, callerName, onViewLea
             type="button"
             onClick={() => void load(page + 1)}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-3 py-1.5 font-label text-[11px] font-bold text-[#57534e] hover:bg-[#faf8f5] disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-3 py-1.5 font-label text-[11px] font-bold text-[#334155] hover:bg-[#f8fafc] disabled:opacity-50"
           >
             {loading && <Loader2 size={12} className="animate-spin" />} Show more ({total - rows.length} left)
           </button>

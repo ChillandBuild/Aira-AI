@@ -172,7 +172,7 @@ function ReplySourceBar({ breakdown }: { breakdown: MessagingAnalytics["reply_so
     { label: "AI", value: breakdown.ai, color: "bg-primary" },
     { label: "Knowledge Base", value: breakdown.knowledge, color: "bg-blue-400" },
     { label: "Re-engagement", value: breakdown.reengagement, color: "bg-amber-400" },
-    { label: "Manual", value: breakdown.manual, color: "bg-[#a8a29e]" },
+    { label: "Manual", value: breakdown.manual, color: "bg-[#94a3b8]" },
   ];
 
   return (
@@ -338,7 +338,7 @@ function ChannelsTab({
           <div className="flex flex-col justify-start gap-2 p-1">
             <button
               onClick={() => setRetryKey((k) => k + 1)}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] font-label text-xs font-bold transition-all shadow-sm"
             >
               <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
               <span>Refresh</span>
@@ -366,10 +366,10 @@ function ChannelsTab({
             <div role="img" aria-label="Message volume chart">
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={data.daily_messages} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0ece4" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "#a8a29e" }} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e8e3db" }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
                   <Line type="monotone" dataKey="inbound" stroke="#3b82f6" strokeWidth={2} dot={false} name="Inbound" />
                   <Line type="monotone" dataKey="outbound" stroke="#10b981" strokeWidth={2} dot={false} name="Outbound" />
                 </LineChart>
@@ -470,7 +470,7 @@ function TemplatesTab({ range, setRange }: { range: RangeValue; setRange: (r: Ra
         <div className="flex flex-col justify-start gap-2 p-1">
           <button
             onClick={() => setRetryKey((k) => k + 1)}
-            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] font-label text-xs font-bold transition-all shadow-sm"
           >
             <RefreshCw size={12} className={!rows ? "animate-spin" : ""} />
             <span>Refresh</span>
@@ -614,7 +614,7 @@ function InboundTab({
           <div className="flex flex-col justify-start gap-2 p-1">
             <button
               onClick={() => setRetryKey((k) => k + 1)}
-              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e8e3db] hover:bg-[#f0ece4] text-[#1c1917] font-label text-xs font-bold transition-all shadow-sm"
+              className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-white border border-[#e2e8f0] hover:bg-[#f1f5f9] text-[#0A1528] font-label text-xs font-bold transition-all shadow-sm"
             >
               <RefreshCw size={12} className={!data ? "animate-spin" : ""} />
               <span>Refresh</span>
@@ -763,7 +763,7 @@ export default function AnalyticsPage() {
               <RangePicker value={range} onChange={setRange} idPrefix="analytics-range" />
               {activeTab === "overview" && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="h-6 w-px shrink-0 bg-[#e8e3db]" aria-hidden="true" />
+                  <span className="h-6 w-px shrink-0 bg-[#e2e8f0]" aria-hidden="true" />
                   <span className="font-label text-xs font-bold text-on-surface-muted whitespace-nowrap">
                     Compare
                   </span>

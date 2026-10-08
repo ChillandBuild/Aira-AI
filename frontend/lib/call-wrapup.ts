@@ -16,7 +16,7 @@ export const TONE_CHIP: Record<Tone, string> = {
   warm: "bg-amber-50 text-amber-700 border-amber-200",
   cold: "bg-sky-50 text-sky-700 border-sky-200",
   callback: "bg-violet-50 text-violet-700 border-violet-200",
-  lost: "bg-[#faf8f5] text-[#78716c] border-[#e8e3db]",
+  lost: "bg-[#f8fafc] text-[#475569] border-[#e2e8f0]",
   blocked: "bg-red-50 text-red-700 border-red-200",
   attention: "bg-indigo-50 text-indigo-700 border-indigo-200",
   missed: "bg-rose-50 text-rose-700 border-rose-200",
@@ -25,13 +25,13 @@ export const TONE_CHIP: Record<Tone, string> = {
 
 export const TONE_DOT: Record<Tone, string> = {
   won: "bg-emerald-500", hot: "bg-orange-500", warm: "bg-amber-400", cold: "bg-sky-400",
-  callback: "bg-violet-500", lost: "bg-[#a8a29e]", blocked: "bg-red-600", attention: "bg-indigo-500",
+  callback: "bg-violet-500", lost: "bg-[#94a3b8]", blocked: "bg-red-600", attention: "bg-indigo-500",
   missed: "bg-rose-400", neutral: "bg-primary",
 };
 
 export const TONE_HEX: Record<Tone, string> = {
   won: "#10b981", hot: "#f97316", warm: "#f59e0b", cold: "#38bdf8", callback: "#8b5cf6",
-  lost: "#a8a29e", blocked: "#dc2626", attention: "#6366f1", missed: "#fb7185", neutral: "var(--primary-400)",
+  lost: "#94a3b8", blocked: "#dc2626", attention: "#6366f1", missed: "#fb7185", neutral: "var(--primary-400)",
 };
 
 export interface ConnectOption { value: CallConnect; label: string; hint: string }

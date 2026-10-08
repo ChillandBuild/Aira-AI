@@ -9,8 +9,9 @@
 - **Operator-run product**: Prem configures every tenant (channels, AI provider keys, console settings) and hands clients a working account. New credential/settings UI defaults to the **operator console**, not the client dashboard, unless it is the client's own external account (their Razorpay, their Telegram bot). Per-tenant AI keys exist for per-client cost tracking, not "bring your own key."
 
 ## Design System (match it, don't invent)
-- Tokens live in `frontend/tailwind.config.ts` + `frontend/app/globals.css` — grep them before writing ANY color: `primary` #5b21b6 (violet), `background` #faf8f5 (cream), `primary-dark/light/muted`, `brand-gradient` (#2e1065→#5b21b6, 135deg/`to-br`), `ink/ink-muted/ink-secondary`, `badge-violet`, plus the violet/amber/sky/emerald accent tiles in `SettingsSection.tsx`.
-- Accent colour only on interactive/accent surfaces (buttons, active states, focus rings, chart accents, selected rows); cream stays the stage.
+- **Navy + Teal (rebrand 2026-10-08).** Tokens live in `frontend/tailwind.config.ts` + `frontend/app/globals.css` + `frontend/lib/color-tokens.ts` (keep all three in sync) — grep them before writing ANY color: `primary` #038285 (teal, = primary-800) for buttons/links/active states; `primary-950` and `navy` #0A1528 for dark sections; `ink` #0A1528 (navy) for headings/text; `navy-accent` #3fbcbf for teal text/icons ON navy (#038285 on navy fails small-text contrast); backgrounds white / slate #f1f5f9; `success` #15803d; `brand-gradient` navy #0A1528→#13284A. `badge-violet` is a legacy class name that now renders teal.
+- No WhatsApp greens (#25D366, #075E54, #DCF8C6) and no old violet — `frontend/lib/brand-guard.test.ts` fails if they return. Logo = `AnrilLogo` (lowercase "anril" + "AI"; `tone="dark"` on navy). Product name stays "Anril AI".
+- Accent colour only on interactive/accent surfaces (buttons, active states, focus rings, chart accents, selected rows); white/slate stays the stage.
 - No raw hex or stock Tailwind colour classes (`bg-emerald-500`…) without checking an existing token covers it. A genuinely new semantic need = flag a new token to Prem, don't pick a shade solo.
 - Prefer composition/content changes over new colours; avoid the generic "badge pill + gradient headline + stock dashboard screenshot" SaaS look.
 

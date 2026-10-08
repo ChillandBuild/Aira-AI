@@ -52,16 +52,16 @@ export function FeedbackLockGate() {
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="feedback-lock-title"
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#1c1917]/85 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0A1528]/85 p-4 backdrop-blur-md"
     >
-      <div className="w-full max-w-md rounded-3xl border border-[#e8e3db] bg-white p-8 text-center shadow-2xl">
+      <div className="w-full max-w-md rounded-3xl border border-[#e2e8f0] bg-white p-8 text-center shadow-2xl">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-amber-200 bg-amber-50 text-amber-600">
           <AlertCircle size={24} />
         </div>
-        <h2 id="feedback-lock-title" className="font-display text-xl font-extrabold text-[#1c1917]">
+        <h2 id="feedback-lock-title" className="font-display text-xl font-extrabold text-[#0A1528]">
           Call feedback required
         </h2>
-        <p className="mt-1.5 font-body text-sm text-[#78716c]">
+        <p className="mt-1.5 font-body text-sm text-[#475569]">
           You have {pendingCount} call{pendingCount === 1 ? "" : "s"} waiting for an outcome. Fill
           {pendingCount === 1 ? " it" : " them"} in to keep working.
         </p>

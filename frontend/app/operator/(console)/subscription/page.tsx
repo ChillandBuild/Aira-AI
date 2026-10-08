@@ -474,12 +474,12 @@ export default function SubscriptionPage() {
         <p className="text-xs text-ink-muted mt-0.5">Price the catalog clients build their cart from, and author discounted packages.</p>
       </div>
 
-      <div className="flex gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 w-fit">
+      <div className="flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 w-fit">
         <button
           onClick={() => router.push(`${pathname}?tab=catalog`)}
           className={cn(
             "rounded-xl px-4 py-2 text-xs font-bold transition-all",
-            activeTab === "catalog" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+            activeTab === "catalog" ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]"
           )}
         >
           Pricing Catalog
@@ -488,7 +488,7 @@ export default function SubscriptionPage() {
           onClick={() => router.push(`${pathname}?tab=packages`)}
           className={cn(
             "rounded-xl px-4 py-2 text-xs font-bold transition-all",
-            activeTab === "packages" ? "bg-white text-primary shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+            activeTab === "packages" ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]"
           )}
         >
           Packages

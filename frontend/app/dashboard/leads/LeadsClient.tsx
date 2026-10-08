@@ -15,7 +15,7 @@ import { SegmentBadge } from "@/components/segment-badge";
 
 function pillClass(active: boolean) {
   return `px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
-    active ? "bg-white text-[#1c1917] shadow-sm" : "text-[#78716c] hover:text-[#292524]"
+    active ? "bg-white text-[#0A1528] shadow-sm" : "text-[#475569] hover:text-[#13284A]"
   }`;
 }
 
@@ -91,7 +91,7 @@ const SOURCE_FILTERS = [
 ] as const;
 
 function segmentFilterClass(segment: string, active: boolean) {
-  if (!active) return "border-transparent bg-transparent text-[#78716c] hover:bg-white hover:text-[#292524]";
+  if (!active) return "border-transparent bg-transparent text-[#475569] hover:bg-white hover:text-[#13284A]";
 
   return {
     A: "border-orange-200 bg-orange-50 text-orange-700 shadow-sm",
@@ -492,14 +492,14 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       {pageView === "leads" && (
       <div className="-mt-4">
         <div className="mb-2 space-y-3">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e8e3db]/60 p-1 xl:hidden">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 xl:hidden">
             <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
             <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
           </div>
 
           <div className={cn("flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", !filtersOpen && "hidden")}>
             <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0 xl:hidden">
-              <div className="flex w-max gap-1 rounded-2xl bg-[#e8e3db]/60 p-1">
+              <div className="flex w-max gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
             {SEGMENTS.map((seg) => (
               <button
                 key={seg}
@@ -516,7 +516,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             </div>
 
             <div className="hidden -mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
-              <div className="flex w-max items-center gap-1 rounded-2xl border border-[#e8e3db] bg-white p-1 shadow-sm">
+              <div className="flex w-max items-center gap-1 rounded-2xl border border-[#e2e8f0] bg-white p-1 shadow-sm">
                 <span className="px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
                 {SOURCE_FILTERS.map(({ value, label }) => (
                   <button
@@ -529,7 +529,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                     }}
                     className={cn(
                       "rounded-xl px-3 py-2 font-label text-xs font-bold transition-all",
-                      sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-[#f5f1eb] hover:text-[#292524]",
+                      sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#475569] hover:bg-[#f5f1eb] hover:text-[#13284A]",
                     )}
                   >
                     {label}
@@ -540,10 +540,10 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
           </div>
 
           {filtersOpen && (
-            <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-[#e8e3db] bg-white p-4 shadow-sm">
+            <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
               <div className="min-w-[300px] flex-1">
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
-                <div className="flex w-max items-center gap-1 rounded-xl border border-[#e8e3db] bg-white p-1 shadow-sm">
+                <div className="flex w-max items-center gap-1 rounded-xl border border-[#e2e8f0] bg-white p-1 shadow-sm">
                   {SOURCE_FILTERS.map(({ value, label }) => (
                     <button
                       key={value}
@@ -555,7 +555,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                       }}
                       className={cn(
                         "rounded-lg px-2.5 py-1.5 font-label text-xs font-bold transition-all",
-                        sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#78716c] hover:bg-[#f5f1eb] hover:text-[#292524]",
+                        sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#475569] hover:bg-[#f5f1eb] hover:text-[#13284A]",
                       )}
                     >
                       {label}
@@ -565,11 +565,11 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
               </div>
               <label>
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From date</span>
-                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e2e8f0] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
               </label>
               <label>
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To date</span>
-                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e8e3db] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e2e8f0] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
               </label>
               <div>
                 <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Added</span>
@@ -578,7 +578,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                   onClick={() => setAddedSort((sort) => sort === "newest" ? "oldest" : "newest")}
                   title={addedSort === "newest" ? "Newest first" : "Oldest first"}
                   aria-label={addedSort === "newest" ? "Sort oldest first" : "Sort newest first"}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e8e3db] bg-white text-primary transition-colors hover:bg-primary-light"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e2e8f0] bg-white text-primary transition-colors hover:bg-primary-light"
                 >
                   {addedSort === "newest" ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
                 </button>
@@ -715,7 +715,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             aria-expanded={filtersOpen}
             className={cn(
               "flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
-              filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e8e3db] bg-white text-[#292524] hover:bg-[#f5f1eb]",
+              filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e2e8f0] bg-white text-[#13284A] hover:bg-[#f5f1eb]",
             )}
           >
             <Filter size={14} />
@@ -725,7 +725,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
             type="button"
             onClick={refreshLeads}
             disabled={refreshing}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4] disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-label text-xs font-bold text-[#0A1528] shadow-sm transition-all hover:bg-[#f1f5f9] disabled:opacity-40"
           >
             <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
             Refresh
@@ -748,7 +748,7 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
                 toast.error(err instanceof Error ? err.message : "Export failed");
               }
             }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e8e3db] bg-white px-3 py-2 font-label text-xs font-bold text-[#1c1917] shadow-sm transition-all hover:bg-[#f0ece4]"
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-label text-xs font-bold text-[#0A1528] shadow-sm transition-all hover:bg-[#f1f5f9]"
           >
             <Download size={14} />
             Export {SEGMENT_LABELS[tab]}

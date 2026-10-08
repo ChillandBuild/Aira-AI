@@ -56,7 +56,7 @@ export function FacebookIcon({ size = 18, className = "" }: { size?: number | st
 
 export function ChannelStatusBadge({ configured, hasTokenAlert, isLive }: { configured: boolean; hasTokenAlert: boolean; isLive: boolean }) {
   if (!configured) {
-    return <span className="inline-flex items-center gap-1 rounded-full bg-[#f0ece4] px-2.5 py-1 font-label text-[10px] font-bold text-[#78716c]">Not configured</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-[#f1f5f9] px-2.5 py-1 font-label text-[10px] font-bold text-[#475569]">Not configured</span>;
   }
   if (hasTokenAlert) {
     return <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 font-label text-[10px] font-bold text-red-700">Token needs attention</span>;
@@ -75,7 +75,7 @@ export function HealthRefreshButton({ loading, onClick }: { loading: boolean; on
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[#e8e3db] bg-white px-2.5 py-1.5 font-label text-[10px] font-bold text-[#57534e] shadow-sm transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[#e2e8f0] bg-white px-2.5 py-1.5 font-label text-[10px] font-bold text-[#334155] shadow-sm transition-colors hover:border-primary/30 hover:text-primary disabled:cursor-wait disabled:opacity-60"
     >
       <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
       Refresh health
