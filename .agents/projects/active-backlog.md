@@ -17,6 +17,8 @@ host=github.com
 
 ## Active Backlog
 
+- **Old Bloom Matrix URLs are dead after the domain move (found 2026-10-08, not fixed).** `bloommatrix.in/aira` 308s to `/anril`, which now returns 404 (the app lives at `www.anrilaitech.com` root). Check and re-point anything that still holds an old URL: Meta app settings (privacy policy, data-deletion, terms URLs), Embedded Signup redirect/allowed domains, TeleCMI/Razorpay webhook or callback URLs if any used the frontend host, installed PWAs, and the Bloom Matrix `vercel.json` rewrite (a redirect from `/aira*` and `/anril*` to the new host would save old bookmarks). Also update the three `backend/evals/ui/check_*_ui.js|check_dashboard_ia.js` scripts, which still hardcode `https://www.bloommatrix.in/aira` (verified by grep 2026-10-08). Also bump `CACHE_VERSION` in `frontend/public/sw.js` (still `anril-pwa-v2`) so installed workers drop old paths.
+
 - **Deals / Products / marketplace — open items (2026-09-25)**:
   - **JustDial push format is unverified** — no current client uses JustDial; the webhook accepts JSON, form and GET and replies `RECEIVED`, proven only against sample payloads (`tests/test_marketplace_webhook.py`). Verify with the first real JustDial client and adjust `marketplace_leads.parse_enquiry` if their fields differ. IndiaMART follows its documented CRM Push API (`RESPONSE` envelope).
   - **Customer state isn't collected**, so the auditor export assumes intra-state GST (CGST = SGST, IGST column 0). Add a buyer-state field on deals if a client sells inter-state.
@@ -347,6 +349,8 @@ and a standalone image are both fine (they hit the Gemini path).
 - The Documents guide copy now warns clients about this shape of file; the pipeline is unchanged.
 
 ## Vercel production deploy failing — cause not yet known (open, 2026-09-11)
+**Update 2026-10-08:** the site is serving (`https://www.anrilaitech.com/` and `/login` return 200) and commit `5462acef` fixed a Vercel build crash caused by Google Fonts (see decisions log, 2026-10-08), so this may be resolved. NOT confirmed green: the Vercel connector returns 403 for project `anril-ai` (team `team_3Qiq09Rp7bzrdQ3NrW9AgFlZ`). Next step is one look at the latest deployment's state in the Vercel dashboard; if it is READY, delete this section.
+
 The user reported the Vercel deployment "blocked"; they confirmed it shows as a **failed build
 (red ✗)**, not a protection wall or a paused project. Not resolved this session — the build log
 was never retrieved, and this machine has no Vercel credentials (`vercel whoami` → "No existing

@@ -8,7 +8,7 @@ voice-typed asks. When Prem corrects a brief, add the new term here (one line).
 |---|---|
 | Jarvis / Tony Stark / R&D team | The autonomous night team: `scripts/rnd`, `.agents/rnd`, `make rnd-dashboard` |
 | the house | The whole agent environment: settings, skills, sandbox, checks |
-| live | The production site https://www.bloommatrix.in/aira and the real WhatsApp numbers |
+| live | The production site https://www.anrilaitech.com (was www.bloommatrix.in/aira until 2026-10-08) and the real WhatsApp numbers |
 | dashboard | Usually Aira's customer dashboard. "The dashboard for this / handle it" can mean the R&D dashboard (`make rnd-dashboard`). If unclear, ask once. |
 | tenant / client | A business using Aira: Astro Tamil, Astrotamil Pooja, Astro Tamil - Co, Bloom Matrix, "Aira UI Test (Claude)" |
 | go one by one | Do one item at a time; confirm before the next |
