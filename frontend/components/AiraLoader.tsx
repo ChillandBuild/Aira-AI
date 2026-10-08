@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { AnrilMark } from "@/components/logo";
 
 interface AiraLoaderProps {
   showRetryAfterMs?: number;
@@ -21,10 +22,7 @@ export function AiraLoader({ showRetryAfterMs, onRetry }: AiraLoaderProps) {
     <div className="fixed inset-0 z-dialog flex flex-col items-center justify-center bg-[#f1f5f9] p-4 text-center">
       <div className="flex flex-col items-center gap-4">
         {!showRetry && (
-          <div
-            className="h-10 w-10 rounded-full border-[3px] border-[#e2e8f0] border-t-[#0A1528]"
-            style={{ animation: "spin 0.75s linear infinite" }}
-          />
+          <AnrilMark width={44} height={44} className="aira-loader-mark text-[#0A1528]" aria-label="Loading" />
         )}
         <span className="text-xs font-medium tracking-widest text-[#475569] uppercase">
           Anril
@@ -47,8 +45,31 @@ export function AiraLoader({ showRetryAfterMs, onRetry }: AiraLoaderProps) {
       </div>
 
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        /* The mark assembles: navy squares pop in, the teal square lands last, then it resets. */
+        .aira-loader-mark rect {
+          transform-box: fill-box;
+          transform-origin: center;
+          transform: scale(0);
+          opacity: 0;
+          animation: aira-loader-pop 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
+        }
+        .aira-loader-mark rect:nth-of-type(3) { animation-delay: 0.12s; }
+        .aira-loader-mark rect:nth-of-type(4) { animation-delay: 0.24s; }
+        .aira-loader-mark rect:nth-of-type(2) { animation-delay: 0.42s; }
+        @keyframes aira-loader-pop {
+          0% { transform: scale(0); opacity: 0; }
+          18%, 70% { transform: scale(1); opacity: 1; }
+          88%, 100% { transform: scale(0); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .aira-loader-mark rect {
+            transform: none;
+            animation: aira-loader-fade 1.6s ease-in-out infinite;
+          }
+          @keyframes aira-loader-fade {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
         }
       `}</style>
     </div>
