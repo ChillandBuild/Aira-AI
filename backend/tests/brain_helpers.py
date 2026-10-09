@@ -31,9 +31,8 @@ class _BrainQuery(_Query):
         if self.op != "select":
             return super().execute()
         matched = [dict(r) for r in self._matching()]
-        if self._order:
-            column, desc = self._order
-            matched.sort(key=lambda r: (r.get(column) is None, r.get(column) or ""), reverse=desc)
+        for column, desc in reversed(self._order):  # stable sorts, last key first
+            matched.sort(key=lambda r, c=column: (r.get(c) is None, r.get(c) or ""), reverse=desc)
         total = len(matched)
         if self._range:
             matched = matched[self._range[0]: self._range[1] + 1]

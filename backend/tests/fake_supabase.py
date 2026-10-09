@@ -63,7 +63,7 @@ class _Query:
         self.db, self.name = db, name
         self.op, self.payload = "select", None
         self.filters: list = []
-        self._order: tuple[str, bool] | None = None
+        self._order: list[tuple[str, bool]] = []
         self._limit: int | None = None
         self._offset = 0
         self._single = False
@@ -125,15 +125,39 @@ class _Query:
         return self
 
     def lt(self, column, value):
-        self.filters.append(lambda r: r.get(column) is not None and str(r.get(column)) < str(value))
+        def compare(r, col=column, v=value):
+            actual = r.get(col)
+            if actual is None:
+                return False
+            # Numeric comparison when both are numbers (but not booleans)
+            if isinstance(actual, (int, float)) and not isinstance(actual, bool) and isinstance(v, (int, float)) and not isinstance(v, bool):
+                return actual < v
+            return str(actual) < str(v)
+        self.filters.append(compare)
         return self
 
     def gte(self, column, value):
-        self.filters.append(lambda r: r.get(column) is not None and str(r.get(column)) >= str(value))
+        def compare(r, col=column, v=value):
+            actual = r.get(col)
+            if actual is None:
+                return False
+            # Numeric comparison when both are numbers (but not booleans)
+            if isinstance(actual, (int, float)) and not isinstance(actual, bool) and isinstance(v, (int, float)) and not isinstance(v, bool):
+                return actual >= v
+            return str(actual) >= str(v)
+        self.filters.append(compare)
         return self
 
     def lte(self, column, value):
-        self.filters.append(lambda r: r.get(column) is not None and str(r.get(column)) <= str(value))
+        def compare(r, col=column, v=value):
+            actual = r.get(col)
+            if actual is None:
+                return False
+            # Numeric comparison when both are numbers (but not booleans)
+            if isinstance(actual, (int, float)) and not isinstance(actual, bool) and isinstance(v, (int, float)) and not isinstance(v, bool):
+                return actual <= v
+            return str(actual) <= str(v)
+        self.filters.append(compare)
         return self
 
     def maybe_single(self):
@@ -176,7 +200,7 @@ class _Query:
         return self
 
     def order(self, column, desc: bool = False):
-        self._order = (column, desc)
+        self._order.append((column, desc))  # chained orders = primary key first, like PostgREST
         return self
 
     def limit(self, n: int):
@@ -233,9 +257,8 @@ class _Query:
             return SimpleNamespace(data=[dict(r) for r in matched], count=len(matched))
 
         rows = [dict(r) for r in matched]
-        if self._order:
-            column, desc = self._order
-            rows.sort(key=lambda r: (r.get(column) is None, r.get(column) or ""), reverse=desc)
+        for column, desc in reversed(self._order):  # stable sorts, last key first
+            rows.sort(key=lambda r, c=column: (r.get(c) is None, r.get(c) or ""), reverse=desc)
         total = len(rows)  # like PostgREST count=exact: the total before limit / range
         rows = rows[self._offset:]
         if self._limit is not None:

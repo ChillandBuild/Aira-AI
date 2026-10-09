@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { API_URL, IntakeSession, api, getAuthHeaders } from "@/lib/api";
 import { IntakeTable } from "@/app/dashboard/intake/IntakeTable";
 import { ColumnPicker } from "@/app/dashboard/intake/ColumnPicker";
@@ -113,15 +113,17 @@ export function FormAnswersTab() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-        <div className="flex gap-1 rounded-xl border border-border bg-surface-subtle p-1">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border px-5 py-3">
+        <div className="flex gap-1">
           {filters.map(({ key, label }) => (
             <button
               key={key}
               type="button"
               onClick={() => setFilter(key)}
               className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
-                filter === key ? "bg-white text-ink shadow-sm" : "text-ink-muted"
+                filter === key
+                  ? "bg-primary/10 text-primary"
+                  : "text-ink-secondary hover:bg-surface-mid"
               }`}
             >
               {label}
@@ -129,12 +131,15 @@ export function FormAnswersTab() {
           ))}
         </div>
 
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search name or phone"
-          className="rounded-xl border border-border px-3 py-2 font-body text-sm"
-        />
+        <div className="flex items-center gap-2 rounded-xl border border-border px-3 py-2">
+          <Search size={14} className="text-ink-muted" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name or phone"
+            className="min-w-[240px] border-0 bg-transparent font-body text-sm outline-none placeholder:text-ink-muted"
+          />
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
           <ColumnPicker columns={columns} hiddenKeys={hiddenKeys} onChange={setHiddenKeys} />

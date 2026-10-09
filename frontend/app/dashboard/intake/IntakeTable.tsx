@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { IntakeSession } from "@/lib/api";
 import { FieldColumn } from "./columns";
 
@@ -33,29 +33,6 @@ interface IntakeTableProps {
   onChangePackage: (sessionId: string, packageKey: string) => void;
 }
 
-function CopyLinkButton({ link }: { link: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label="Copy payment link"
-      title={copied ? "Copied" : "Copy payment link"}
-      className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 font-label text-[10px] font-bold text-ink-muted hover:bg-surface-subtle"
-    >
-      {copied ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
-      {copied ? "Copied" : "Copy link"}
-    </button>
-  );
-}
-
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** Dates are stored as 2003-11-19; staff read day-first, so show 19-11-2003. */
@@ -63,30 +40,6 @@ function formatAnswer(value: string | undefined): string {
   if (!value) return "—";
   const iso = ISO_DATE.exec(value);
   return iso ? `${iso[3]}-${iso[2]}-${iso[1]}` : value;
-}
-
-function AstroCell({ row }: { row: IntakeSession }) {
-  if (!row.astro || row.status === "awaiting_payment") {
-    return <span className="font-body text-sm text-ink-muted">—</span>;
-  }
-  if (row.astro.sent) {
-    return (
-      <span
-        title={row.astro.horoscope_id ? `Horoscope ${row.astro.horoscope_id}` : undefined}
-        className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 font-label text-[10px] font-bold text-emerald-700"
-      >
-        Sent #{row.astro.question_id}
-      </span>
-    );
-  }
-  return (
-    <span
-      title="This paid question has not reached AstroTamil yet. Anril keeps retrying and alerts staff if it stays stuck."
-      className="inline-flex rounded-full border border-red-200 bg-red-50 px-2.5 py-1 font-label text-[10px] font-bold text-red-700"
-    >
-      Not sent
-    </span>
-  );
 }
 
 function PackageCell({
@@ -161,8 +114,6 @@ export function IntakeTable({
   }, [hasMore, loadingMore, onLoadMore]);
 
   const shown = columns.filter((c) => visibleKeys.has(c.key));
-  // Only a client connected to AstroTamil gets rows carrying "astro"; everyone else sees no column.
-  const showAstro = rows.some((r) => r.astro);
 
   return (
     <div className="overflow-x-auto">
@@ -176,12 +127,9 @@ export function IntakeTable({
               Phone
             </th>
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Status</th>
+            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Deal</th>
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Package</th>
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Amount</th>
-            <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Payment Link</th>
-            {showAstro && (
-              <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">AstroTamil</th>
-            )}
             <th className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Submitted</th>
             {shown.map((col) => (
               <th key={col.key} className="whitespace-nowrap px-4 py-2 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">
@@ -217,6 +165,9 @@ export function IntakeTable({
                     {STATUS_LABEL[row.status]}
                   </span>
                 </td>
+                <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-ink-secondary">
+                  {row.deal_label || <span className="text-ink-muted">Not yet</span>}
+                </td>
                 <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink">
                   <PackageCell row={row} packages={packages} onChangePackage={onChangePackage} />
                 </td>
@@ -233,14 +184,6 @@ export function IntakeTable({
                     </div>
                   )}
                 </td>
-                <td className="whitespace-nowrap px-4 py-3">
-                  {row.payment_link ? <CopyLinkButton link={row.payment_link} /> : <span className="font-body text-sm text-ink-muted">—</span>}
-                </td>
-                {showAstro && (
-                  <td className="whitespace-nowrap px-4 py-3">
-                    <AstroCell row={row} />
-                  </td>
-                )}
                 <td className="whitespace-nowrap px-4 py-3 font-body text-sm text-ink-muted">
                   {new Date(row.created_at).toLocaleDateString()}
                 </td>

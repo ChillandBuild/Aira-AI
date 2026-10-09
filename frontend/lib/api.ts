@@ -1382,6 +1382,39 @@ export type IntakeStatus = "awaiting_payment" | "paid" | "resolved" | "cancelled
 export type DealStage = "quoted" | "awaiting_payment" | "won" | "lost";
 export type DealSource = "whatsapp" | "form" | "call" | "walk_in" | "manual" | "indiamart" | "justdial";
 export type PaymentMethod = "razorpay" | "cash" | "upi" | "card" | "bank_transfer" | "other";
+export type DealAttention = "unpaid_3d" | "link_expiring" | "refund";
+export type DealSort = "created_at" | "total_paise" | "deal_number";
+
+export interface DealFilters {
+  stage?: DealStage;
+  source?: DealSource[];
+  q?: string;
+  created_from?: string;
+  created_to?: string;
+  min_rupees?: number;
+  max_rupees?: number;
+  payment_method?: PaymentMethod[];
+  product?: string[];
+  attention?: DealAttention[];
+}
+
+export interface DealStageTotal {
+  count: number;
+  total_paise: number;
+}
+
+export interface DealSummaryStats {
+  stages: Record<DealStage, DealStageTotal>;
+  unpaid_3d: DealStageTotal;
+  products: string[];
+}
+
+export interface DealListPage {
+  data: DealSummary[];
+  total: number;
+  page: number;
+  limit: number;
+}
 
 export interface DealItem {
   id: string;
@@ -1422,17 +1455,6 @@ export interface Deal extends DealSummary {
   razorpay_payment_id: string | null;
   intake_session_id: string | null;
   intake_answers: Record<string, unknown> | null;
-}
-
-export interface DealBoardColumn {
-  count: number;
-  total_paise: number;
-  deals: DealSummary[];
-  has_more: boolean;
-}
-
-export interface DealBoard {
-  columns: Record<DealStage, DealBoardColumn>;
 }
 
 export interface NewDealLine {
@@ -1525,6 +1547,8 @@ export interface IntakeSession {
   paid_at: string | null;
   created_at: string;
   leads: { name: string | null; phone: string | null } | null;
+  /** The deal this form session became ("D-0014"), or null while it's still a form only. */
+  deal_label?: string | null;
   /** Present only for a client connected to AstroTamil: did the paid question reach it? */
   astro?: { sent: boolean; question_id: number | null; horoscope_id: string | null };
 }
@@ -1568,6 +1592,21 @@ export interface AskAnalyticsResult {
   answer: string;
   data: Record<string, unknown> | null;
   source: string | null;
+}
+
+/** Query params for every deals filter except stage, which only the list takes. */
+function dealFilterParams(filters: Omit<DealFilters, "stage">): URLSearchParams {
+  const search = new URLSearchParams();
+  const lists = { source: filters.source, payment_method: filters.payment_method, product: filters.product, attention: filters.attention };
+  for (const [key, values] of Object.entries(lists)) {
+    if (values && values.length > 0) search.set(key, values.join(","));
+  }
+  if (filters.q) search.set("q", filters.q);
+  if (filters.created_from) search.set("created_from", filters.created_from);
+  if (filters.created_to) search.set("created_to", filters.created_to);
+  if (filters.min_rupees != null) search.set("min_rupees", String(filters.min_rupees));
+  if (filters.max_rupees != null) search.set("max_rupees", String(filters.max_rupees));
+  return search;
 }
 
 export const api = {
@@ -2778,23 +2817,20 @@ export const api = {
       }),
   },
   deals: {
-    board: () => apiFetch<DealBoard>("/api/v1/deals/board"),
-    list: (params: {
-      stage?: DealStage;
-      source?: DealSource;
-      q?: string;
-      month?: string;
-      cursor?: string;
-      limit?: number;
-    } = {}) => {
-      const search = new URLSearchParams({ limit: String(params.limit ?? 50) });
-      if (params.stage) search.set("stage", params.stage);
-      if (params.source) search.set("source", params.source);
-      if (params.q) search.set("q", params.q);
-      if (params.month) search.set("month", params.month);
-      if (params.cursor) search.set("cursor", params.cursor);
-      return apiFetch<{ data: DealSummary[]; next_cursor: string | null }>(`/api/v1/deals?${search}`);
+    list: (
+      filters: DealFilters = {},
+      opts: { sort?: DealSort; dir?: "asc" | "desc"; page?: number; limit?: number } = {}
+    ) => {
+      const search = dealFilterParams(filters);
+      if (filters.stage) search.set("stage", filters.stage);
+      if (opts.sort) search.set("sort", opts.sort);
+      if (opts.dir) search.set("dir", opts.dir);
+      if (opts.page) search.set("page", String(opts.page));
+      search.set("limit", String(opts.limit ?? 50));
+      return apiFetch<DealListPage>(`/api/v1/deals?${search}`);
     },
+    summary: (filters: Omit<DealFilters, "stage"> = {}) =>
+      apiFetch<DealSummaryStats>(`/api/v1/deals/summary?${dealFilterParams(filters)}`),
     get: (dealId: string) => apiFetch<Deal>(`/api/v1/deals/${dealId}`),
     create: (payload: NewDealPayload) =>
       apiFetch<DealMutationResult>("/api/v1/deals", {

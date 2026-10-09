@@ -5,7 +5,7 @@ export interface FieldColumn {
   label: string;
 }
 
-function prettify(key: string): string {
+export function prettify(key: string): string {
   return key
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

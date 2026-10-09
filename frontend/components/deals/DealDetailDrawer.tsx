@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Copy, MessageCircle, X } from "lucide-react";
 import { toast } from "sonner";
 import { api, Deal, PaymentMethod } from "@/lib/api";
+import { prettify } from "@/app/dashboard/intake/columns";
 import { StageBadge } from "./StageBadge";
 import { SourceBadge } from "./SourceBadge";
 import { formatRupees } from "./money";
@@ -195,6 +196,37 @@ export function DealDetailDrawer({ dealId, onClose, onChanged, canManage }: Deal
                   </div>
                 </div>
               </div>
+
+              {deal.intake_answers && Object.keys(deal.intake_answers).length > 0 && (
+                <div>
+                  <p className="mb-1.5 font-label text-[10px] font-bold uppercase tracking-wide text-ink-muted">Form answers</p>
+                  <div className="rounded-xl border border-border overflow-hidden divide-y divide-border-subtle">
+                    {Object.entries(deal.intake_answers).map(([key, value]) => {
+                      let displayValue: string;
+                      if (typeof value === "string") {
+                        displayValue = value;
+                      } else if (typeof value === "number" || typeof value === "boolean") {
+                        displayValue = String(value);
+                      } else if (Array.isArray(value)) {
+                        displayValue = value.join(", ");
+                      } else if (typeof value === "object" && value !== null) {
+                        displayValue = JSON.stringify(value);
+                      } else {
+                        displayValue = "—";
+                      }
+                      return (
+                        <div
+                          key={key}
+                          className="grid grid-cols-[minmax(0,140px)_minmax(0,1fr)] gap-3 px-3 py-2"
+                        >
+                          <p className="text-xs text-ink-muted">{prettify(key)}</p>
+                          <p className="text-sm font-semibold text-ink break-words">{displayValue}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {deal.notes && (
                 <div>

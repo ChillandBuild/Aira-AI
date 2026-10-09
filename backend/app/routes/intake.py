@@ -15,6 +15,7 @@ from app.dependencies.tenant import require_permission
 from app.services import astro_bridge, partner_send_mode
 from app.services.audit_log import record_audit_event
 from app.services.ai_reply import send_whatsapp
+from app.services.deals import format_deal_number
 from app.services.intake import (
     alert_bridge_auth_failure,
     change_session_package,
@@ -119,6 +120,21 @@ def _with_astro_status(rows: list[dict], connected: bool) -> list[dict]:
     return rows
 
 
+def _with_deal_labels(db, tenant_id: str, rows: list[dict]) -> list[dict]:
+    """Each row's deal number ("D-0014"), or None while the session is still only a form.
+    A session gets its deal once it reaches awaiting_payment (deals.sync_intake_session)."""
+    if not rows:
+        return rows
+    deals = (
+        db.table("deals").select("intake_session_id, deal_number").eq("tenant_id", tenant_id)
+        .in_("intake_session_id", [r["id"] for r in rows]).execute()
+    ).data or []
+    labels = {d["intake_session_id"]: format_deal_number(d["deal_number"]) for d in deals}
+    for row in rows:
+        row["deal_label"] = labels.get(row["id"])
+    return rows
+
+
 @router.get("/sessions")
 def list_intake_sessions(
     status: str = Query("all"),
@@ -131,7 +147,7 @@ def list_intake_sessions(
     db = get_supabase()
     connected = astro_bridge.is_connected(ctx["tenant_id"])
     result = _build_query(db, ctx["tenant_id"], status, package, q, cursor, limit, connected).execute()
-    rows = _with_astro_status(result.data or [], connected)
+    rows = _with_deal_labels(db, ctx["tenant_id"], _with_astro_status(result.data or [], connected))
     next_cursor = None
     if len(rows) == limit:
         last = rows[-1]

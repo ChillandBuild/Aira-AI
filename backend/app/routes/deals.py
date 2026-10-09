@@ -4,7 +4,7 @@ rules live in services/deals.py; this module only validates input, scopes by
 tenant and shapes responses."""
 import logging
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone, time
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,9 +23,142 @@ require_deals_view = require_permission("deals.view")
 require_deals_manage = require_permission("deals.manage")
 
 DEAL_SELECT = "*, leads(id, name, phone), deal_items(id, catalog_item_id, name, qty, unit_price_paise, gst_rate, line_total_paise), intake_sessions(last_activity_at, refund_needed)"
-BOARD_CARD_CAP = 100
-BOARD_RECENT_DAYS = 30
 DEAL_NUMBER_RE = re.compile(r"^(?:d-?)?0*(\d+)$", re.IGNORECASE)
+
+
+def _csv(value: str | None, allowed: list[str] | None, label: str) -> list[str]:
+    """Parse a comma-separated list, validate values if allowed is provided, raise HTTPException 400 for unknowns."""
+    if not value:
+        return []
+    items = [v.strip() for v in value.split(",")]
+    # Only validate if allowed list is provided (non-None and non-empty)
+    if allowed:
+        allowed_set = set(allowed)
+        for item in items:
+            if item and item not in allowed_set:
+                raise HTTPException(status_code=400, detail=f"Unknown {label}")
+    return [item for item in items if item]
+
+
+def _filtered(db, tenant_id: str, *, source=None, q=None, created_from=None, created_to=None,
+              min_rupees=None, max_rupees=None, payment_method=None, product=None, attention=None,
+              select=DEAL_SELECT, count=None):
+    """Build a filtered query for deals. Returns the query object or None if a lookup proves no rows can exist.
+
+    Args:
+        source: comma-separated list of sources (validated against SOURCES)
+        q: deal number match via DEAL_NUMBER_RE, else lead name/phone search
+        created_from/created_to: YYYY-MM-DD strings, IST timezone
+        min_rupees/max_rupees: rupee amounts (converted to paise)
+        payment_method: comma-separated list of payment methods
+        product: comma-separated list of exact deal_items names
+        attention: comma-separated list of attention criteria (unpaid_3d, link_expiring, refund)
+        select: columns to select
+        count: PostgREST count parameter (e.g., "exact")
+
+    Returns:
+        Query object or None if no rows can match
+    """
+    IST = timezone(timedelta(hours=5, minutes=30))
+    query = db.table("deals").select(select, count=count).eq("tenant_id", tenant_id)
+
+    # source filter
+    if source:
+        sources = _csv(source, deals_service.SOURCES, "source")
+        if sources:
+            query = query.in_("source", sources)
+
+    # q filter (deal number or lead search)
+    if q and q.strip():
+        number_match = DEAL_NUMBER_RE.match(q.strip())
+        if number_match:
+            query = query.eq("deal_number", int(number_match.group(1)))
+        else:
+            lead_ids = _lead_ids_matching(db, tenant_id, q.strip())
+            if not lead_ids:
+                return None
+            query = query.in_("lead_id", lead_ids)
+
+    # created_from/created_to date window (IST)
+    if created_from:
+        try:
+            d = date.fromisoformat(created_from)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date")
+        dt = datetime.combine(d, time.min, IST)
+        query = query.gte("created_at", dt.isoformat())
+
+    if created_to:
+        try:
+            d = date.fromisoformat(created_to)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date")
+        # created_to is inclusive, so filter < (to + 1 day)
+        dt = datetime.combine(d + timedelta(days=1), time.min, IST)
+        query = query.lt("created_at", dt.isoformat())
+
+    # min/max rupees (convert to paise)
+    if min_rupees is not None:
+        query = query.gte("total_paise", min_rupees * 100)
+
+    if max_rupees is not None:
+        query = query.lte("total_paise", max_rupees * 100)
+
+    # payment_method filter
+    if payment_method:
+        methods = _csv(payment_method, deals_service.PAYMENT_METHODS, "payment_method")
+        if methods:
+            query = query.in_("payment_method", methods)
+
+    # product filter (via deal_items)
+    if product:
+        names = _csv(product, None, "product")  # Don't validate against a list; max 20 names
+        if len(names) > 20:
+            raise HTTPException(status_code=400, detail="Too many products")
+        if names:
+            deal_ids = (
+                db.table("deal_items")
+                .select("deal_id")
+                .eq("tenant_id", tenant_id)
+                .in_("name", names)
+                .limit(2000)
+                .execute()
+            ).data or []
+            if not deal_ids:
+                return None
+            ids = [d["deal_id"] for d in deal_ids]
+            query = query.in_("id", ids)
+
+    # attention filter (unpaid_3d, link_expiring, refund)
+    if attention:
+        attention_list = _csv(attention, ["unpaid_3d", "link_expiring", "refund"], "attention")
+        now = datetime.now(timezone.utc)
+
+        for attn in attention_list:
+            if attn == "unpaid_3d":
+                threshold = (now - timedelta(days=3)).isoformat()
+                query = query.eq("stage", "awaiting_payment").lt("created_at", threshold)
+            elif attn == "link_expiring":
+                # link_expires_at between now and now+24h
+                query = query.eq("stage", "awaiting_payment")
+                query = query.gte("link_expires_at", now.isoformat())
+                query = query.lte("link_expires_at", (now + timedelta(hours=24)).isoformat())
+            elif attn == "refund":
+                # Find intake_sessions with refund_needed=true
+                sessions = (
+                    db.table("intake_sessions")
+                    .select("id")
+                    .eq("tenant_id", tenant_id)
+                    .eq("refund_needed", True)
+                    .limit(2000)
+                    .execute()
+                ).data or []
+                if not sessions:
+                    return None
+                session_ids = [s["id"] for s in sessions]
+                query = query.in_("intake_session_id", session_ids)
+
+    return query
 
 
 def _session_fields(row: dict) -> dict:
@@ -100,30 +233,81 @@ def _lead_ids_matching(db, tenant_id: str, q: str) -> list[str]:
     return [r["id"] for r in rows]
 
 
-@router.get("/board")
-def deals_board(ctx: dict = Depends(require_deals_view)):
-    """Four stage columns. Won/Lost only show the last 30 days so the board is
-    about what's moving now; the List tab and export hold the full history."""
+@router.get("/summary")
+def get_summary(
+    source: str | None = None,
+    q: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    min_rupees: int | None = Query(None, ge=0),
+    max_rupees: int | None = Query(None, ge=0),
+    payment_method: str | None = None,
+    product: str | None = None,
+    attention: str | None = None,
+    ctx: dict = Depends(require_deals_view),
+):
+    """Summary of deals matching the filters: per-stage counts/totals, unpaid_3d count/total, and distinct products."""
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
-    since = (datetime.now(timezone.utc) - timedelta(days=BOARD_RECENT_DAYS)).isoformat()
-    columns = {}
-    for stage in deals_service.STAGES:
-        base = db.table("deals").select(DEAL_SELECT).eq("tenant_id", tenant_id).eq("stage", stage)
-        totals = db.table("deals").select("total_paise").eq("tenant_id", tenant_id).eq("stage", stage)
-        if stage == "won":
-            base, totals = base.gte("won_at", since), totals.gte("won_at", since)
-        elif stage == "lost":
-            base, totals = base.gte("lost_at", since), totals.gte("lost_at", since)
-        cards = base.order("created_at", desc=True).limit(BOARD_CARD_CAP + 1).execute().data or []
-        amounts = totals.limit(5000).execute().data or []
-        columns[stage] = {
-            "count": len(amounts),
-            "total_paise": sum(r["total_paise"] for r in amounts),
-            "deals": [_summary(r) for r in cards[:BOARD_CARD_CAP]],
-            "has_more": len(cards) > BOARD_CARD_CAP,
+
+    # Get filtered deals (excluding stage/sort/page)
+    query = _filtered(
+        db, tenant_id, source=source, q=q, created_from=created_from, created_to=created_to,
+        min_rupees=min_rupees, max_rupees=max_rupees, payment_method=payment_method,
+        product=product, attention=attention, select="stage, total_paise, created_at", count=None
+    )
+
+    if query is None:
+        # No rows can match
+        result = {
+            "stages": {stage: {"count": 0, "total_paise": 0} for stage in deals_service.STAGES},
+            "unpaid_3d": {"count": 0, "total_paise": 0},
+            "products": [],
         }
-    return {"columns": columns}
+    else:
+        rows = query.limit(5000).execute().data or []
+
+        # Compute per-stage counts and totals
+        stages_data = {stage: {"count": 0, "total_paise": 0} for stage in deals_service.STAGES}
+        for row in rows:
+            stage = row.get("stage")
+            if stage in stages_data:
+                stages_data[stage]["count"] += 1
+                stages_data[stage]["total_paise"] += row.get("total_paise", 0)
+
+        # Compute unpaid_3d (awaiting_payment with created_at < 3 days ago)
+        now = datetime.now(timezone.utc)
+        three_days_ago = now - timedelta(days=3)
+        unpaid_3d_count = 0
+        unpaid_3d_total = 0
+        for row in rows:
+            if row.get("stage") == "awaiting_payment":
+                created_str = row.get("created_at")
+                if created_str:
+                    # Parse ISO string (handles both with and without offset)
+                    created = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                    if created < three_days_ago:
+                        unpaid_3d_count += 1
+                        unpaid_3d_total += row.get("total_paise", 0)
+
+        result = {
+            "stages": stages_data,
+            "unpaid_3d": {"count": unpaid_3d_count, "total_paise": unpaid_3d_total},
+            "products": [],
+        }
+
+    # Get all distinct product names for the tenant (ignores filters)
+    products_data = (
+        db.table("deal_items")
+        .select("name")
+        .eq("tenant_id", tenant_id)
+        .limit(2000)
+        .execute()
+    ).data or []
+    products_set = sorted(set(p.get("name") for p in products_data if p.get("name")))[:200]
+    result["products"] = products_set
+
+    return result
 
 
 @router.get("")
@@ -131,41 +315,65 @@ def list_deals(
     stage: str | None = None,
     source: str | None = None,
     q: str | None = None,
-    month: str | None = None,
-    cursor: str | None = None,
+    created_from: str | None = None,
+    created_to: str | None = None,
+    min_rupees: int | None = Query(None, ge=0),
+    max_rupees: int | None = Query(None, ge=0),
+    payment_method: str | None = None,
+    product: str | None = None,
+    attention: str | None = None,
+    sort: str = Query("created_at"),
+    dir: str = Query("desc"),
+    page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     ctx: dict = Depends(require_deals_view),
 ):
+    """List deals matching all filters, with pagination and sorting."""
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
-    query = db.table("deals").select(DEAL_SELECT).eq("tenant_id", tenant_id)
+
+    # Validate stage
     if stage:
         if stage not in deals_service.STAGES:
             raise HTTPException(status_code=400, detail="Unknown stage")
+
+    # Validate sort
+    valid_sorts = {"created_at", "total_paise", "deal_number"}
+    if sort not in valid_sorts:
+        raise HTTPException(status_code=400, detail="Unknown sort")
+
+    # Validate dir
+    if dir not in {"asc", "desc"}:
+        raise HTTPException(status_code=400, detail="Unknown dir")
+
+    # Build filtered query
+    query = _filtered(
+        db, tenant_id, source=source, q=q, created_from=created_from, created_to=created_to,
+        min_rupees=min_rupees, max_rupees=max_rupees, payment_method=payment_method,
+        product=product, attention=attention, select=DEAL_SELECT, count="exact"
+    )
+
+    if query is None:
+        return {"data": [], "total": 0, "page": page, "limit": limit}
+
+    # Apply stage filter
+    if stage:
         query = query.eq("stage", stage)
-    if source:
-        if source not in deals_service.SOURCES:
-            raise HTTPException(status_code=400, detail="Unknown source")
-        query = query.eq("source", source)
-    if month:
-        start, end = deals_reports.month_bounds(month)
-        query = query.gte("created_at", start).lt("created_at", end)
-    if q and q.strip():
-        number = DEAL_NUMBER_RE.match(q.strip())
-        if number:
-            query = query.eq("deal_number", int(number.group(1)))
-        else:
-            lead_ids = _lead_ids_matching(db, tenant_id, q.strip())
-            if not lead_ids:
-                return {"data": [], "next_cursor": None}
-            query = query.in_("lead_id", lead_ids)
-    if cursor:
-        query = query.lt("created_at", cursor)
-    rows = query.order("created_at", desc=True).limit(limit + 1).execute().data or []
-    page = rows[:limit]
+
+    # Apply sorting and pagination
+    # id breaks ties, so equal values (many ₹1 deals) never repeat or vanish across pages.
+    query = query.order(sort, desc=(dir == "desc")).order("id", desc=(dir == "desc"))
+    query = query.range((page - 1) * limit, page * limit - 1)
+
+    result = query.execute()
+    rows = result.data or []
+    total = result.count or 0
+
     return {
-        "data": [_summary(r) for r in page],
-        "next_cursor": page[-1]["created_at"] if len(rows) > limit else None,
+        "data": [_summary(r) for r in rows],
+        "total": total,
+        "page": page,
+        "limit": limit,
     }
 
 

@@ -6,16 +6,14 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { NewDealDialog } from "@/components/deals/NewDealDialog";
 import { DealDetailDrawer } from "@/components/deals/DealDetailDrawer";
-import { BoardTab } from "./BoardTab";
-import { ListTab } from "./ListTab";
+import { DealsTab } from "./DealsTab";
 import { InsightsTab } from "./InsightsTab";
 import { FormAnswersTab } from "./FormAnswersTab";
 
-type DealsTab = "board" | "list" | "insights" | "forms";
+type PageTab = "deals" | "insights" | "forms";
 
-const TABS: { id: DealsTab; label: string }[] = [
-  { id: "board", label: "Board" },
-  { id: "list", label: "List" },
+const TABS: { id: PageTab; label: string }[] = [
+  { id: "deals", label: "Deals" },
   { id: "insights", label: "Insights" },
   { id: "forms", label: "Form answers" },
 ];
@@ -34,9 +32,9 @@ export default function DealsPage() {
   const canView = role === "owner" || permissions.includes("deals.view") || canManage;
 
   const visibleTabs = TABS.filter((t) => t.id !== "forms" || intakeEnabled);
-  const tab = (visibleTabs.some((t) => t.id === rawTab) ? rawTab : "board") as DealsTab;
+  const tab = (visibleTabs.some((t) => t.id === rawTab) ? rawTab : "deals") as PageTab;
 
-  function setTab(next: DealsTab) {
+  function setTab(next: PageTab) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", next);
     router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
@@ -79,15 +77,18 @@ export default function DealsPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="flex gap-1 rounded-xl border border-border bg-surface-subtle p-1">
+      {/* Tab navigation with underline style */}
+      <div className="flex items-center justify-between gap-4 border-b border-border px-4">
+        <div className="flex gap-1">
           {visibleTabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`rounded-lg px-3 py-1.5 font-label text-xs font-bold transition-all ${
-                tab === id ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
+              className={`px-3 py-3 font-label text-sm font-bold border-b-2 transition-all ${
+                tab === id
+                  ? "border-primary text-ink"
+                  : "border-transparent text-ink-secondary hover:text-ink"
               }`}
             >
               {label}
@@ -95,7 +96,7 @@ export default function DealsPage() {
           ))}
         </div>
 
-        {canManage && (
+        {canManage && tab === "deals" && (
           <button
             type="button"
             onClick={() => setShowNewDeal(true)}
@@ -106,9 +107,8 @@ export default function DealsPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {tab === "board" && <BoardTab onOpenDeal={setOpenDealId} reloadToken={reloadToken} />}
-        {tab === "list" && <ListTab onOpenDeal={setOpenDealId} reloadToken={reloadToken} />}
+      <div className="flex-1 overflow-hidden">
+        {tab === "deals" && <DealsTab onOpenDeal={setOpenDealId} reloadToken={reloadToken} />}
         {tab === "insights" && <InsightsTab />}
         {tab === "forms" && intakeEnabled && <FormAnswersTab />}
       </div>
