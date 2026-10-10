@@ -14,7 +14,6 @@ import {
   Layers,
   Megaphone,
   Menu,
-  Package,
   ShoppingBag,
   Settings,
   ShieldCheck,
@@ -34,40 +33,92 @@ import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
 
 const BRAIN_HREF = "/dashboard/brain";
 
-type MoreMenuItem = {
-  href: string;
-  icon: typeof Users;
-  label: string;
+type MoreMenuGate = {
   permissionAny?: string[];
   feature?: string;
   anyFeature?: string[];
 };
 
-const MORE_ITEMS: MoreMenuItem[] = [
-  { href: "/dashboard/deals", icon: HandCoins, label: "Deals", permissionAny: ["deals.view", "deals.manage"] },
-  { href: "/dashboard/leads", icon: Users, label: "Leads", permissionAny: ["leads.view", "leads.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
-  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },
-  { href: "/dashboard/auto-messages", icon: Zap, label: "Auto-Messages", permissionAny: ["auto_messages.view", "auto_messages.manage"], feature: "outbound_messaging" },
-  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", permissionAny: ["telecalling.scheduled.view", "telecalling.scheduled"], feature: "telecalling.scheduled" },
-  { href: "/dashboard/notes", icon: StickyNote, label: "Call Review", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
-  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
-  { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", permissionAny: ["meta_ads.view", "meta_ads.manage"], feature: "inbound_messaging" },
-  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: BRAIN_HREF, icon: Brain, label: "Anril Brain", permissionAny: ["brain.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/catalog", icon: ShoppingBag, label: "Products", permissionAny: ["catalog.view", "catalog.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/services", icon: Package, label: "Services", permissionAny: ["services.view", "services.manage"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", permissionAny: ["analytics.view"], anyFeature: ["outbound_messaging", "inbound_messaging"] },
-  { href: "/dashboard/team", icon: Grid3X3, label: "Team", permissionAny: ["team.view", "team.manage"] },
-  { href: "/dashboard/roles", icon: ShieldCheck, label: "Roles", permissionAny: ["roles.view", "roles.manage"] },
+type MoreMenuSection =
+  | "top"
+  | "inbox"
+  | "engage"
+  | "reach"
+  | "commerce"
+  | "callIq"
+  | "aiSetup"
+  | "whatsappSetup"
+  | "account";
+
+type MoreMenuItem = MoreMenuGate & {
+  href: string;
+  icon: typeof Users;
+  label: string;
+  section: MoreMenuSection;
+  /** Extra gate: the item also shows when this gate passes (used by Catalogue). */
+  alsoVisibleIf?: MoreMenuGate;
+  /** Extra paths that also highlight this item as active. */
+  activePrefixes?: string[];
+};
+
+/** Render order. `title: null` renders the items with no heading. */
+const MORE_SECTIONS: readonly { key: MoreMenuSection; title: string | null }[] = [
+  { key: "top", title: null },
+  { key: "inbox", title: "INBOX & LEADS" },
+  { key: "engage", title: "ANRIL ENGAGE" },
+  { key: "reach", title: "ANRIL REACH" },
+  { key: "commerce", title: "SALES · ANRIL COMMERCE" },
+  { key: "callIq", title: "ANRIL CALL IQ" },
+  { key: "aiSetup", title: "AI SETUP" },
+  { key: "whatsappSetup", title: "WHATSAPP SETUP" },
+  { key: "account", title: "ACCOUNT" },
 ];
 
-function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: string[], permissions: string[]) {
-  if (role !== "owner" && item.permissionAny && !item.permissionAny.some((permission) => permissions.includes(permission))) return false;
-  if (item.feature && !enabledFeatures.includes(item.feature)) return false;
-  if (item.anyFeature && !item.anyFeature.some((feature) => enabledFeatures.includes(feature))) return false;
+const MESSAGING_FEATURES = ["outbound_messaging", "inbound_messaging"];
+
+const MORE_ITEMS: MoreMenuItem[] = [
+  { href: "/dashboard/analytics", icon: BarChart2, label: "Analytics", section: "top", permissionAny: ["analytics.view"], anyFeature: MESSAGING_FEATURES },
+  { href: "/dashboard/leads", icon: Users, label: "Leads", section: "inbox", permissionAny: ["leads.view", "leads.manage"], anyFeature: MESSAGING_FEATURES },
+  { href: "/dashboard/inbound-leads", icon: Inbox, label: "Inbound Leads", section: "engage", permissionAny: ["inbound_leads.view", "inbound_leads.manage"], feature: "inbound_messaging" },
+  { href: "/dashboard/meta-ads", icon: Megaphone, label: "Meta Ads", section: "engage", permissionAny: ["meta_ads.view", "meta_ads.manage"], feature: "inbound_messaging" },
+  { href: "/dashboard/auto-messages", icon: Zap, label: "Auto-Messages", section: "engage", permissionAny: ["auto_messages.view", "auto_messages.manage"], feature: "outbound_messaging" },
+  { href: "/dashboard/outbound-leads", icon: Upload, label: "Send", section: "reach", permissionAny: ["outbound_leads.view", "outbound_leads.manage"], feature: "outbound_messaging" },
+  { href: "/dashboard/deals", icon: HandCoins, label: "Deals", section: "commerce", permissionAny: ["deals.view", "deals.manage"] },
+  {
+    href: "/dashboard/catalog",
+    icon: ShoppingBag,
+    label: "Catalogue",
+    section: "commerce",
+    permissionAny: ["catalog.view", "catalog.manage"],
+    anyFeature: MESSAGING_FEATURES,
+    alsoVisibleIf: { permissionAny: ["services.view", "services.manage"], anyFeature: MESSAGING_FEATURES },
+    activePrefixes: ["/dashboard/catalog", "/dashboard/services"],
+  },
+  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls", section: "callIq", permissionAny: ["telecalling.scheduled.view", "telecalling.scheduled"], feature: "telecalling.scheduled" },
+  { href: "/dashboard/notes", icon: StickyNote, label: "Call Review", section: "callIq", permissionAny: ["telecalling.notes.view", "telecalling.notes"], feature: "telecalling.notes" },
+  { href: "/dashboard/team", icon: Grid3X3, label: "Team Performance", section: "callIq", permissionAny: ["team.view", "team.manage"] },
+  { href: BRAIN_HREF, icon: Brain, label: "Anril Brain", section: "aiSetup", permissionAny: ["brain.view"], anyFeature: MESSAGING_FEATURES },
+  { href: "/dashboard/knowledge", icon: BookOpen, label: "Knowledge Base", section: "aiSetup", permissionAny: ["knowledge.view", "knowledge.manage"], anyFeature: MESSAGING_FEATURES },
+  { href: "/dashboard/templates", icon: SquarePen, label: "Templates", section: "whatsappSetup", permissionAny: ["templates.view", "templates.manage"], feature: "outbound_messaging" },
+  { href: "/dashboard/numbers", icon: Layers, label: "Numbers Pool", section: "whatsappSetup", permissionAny: ["numbers.view", "numbers.manage"], anyFeature: MESSAGING_FEATURES },
+  { href: "/dashboard/roles", icon: ShieldCheck, label: "Users & Roles", section: "account", permissionAny: ["roles.view", "roles.manage"] },
+];
+
+function passesGate(gate: MoreMenuGate, role: string | null, enabledFeatures: string[], permissions: string[]) {
+  if (role !== "owner" && gate.permissionAny && !gate.permissionAny.some((permission) => permissions.includes(permission))) return false;
+  if (gate.feature && !enabledFeatures.includes(gate.feature)) return false;
+  if (gate.anyFeature && !gate.anyFeature.some((feature) => enabledFeatures.includes(feature))) return false;
   return true;
+}
+
+function isVisible(item: MoreMenuItem, role: string | null, enabledFeatures: string[], permissions: string[]) {
+  if (passesGate(item, role, enabledFeatures, permissions)) return true;
+  return item.alsoVisibleIf !== undefined && passesGate(item.alsoVisibleIf, role, enabledFeatures, permissions);
+}
+
+function isItemActive(item: MoreMenuItem, pathname: string) {
+  if (isActive(pathname, item.href)) return true;
+  return (item.activePrefixes ?? []).some((prefix) => pathname.startsWith(prefix));
 }
 
 export function MoreMenu() {
@@ -138,71 +189,85 @@ export function MoreMenu() {
               </div>
             ) : (
               <div className="flex flex-col gap-2">
-                {items.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(pathname, item.href);
+                {MORE_SECTIONS.map((section) => {
+                  const sectionItems = items.filter((item) => item.section === section.key);
+                  const showSettings = section.key === "account" && canSettings;
+                  if (sectionItems.length === 0 && !showSettings) return null;
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setIsOpen(false)}
-                      className={cn(
-                        "flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold",
-                        active
-                          ? "border-primary-muted bg-primary-light text-primary"
-                          : "border-border-subtle bg-surface-low text-ink hover:border-border"
+                    <div key={section.key} className="flex flex-col gap-2">
+                      {section.title && (
+                        <div className="px-2 pt-1 pb-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                          {section.title}
+                        </div>
                       )}
-                    >
-                      <Icon size={17} />
-                      <span className="min-w-0 truncate">{item.label}</span>
-                      {item.href === BRAIN_HREF && <BrainNavBadge count={brainCount} variant="menu" />}
-                    </Link>
-                  );
-                })}
-                {canSettings && (
-                  <div className="mt-1 rounded-xl border border-border-subtle bg-surface-low p-2">
-                    <div className={cn(
-                      "flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-bold",
-                      settingsActive ? "text-primary" : "text-ink",
-                    )}>
-                      <Settings size={17} />
-                      <span>Settings</span>
-                    </div>
-                    <div className="mt-1 flex flex-col gap-1 border-l border-border pl-2">
-                      {SETTINGS_GROUP_ORDER.map((group) => {
-                        const groupItems = settingsItems.filter((i) => i.group === group);
-                        if (groupItems.length === 0) return null;
+                      {sectionItems.map((item) => {
+                        const Icon = item.icon;
+                        const active = isItemActive(item, pathname);
                         return (
-                          <div key={group} className="pt-1.5 first:pt-0">
-                            <div className="px-2 pb-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">
-                              {group}
-                            </div>
-                            {groupItems.map((item) => {
-                              const Icon = item.icon;
-                              const active = isActive(pathname, item.href);
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsOpen(false)}
+                            className={cn(
+                              "flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm font-bold",
+                              active
+                                ? "border-primary-muted bg-primary-light text-primary"
+                                : "border-border-subtle bg-surface-low text-ink hover:border-border"
+                            )}
+                          >
+                            <Icon size={17} />
+                            <span className="min-w-0 truncate">{item.label}</span>
+                            {item.href === BRAIN_HREF && <BrainNavBadge count={brainCount} variant="menu" />}
+                          </Link>
+                        );
+                      })}
+                      {showSettings && (
+                        <div className="mt-1 rounded-xl border border-border-subtle bg-surface-low p-2">
+                          <div className={cn(
+                            "flex min-h-10 items-center gap-3 rounded-lg px-2 text-sm font-bold",
+                            settingsActive ? "text-primary" : "text-ink",
+                          )}>
+                            <Settings size={17} />
+                            <span>Settings</span>
+                          </div>
+                          <div className="mt-1 flex flex-col gap-1 border-l border-border pl-2">
+                            {SETTINGS_GROUP_ORDER.map((group) => {
+                              const groupItems = settingsItems.filter((i) => i.group === group);
+                              if (groupItems.length === 0) return null;
                               return (
-                                <Link
-                                  key={item.href}
-                                  href={item.href}
-                                  onClick={() => setIsOpen(false)}
-                                  className={cn(
-                                    "flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-semibold",
-                                    active
-                                      ? "bg-primary-light text-primary"
-                                      : "text-ink-secondary hover:bg-white hover:text-ink",
-                                  )}
-                                >
-                                  <Icon size={15} />
-                                  <span className="min-w-0 truncate">{item.label}</span>
-                                </Link>
+                                <div key={group} className="pt-1.5 first:pt-0">
+                                  <div className="px-2 pb-0.5 font-label text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                                    {group}
+                                  </div>
+                                  {groupItems.map((item) => {
+                                    const Icon = item.icon;
+                                    const active = isActive(pathname, item.href);
+                                    return (
+                                      <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() => setIsOpen(false)}
+                                        className={cn(
+                                          "flex min-h-10 items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] font-semibold",
+                                          active
+                                            ? "bg-primary-light text-primary"
+                                            : "text-ink-secondary hover:bg-white hover:text-ink",
+                                        )}
+                                      >
+                                        <Icon size={15} />
+                                        <span className="min-w-0 truncate">{item.label}</span>
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
                               );
                             })}
                           </div>
-                        );
-                      })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })}
               </div>
             )}
           </div>

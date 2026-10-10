@@ -4,95 +4,29 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import {
-  LayoutDashboard, MessageSquare, Users, Phone,
-  BarChart2, Upload, BookOpen, Layers, FileCheck,
-  Zap, StickyNote, Package, ShoppingBag,
-  ChevronDown, ChevronRight, ChevronLeft, RadioTower, Calendar, CreditCard, ShieldCheck, Megaphone, HandCoins,
-  Settings, Brain, Code2,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronLeft, Code2, LayoutDashboard, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { createClient } from "@/lib/supabase/client";
-import { AnrilLogo, AnrilMark } from "@/components/logo";
+import { AnrilLogo } from "@/components/logo";
 import { getVisibleSettingsItems, SETTINGS_GROUP_ORDER, SETTINGS_ITEMS } from "@/components/settingsNavigation";
 import { useBrainCount } from "@/hooks/useBrainCount";
 import { BrainNavBadge } from "@/components/brain/BrainNavBadge";
+import { SidebarSection } from "@/components/nav/SidebarSection";
+import {
+  ANALYTICS_LINK, NAV_SECTIONS, TC_FEATURE_MAP, TC_PERMISSION_MAP, TELECALLING_ITEMS,
+  dashboardEntry, resolveSectionOpen, sectionContainsPage, visibleEntries,
+  type NavAccess, type NavBadgeKey, type NavEntry, type NavGroup, type NavLeaf,
+} from "@/components/nav/navSections";
 
-type NavItem = {
-  href: string;
-  icon: typeof LayoutDashboard;
-  label: string;
-  feature?: string;
-  badgeType?: "scheduled" | "drafts";
-};
+type NavItem = { href: string; label: string };
 
-const TC_FEATURE_MAP: Record<string, string> = {
-  "/dashboard/telecalling/upload": "telecalling.upload",
-  "/dashboard/telecalling": "telecalling.dialer",
-  "/dashboard/telecalling/scheduled": "telecalling.scheduled",
-  "/dashboard/notes": "telecalling.notes",
-};
-
-const TC_PERMISSION_MAP: Record<string, string[]> = {
-  "/dashboard/telecalling/upload": ["telecalling.upload.view", "telecalling.upload"],
-  "/dashboard/telecalling": ["telecalling.dialer.view", "telecalling.dialer"],
-  "/dashboard/telecalling/scheduled": ["telecalling.scheduled.view", "telecalling.scheduled"],
-  "/dashboard/notes": ["telecalling.notes.view", "telecalling.notes"],
-};
-
-const TELECALLING_ITEMS: NavItem[] = [
-  { href: "/dashboard/telecalling/upload", icon: Upload, label: "Upload" },
-  { href: "/dashboard/telecalling", icon: Phone, label: "Dialer" },
-  { href: "/dashboard/telecalling/scheduled", icon: Calendar, label: "Scheduled Calls" },
-  { href: "/dashboard/notes", icon: StickyNote, label: "Call Review" },
-];
-
-function CollapsedNavItem({
-  href,
-  active,
-  icon: Icon,
-  label,
-  badge,
-}: {
-  href: string;
-  active: boolean;
-  icon: typeof LayoutDashboard;
-  label: string;
-  badge?: React.ReactNode;
-}) {
-  const router = useRouter();
-  return (
-    <div className="group relative" onMouseEnter={() => router.prefetch(href)}>
-      <Link
-        href={href}
-        prefetch={true}
-        className={cn(
-          "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all duration-150 border relative",
-          active
-            ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
-            : "border-transparent hover:bg-stone-100"
-        )}
-      >
-        {active && (
-          <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-        )}
-        <Icon
-          size={16}
-          className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover:text-[#0A1528] flex-shrink-0"}
-        />
-        {badge && (
-          <span className="absolute -top-1 -right-1 flex items-center justify-center">
-            {badge}
-          </span>
-        )}
-      </Link>
-      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-        {label}
-      </div>
-    </div>
-  );
-}
+const ACTIVE_BAR =
+  "w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]";
+const ACTIVE_LABEL =
+  "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight";
+const GROUP_BUTTON =
+  "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group";
 
 function MainNavItem({
   href,
@@ -103,7 +37,7 @@ function MainNavItem({
 }: {
   href: string;
   active: boolean;
-  icon: typeof LayoutDashboard;
+  icon: LucideIcon;
   label: string;
   badge?: React.ReactNode;
 }) {
@@ -120,34 +54,110 @@ function MainNavItem({
           : "border-transparent text-[#0A1528] hover:bg-stone-100 hover:text-[#0A1528]"
       )}
     >
-      {active && (
-        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-      )}
+      {active && <span className={ACTIVE_BAR} />}
       <Icon
         size={16}
         className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover:text-[#0A1528] flex-shrink-0"}
       />
-      <span
-        className={cn(
-          "truncate flex-grow",
-          active
-            ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
-            : "font-medium"
-        )}
-      >
-        {label}
-      </span>
+      <span className={cn("truncate flex-grow", active ? ACTIVE_LABEL : "font-medium")}>{label}</span>
       {badge}
     </Link>
   );
 }
 
+function TelecallingGroup({
+  group,
+  items,
+  alertCount,
+  open,
+  onToggle,
+  pathname,
+}: {
+  group: NavGroup;
+  items: readonly NavItem[];
+  alertCount: number;
+  open: boolean;
+  onToggle: () => void;
+  pathname: string;
+}) {
+  const router = useRouter();
+  const Icon = group.icon;
+  const active = group.isActive(pathname);
+  // Most specific (longest href) match wins, so Dialer at /dashboard/telecalling
+  // does not also light up on /dashboard/telecalling/scheduled.
+  const bestHref = items
+    .filter((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
+    .reduce<string | null>((best, i) => (!best || i.href.length > best.length ? i.href : best), null);
+  return (
+    <div className="space-y-0.5">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={cn(GROUP_BUTTON, active ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100")}
+      >
+        <Icon size={16} className={active ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
+        <span className="flex-1">{group.label}</span>
+        {open ? <ChevronDown size={14} className="text-[#94a3b8]" /> : <ChevronRight size={14} className="text-[#94a3b8]" />}
+      </button>
+      {open && (
+        <div className="space-y-0.5">
+          {items.map((item, idx) => {
+            const isActive = bestHref === item.href;
+            const isLast = idx === items.length - 1;
+            return (
+              <div key={item.href} className="relative pl-6 flex items-center h-9">
+                <div className={cn("absolute left-3 w-px bg-[#d6cfc9]", isLast ? "top-0 h-[18px]" : "-top-1 bottom-0")} />
+                <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
+                <Link
+                  href={item.href}
+                  prefetch={true}
+                  onMouseEnter={() => router.prefetch(item.href)}
+                  className={cn(
+                    "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
+                    isActive
+                      ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
+                      : "border-transparent text-[#0A1528] hover:text-[#0A1528] hover:bg-stone-100"
+                  )}
+                >
+                  {isActive && <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />}
+                  <span className={cn("truncate flex-1", isActive ? ACTIVE_LABEL : "font-medium")}>{item.label}</span>
+                  {item.href === "/dashboard/telecalling" && alertCount > 0 && (
+                    <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+                      {alertCount > 9 ? "9+" : alertCount}
+                    </span>
+                  )}
+                </Link>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsGroupButton({ group, active, onOpen }: { group: NavGroup; active: boolean; onOpen: () => void }) {
+  const Icon = group.icon;
+  return (
+    <button type="button" onClick={onOpen} className={cn(GROUP_BUTTON, active ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100")}>
+      <Icon size={16} className={active ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
+      <span className="flex-1">{group.label}</span>
+      <ChevronRight size={14} className="text-[#94a3b8]" />
+    </button>
+  );
+}
+
 interface SidebarProps {
+  /** Accepted so existing callers compile. The sidebar always renders the full 220px layout. */
   collapsed?: boolean;
+  /** Accepted so existing callers compile. The logo always renders. */
   hideLogo?: boolean;
 }
 
-export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
+// Props are accepted for caller compatibility only; the layout ignores them.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function Sidebar(_props: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { role, permissions, enabledFeatures, loading: roleLoading } = useAuthRole();
@@ -176,11 +186,13 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
     return () => { active = false; };
   }, []);
 
-  // Track open/collapsed state of nested groups
+  // Nested group open state (Telecalling, Settings), unchanged from before.
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     Telecalling: false,
     Settings: false,
   });
+  // Per-section explicit choice. undefined = not set, so the default or active page decides.
+  const [sectionChoice, setSectionChoice] = useState<Record<string, boolean | undefined>>({});
 
   const toggleGroup = (groupName: string) => {
     setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
@@ -204,9 +216,8 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
     (f) => f === "telecalling_sim" || f === "telecalling_telecmi" || f.startsWith("telecalling.")
   );
   const canManageTeam = role === "owner" || permissions.includes("team.manage");
-  // Brain has its own Roles toggle (brain.view). Computed up here (not from
-  // isSubscribed / canAny, which are defined after the early return) so the count
-  // hook stays above it and hook order never changes between renders.
+  // Brain has its own Roles toggle (brain.view). Computed up here so the count
+  // hook stays above the early return and hook order never changes.
   const brainGate =
     subStatus === "active" &&
     messagingOn &&
@@ -235,17 +246,9 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
     const supabase = createClient();
     const channel = supabase
       .channel("inbox-count-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "chat_handovers",
-        },
-        () => {
-          fetchCount();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "chat_handovers" }, () => {
+        fetchCount();
+      })
       .subscribe();
 
     return () => {
@@ -255,7 +258,7 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
 
   if (roleLoading || subStatus === "loading") {
     return (
-      <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] z-20", collapsed ? "w-16" : "w-[220px]")} />
+      <aside className="fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] z-20 w-[220px]" />
     );
   }
 
@@ -277,679 +280,181 @@ export function Sidebar({ collapsed = false, hideLogo = false }: SidebarProps) {
     return !permissionKeys || canAny(permissionKeys);
   });
 
-  const isTcActive = tcGroupItems.some(item => pathname.startsWith(item.href));
-
   const showTc = Boolean(expandedGroups.Telecalling);
   const canSettings = canAny(["settings.view", "settings.manage"]);
   const visibleSettingsItems = getVisibleSettingsItems(purchasedFeatures);
   const canServices = canAny(["services.view", "services.manage"]);
   const isSettingsActive = SETTINGS_ITEMS.some(item => pathname.startsWith(item.href));
   const showSettings = expandedGroups.Settings || isSettingsActive;
-  const isConversationsPage = pathname?.startsWith("/dashboard/conversations") ?? false;
-  const shouldHideLogo = hideLogo || (collapsed && isConversationsPage);
+
+  const access: NavAccess = {
+    isSubscribed,
+    messagingOn,
+    inboundOn,
+    outboundOn,
+    canServices,
+    canSettings,
+    brainGate,
+    telecallingVisible: isSubscribed && telecallingOn && tcGroupItems.length > 0,
+    can,
+    canAny,
+  };
+  const dashboard = dashboardEntry(access);
+
+  const renderBadge = (key: NavBadgeKey | undefined) => {
+    if (key === "conversations") {
+      return inboxCount > 0 ? (
+        <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
+          {inboxCount}
+        </span>
+      ) : undefined;
+    }
+    if (key === "brain") {
+      return brainCount ? <BrainNavBadge count={brainCount} variant="row" /> : undefined;
+    }
+    return undefined;
+  };
+
+  const renderLeaf = (leaf: NavLeaf) => (
+    <MainNavItem
+      key={leaf.key}
+      href={leaf.href}
+      active={leaf.isActive(pathname)}
+      icon={leaf.icon}
+      label={leaf.label}
+      badge={renderBadge(leaf.badge)}
+    />
+  );
+
+  const renderGroup = (group: NavGroup) => {
+    if (group.key === "telecalling") {
+      return (
+        <TelecallingGroup
+          key={group.key}
+          group={group}
+          items={tcGroupItems}
+          alertCount={alertCount}
+          open={showTc}
+          onToggle={() => toggleGroup("Telecalling")}
+          pathname={pathname}
+        />
+      );
+    }
+    return (
+      <SettingsGroupButton
+        key={group.key}
+        group={group}
+        active={isSettingsActive}
+        onOpen={() => toggleGroup("Settings")}
+      />
+    );
+  };
+
+  const renderEntry = (entry: NavEntry) => (entry.kind === "link" ? renderLeaf(entry) : renderGroup(entry));
 
   return (
-    <aside className={cn("fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] flex flex-col z-20 select-none", collapsed ? "w-16" : "w-[220px]")}>
-      {/* Brand — h-16 (64px) matches the header so this bottom border and the
-          header border form one continuous divider. shrink-0 is essential: the
-          nav below overflows and would otherwise compress this box under flex
-          pressure, lifting the divider above the header's fixed 64px line. */}
-      {!shouldHideLogo && (
-        <div className={cn("h-16 shrink-0 flex items-center border-b border-[#e2e8f0]", collapsed ? "justify-center px-2" : "px-5")}>
-          {collapsed ? (
-            // Brand mark only: every page is already an icon in the rail below, so the
-            // old "open menu" drawer was a second copy of the same navigation.
-            <AnrilMark className="h-7 w-7 text-ink" />
-          ) : (
-            <AnrilLogo className="h-6 w-auto text-ink" />
-          )}
-        </div>
-      )}
+    <aside className="fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] flex flex-col z-20 select-none w-[220px]">
+      {/* Brand: h-16 matches the header so the divider lines up. shrink-0 keeps it from compressing. */}
+      <div className="h-16 shrink-0 flex items-center border-b border-[#e2e8f0] px-5">
+        <AnrilLogo className="h-6 w-auto text-ink" />
+      </div>
 
+      {showSettings ? (
+        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin">
+          <button
+            type="button"
+            onClick={() => {
+              setExpandedGroups((prev) => ({ ...prev, Settings: false }));
+              router.push("/dashboard");
+            }}
+            className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#0A1528] transition-all hover:bg-stone-100"
+          >
+            <ChevronLeft size={16} />
+            <span>Settings</span>
+          </button>
 
-      {collapsed ? (
-        <div className={cn("flex-grow overflow-y-auto flex flex-col items-center space-y-1.5 scrollbar-thin", shouldHideLogo ? "py-3" : "py-4")}>
-        {/* TOP LEVEL: Overview / Dashboard */}
-        {can("dashboard.view") ? (
-          <CollapsedNavItem
-            href="/dashboard"
-            active={pathname === "/dashboard"}
-            icon={LayoutDashboard}
-            label="Dashboard"
-          />
-        ) : (
-          <CollapsedNavItem
-            href="/dashboard/profile"
-            active={pathname === "/dashboard/profile"}
-            icon={LayoutDashboard}
-            label="Overview"
-          />
-        )}
-
-        {/* TOP LEVEL: Conversations */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
-          <CollapsedNavItem
-            href="/dashboard/conversations"
-            active={pathname.startsWith("/dashboard/conversations")}
-            icon={MessageSquare}
-            label="Conversations"
-            badge={
-              inboxCount > 0 ? (
-                <span className="flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[10px] font-bold min-w-[16px]">
-                  {inboxCount > 9 ? "9+" : inboxCount}
-                </span>
-              ) : undefined
-            }
-          />
-        )}
-
-        {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
-            No messagingOn gate: walk-ins and calls are deals too. */}
-        {isSubscribed && canAny(["deals.view", "deals.manage"]) && (
-          <CollapsedNavItem
-            href="/dashboard/deals"
-            active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
-            icon={HandCoins}
-            label="Deals"
-          />
-        )}
-
-        {/* TOP LEVEL: Leads */}
-        {isSubscribed && can("leads.view") && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/leads"
-            active={pathname.startsWith("/dashboard/leads")}
-            icon={Users}
-            label="Segments"
-          />
-        )}
-
-        {/* TOP LEVEL: Inbound Leads */}
-        {isSubscribed && can("inbound_leads.view") && inboundOn && (
-          <CollapsedNavItem
-            href="/dashboard/inbound-leads"
-            active={pathname.startsWith("/dashboard/inbound-leads")}
-            icon={RadioTower}
-            label="Inbound Leads"
-          />
-        )}
-
-        {/* TOP LEVEL: Meta Ads */}
-        {isSubscribed && canAny(["meta_ads.view", "meta_ads.manage"]) && inboundOn && (
-          <CollapsedNavItem
-            href="/dashboard/meta-ads"
-            active={pathname.startsWith("/dashboard/meta-ads")}
-            icon={Megaphone}
-            label="Meta Ads"
-          />
-        )}
-
-        {/* TOP LEVEL: Outbound Leads */}
-        {isSubscribed && canAny(["outbound_leads.view", "outbound_leads.manage"]) && outboundOn && (
-          <CollapsedNavItem
-            href="/dashboard/outbound-leads"
-            active={pathname.startsWith("/dashboard/outbound-leads")}
-            icon={Upload}
-            label="Outbound Leads"
-          />
-        )}
-
-        {/* TOP LEVEL: Templates */}
-        {isSubscribed && canAny(["templates.view", "templates.manage"]) && outboundOn && (
-          <CollapsedNavItem
-            href="/dashboard/templates"
-            active={pathname.startsWith("/dashboard/templates")}
-            icon={FileCheck}
-            label="Templates"
-          />
-        )}
-
-        {/* TOP LEVEL: Auto-Messages (template sent when something happens: website form, app or server) */}
-        {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
-          <CollapsedNavItem
-            href="/dashboard/auto-messages"
-            active={pathname.startsWith("/dashboard/auto-messages")}
-            icon={Zap}
-            label="Auto-Messages"
-          />
-        )}
-
-        {/* TOP LEVEL: Numbers Pool */}
-        {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/numbers"
-            active={pathname.startsWith("/dashboard/numbers")}
-            icon={Layers}
-            label="Numbers Pool"
-          />
-        )}
-
-        {/* TOP LEVEL: Aira Brain -- brain.view; badge = things waiting on the client */}
-        {brainGate && (
-          <CollapsedNavItem
-            href="/dashboard/brain"
-            active={pathname.startsWith("/dashboard/brain")}
-            icon={Brain}
-            label="Anril Brain"
-            badge={brainCount ? <BrainNavBadge count={brainCount} variant="rail" /> : undefined}
-          />
-        )}
-
-        {/* TOP LEVEL: Knowledge Base */}
-        {isSubscribed && canAny(["knowledge.view", "knowledge.manage"]) && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/knowledge"
-            active={pathname.startsWith("/dashboard/knowledge")}
-            icon={BookOpen}
-            label="Knowledge Base"
-          />
-        )}
-
-        {/* TOP LEVEL: Products (route stays /dashboard/catalog) */}
-        {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/catalog"
-            active={pathname.startsWith("/dashboard/catalog")}
-            icon={ShoppingBag}
-            label="Products"
-          />
-        )}
-
-        {/* TOP LEVEL: Services -- packages/prices sold in chat, next to Products */}
-        {isSubscribed && canServices && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/services"
-            active={pathname.startsWith("/dashboard/services")}
-            icon={Package}
-            label="Services"
-          />
-        )}
-
-        {/* TOP LEVEL: Analytics */}
-        {isSubscribed && can("analytics.view") && messagingOn && (
-          <CollapsedNavItem
-            href="/dashboard/analytics"
-            active={pathname.startsWith("/dashboard/analytics")}
-            icon={BarChart2}
-            label="Analytics"
-          />
-        )}
-
-        {/* TOP LEVEL: Subscription */}
-        {canAny(["subscription.view", "subscription.manage"]) && (
-          <CollapsedNavItem
-            href="/dashboard/subscription"
-            active={pathname === "/dashboard/subscription"}
-            icon={CreditCard}
-            label="Subscription"
-          />
-        )}
-
-        {/* TOP LEVEL: Team */}
-        {isSubscribed && can("team.view") && (
-          <CollapsedNavItem
-            href="/dashboard/team"
-            active={pathname.startsWith("/dashboard/team")}
-            icon={Users}
-            label="Team"
-          />
-        )}
-
-        {/* TOP LEVEL: Roles */}
-        {isSubscribed && canAny(["roles.view", "roles.manage"]) && (
-          <CollapsedNavItem
-            href="/dashboard/roles"
-            active={pathname.startsWith("/dashboard/roles")}
-            icon={ShieldCheck}
-            label="Roles"
-          />
-        )}
-
-        {/* GROUP: Telecalling */}
-        {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
-          <div className="group relative">
-            <button
-              // Groups open their first page: the collapsed rail has no drawer to expand.
-              onClick={() => router.push(tcGroupItems[0].href)}
-              className={cn(
-                "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/tc border relative",
-                isTcActive
-                  ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
-                  : "border-transparent hover:bg-stone-100"
-              )}
-              title="Telecalling"
-            >
-              {isTcActive && (
-                <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-              )}
-              <Phone
-                size={16}
-                className={isTcActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover/tc:text-[#0A1528] flex-shrink-0"}
-              />
-              {alertCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex items-center justify-center">
-                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-orange-600 text-white text-[10px] font-bold min-w-[16px]">
-                    {alertCount > 9 ? "9+" : alertCount}
-                  </span>
-                </span>
-              )}
-            </button>
-            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-              Telecalling
-            </div>
-          </div>
-        )}
-
-        {/* GROUP: Settings */}
-        {isSubscribed && canSettings && (
-          <div className="group relative">
-            <button
-              onClick={() => router.push(visibleSettingsItems[0]?.href ?? "/dashboard/settings/account")}
-              className={cn(
-                "flex items-center justify-center w-10 h-10 mx-auto rounded-xl transition-all group/settings border relative",
-                isSettingsActive
-                  ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
-                  : "border-transparent hover:bg-stone-100"
-              )}
-              title="Settings"
-            >
-              {isSettingsActive && (
-                <span className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-              )}
-              <Settings
-                size={16}
-                className={isSettingsActive ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover/settings:text-[#0A1528] flex-shrink-0"}
-              />
-            </button>
-            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md bg-[#0A1528] text-white text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-              Settings
-            </div>
-          </div>
-        )}
-        </div>
-      ) : (
-        <>
-          {showSettings ? (
-            <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1 scrollbar-thin">
-              <button
-                onClick={() => {
-                  setExpandedGroups((prev) => ({ ...prev, Settings: false }));
-                  router.push("/dashboard");
-                }}
-                className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#0A1528] transition-all hover:bg-stone-100"
-              >
-                <ChevronLeft size={16} />
-                <span>Settings</span>
-              </button>
-
-              {SETTINGS_GROUP_ORDER.map((group) => {
-                const groupItems = visibleSettingsItems.filter((i) => i.group === group);
-                if (groupItems.length === 0) return null;
-                return (
-                  <div key={group} className="pt-2 first:pt-0">
-                    <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#94a3b8]">
-                      {group}
-                    </div>
-                    {groupItems.map((item) => {
-                      const matches = visibleSettingsItems.filter(
-                        (i) => pathname === i.href || pathname.startsWith(i.href + "/")
-                      );
-                      const bestMatch = matches.reduce<NavItem | null>(
-                        (best, i) => (!best || i.href.length > best.href.length ? i : best), null
-                      );
-                      const active = bestMatch?.href === item.href;
-
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          prefetch={true}
-                          onMouseEnter={() => router.prefetch(item.href)}
-                          className={cn(
-                            "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
-                            active
-                              ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                              : "border-transparent text-[#475569] hover:text-[#0A1528] hover:bg-stone-100"
-                          )}
-                        >
-                          {active && (
-                            <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-                          )}
-                          <span
-                            className={cn(
-                              "truncate",
-                              active
-                                ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
-                                : "font-medium"
-                            )}
-                          >
-                            {item.label}
-                          </span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
-        {/* TOP LEVEL: Overview / Dashboard */}
-        {can("dashboard.view") ? (
-          <MainNavItem
-            href="/dashboard"
-            active={pathname === "/dashboard"}
-            icon={LayoutDashboard}
-            label="Dashboard"
-          />
-        ) : (
-          <MainNavItem
-            href="/dashboard/profile"
-            active={pathname === "/dashboard/profile"}
-            icon={LayoutDashboard}
-            label="Overview"
-          />
-        )}
-
-        {/* TOP LEVEL: Conversations */}
-        {isSubscribed && messagingOn && canAny(["conversations.view", "conversations.reply"]) && (
-          <MainNavItem
-            href="/dashboard/conversations"
-            active={pathname.startsWith("/dashboard/conversations")}
-            icon={MessageSquare}
-            label="Conversations"
-            badge={
-              inboxCount > 0 ? (
-                <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
-                  {inboxCount}
-                </span>
-              ) : undefined
-            }
-          />
-        )}
-
-        {/* TOP LEVEL: Deals -- every sale attempt (chat, form, call, walk-in).
-            No messagingOn gate: walk-ins and calls are deals too. */}
-        {isSubscribed && canAny(["deals.view", "deals.manage"]) && (
-          <MainNavItem
-            href="/dashboard/deals"
-            active={pathname.startsWith("/dashboard/deals") || pathname.startsWith("/dashboard/intake")}
-            icon={HandCoins}
-            label="Deals"
-          />
-        )}
-
-        {/* TOP LEVEL: Leads */}
-        {isSubscribed && can("leads.view") && messagingOn && (
-          <MainNavItem
-            href="/dashboard/leads"
-            active={pathname.startsWith("/dashboard/leads")}
-            icon={Users}
-            label="Segments"
-          />
-        )}
-
-        {/* TOP LEVEL: Inbound Leads */}
-        {isSubscribed && can("inbound_leads.view") && inboundOn && (
-          <MainNavItem
-            href="/dashboard/inbound-leads"
-            active={pathname.startsWith("/dashboard/inbound-leads")}
-            icon={RadioTower}
-            label="Inbound Leads"
-          />
-        )}
-
-        {/* TOP LEVEL: Meta Ads */}
-        {isSubscribed && canAny(["meta_ads.view", "meta_ads.manage"]) && inboundOn && (
-          <MainNavItem
-            href="/dashboard/meta-ads"
-            active={pathname.startsWith("/dashboard/meta-ads")}
-            icon={Megaphone}
-            label="Meta Ads"
-          />
-        )}
-
-        {/* TOP LEVEL: Outbound Leads */}
-        {isSubscribed && canAny(["outbound_leads.view", "outbound_leads.manage"]) && outboundOn && (
-          <MainNavItem
-            href="/dashboard/outbound-leads"
-            active={pathname.startsWith("/dashboard/outbound-leads")}
-            icon={Upload}
-            label="Outbound Leads"
-          />
-        )}
-
-        {/* TOP LEVEL: Templates */}
-        {isSubscribed && canAny(["templates.view", "templates.manage"]) && outboundOn && (
-          <MainNavItem
-            href="/dashboard/templates"
-            active={pathname.startsWith("/dashboard/templates")}
-            icon={FileCheck}
-            label="Templates"
-          />
-        )}
-
-        {/* TOP LEVEL: Auto-Messages (template sent when something happens: website form, app or server) */}
-        {isSubscribed && canAny(["auto_messages.view", "auto_messages.manage"]) && outboundOn && (
-          <MainNavItem
-            href="/dashboard/auto-messages"
-            active={pathname.startsWith("/dashboard/auto-messages")}
-            icon={Zap}
-            label="Auto-Messages"
-          />
-        )}
-
-        {/* TOP LEVEL: Numbers Pool */}
-        {isSubscribed && canAny(["numbers.view", "numbers.manage"]) && messagingOn && (
-          <MainNavItem
-            href="/dashboard/numbers"
-            active={pathname.startsWith("/dashboard/numbers")}
-            icon={Layers}
-            label="Numbers Pool"
-          />
-        )}
-
-        {/* TOP LEVEL: Aira Brain -- brain.view */}
-        {brainGate && (
-          <MainNavItem
-            href="/dashboard/brain"
-            active={pathname.startsWith("/dashboard/brain")}
-            icon={Brain}
-            label="Anril Brain"
-            badge={brainCount ? <BrainNavBadge count={brainCount} variant="row" /> : undefined}
-          />
-        )}
-
-        {/* TOP LEVEL: Knowledge Base */}
-        {isSubscribed && canAny(["knowledge.view", "knowledge.manage"]) && messagingOn && (
-          <MainNavItem
-            href="/dashboard/knowledge"
-            active={pathname.startsWith("/dashboard/knowledge")}
-            icon={BookOpen}
-            label="Knowledge Base"
-          />
-        )}
-
-        {/* TOP LEVEL: Products (route stays /dashboard/catalog) */}
-        {isSubscribed && canAny(["catalog.view", "catalog.manage"]) && messagingOn && (
-          <MainNavItem
-            href="/dashboard/catalog"
-            active={pathname.startsWith("/dashboard/catalog")}
-            icon={ShoppingBag}
-            label="Products"
-          />
-        )}
-
-        {/* TOP LEVEL: Services -- packages/prices sold in chat, next to Products */}
-        {isSubscribed && canServices && messagingOn && (
-          <MainNavItem
-            href="/dashboard/services"
-            active={pathname.startsWith("/dashboard/services")}
-            icon={Package}
-            label="Services"
-          />
-        )}
-
-        {/* TOP LEVEL: Analytics */}
-        {isSubscribed && can("analytics.view") && messagingOn && (
-          <MainNavItem
-            href="/dashboard/analytics"
-            active={pathname.startsWith("/dashboard/analytics")}
-            icon={BarChart2}
-            label="Analytics"
-          />
-        )}
-
-        {/* TOP LEVEL: Subscription */}
-        {canAny(["subscription.view", "subscription.manage"]) && (
-          <MainNavItem
-            href="/dashboard/subscription"
-            active={pathname === "/dashboard/subscription"}
-            icon={CreditCard}
-            label="Subscription"
-          />
-        )}
-
-        {/* TOP LEVEL: Team */}
-        {isSubscribed && can("team.view") && (
-          <MainNavItem
-            href="/dashboard/team"
-            active={pathname.startsWith("/dashboard/team")}
-            icon={Users}
-            label="Team"
-          />
-        )}
-
-        {/* TOP LEVEL: Roles */}
-        {isSubscribed && canAny(["roles.view", "roles.manage"]) && (
-          <MainNavItem
-            href="/dashboard/roles"
-            active={pathname.startsWith("/dashboard/roles")}
-            icon={ShieldCheck}
-            label="Roles"
-          />
-        )}
-
-        {/* GROUP: Telecalling */}
-        {isSubscribed && telecallingOn && tcGroupItems.length > 0 && (
-          <div className="space-y-0.5">
-            <button
-              onClick={() => toggleGroup("Telecalling")}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                isTcActive ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100"
-              )}
-            >
-              <Phone size={16} className={isTcActive ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
-              <span className="flex-1">Telecalling</span>
-              {showTc ? <ChevronDown size={14} className="text-[#94a3b8]" /> : <ChevronRight size={14} className="text-[#94a3b8]" />}
-            </button>
-
-            {/* Tree items */}
-            {showTc && (
-              <div className="space-y-0.5">
-                {tcGroupItems.map((item, idx) => {
-                  // Pick the most specific (longest href) match so a parent route
-                  // (e.g. Dialer at /dashboard/telecalling) doesn't also light up
-                  // when on a nested route (e.g. /dashboard/telecalling/scheduled).
-                  const matches = tcGroupItems.filter(
+          {SETTINGS_GROUP_ORDER.map((group) => {
+            const groupItems = visibleSettingsItems.filter((i) => i.group === group);
+            if (groupItems.length === 0) return null;
+            return (
+              <div key={group} className="pt-2 first:pt-0">
+                <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#94a3b8]">
+                  {group}
+                </div>
+                {groupItems.map((item) => {
+                  const matches = visibleSettingsItems.filter(
                     (i) => pathname === i.href || pathname.startsWith(i.href + "/")
                   );
                   const bestMatch = matches.reduce<NavItem | null>(
-                    (best, i) => (!best || i.href.length > best.href.length ? i : best),
-                    null
+                    (best, i) => (!best || i.href.length > best.href.length ? i : best), null
                   );
                   const active = bestMatch?.href === item.href;
-                  const isLast = idx === tcGroupItems.length - 1;
 
                   return (
-                    <div key={item.href} className="relative pl-6 flex items-center h-9">
-                      {/* Curved branch lines */}
-                      <div
-                        className={cn(
-                          "absolute left-3 w-px bg-[#d6cfc9]",
-                          isLast ? "top-0 h-[18px]" : "-top-1 bottom-0"
-                        )}
-                      />
-                      <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
-
-                      <Link
-                        href={item.href}
-                        prefetch={true}
-                        onMouseEnter={() => router.prefetch(item.href)}
-                        className={cn(
-                          "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
-                          active
-                            ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                            : "border-transparent text-[#0A1528] hover:text-[#0A1528] hover:bg-stone-100"
-                        )}
-                      >
-                        {active && (
-                          <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
-                        )}
-                        <span
-                          className={cn(
-                            "truncate flex-1",
-                            active
-                              ? "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight"
-                              : "font-medium"
-                          )}
-                        >
-                          {item.label}
-                        </span>
-                        {item.href === "/dashboard/telecalling" && alertCount > 0 && (
-                          <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
-                            {alertCount > 9 ? "9+" : alertCount}
-                          </span>
-                        )}
-                      </Link>
-                    </div>
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      prefetch={true}
+                      onMouseEnter={() => router.prefetch(item.href)}
+                      className={cn(
+                        "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
+                        active
+                          ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
+                          : "border-transparent text-[#475569] hover:text-[#0A1528] hover:bg-stone-100"
+                      )}
+                    >
+                      {active && (
+                        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+                      )}
+                      <span className={cn("truncate", active ? ACTIVE_LABEL : "font-medium")}>{item.label}</span>
+                    </Link>
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex-grow overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin">
+          <MainNavItem
+            href={dashboard.href}
+            active={pathname === dashboard.href}
+            icon={LayoutDashboard}
+            label={dashboard.label}
+          />
+          {renderLeaf(ANALYTICS_LINK)}
 
-            {/* GROUP: Settings */}
-            {isSubscribed && canSettings && (
-              <button
-                onClick={() => toggleGroup("Settings")}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group",
-                  isSettingsActive ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100"
-                )}
+          {NAV_SECTIONS.map((section) => {
+            const entries = visibleEntries(section, access);
+            if (entries.length === 0) return null;
+            const open = resolveSectionOpen(
+              sectionChoice[section.key],
+              section.defaultOpen,
+              sectionContainsPage(section, pathname),
+            );
+            return (
+              <SidebarSection
+                key={section.key}
+                title={section.title}
+                open={open}
+                onToggle={() => setSectionChoice((prev) => ({ ...prev, [section.key]: !open }))}
               >
-                <Settings size={16} className={isSettingsActive ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
-                <span className="flex-1">Settings</span>
-                <ChevronRight size={14} className="text-[#94a3b8]" />
-              </button>
-            )}
-            </div>
-          )}
-        </>
+                {entries.map(renderEntry)}
+              </SidebarSection>
+            );
+          })}
+        </div>
       )}
 
-      {/* Pinned footer: Developer. Kept out of the scrolling lists so it sits at
-          the bottom whatever page or group is open — it is reference material
-          for a partner's developer, not a daily destination. */}
+      {/* Pinned footer: Developer. Stays out of the scrolling list, as before. */}
       {isSubscribed && canSettings && (
-        <div className={cn("shrink-0 border-t border-[#e2e8f0]", collapsed ? "py-2 flex flex-col items-center" : "px-3 py-2")}>
-          {collapsed ? (
-            <CollapsedNavItem
-              href="/dashboard/developer"
-              active={pathname.startsWith("/dashboard/developer")}
-              icon={Code2}
-              label="Developer"
-            />
-          ) : (
-            <MainNavItem
-              href="/dashboard/developer"
-              active={pathname.startsWith("/dashboard/developer")}
-              icon={Code2}
-              label="Developer"
-            />
-          )}
+        <div className="shrink-0 border-t border-[#e2e8f0] px-3 py-2">
+          <MainNavItem
+            href="/dashboard/developer"
+            active={pathname.startsWith("/dashboard/developer")}
+            icon={Code2}
+            label="Developer"
+          />
         </div>
       )}
     </aside>

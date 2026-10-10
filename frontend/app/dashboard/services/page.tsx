@@ -5,6 +5,7 @@ import { API_URL, getAuthHeaders } from "@/lib/api";
 import { SwitchPill } from "@/components/ui/controls";
 import { ConflictsLink } from "@/components/brain/ConflictsLink";
 import { useAuthRole } from "../contexts/AuthRoleContext";
+import { CatalogueTabs } from "../catalog/CatalogueTabs";
 import { SaveButton, SaveStatus } from "../settings/SettingsSection";
 import { slugify } from "../settings/slugify";
 import { PackageEditor, type IntakePackage } from "./PackageEditor";
@@ -145,6 +146,7 @@ export default function ServicesPage() {
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-28">
+      <CatalogueTabs />
       <ConflictsLink />
 
       <section aria-labelledby="sell-heading" className="mt-6 flex flex-wrap items-start justify-between gap-x-8 gap-y-4 rounded-2xl bg-surface px-5 py-5 shadow-[0_1px_0_rgba(28,25,23,0.04)] ring-1 ring-surface-mid sm:px-6">

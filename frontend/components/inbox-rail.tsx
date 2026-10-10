@@ -24,7 +24,7 @@ export function InboxRail({ folder, onFolderChange, escalationCount }: InboxRail
   const railBtn = "w-11 h-11 rounded-xl flex items-center justify-center transition-colors";
 
   return (
-    <aside className="fixed left-16 top-0 z-40 h-screen w-16 bg-surface border-r border-surface-mid flex flex-col items-center py-3 gap-1">
+    <aside className="fixed left-[220px] top-0 z-40 h-screen w-16 bg-surface border-r border-surface-mid flex flex-col items-center py-3 gap-1">
       {FOLDERS.map(({ value, icon: Icon, label }) => (
         <button
           key={value}

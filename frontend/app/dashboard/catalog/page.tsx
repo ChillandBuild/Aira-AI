@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { BarChart3, Image as ImageIcon, Package, Sparkles } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { ConflictsLink } from "@/components/brain/ConflictsLink";
 import { useAuthRole } from "../contexts/AuthRoleContext";
+import { CatalogueTabs } from "./CatalogueTabs";
 import { ItemsTab } from "./ItemsTab";
 import { MediaTab } from "./MediaTab";
 import { AiRulesTab } from "./AiRulesTab";
@@ -28,13 +30,20 @@ export default function CatalogPage() {
   const rawTab = searchParams.get("tab");
   const tab = (TABS.some((item) => item.id === rawTab) ? rawTab : "items") as CatalogTab;
 
+  // The Catalogue nav entry links here for services-only users too; send them to what they can open.
+  const canViewServices = role === "owner" || permissions.includes("services.view") || permissions.includes("services.manage");
+  const shouldRedirectToServices = !loading && !canViewCatalog && canViewServices;
+  useEffect(() => {
+    if (shouldRedirectToServices) router.replace("/dashboard/services");
+  }, [shouldRedirectToServices, router]);
+
   function setTab(nextTab: CatalogTab) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", nextTab);
     router.replace(`/dashboard/catalog?${params.toString()}`, { scroll: false });
   }
 
-  if (loading) {
+  if (loading || shouldRedirectToServices) {
     return <div className="min-h-[320px] animate-pulse rounded-card bg-surface-low" />;
   }
 
@@ -48,6 +57,7 @@ export default function CatalogPage() {
 
   return (
     <div className="space-y-6">
+      <CatalogueTabs />
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex w-full flex-wrap gap-1 rounded-xl border border-border bg-white p-1 shadow-sm md:w-fit">
           {TABS.map((item) => {

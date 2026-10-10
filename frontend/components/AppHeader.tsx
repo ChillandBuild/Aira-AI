@@ -66,7 +66,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     let tabLabel = "Agent Performance";
     if (tab === "log") tabLabel = "Assignment Log";
     return {
-      title: `Team / ${tabLabel}`,
+      title: `Team Performance / ${tabLabel}`,
       description: "Add and manage telecallers under your account.",
     };
   }
@@ -119,13 +119,13 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     if (tab === "ai-rules") tabLabel = "AI Rules";
     if (tab === "insights") tabLabel = "Insights";
     return {
-      title: `Products / ${tabLabel}`,
+      title: `Catalogue / ${tabLabel}`,
       description: "Your products, prices and stock — what Anril can recommend and sell.",
     };
   }
   if (pathname === "/dashboard/services") {
     return {
-      title: "Services",
+      title: "Catalogue / Services",
       description: "What you sell in chat: packages, prices, and the details Anril collects before sending the payment link.",
     };
   }
@@ -205,7 +205,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   }
   if (pathname === "/dashboard/roles") {
     return {
-      title: "Roles",
+      title: "Users & Roles",
       description: "Define read and write access for every dashboard area, then assign one role to each team member.",
     };
   }
