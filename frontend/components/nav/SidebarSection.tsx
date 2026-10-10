@@ -17,7 +17,7 @@ export function SidebarSection({ title, open, onToggle, children }: SidebarSecti
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex items-center justify-between w-full px-3 pb-1 pt-1 rounded-md text-left font-label text-[10px] font-bold uppercase tracking-wider text-[#94a3b8] hover:text-[#0A1528] transition-colors"
+        className="flex items-center justify-between w-full px-3 pb-1 pt-1 rounded-md text-left font-label text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-200 transition-colors"
       >
         <span className="truncate">{title}</span>
         {open ? <ChevronDown size={12} aria-hidden="true" /> : <ChevronRight size={12} aria-hidden="true" />}

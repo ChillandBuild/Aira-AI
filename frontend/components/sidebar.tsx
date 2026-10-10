@@ -21,10 +21,15 @@ import {
 
 type NavItem = { href: string; label: string };
 
+// The sidebar sits on navy (--navy, #0A1528): idle rows are soft white, the
+// active row is a teal tint with a bright teal bar so it reads on dark.
 const ACTIVE_BAR =
-  "w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]";
-const ACTIVE_LABEL =
-  "bg-gradient-to-r from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] bg-clip-text text-transparent font-black tracking-tight";
+  "w-1 h-3.5 rounded-full bg-[var(--primary-400)] -ml-0.5 mr-0.5 flex-shrink-0 shadow-[0_0_8px_rgba(var(--primary-400-rgb),0.6)]";
+const ACTIVE_LABEL = "text-white font-semibold tracking-tight";
+const ROW_ACTIVE = "bg-[rgba(var(--primary-400-rgb),0.14)] border-[rgba(var(--primary-400-rgb),0.28)]";
+const ROW_IDLE = "border-transparent text-slate-300 hover:bg-white/[0.06] hover:text-white";
+const ICON_ACTIVE = "text-[var(--primary-300)]";
+const ICON_IDLE = "text-slate-400 group-hover:text-white";
 const GROUP_BUTTON =
   "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group";
 
@@ -50,14 +55,14 @@ function MainNavItem({
       className={cn(
         "flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border group",
         active
-          ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-          : "border-transparent text-[#0A1528] hover:bg-stone-100 hover:text-[#0A1528]"
+          ? ROW_ACTIVE
+          : ROW_IDLE
       )}
     >
       {active && <span className={ACTIVE_BAR} />}
       <Icon
         size={16}
-        className={active ? "text-[var(--primary-800)] flex-shrink-0" : "text-[#0A1528] group-hover:text-[#0A1528] flex-shrink-0"}
+        className={cn("flex-shrink-0", active ? ICON_ACTIVE : ICON_IDLE)}
       />
       <span className={cn("truncate flex-grow", active ? ACTIVE_LABEL : "font-medium")}>{label}</span>
       {badge}
@@ -94,11 +99,11 @@ function TelecallingGroup({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className={cn(GROUP_BUTTON, active ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100")}
+        className={cn(GROUP_BUTTON, active ? "text-[var(--primary-300)]" : "text-slate-300 hover:bg-white/[0.06] hover:text-white")}
       >
-        <Icon size={16} className={active ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
+        <Icon size={16} className={active ? ICON_ACTIVE : ICON_IDLE} />
         <span className="flex-1">{group.label}</span>
-        {open ? <ChevronDown size={14} className="text-[#94a3b8]" /> : <ChevronRight size={14} className="text-[#94a3b8]" />}
+        {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
       </button>
       {open && (
         <div className="space-y-0.5">
@@ -107,8 +112,8 @@ function TelecallingGroup({
             const isLast = idx === items.length - 1;
             return (
               <div key={item.href} className="relative pl-6 flex items-center h-9">
-                <div className={cn("absolute left-3 w-px bg-[#d6cfc9]", isLast ? "top-0 h-[18px]" : "-top-1 bottom-0")} />
-                <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-[#d6cfc9] rounded-bl-lg" />
+                <div className={cn("absolute left-3 w-px bg-white/15", isLast ? "top-0 h-[18px]" : "-top-1 bottom-0")} />
+                <div className="absolute left-3 top-1/2 -translate-y-1 w-3.5 h-3.5 border-l border-b border-white/15 rounded-bl-lg" />
                 <Link
                   href={item.href}
                   prefetch={true}
@@ -116,11 +121,11 @@ function TelecallingGroup({
                   className={cn(
                     "flex items-center gap-2 ml-3.5 px-3 py-1.5 w-[145px] rounded-xl text-[13px] transition-all duration-150 group border",
                     isActive
-                      ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                      : "border-transparent text-[#0A1528] hover:text-[#0A1528] hover:bg-stone-100"
+                      ? ROW_ACTIVE
+                      : ROW_IDLE
                   )}
                 >
-                  {isActive && <span className="w-1 h-3 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-1 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />}
+                  {isActive && <span className="w-1 h-3 rounded-full bg-[var(--primary-400)] mr-1 flex-shrink-0 shadow-[0_0_8px_rgba(var(--primary-400-rgb),0.6)]" />}
                   <span className={cn("truncate flex-1", isActive ? ACTIVE_LABEL : "font-medium")}>{item.label}</span>
                   {item.href === "/dashboard/telecalling" && alertCount > 0 && (
                     <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-600 font-bold text-[9px] min-w-[16px] text-center">
@@ -140,10 +145,10 @@ function TelecallingGroup({
 function SettingsGroupButton({ group, active, onOpen }: { group: NavGroup; active: boolean; onOpen: () => void }) {
   const Icon = group.icon;
   return (
-    <button type="button" onClick={onOpen} className={cn(GROUP_BUTTON, active ? "text-[var(--primary-800)]" : "text-[#0A1528] hover:bg-stone-100")}>
-      <Icon size={16} className={active ? "text-[var(--primary-800)]" : "text-[#0A1528] group-hover:text-[#0A1528]"} />
+    <button type="button" onClick={onOpen} className={cn(GROUP_BUTTON, active ? "text-[var(--primary-300)]" : "text-slate-300 hover:bg-white/[0.06] hover:text-white")}>
+      <Icon size={16} className={active ? ICON_ACTIVE : ICON_IDLE} />
       <span className="flex-1">{group.label}</span>
-      <ChevronRight size={14} className="text-[#94a3b8]" />
+      <ChevronRight size={14} className="text-slate-500" />
     </button>
   );
 }
@@ -258,7 +263,7 @@ export function Sidebar(_props: SidebarProps) {
 
   if (roleLoading || subStatus === "loading") {
     return (
-      <aside className="fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] z-20 w-[220px]" />
+      <aside className="fixed left-0 top-0 h-full bg-[var(--navy)] border-r border-white/[0.06] z-20 w-[220px]" />
     );
   }
 
@@ -353,10 +358,10 @@ export function Sidebar(_props: SidebarProps) {
   const renderEntry = (entry: NavEntry) => (entry.kind === "link" ? renderLeaf(entry) : renderGroup(entry));
 
   return (
-    <aside className="fixed left-0 top-0 h-full bg-background border-r border-[#e2e8f0] flex flex-col z-20 select-none w-[220px]">
+    <aside className="fixed left-0 top-0 h-full bg-[var(--navy)] border-r border-white/[0.06] [color-scheme:dark] flex flex-col z-20 select-none w-[220px]">
       {/* Brand: h-16 matches the header so the divider lines up. shrink-0 keeps it from compressing. */}
-      <div className="h-16 shrink-0 flex items-center border-b border-[#e2e8f0] px-5">
-        <AnrilLogo className="h-6 w-auto text-ink" />
+      <div className="h-16 shrink-0 flex items-center border-b border-white/[0.08] px-5">
+        <AnrilLogo className="h-6 w-auto text-white" />
       </div>
 
       {showSettings ? (
@@ -367,7 +372,7 @@ export function Sidebar(_props: SidebarProps) {
               setExpandedGroups((prev) => ({ ...prev, Settings: false }));
               router.push("/dashboard");
             }}
-            className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-[#0A1528] transition-all hover:bg-stone-100"
+            className="flex items-center gap-2 px-2 py-2 mb-2 w-full rounded-xl text-left text-sm font-bold text-white transition-all hover:bg-white/[0.06]"
           >
             <ChevronLeft size={16} />
             <span>Settings</span>
@@ -378,7 +383,7 @@ export function Sidebar(_props: SidebarProps) {
             if (groupItems.length === 0) return null;
             return (
               <div key={group} className="pt-2 first:pt-0">
-                <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-[#94a3b8]">
+                <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-slate-500">
                   {group}
                 </div>
                 {groupItems.map((item) => {
@@ -399,12 +404,12 @@ export function Sidebar(_props: SidebarProps) {
                       className={cn(
                         "flex items-center px-3 py-1.5 rounded-xl text-sm transition-all duration-150 border",
                         active
-                          ? "bg-primary-50 border-primary-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.04)] font-black"
-                          : "border-transparent text-[#475569] hover:text-[#0A1528] hover:bg-stone-100"
+                          ? ROW_ACTIVE
+                          : ROW_IDLE
                       )}
                     >
                       {active && (
-                        <span className="w-1 h-3.5 rounded-full bg-gradient-to-b from-[#3b0f79] via-[var(--primary-800)] to-[var(--primary-600)] mr-2 flex-shrink-0 shadow-[0_1px_3px_rgba(var(--primary-800-rgb),0.25)]" />
+                        <span className="w-1 h-3.5 rounded-full bg-[var(--primary-400)] mr-2 flex-shrink-0 shadow-[0_0_8px_rgba(var(--primary-400-rgb),0.6)]" />
                       )}
                       <span className={cn("truncate", active ? ACTIVE_LABEL : "font-medium")}>{item.label}</span>
                     </Link>
@@ -448,7 +453,7 @@ export function Sidebar(_props: SidebarProps) {
 
       {/* Pinned footer: Developer. Stays out of the scrolling list, as before. */}
       {isSubscribed && canSettings && (
-        <div className="shrink-0 border-t border-[#e2e8f0] px-3 py-2">
+        <div className="shrink-0 border-t border-white/[0.08] px-3 py-2">
           <MainNavItem
             href="/dashboard/developer"
             active={pathname.startsWith("/dashboard/developer")}
