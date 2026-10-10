@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { ChevronsDownUp, ChevronsUpDown, ClipboardList, Clock, LayoutGrid, List, ScrollText, ShieldCheck, TrendingUp, Users } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ClipboardList, Clock, LayoutGrid, List, Plus, ScrollText, Send, ShieldCheck, TrendingUp, Users } from "lucide-react";
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
@@ -130,11 +130,12 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
     };
   }
   if (pathname === "/dashboard/leads") {
-    let tabLabel = "Leads";
-    if (tab === "reengagement") tabLabel = "Re-engagement";
+    if (tab === "reengagement") {
+      return { title: "Segments / Re-engagement", description: "Group and manage your leads by attributes and behavior." };
+    }
     return {
-      title: `Segments / ${tabLabel}`,
-      description: "Group and manage your leads by attributes and behavior.",
+      title: "Segments",
+      description: "Your leads, sorted by how ready they are to buy",
     };
   }
   if (pathname === "/dashboard/numbers") {
@@ -446,62 +447,32 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
           </div>
         )}
 
-        {pathname === "/dashboard/leads" && (
-          <div className="mr-2 hidden items-center gap-2 xl:flex">
-          <nav aria-label="Lead sections" className="order-2 flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
-            {([
-              { key: "leads", label: "Leads" },
-              { key: "reengagement", label: "Re-engagement" },
-            ] as const).map(({ key, label }) => {
-              const isActive = key === "reengagement" ? tab === key : tab !== "reengagement";
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams.toString());
-                    if (key === "leads") params.delete("tab");
-                    else params.set("tab", key);
-                    const query = params.toString();
-                    router.replace(`/dashboard/leads${query ? `?${query}` : ""}`, { scroll: false });
-                  }}
-                  className={cn(
-                    "rounded-xl px-3 py-1.5 font-label text-xs font-bold transition-all",
-                    isActive ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
-                  )}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
-          {tab !== "reengagement" && (
-          <nav aria-label="Lead segments" className="order-1 flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
-            {([
-              { key: "A", label: "Hot" },
-              { key: "B", label: "Warm" },
-              { key: "C", label: "Cold" },
-              { key: "D", label: "Not Interested" },
-            ] as const).map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.delete("tab");
-                  params.set("segment", key);
-                  router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
-                }}
-                className={cn(
-                  "rounded-xl px-2.5 py-1.5 font-label text-[11px] font-bold transition-all",
-                  leadSegment === key ? "bg-white text-primary shadow-sm" : "text-[#475569] hover:text-[#13284A]",
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
-          )}
+        {pathname === "/dashboard/leads" && tab !== "reengagement" && (
+          <div className="mr-2 hidden items-center gap-2 md:flex">
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams(searchParams.toString());
+                params.set("compose", "1");
+                router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+              }}
+              className="rounded-xl border border-[#e2e8f0] bg-white px-3.5 py-2 font-label text-xs font-bold text-[#0A1528] shadow-sm hover:bg-[#f1f5f9]"
+            >
+              <Plus size={14} className="mr-1.5 inline" />
+              New message
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const params = new URLSearchParams(searchParams.toString());
+                params.set("broadcast", "1");
+                router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+              }}
+              className="rounded-xl bg-primary px-3.5 py-2 font-label text-xs font-bold text-white shadow-sm hover:bg-[var(--primary-900)]"
+            >
+              <Send size={14} className="mr-1.5 inline" />
+              Message {({ A: "Hot", B: "Warm", C: "Cold", D: "Not interested" }[leadSegment] || "Hot")} leads
+            </button>
           </div>
         )}
 

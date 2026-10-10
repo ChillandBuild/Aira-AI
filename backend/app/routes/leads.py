@@ -93,6 +93,8 @@ async def list_leads(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     search: str | None = Query(None, max_length=100),
+    reply_window: str | None = Query(None, pattern="^(open|closed)$"),
+    sort: str | None = Query(None, pattern="^(newest|oldest|urgent)$"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     ctx: dict = Depends(require_leads_view),
@@ -136,7 +138,10 @@ async def list_leads(
     if ctx.get("role") == "caller" and ctx.get("caller_id"):
         query = query.eq("assigned_to", ctx["caller_id"])
     elif assigned_to:
-        query = query.eq("assigned_to", assigned_to)
+        if assigned_to == "unassigned":
+            query = query.is_("assigned_to", "null")
+        else:
+            query = query.eq("assigned_to", assigned_to)
 
     # Apply medium / campaign / broadcast filters
     INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
@@ -161,7 +166,25 @@ async def list_leads(
                 )
             query = query.in_("id", lead_ids)
 
-    result = query.order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    # Apply reply_window filter
+    if reply_window == "open":
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        query = query.gte("last_inbound_at", cutoff_iso)
+    elif reply_window == "closed":
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
+        query = query.or_(f"last_inbound_at.is.null,last_inbound_at.lt.{cutoff_iso}")
+
+    # Apply sorting
+    if sort == "newest":
+        result = query.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    elif sort == "oldest":
+        result = query.order("created_at", desc=False).range(offset, offset + limit - 1).execute()
+    elif sort == "urgent":
+        result = query.order("last_inbound_at", desc=False, nullsfirst=False).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+    else:
+        result = query.order("segment").order("last_inbound_at", desc=True, nullsfirst=False).order("created_at", desc=True).range(offset, offset + limit - 1).execute()
     leads_data = result.data or []
 
     # Enrichment

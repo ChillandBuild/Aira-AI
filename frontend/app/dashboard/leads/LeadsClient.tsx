@@ -1,25 +1,23 @@
 "use client";
 import { toast } from "sonner";
-import { useEffect, useMemo, useState } from "react";
-import { api, Lead, Caller, SegmentTemplate, BroadcastResult, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
-import { Download, Send, Save, Pencil, Plus, X, Loader2, Clock, Filter, RefreshCw, ArrowDown, ArrowUp } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { api, Lead, Caller, SegmentTemplate, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
+import { Download, Send, Pencil, X, Loader2, RefreshCw, MessageSquare, UserPlus, ArrowLeftRight, Search, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatPhone } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
 import { AssignButton } from "./AssignButton";
 import ReengagementBuilder from "./ReengagementBuilder";
-import { useLeads } from "@/hooks/useApi";
+import { useLeadsPage } from "@/hooks/useApi";
 import { useSearchParams, useRouter } from "next/navigation";
 import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHeader } from "@/components/MobileRecord";
 import { SegmentBadge } from "@/components/segment-badge";
+import { FilterMenu, FilterMenuOption } from "./FilterMenu";
+import { SegmentBroadcastModal } from "./SegmentBroadcastModal";
+import { SendMessageModal } from "./SendMessageModal";
+import { SendTemplateModal } from "./SendTemplateModal";
 
-function pillClass(active: boolean) {
-  return `px-5 py-2.5 rounded-xl font-label text-xs font-bold transition-all ${
-    active ? "bg-white text-[#0A1528] shadow-sm" : "text-[#475569] hover:text-[#13284A]"
-  }`;
-}
-
-function NameCell({ lead, onUpdate }: { lead: Lead; onUpdate: (l: Lead) => void }) {
+function NameCell({ lead, onUpdate, compact }: { lead: Lead; onUpdate: (l: Lead) => void; compact?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(lead.name || "");
 
@@ -55,6 +53,21 @@ function NameCell({ lead, onUpdate }: { lead: Lead; onUpdate: (l: Lead) => void 
     );
   }
 
+  if (compact && !lead.name) {
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setValue("");
+          setEditing(true);
+        }}
+        className="text-primary text-xs font-semibold hover:opacity-70"
+      >
+        + Add name
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={(e) => {
@@ -79,26 +92,48 @@ const SEGMENT_LABELS: Record<string, string> = {
   A: "Hot",
   B: "Warm",
   C: "Cold",
-  D: "Not Interested",
+  D: "Not interested",
 };
 
-const SOURCE_FILTERS = [
+const SEGMENT_EMOJIS: Record<string, string> = {
+  A: "🔥",
+  B: "",
+  C: "",
+  D: "",
+};
+
+const SEGMENT_COLORS: Record<string, { text: string; edge: string }> = {
+  A: { text: "text-orange-600", edge: "bg-orange-500" },
+  B: { text: "text-[#0A1528]", edge: "bg-amber-400" },
+  C: { text: "text-[#0A1528]", edge: "bg-blue-600" },
+  D: { text: "text-[#0A1528]", edge: "bg-slate-400" },
+};
+
+const SOURCE_FILTERS: FilterMenuOption[] = [
   { value: "ALL", label: "All" },
   { value: "INBOUND", label: "Inbound" },
   { value: "ORGANIC", label: "Organic" },
   { value: "META_ADS", label: "Meta Ads" },
   { value: "BROADCAST", label: "Broadcast" },
-] as const;
+];
 
-function segmentFilterClass(segment: string, active: boolean) {
-  if (!active) return "border-transparent bg-transparent text-[#475569] hover:bg-white hover:text-[#13284A]";
+const SOURCE_NAMES: Record<string, string> = {
+  whatsapp: "WhatsApp", instagram: "Instagram", facebook: "Facebook", telegram: "Telegram",
+  indiamart: "IndiaMART", justdial: "Justdial",
+};
 
-  return {
-    A: "border-orange-200 bg-orange-50 text-orange-700 shadow-sm",
-    B: "border-amber-200 bg-amber-50 text-amber-700 shadow-sm",
-    C: "border-sky-200 bg-sky-50 text-sky-700 shadow-sm",
-    D: "border-rose-200 bg-rose-50 text-rose-700 shadow-sm",
-  }[segment] ?? "border-primary/20 bg-white text-primary shadow-sm";
+function sourceLabel(source: string): string {
+  return SOURCE_NAMES[source] ?? source.charAt(0).toUpperCase() + source.slice(1);
+}
+
+function getInitialColor(leadId: string): string {
+  const colors = ["#e0457b", "#7c5cdb", "#e07a3f", "#2f9e6e", "#4a90d9", "#d4a23a"];
+  let hash = 0;
+  for (let i = 0; i < leadId.length; i++) {
+    hash = ((hash << 5) - hash) + leadId.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return colors[Math.abs(hash) % colors.length];
 }
 
 function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void; onSent: () => void; canManageLeads: boolean }) {
@@ -211,15 +246,13 @@ function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void
   );
 }
 
-export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
+export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
   const { role, permissions } = useAuthRole();
   const canManageLeads = role === "owner" || permissions.includes("leads.manage");
+  // Sending a chat message needs the same right as replying in Conversations.
+  const canReply = role === "owner" || permissions.includes("conversations.reply");
   const [tab, setTab] = useState<typeof SEGMENTS[number]>(initialTab);
   const [templates, setTemplates] = useState<Record<string, SegmentTemplate>>({});
-  const [draft, setDraft] = useState("");
-  const [savingTpl, setSavingTpl] = useState(false);
-  const [broadcasting, setBroadcasting] = useState(false);
-  const [lastResult, setLastResult] = useState<BroadcastResult | null>(null);
   const [composing, setComposing] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [callers, setCallers] = useState<Caller[]>([]);
@@ -228,26 +261,72 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   const [sourceFilter, setSourceFilter] = useState("ALL");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedBroadcastId, setSelectedBroadcastId] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [addedSort, setAddedSort] = useState<"newest" | "oldest">("newest");
   const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string }[]>([]);
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastHistoryItem[]>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [assigned, setAssigned] = useState<string | undefined>();
+  const [replyWindow, setReplyWindow] = useState<"open" | "closed" | undefined>();
+  const [sort, setSort] = useState<"newest" | "oldest" | "urgent" | undefined>();
+  const [now, setNow] = useState(new Date());
+  const [tipsDismissed, setTipsDismissed] = useState(false);
+  const [broadcastModalOpen, setBroadcastModalOpen] = useState(false);
+
+  // Modal states
+  const [sendMessageLeads, setSendMessageLeads] = useState<Lead[]>([]);
+  const [sendMessageModalOpen, setSendMessageModalOpen] = useState(false);
+  const [sendTemplateLeadId, setSendTemplateLeadId] = useState<string | null>(null);
+
+  // Assign popover state
+  const [assignPopoverOpen, setAssignPopoverOpen] = useState(false);
+  const assignPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Change segment popover state
+  const [changeSegmentPopoverOpen, setChangeSegmentPopoverOpen] = useState(false);
+  const changeSegmentPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Checkbox ref for indeterminate state
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   // Re-engagement states
   const [wabaTemplates, setWabaTemplates] = useState<WabaTemplate[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawTab = searchParams.get("tab");
-  const pageView = (rawTab === "reengagement" ? "reengagement" : "leads") as "leads" | "reengagement";
+  const pageView: "leads" | "reengagement" = rawTab === "reengagement" ? "reengagement" : "leads";
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
   const requestedSegment = searchParams.get("segment");
+  const composeParam = searchParams.get("compose");
+  const broadcastParam = searchParams.get("broadcast");
+  const [reengageTrigger, setReengageTrigger] = useState<"broadcast" | "inbound">("inbound");
 
   useEffect(() => {
     if ((SEGMENTS as readonly string[]).includes(requestedSegment ?? "")) {
       setTab(requestedSegment as typeof SEGMENTS[number]);
     }
   }, [requestedSegment]);
+
+  // Read tips dismiss state from localStorage
+  useEffect(() => {
+    try {
+      const dismissed = localStorage.getItem("segments.replyTipDismissed");
+      setTipsDismissed(dismissed === "1");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Update current time every 60s for reply window countdown
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const setPageView = (val: "leads" | "reengagement") => {
     const params = new URLSearchParams(searchParams.toString());
@@ -264,46 +343,84 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
 
   const setSegment = (segment: typeof SEGMENTS[number]) => {
     setTab(segment);
+    setPage(1);
+    setSelectedIds(new Set());
     const params = new URLSearchParams(searchParams.toString());
     params.delete("tab");
     params.set("segment", segment);
     router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
   };
-  const [reengageTrigger, setReengageTrigger] = useState<"broadcast" | "inbound">("inbound");
 
-  // SWR Hook
-  const { data: leadsData, mutate } = useLeads(
+  // Shared filters for counts and table (excludes segment, page, limit, sort)
+  const sharedFilters = {
+    search: search || undefined,
+    source_filter: sourceFilter !== "ALL" ? sourceFilter.toLowerCase() : undefined,
+    ad_campaign_id: sourceFilter === "META_ADS" && selectedCampaignId ? selectedCampaignId : undefined,
+    broadcast_id: sourceFilter === "BROADCAST" && selectedBroadcastId ? selectedBroadcastId : undefined,
+    date_from: dateFrom,
+    date_to: dateTo,
+    assigned_to: assigned,
+    reply_window: replyWindow,
+  };
+
+  // SWR Hooks for page data
+  const { data: pageData, mutate: mutateList, isLoading } = useLeadsPage(
     {
       segment: tab,
-      limit: 200,
-      source_filter: sourceFilter !== "ALL" ? sourceFilter.toLowerCase() : undefined,
-      ad_campaign_id: (sourceFilter === "META_ADS" && selectedCampaignId) ? selectedCampaignId : undefined,
-      broadcast_id: (sourceFilter === "BROADCAST" && selectedBroadcastId) ? selectedBroadcastId : undefined,
-      date_from: dateFrom,
-      date_to: dateTo,
+      page,
+      limit: PAGE_SIZE,
+      ...sharedFilters,
+      sort,
     },
-    true,
-    (tab === initialTab && sourceFilter === "ALL") ? (fallbackLeads ?? undefined) : undefined
+    pageView === "leads"
   );
 
-  const leads = leadsData ?? [];
-  const loading = !leadsData;
-  const sortedLeads = useMemo(
-    () => [...leads].sort((a, b) => {
-      const difference = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      return addedSort === "newest" ? -difference : difference;
-    }),
-    [leads, addedSort],
-  );
+  const leads = pageData?.data ?? [];
+  const totalLeads = pageData?.total ?? 0;
+  const hasFilters = !!(search || sourceFilter !== "ALL" || dateFrom || dateTo || assigned || replyWindow);
+
+  // Hooks for segment counts - keep mutate functions to refresh them after bulk operations
+  const { data: countA, mutate: mutateCountA } = useLeadsPage({ segment: "A", page: 1, limit: 1, ...sharedFilters }, pageView === "leads");
+  const { data: countB, mutate: mutateCountB } = useLeadsPage({ segment: "B", page: 1, limit: 1, ...sharedFilters }, pageView === "leads");
+  const { data: countC, mutate: mutateCountC } = useLeadsPage({ segment: "C", page: 1, limit: 1, ...sharedFilters }, pageView === "leads");
+  const { data: countD, mutate: mutateCountD } = useLeadsPage({ segment: "D", page: 1, limit: 1, ...sharedFilters }, pageView === "leads");
+
+  const segmentCounts = {
+    A: countA?.total,
+    B: countB?.total,
+    C: countC?.total,
+    D: countD?.total,
+  };
 
   async function refreshLeads() {
     setRefreshing(true);
     try {
-      await mutate();
+      await Promise.all([mutateList(), mutateCountA(), mutateCountB(), mutateCountC(), mutateCountD()]);
     } finally {
       setRefreshing(false);
     }
   }
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [search, sourceFilter, selectedCampaignId, selectedBroadcastId, dateFrom, dateTo, assigned, replyWindow]);
+
+  // Update indeterminate checkbox state
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = selectedIds.size > 0 && selectedIds.size < leads.length;
+    }
+  }, [selectedIds, leads.length]);
+
+  // Search debounce effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
@@ -322,10 +439,6 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
   }, []);
 
   useEffect(() => {
-    setLastResult(null);
-  }, [tab, sourceFilter, selectedCampaignId, selectedBroadcastId]);
-
-  useEffect(() => {
     api.segments.templates().then((rows) => {
       const map: Record<string, SegmentTemplate> = {};
       rows.forEach((r) => (map[r.segment] = r));
@@ -333,119 +446,258 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
     });
   }, []);
 
+  // Handle compose and broadcast URL params
   useEffect(() => {
-    setDraft(templates[tab]?.message ?? "");
-  }, [tab, templates]);
-
-  async function saveTemplate() {
-    if (!canManageLeads) return;
-    setSavingTpl(true);
-    try {
-      const updated = await api.segments.saveTemplate(tab, draft);
-      setTemplates((prev) => ({ ...prev, [tab]: updated }));
-    } catch {
-      // no-op
-    } finally {
-      setSavingTpl(false);
+    if (composeParam === "1") {
+      setComposing(true);
     }
+  }, [composeParam]);
+
+  useEffect(() => {
+    if (broadcastParam === "1") {
+      setBroadcastModalOpen(true);
+    }
+  }, [broadcastParam]);
+
+  function closeCompose() {
+    setComposing(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("compose");
+    router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
   }
 
-  async function broadcast() {
-    if (!canManageLeads) return;
-    if (!draft.trim()) return;
-    const targetLabel = sourceFilter !== "ALL" ? "filtered" : `${SEGMENT_LABELS[tab]}`;
-    if (!confirm(`Send this message to all ${targetLabel} leads?`)) return;
-    setBroadcasting(true);
-    setLastResult(null);
+  function closeBroadcast() {
+    setBroadcastModalOpen(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("broadcast");
+    router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
+  }
+
+  function openSendMessageModal() {
+    const selectedLeads = leads.filter((l) => selectedIds.has(l.id));
+    setSendMessageLeads(selectedLeads);
+    setSendMessageModalOpen(true);
+  }
+
+  function closeSendMessageModal() {
+    setSendMessageModalOpen(false);
+  }
+
+  async function bulkAssign(callerId: string | null) {
+    const ids = Array.from(selectedIds);
     try {
-      if (sourceFilter !== "ALL") {
-        const payload: Parameters<typeof api.leads.broadcast>[0] = {
-          message: draft,
-          segment: tab,
-          source_filter: sourceFilter.toLowerCase(),
-        };
-        if (sourceFilter === "META_ADS" && selectedCampaignId) {
-          payload.ad_campaign_id = selectedCampaignId;
-        } else if (sourceFilter === "BROADCAST" && selectedBroadcastId) {
-          payload.broadcast_id = selectedBroadcastId;
-        }
-        const result = await api.leads.broadcast(payload);
-        setLastResult(result);
-      } else {
-        if (draft !== templates[tab]?.message) await saveTemplate();
-        const result = await api.segments.broadcast(tab);
-        setLastResult(result);
-      }
+      await api.leads.bulkAssign(ids, callerId);
+      toast.success(`Assigned ${ids.length} leads`);
+      setSelectedIds(new Set());
+      setAssignPopoverOpen(false);
+      await mutateList();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Broadcast failed");
-    } finally {
-      setBroadcasting(false);
+      toast.error(err instanceof Error ? err.message : "Failed to assign");
     }
   }
 
-  function format24hWindow(lastInboundAt?: string | null) {
-    if (!lastInboundAt) return <span className="text-on-surface-muted/50">—</span>;
-    const lastInbound = new Date(lastInboundAt).getTime();
-    const now = new Date().getTime();
-    const diffMs = now - lastInbound;
-    const hoursLeft = 24 - diffMs / (1000 * 60 * 60);
-
-    if (hoursLeft <= 0) {
-      return (
-        <span className="inline-flex items-center font-label text-[10px] font-bold text-red-600 bg-red-50/50 px-2 py-0.5 rounded-full border border-red-100">
-          Expired
-        </span>
-      );
+  async function bulkChangeSegment(newSegment: typeof SEGMENTS[number]) {
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map((id) => api.leads.update(id, { segment: newSegment })));
+      const label = SEGMENT_LABELS[newSegment];
+      toast.success(`Moved ${ids.length} leads to ${label}`);
+      setSelectedIds(new Set());
+      setChangeSegmentPopoverOpen(false);
+      await mutateList();
+      // Refresh all counts
+      await Promise.all([mutateCountA(), mutateCountB(), mutateCountC(), mutateCountD()]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to change segment");
     }
+  }
 
+  function getReplyWindowStatus(lead: Lead): { hours: number; minutes: number; isOpen: boolean; isUrgent: boolean } {
+    if (!lead.last_inbound_at) {
+      return { hours: 0, minutes: 0, isOpen: false, isUrgent: false };
+    }
+    const lastInbound = new Date(lead.last_inbound_at).getTime();
+    const diffMs = now.getTime() - lastInbound;
+    const hoursLeft = 24 - diffMs / (1000 * 60 * 60);
     const h = Math.floor(hoursLeft);
     const m = Math.floor((hoursLeft - h) * 60);
-    if (h === 0) {
-      return (
-        <span className="inline-flex items-center font-label text-[10px] font-bold text-amber-600 bg-amber-50/50 px-2 py-0.5 rounded-full border border-amber-100 animate-pulse">
-          {m}m left
-        </span>
-      );
-    }
+    return {
+      hours: h,
+      minutes: m,
+      isOpen: hoursLeft > 0,
+      isUrgent: hoursLeft > 0 && hoursLeft < 1,
+    };
+  }
+
+  function renderReplyWindowCell(lead: Lead): React.ReactNode {
+    const status = getReplyWindowStatus(lead);
+    const fillPercent = status.isOpen ? (status.hours + status.minutes / 60) / 24 * 100 : 0;
+
     return (
-      <span className="inline-flex items-center font-label text-[10px] font-bold text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full border border-emerald-100">
-        {h}h {m}m left
-      </span>
+      <div className="space-y-1">
+        <div className="h-1 rounded-full bg-[#e2e8f0] w-40" style={{ overflow: "hidden" }}>
+          <div
+            className={`h-full transition-all ${
+              status.isOpen ? (status.isUrgent ? "bg-orange-500" : "bg-primary") : "bg-[#e2e8f0]"
+            }`}
+            style={{ width: `${Math.max(fillPercent, 0)}%` }}
+          />
+        </div>
+        <div className="text-xs font-bold">
+          {status.isOpen ? (
+            status.isUrgent ? (
+              <span className="text-orange-500">⚠ {status.minutes}m left – reply now</span>
+            ) : (
+              <span className="text-primary">{status.hours}h {status.minutes}m left</span>
+            )
+          ) : (
+            <span className="text-[#64748b]">Closed</span>
+          )}
+        </div>
+      </div>
     );
   }
 
-  function getBroadcastWindowText(timestamp: string): string {
-    const lastBroadcast = new Date(timestamp).getTime();
-    const now = new Date().getTime();
-    const diffMs = now - lastBroadcast;
-    const hoursLeft = 24 - diffMs / (1000 * 60 * 60);
-
-    if (hoursLeft <= 0) {
-      return "Expired";
+  function getAvatarInitials(lead: Lead): { text: string; bgColor: string } {
+    if (lead.name) {
+      const parts = lead.name.trim().split(" ");
+      const initials = parts.map(p => p[0]).join("").toUpperCase().slice(0, 2);
+      return { text: initials, bgColor: getInitialColor(lead.id) };
     }
-
-    const h = Math.floor(hoursLeft);
-    const m = Math.floor((hoursLeft - h) * 60);
-    if (h === 0) {
-      return `${m}m left`;
+    if (lead.source === "instagram") return { text: "IG", bgColor: getInitialColor(lead.id) };
+    if (lead.source === "telegram") return { text: "TG", bgColor: getInitialColor(lead.id) };
+    if (lead.source === "facebook") return { text: "FB", bgColor: getInitialColor(lead.id) };
+    if (lead.phone) {
+      return { text: lead.phone.replace(/\s/g, "").slice(0, 3), bgColor: getInitialColor(lead.id) };
     }
-    return `${h}h ${m}m left`;
+    return { text: "??", bgColor: getInitialColor(lead.id) };
   }
+
+  function getChannelDot(lead: Lead): { color: string; title: string } {
+    const channelColors: Record<string, string> = {
+      whatsapp: "#25D366",
+      instagram: "#E1306C",
+      telegram: "#229ED9",
+      facebook: "#1877F2",
+    };
+    return {
+      color: channelColors[lead.source] || "#cbd5e1",
+      title: lead.source || "Unknown",
+    };
+  }
+
+  function getPrimaryLine(lead: Lead): string {
+    if (lead.phone) {
+      return formatPhone(lead.phone);
+    }
+    if (lead.source === "instagram") return "Instagram user";
+    if (lead.source === "telegram") return "Telegram user";
+    if (lead.source === "facebook") return "Facebook user";
+    return lead.name || "No contact";
+  }
+
+  function getSecondaryLine(lead: Lead): React.ReactNode {
+    if (lead.phone) {
+      return <NameCell lead={lead} onUpdate={() => mutateList()} compact />;
+    }
+    if (lead.source === "telegram" && lead.tg_username) return `@${lead.tg_username}`;
+    if (lead.source === "instagram" && lead.ig_user_id) return `@${lead.ig_user_id}`;
+    if (lead.source === "facebook" && lead.fb_user_id) return lead.fb_user_id;
+    return null;
+  }
+
+  // Helper to get campaign name
+  function getSelectedCampaignName(): string | undefined {
+    return campaigns.find((c) => c.id === selectedCampaignId)?.campaign_name;
+  }
+
+  // Helper to compute date preset from URL dates (using local dates)
+  function getDatePreset(): string {
+    if (!dateFrom || !dateTo) return "any";
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgoStr = `${sevenDaysAgo.getFullYear()}-${String(sevenDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(sevenDaysAgo.getDate()).padStart(2, "0")}`;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgoStr = `${thirtyDaysAgo.getFullYear()}-${String(thirtyDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(thirtyDaysAgo.getDate()).padStart(2, "0")}`;
+
+    if (dateFrom === todayStr && dateTo === todayStr) return "today";
+    if (dateFrom === sevenDaysAgoStr && dateTo === todayStr) return "7d";
+    if (dateFrom === thirtyDaysAgoStr && dateTo === todayStr) return "30d";
+    return "custom";
+  }
+
+  const viewToggle = (
+    <div className="flex w-max shrink-0 gap-1 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-1">
+      {([["leads", "New leads"], ["reengagement", "Re-engagement"]] as const).map(([view, label]) => (
+        <button
+          key={view}
+          type="button"
+          onClick={() => setPageView(view)}
+          className={cn(
+            "rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
+            pageView === view ? "bg-white text-[#0A1528] shadow-sm" : "text-[#64748b] hover:text-[#0A1528]"
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div className="min-w-0">
       {composing && (
         <ComposeModal
-          onClose={() => setComposing(false)}
+          onClose={closeCompose}
           canManageLeads={canManageLeads}
           onSent={() => {
-            mutate();
+            mutateList();
+            closeCompose();
+          }}
+        />
+      )}
+
+      {broadcastModalOpen && (
+        <SegmentBroadcastModal
+          segment={tab}
+          sourceFilter={sourceFilter}
+          selectedCampaignId={selectedCampaignId}
+          selectedBroadcastId={selectedBroadcastId}
+          selectedCampaignName={getSelectedCampaignName()}
+          broadcastHistory={broadcastHistory}
+          templates={templates}
+          canManageLeads={canManageLeads}
+          onClose={closeBroadcast}
+          onAfterBroadcast={() => {
+            mutateList();
+          }}
+        />
+      )}
+
+      {sendMessageModalOpen && (
+        <SendMessageModal
+          selectedLeads={sendMessageLeads}
+          onClose={closeSendMessageModal}
+          onAfterSend={() => {
+            mutateList();
+          }}
+        />
+      )}
+
+      {sendTemplateLeadId && (
+        <SendTemplateModal
+          leadId={sendTemplateLeadId}
+          onClose={() => {
+            setSendTemplateLeadId(null);
+            mutateList();
           }}
         />
       )}
 
       {pageView === "reengagement" && (
         <div className="space-y-6">
+          {viewToggle}
           <div className="flex gap-2">
             <button
               onClick={() => setReengageTrigger("inbound")}
@@ -490,419 +742,686 @@ export function LeadsClient({ fallbackLeads, initialTab = "A" }: { fallbackLeads
       )}
 
       {pageView === "leads" && (
-      <div className="-mt-4">
-        <div className="mb-2 space-y-3">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1 xl:hidden">
-            <button onClick={() => setPageView("leads")} className={pillClass(true)}>Leads</button>
-            <button onClick={() => setPageView("reengagement")} className={pillClass(false)}>Re-engagement</button>
-          </div>
-
-          <div className={cn("flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between", !filtersOpen && "hidden")}>
-            <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0 xl:hidden">
-              <div className="flex w-max gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
-            {SEGMENTS.map((seg) => (
-              <button
-                key={seg}
-                onClick={() => setSegment(seg)}
-                className={cn(
-                  "shrink-0 rounded-xl border px-4 py-2.5 font-label text-xs font-bold transition-all sm:px-5",
-                  segmentFilterClass(seg, tab === seg),
-                )}
-              >
-                {SEGMENT_LABELS[seg]}
-              </button>
-            ))}
-              </div>
-            </div>
-
-            <div className="hidden -mx-1 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:p-0">
-              <div className="flex w-max items-center gap-1 rounded-2xl border border-[#e2e8f0] bg-white p-1 shadow-sm">
-                <span className="px-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
-                {SOURCE_FILTERS.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => {
-                      setSourceFilter(value);
-                      setSelectedCampaignId("");
-                      setSelectedBroadcastId("");
-                    }}
-                    className={cn(
-                      "rounded-xl px-3 py-2 font-label text-xs font-bold transition-all",
-                      sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#475569] hover:bg-[#f5f1eb] hover:text-[#13284A]",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {filtersOpen && (
-            <div className="flex flex-wrap items-end gap-2.5 rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-sm">
-              <div className="min-w-[300px] flex-1">
-                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Source</span>
-                <div className="flex w-max items-center gap-1 rounded-xl border border-[#e2e8f0] bg-white p-1 shadow-sm">
-                  {SOURCE_FILTERS.map(({ value, label }) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => {
-                        setSourceFilter(value);
-                        setSelectedCampaignId("");
-                        setSelectedBroadcastId("");
-                      }}
-                      className={cn(
-                        "rounded-lg px-2.5 py-1.5 font-label text-xs font-bold transition-all",
-                        sourceFilter === value ? "bg-primary text-white shadow-sm" : "text-[#475569] hover:bg-[#f5f1eb] hover:text-[#13284A]",
-                      )}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label>
-                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From date</span>
-                <input type="date" value={dateFrom ?? ""} onChange={(e) => setDate("date_from", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e2e8f0] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
-              </label>
-              <label>
-                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">To date</span>
-                <input type="date" value={dateTo ?? ""} onChange={(e) => setDate("date_to", e.target.value)} className="h-9 w-[145px] rounded-xl border border-[#e2e8f0] bg-white px-3 font-body text-xs text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20" />
-              </label>
-              <div>
-                <span className="mb-1.5 block font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">Added</span>
+        <div className="space-y-4">
+          {/* Segment stat cards */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {SEGMENTS.map((seg) => {
+              const count = segmentCounts[seg];
+              const colors = SEGMENT_COLORS[seg];
+              const isSelected = tab === seg;
+              return (
                 <button
-                  type="button"
-                  onClick={() => setAddedSort((sort) => sort === "newest" ? "oldest" : "newest")}
-                  title={addedSort === "newest" ? "Newest first" : "Oldest first"}
-                  aria-label={addedSort === "newest" ? "Sort oldest first" : "Sort newest first"}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e2e8f0] bg-white text-primary transition-colors hover:bg-primary-light"
+                  key={seg}
+                  onClick={() => setSegment(seg)}
+                  className={cn(
+                    "relative flex flex-col items-start gap-1 overflow-hidden rounded-2xl border bg-white py-4 pl-5 pr-4 text-left transition-all sm:flex-row sm:items-center sm:gap-4",
+                    isSelected
+                      ? "border-2 border-primary ring-4 ring-primary/10"
+                      : "border-[#e2e8f0] hover:border-slate-300"
+                  )}
                 >
-                  {addedSort === "newest" ? <ArrowDown size={14} /> : <ArrowUp size={14} />}
+                  <div className={cn("absolute left-0 top-3 bottom-3 w-1 rounded-r", colors.edge)} />
+                  <div className="min-w-[3ch] font-display text-3xl font-bold text-[#0A1528]">
+                    {count === undefined ? "—" : count}
+                  </div>
+                  <div className="min-w-0">
+                    <div className={cn("font-bold text-sm", colors.text)}>
+                      {SEGMENT_EMOJIS[seg] ? `${SEGMENT_EMOJIS[seg]} ` : ""}{SEGMENT_LABELS[seg]}
+                    </div>
+                    <div className="text-xs text-[#64748b] mt-0.5">
+                      {seg === "A" && "Ready to buy · reply first"}
+                      {seg === "B" && "Interested · follow up"}
+                      {seg === "C" && "Just browsing · nurture"}
+                      {seg === "D" && "No action needed"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Main card with filters and table */}
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-center gap-2 p-4 border-b border-[#e2e8f0]">
+
+              {viewToggle}
+
+              {/* Search input */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
+                <input
+                  type="text"
+                  placeholder="Search name or number"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="pl-10 pr-3 py-2 w-64 text-xs border border-[#e2e8f0] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              {/* Filter dropdowns */}
+              <FilterMenu
+                label="Source"
+                options={SOURCE_FILTERS}
+                value={sourceFilter === "ALL" ? undefined : sourceFilter}
+                onChange={(val) => {
+                  setSourceFilter(val || "ALL");
+                  setSelectedCampaignId("");
+                  setSelectedBroadcastId("");
+                }}
+                showValue={true}
+              />
+
+              <FilterMenu
+                label="Added"
+                options={[
+                  { value: "any", label: "Any time" },
+                  { value: "today", label: "Today" },
+                  { value: "7d", label: "Last 7 days" },
+                  { value: "30d", label: "Last 30 days" },
+                  ...(getDatePreset() === "custom" ? [{ value: "custom", label: "Custom" }] : []),
+                ]}
+                value={getDatePreset()}
+                onChange={(val) => {
+                  if (val === "any") {
+                    setDate("date_from", "");
+                    setDate("date_to", "");
+                  } else if (val === "today") {
+                    const today = new Date();
+                    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+                    setDate("date_from", todayStr);
+                    setDate("date_to", todayStr);
+                  } else if (val === "7d") {
+                    const to = new Date();
+                    const toStr = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`;
+                    const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+                    const fromStr = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
+                    setDate("date_from", fromStr);
+                    setDate("date_to", toStr);
+                  } else if (val === "30d") {
+                    const to = new Date();
+                    const toStr = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`;
+                    const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+                    const fromStr = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
+                    setDate("date_from", fromStr);
+                    setDate("date_to", toStr);
+                  }
+                }}
+                showValue={true}
+              />
+
+              {role === "owner" && (
+                <FilterMenu
+                  label="Assigned"
+                  options={[
+                    { value: "all", label: "All" },
+                    { value: "unassigned", label: "Unassigned" },
+                    ...callers.map((c) => ({ value: c.id, label: c.name })),
+                  ]}
+                  value={assigned}
+                  onChange={(val) => {
+                    if (val === "all" || !val) {
+                      setAssigned(undefined);
+                    } else {
+                      setAssigned(val);
+                    }
+                  }}
+                  showValue={true}
+                />
+              )}
+
+              <FilterMenu
+                label="Reply window"
+                options={[
+                  { value: "all", label: "All" },
+                  { value: "open", label: "Open" },
+                  { value: "closed", label: "Closed" },
+                ]}
+                value={replyWindow}
+                onChange={(val) => {
+                  if (val === "all" || !val) {
+                    setReplyWindow(undefined);
+                  } else {
+                    setReplyWindow(val as "open" | "closed");
+                  }
+                }}
+                showValue={true}
+              />
+
+              {/* Right side buttons */}
+              <div className="ml-auto flex gap-2">
+                <button
+                  onClick={refreshLeads}
+                  disabled={refreshing}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors disabled:opacity-40"
+                >
+                  <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+                  Refresh
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await api.leads.exportLeads(tab);
+                      toast.success("Export downloaded");
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Export failed");
+                    }
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors"
+                >
+                  <Download size={14} />
+                  Export
                 </button>
               </div>
             </div>
-          )}
 
-          {/* Date filter, arrived via a link from a today-scoped card (e.g. dashboard Pipeline Activity) */}
-          {dateFrom && (
-            <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-primary-muted bg-primary-light p-2.5 shadow-sm sm:w-auto">
-              <span className="min-w-0 flex-1 truncate font-body text-xs font-semibold text-primary">
-                {dateFrom === dateTo ? `${dateFrom} only` : `${dateFrom} → ${dateTo}`}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const params = new URLSearchParams(searchParams.toString());
-                  params.delete("date_from");
-                  params.delete("date_to");
-                  router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
-                }}
-                className="shrink-0 font-label text-xs font-bold uppercase tracking-wider text-primary hover:opacity-70"
-              >
-                Clear
-              </button>
-            </div>
-          )}
-
-          {/* Conditional Campaign Dropdown */}
-          {filtersOpen && sourceFilter === "META_ADS" && campaigns.length > 0 && (
-            <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm animate-slide-up sm:w-auto">
-              <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Campaign:</span>
-              <select
-                value={selectedCampaignId}
-                onChange={(e) => setSelectedCampaignId(e.target.value)}
-                className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[300px]"
-              >
-                <option value="">Select Campaign</option>
-                {campaigns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.campaign_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Conditional Broadcast Dropdown */}
-          {filtersOpen && sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-3 animate-slide-up sm:w-auto">
-              <div className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-surface-mid/80 bg-surface p-2.5 shadow-sm sm:w-auto">
-                <span className="font-label text-xs text-on-surface-muted font-bold uppercase tracking-wider shrink-0">Broadcast:</span>
+            {/* Campaign/Broadcast pickers */}
+            {sourceFilter === "META_ADS" && campaigns.length > 0 && (
+              <div className="mx-4 px-3 py-2.5 rounded-xl border border-[#e2e8f0] bg-white">
                 <select
-                  value={selectedBroadcastId}
-                  onChange={(e) => setSelectedBroadcastId(e.target.value)}
-                  className="min-w-0 flex-1 cursor-pointer bg-transparent pr-6 font-body text-xs font-semibold text-primary focus:outline-none sm:max-w-[340px]"
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  className="h-9 rounded-xl border border-[#e2e8f0] bg-white px-3 text-xs font-semibold text-[#0A1528] focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <option value="">Select Broadcast</option>
-                  {broadcastHistory.map((h) => (
-                    <option key={h.broadcast_id} value={h.broadcast_id}>
-                      {h.template_name} ({new Date(h.timestamp).toLocaleDateString()} · {getBroadcastWindowText(h.timestamp)})
+                  <option value="">All campaigns</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.campaign_name}
                     </option>
                   ))}
                 </select>
               </div>
-
-              {/* Selected Broadcast 24h Window Badge */}
-              {(() => {
-                const selectedBroadcast = broadcastHistory.find(h => h.broadcast_id === selectedBroadcastId);
-                if (!selectedBroadcast) return null;
-                const windowText = getBroadcastWindowText(selectedBroadcast.timestamp);
-                return (
-                  <div className={cn(
-                    "flex items-center gap-1.5 px-3 py-2 rounded-xl border font-label text-xs font-bold shadow-sm",
-                    windowText === "Expired"
-                      ? "bg-red-50 text-red-600 border-red-100"
-                      : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                  )}>
-                    <Clock size={12} />
-                    <span>Broadcast Window: {windowText}</span>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
-        </div>
-
-        <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="rounded-card bg-surface p-4 shadow-card ring-1 ring-[#c4c7c7]/15 sm:p-6">
-          <div className="mb-3 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="font-display text-sm font-bold text-primary">
-              {sourceFilter !== "ALL" ? `Action Box — Filtered Leads` : `Action Box — ${SEGMENT_LABELS[tab]} Leads`}
-            </h2>
-            {lastResult && (
-              <p className="font-label text-xs text-on-surface-muted">
-                Sent {lastResult.sent} · Failed {lastResult.failed} · Outside 24h window {lastResult.skipped_window}
-              </p>
             )}
-          </div>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={3}
-            placeholder={sourceFilter !== "ALL" ? "Message to broadcast to filtered leads…" : `Message to broadcast to ${SEGMENT_LABELS[tab]} leads…`}
-            className="w-full px-4 py-3 bg-surface-low rounded-xl font-body text-sm text-on-surface border-0 focus:ring-2 focus:ring-primary resize-none"
-          />
-          {draft.trim() && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {sourceFilter === "ALL" && (
-              <button
-                onClick={saveTemplate}
-            disabled={savingTpl || draft === (templates[tab]?.message ?? "") || !canManageLeads}
-                className="flex items-center gap-2 px-4 py-2 bg-surface-low text-on-surface rounded-xl font-label text-xs font-semibold hover:bg-surface-mid transition-colors disabled:opacity-50"
-              >
-                <Save size={14} />
-                {savingTpl ? "Saving…" : "Save"}
-              </button>
-            )}
-            <button
-              onClick={broadcast}
-            disabled={broadcasting || !draft.trim() || !canManageLeads}
-              className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-xl font-label text-xs font-semibold hover:bg-secondary/90 transition-colors disabled:opacity-50"
-            >
-              <Send size={14} />
-              {broadcasting ? "Sending…" : sourceFilter !== "ALL" ? "Send to Filtered Leads" : `Send to ${SEGMENT_LABELS[tab]}`}
-            </button>
-          </div>
-          )}
-        </div>
-        <aside className="flex flex-col justify-start gap-2 p-1 xl:py-2">
-          <button
-            type="button"
-            onClick={() => setFiltersOpen((open) => !open)}
-            aria-expanded={filtersOpen}
-            className={cn(
-              "flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 font-label text-xs font-bold shadow-sm transition-all",
-              filtersOpen ? "border-primary bg-primary-light text-primary" : "border-[#e2e8f0] bg-white text-[#13284A] hover:bg-[#f5f1eb]",
-            )}
-          >
-            <Filter size={14} />
-            Filters
-          </button>
-          <button
-            type="button"
-            onClick={refreshLeads}
-            disabled={refreshing}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-label text-xs font-bold text-[#0A1528] shadow-sm transition-all hover:bg-[#f1f5f9] disabled:opacity-40"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </button>
-          <button
-            onClick={() => setComposing(true)}
-            disabled={!canManageLeads}
-            title={canManageLeads ? "New message" : "Read-only role: sending is disabled"}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--primary-950)] to-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:from-primary hover:to-[var(--primary-950)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Plus size={14} />
-            New Message
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                await api.leads.exportLeads(tab);
-                toast.success("Export downloaded");
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Export failed");
-              }
-            }}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 font-label text-xs font-bold text-[#0A1528] shadow-sm transition-all hover:bg-[#f1f5f9]"
-          >
-            <Download size={14} />
-            Export {SEGMENT_LABELS[tab]}
-          </button>
-        </aside>
-        </div>
 
-        <div className="bg-surface rounded-card shadow-card ring-1 ring-[#c4c7c7]/15">
-          {loading ? (
-            <div className="p-8 text-center font-body text-on-surface-muted">Loading…</div>
-          ) : leads.length === 0 ? (
-            <div className="p-8 text-center font-body text-on-surface-muted">No leads found for these filters</div>
-          ) : (
-            <>
-            <div className="space-y-3 p-3 md:hidden">
-              {sortedLeads.map((lead) => (
-                <MobileRecordCard
-                  key={lead.id}
-                  onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
-                  className="cursor-pointer"
+            {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
+              <div className="mx-4 px-3 py-2.5 rounded-xl border border-[#e2e8f0] bg-white">
+                <select
+                  value={selectedBroadcastId}
+                  onChange={(e) => setSelectedBroadcastId(e.target.value)}
+                  className="h-9 rounded-xl border border-[#e2e8f0] bg-white px-3 text-xs font-semibold text-[#0A1528] focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  <MobileRecordHeader
-                    title={lead.phone ? formatPhone(lead.phone) : (lead.name || "No contact")}
-                    subtitle={<NameCell lead={lead} onUpdate={(updated) => mutate(leads.map((l) => (l.id === updated.id ? updated : l)), false)} />}
-                    aside={
-                      <span className="rounded-full bg-primary/10 px-2.5 py-1 font-label text-[11px] font-bold text-primary">
-                        {SEGMENT_LABELS[lead.segment] ?? lead.segment}
-                      </span>
+                  <option value="">All broadcasts</option>
+                  {broadcastHistory.map((h) => (
+                    <option key={h.broadcast_id} value={h.broadcast_id}>
+                      {h.template_name} · {new Date(h.timestamp).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Info banner */}
+            {!tipsDismissed && (
+              <div className="mx-4 mt-3 flex items-start gap-3 rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5">
+                <Info size={14} className="text-primary shrink-0 mt-0.5" />
+                <p className="text-xs text-[#334155]">
+                  <b className="text-primary">Reply window:</b> WhatsApp &amp; Instagram let you send any free message within 24 hours of the customer&apos;s last message. After that, send an approved template.
+                </p>
+                <button
+                  onClick={() => {
+                    setTipsDismissed(true);
+                    try {
+                      localStorage.setItem("segments.replyTipDismissed", "1");
+                    } catch {
+                      // ignore
                     }
-                  />
-                  <MobileRecordGrid>
-                    <MobileRecordField
-                      label="Segment"
-                      value={<SegmentBadge segment={lead.segment} />}
-                    />
-                    <MobileRecordField
-                      label="Assigned"
-                      value={lead.assigned_to ? (callers.find((c) => c.id === lead.assigned_to)?.name ?? "Caller") : "Unassigned"}
-                    />
-                    <MobileRecordField label="Source" value={<span className="capitalize">{lead.source}</span>} />
-                    <MobileRecordField label="24h Window" value={format24hWindow(lead.last_inbound_at)} />
-                    <MobileRecordField label="Added" value={timeAgo(lead.created_at)} />
-                    {sourceFilter === "BROADCAST" && (
-                      <MobileRecordField label="Broadcast" value={lead.broadcast_sent_at ? timeAgo(lead.broadcast_sent_at) : "Not sent"} />
+                  }}
+                  className="text-primary hover:text-primary/70 shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+
+            {/* Selection bar */}
+            {selectedIds.size > 0 && (
+              <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#0A1528] px-4 py-2.5 text-white">
+                <span className="font-bold text-xs">{selectedIds.size} selected</span>
+                {canReply && (
+                  <button
+                    onClick={openSendMessageModal}
+                    className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                  >
+                    <MessageSquare size={12} />
+                    Send message
+                  </button>
+                )}
+                {role === "owner" && (
+                  <div ref={assignPopoverRef} className="relative">
+                    <button
+                      onClick={() => setAssignPopoverOpen(!assignPopoverOpen)}
+                      className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                    >
+                      <UserPlus size={12} />
+                      Assign
+                    </button>
+                    {assignPopoverOpen && (
+                      <div className="absolute top-full left-0 mt-1 z-30 rounded-xl border border-[#e2e8f0] bg-white shadow-lg min-w-[180px]">
+                        <button
+                          onClick={() => bulkAssign(null)}
+                          className="w-full text-left px-4 py-2.5 text-xs font-semibold text-[#334155] hover:bg-slate-50 transition-colors"
+                        >
+                          Unassigned
+                        </button>
+                        {callers.map((caller) => (
+                          <button
+                            key={caller.id}
+                            onClick={() => bulkAssign(caller.id)}
+                            className="w-full text-left px-4 py-2.5 text-xs font-semibold text-[#334155] hover:bg-slate-50 transition-colors border-t border-[#f1f5f9]"
+                          >
+                            {caller.name}
+                          </button>
+                        ))}
+                      </div>
                     )}
-                  </MobileRecordGrid>
-                  {role === "owner" && (
-                    <div className="mt-4 flex justify-end" onClick={(e) => e.stopPropagation()}>
-                      <AssignButton
-                        leadId={lead.id}
-                        currentAssignedTo={lead.assigned_to}
-                        callers={callers}
-                        onAssigned={(callerId) => {
-                          mutate(
-                            leads.map((l) =>
-                              l.id === lead.id ? { ...l, assigned_to: callerId } : l
-                            ),
-                            false
-                          );
-                        }}
-                      />
+                  </div>
+                )}
+                {canManageLeads && (
+                <div ref={changeSegmentPopoverRef} className="relative">
+                  <button
+                    onClick={() => setChangeSegmentPopoverOpen(!changeSegmentPopoverOpen)}
+                    className="rounded-lg bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20 transition-colors flex items-center gap-1.5"
+                  >
+                    <ArrowLeftRight size={12} />
+                    Change segment
+                  </button>
+                  {changeSegmentPopoverOpen && (
+                    <div className="absolute top-full left-0 mt-1 z-30 rounded-xl border border-[#e2e8f0] bg-white shadow-lg min-w-[180px]">
+                      {SEGMENTS.map((seg, idx) => (
+                        <button
+                          key={seg}
+                          onClick={() => bulkChangeSegment(seg)}
+                          className={cn(
+                            "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-slate-50",
+                            idx > 0 && "border-t border-[#f1f5f9]"
+                          )}
+                        >
+                          {SEGMENT_LABELS[seg]}
+                        </button>
+                      ))}
                     </div>
                   )}
-                </MobileRecordCard>
-              ))}
+                </div>
+                )}
+                <button
+                  onClick={() => setSelectedIds(new Set())}
+                  className="ml-auto text-white/60 hover:text-white text-xs font-bold"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="hidden md:block overflow-x-auto">
+              {isLoading && !leads.length ? (
+                <div className="p-8 text-center text-xs text-[#64748b]">Loading...</div>
+              ) : leads.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#64748b]">
+                  <p>No leads match these filters</p>
+                  {hasFilters && (
+                    <button
+                      onClick={() => {
+                        setSearchInput("");
+                        setSourceFilter("ALL");
+                        setAssigned(undefined);
+                        setReplyWindow(undefined);
+                        setSort(undefined);
+                        setDate("date_from", "");
+                        setDate("date_to", "");
+                      }}
+                      className="text-primary text-xs font-semibold mt-2 hover:opacity-70"
+                    >
+                      Clear filters
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[#f1f5f9]">
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          ref={headerCheckboxRef}
+                          type="checkbox"
+                          checked={selectedIds.size === leads.length && leads.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedIds(new Set(leads.map((l) => l.id)));
+                            } else {
+                              setSelectedIds(new Set());
+                            }
+                          }}
+                          className="accent-[var(--primary)] h-4 w-4 rounded"
+                        />
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        Customer
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        Lead
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        Source
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        <button
+                          onClick={() => {
+                            if (sort === "urgent") {
+                              setSort(undefined);
+                              setReplyWindow(undefined);
+                            } else {
+                              setSort("urgent");
+                              setReplyWindow("open");
+                            }
+                          }}
+                          className="flex items-center gap-1.5 uppercase tracking-wider text-primary hover:opacity-70"
+                        >
+                          Reply window ↑
+                          {sort === "urgent" && (
+                            <span className="inline-block bg-primary/10 text-primary text-[9px] rounded px-1.5 py-0.5 font-semibold">
+                              Most urgent first
+                            </span>
+                          )}
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        Assigned to
+                      </th>
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        <button
+                          onClick={() => {
+                            if (sort === "newest") {
+                              setSort("oldest");
+                            } else if (sort === "oldest") {
+                              setSort(undefined);
+                            } else {
+                              setSort("newest");
+                            }
+                          }}
+                          className="uppercase tracking-wider hover:opacity-70"
+                        >
+                          Added ⇅
+                        </button>
+                      </th>
+                      <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leads.map((lead) => {
+                      const avatar = getAvatarInitials(lead);
+                      const channelDot = getChannelDot(lead);
+                      const status = getReplyWindowStatus(lead);
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
+                          className={cn(
+                            "border-t border-[#f1f5f9] hover:bg-[#f8fafc] transition-colors cursor-pointer",
+                            selectedIds.has(lead.id) && "bg-primary-light/60"
+                          )}
+                        >
+                          <td
+                            className="px-4 py-3"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(lead.id)}
+                              onChange={(e) => {
+                                const newIds = new Set(selectedIds);
+                                if (e.target.checked) {
+                                  newIds.add(lead.id);
+                                } else {
+                                  newIds.delete(lead.id);
+                                }
+                                setSelectedIds(newIds);
+                              }}
+                              className="accent-[var(--primary)] h-4 w-4 rounded"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="relative">
+                                <div
+                                  className="h-9 w-9 rounded-full flex items-center justify-center text-white font-bold text-[11px]"
+                                  style={{ backgroundColor: avatar.bgColor }}
+                                >
+                                  {avatar.text}
+                                </div>
+                                <div
+                                  className="h-3 w-3 rounded-full ring-2 ring-white absolute bottom-0 right-0"
+                                  style={{ backgroundColor: channelDot.color }}
+                                  title={channelDot.title}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-bold text-sm text-[#0A1528]">
+                                  {getPrimaryLine(lead)}
+                                </div>
+                                {getSecondaryLine(lead) && (
+                                  <div className="text-xs text-[#64748b]">{getSecondaryLine(lead)}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <SegmentBadge segment={lead.segment} />
+                          </td>
+                          <td className="px-4 py-3 text-sm text-[#334155]">
+                            {sourceLabel(lead.source)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {renderReplyWindowCell(lead)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {role === "owner" ? (
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <AssignButton
+                                  leadId={lead.id}
+                                  currentAssignedTo={lead.assigned_to}
+                                  callers={callers}
+                                  onAssigned={() => {
+                                    mutateList();
+                                  }}
+                                />
+                              </div>
+                            ) : lead.assigned_to ? (
+                              <span className="text-xs font-semibold text-[#334155]">
+                                {callers.find((c) => c.id === lead.assigned_to)?.name || "Caller"}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-[#64748b]">Unassigned</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs text-[#64748b]">
+                            {timeAgo(lead.created_at)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {status.isOpen ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/dashboard/conversations?lead=${lead.id}`);
+                                }}
+                                className="rounded-lg bg-primary px-4 py-1.5 text-xs font-bold text-white hover:bg-primary/90"
+                              >
+                                Reply
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSendTemplateLeadId(lead.id);
+                                }}
+                                className="rounded-lg border border-primary px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/5"
+                              >
+                                Send template
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
-            <table className="hidden w-full md:table">
-              <thead>
-                <tr className="border-b border-surface-mid">
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Contact/ID</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Name</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Segment</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Assigned To</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Source</th>
-                  {sourceFilter === "BROADCAST" && (
-                    <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Broadcast Sent</th>
-                  )}
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">24h Window</th>
-                  <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Added</th>
-                  {role === "owner" && (
-                    <th className="px-6 py-4 text-left font-label text-xs text-on-surface-muted uppercase tracking-widest">Actions</th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedLeads.map((lead, i) => (
-                  <tr
+
+            {/* Mobile view */}
+            <div className="block md:hidden space-y-3 p-3">
+              {isLoading && !leads.length ? (
+                <div className="p-8 text-center text-xs text-[#64748b]">Loading...</div>
+              ) : leads.length === 0 ? (
+                <div className="p-8 text-center text-xs text-[#64748b]">No leads match these filters</div>
+              ) : (
+                leads.map((lead) => (
+                  <MobileRecordCard
                     key={lead.id}
                     onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
-                    className={`cursor-pointer border-b border-surface-mid/50 hover:bg-surface-low transition-colors ${
-                      i % 2 === 0 ? "" : "bg-surface-low/30"
-                    }`}
+                    className="cursor-pointer"
                   >
-                    <td className="px-6 py-4 font-body text-sm text-on-surface">
-                      {lead.phone ? formatPhone(lead.phone) : (lead.source === "telegram" ? `@${lead.tg_username || "unknown"}` : (lead.source === "instagram" ? lead.ig_user_id : (lead.source === "facebook" ? lead.fb_user_id : "No Contact")))}
-                    </td>
-                    <td className="px-6 py-4">
-                      <NameCell
-                        lead={lead}
-                        onUpdate={(updated) => {
-                          mutate(
-                            leads.map((l) => (l.id === updated.id ? updated : l)),
-                            false
-                          );
-                        }}
+                    <MobileRecordHeader
+                      title={getPrimaryLine(lead)}
+                      subtitle={getSecondaryLine(lead) as string | undefined}
+                      aside={<SegmentBadge segment={lead.segment} />}
+                    />
+                    <MobileRecordGrid>
+                      <MobileRecordField
+                        label="Source"
+                        value={sourceLabel(lead.source)}
                       />
-                    </td>
-                    <td className="px-6 py-4">
-                      <SegmentBadge segment={lead.segment} />
-                    </td>
-                    <td className="px-6 py-4">
-                      {lead.assigned_to ? (
-                        <span className="font-label text-xs font-semibold text-ink">
-                          {callers.find((c) => c.id === lead.assigned_to)?.name ?? "Caller"}
-                        </span>
-                      ) : (
-                        <span className="font-label text-xs text-ink-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 font-label text-xs text-on-surface-muted capitalize">{lead.source}</td>
-                    {sourceFilter === "BROADCAST" && (
-                      <td className="px-6 py-4 font-label text-xs text-on-surface-muted">{lead.broadcast_sent_at ? timeAgo(lead.broadcast_sent_at) : "—"}</td>
-                    )}
-                    <td className="px-6 py-4">
-                      {format24hWindow(lead.last_inbound_at)}
-                    </td>
-                    <td className="px-6 py-4 font-label text-xs text-on-surface-muted">{timeAgo(lead.created_at)}</td>
-                    {role === "owner" && (
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
+                      <MobileRecordField label="Assigned" value={lead.assigned_to ? callers.find((c) => c.id === lead.assigned_to)?.name || "Caller" : "Unassigned"} />
+                      <MobileRecordField label="Added" value={timeAgo(lead.created_at)} />
+                      <MobileRecordField
+                        label="Reply window"
+                        value={(() => {
+                          const status = getReplyWindowStatus(lead);
+                          if (status.isOpen) {
+                            return status.isUrgent ? `⚠ ${status.minutes}m left` : `${status.hours}h ${status.minutes}m left`;
+                          }
+                          return "Closed";
+                        })()}
+                      />
+                    </MobileRecordGrid>
+                    <div className="mt-4 flex items-center justify-between" onClick={(e) => e.stopPropagation()}>
+                      <div>
+                        {role === "owner" && (
                           <AssignButton
                             leadId={lead.id}
                             currentAssignedTo={lead.assigned_to}
                             callers={callers}
-                            onAssigned={(callerId) => {
-                              mutate(
-                                leads.map((l) =>
-                                  l.id === lead.id ? { ...l, assigned_to: callerId } : l
-                                ),
-                                false
-                              );
-                            }}
+                            onAssigned={() => mutateList()}
                           />
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </>
-          )}
+                        )}
+                      </div>
+                      <div>
+                        {getReplyWindowStatus(lead).isOpen ? (
+                          <button
+                            onClick={() => router.push(`/dashboard/conversations?lead=${lead.id}`)}
+                            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white hover:bg-primary/90"
+                          >
+                            Reply
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setSendTemplateLeadId(lead.id)}
+                            className="rounded-lg border border-primary px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/5"
+                          >
+                            Send template
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </MobileRecordCard>
+                ))
+              )}
+            </div>
+
+            {/* Pagination */}
+            {!isLoading && leads.length > 0 && (
+              <div className="flex items-center justify-between border-t border-[#f1f5f9] px-4 py-3">
+                <div className="text-xs text-[#64748b]">
+                  Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalLeads)} of {totalLeads} {SEGMENT_LABELS[tab]} leads
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage(Math.max(1, page - 1))}
+                    disabled={page === 1}
+                    className="px-2 py-1.5 text-xs font-bold text-[#0A1528] hover:opacity-70 disabled:opacity-40"
+                  >
+                    ‹ Prev
+                  </button>
+                  <div className="flex gap-1">
+                    {(() => {
+                      const totalPages = Math.ceil(totalLeads / PAGE_SIZE);
+                      const maxPages = 5;
+                      const pages: (number | string)[] = [];
+                      const range = Math.ceil(maxPages / 2);
+
+                      // Always include page 1
+                      pages.push(1);
+
+                      // Add pages around current page
+                      for (let i = Math.max(2, page - range); i <= Math.min(totalPages - 1, page + range); i++) {
+                        pages.push(i);
+                      }
+
+                      // Always include last page
+                      if (totalPages > 1 && !pages.includes(totalPages)) {
+                        pages.push(totalPages);
+                      }
+
+                      // Add ellipsis where needed
+                      const renderedPages: (number | string)[] = [];
+                      for (let i = 0; i < pages.length; i++) {
+                        if (i > 0 && (pages[i] as number) - (pages[i - 1] as number) > 1) {
+                          if (renderedPages[renderedPages.length - 1] !== "...") {
+                            renderedPages.push("...");
+                          }
+                        }
+                        renderedPages.push(pages[i]);
+                      }
+
+                      return renderedPages.map((pageNum, idx) => {
+                        if (pageNum === "...") {
+                          return (
+                            <span key={`dots-${idx}`} className="px-1 text-[#64748b]">
+                              ...
+                            </span>
+                          );
+                        }
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum as number)}
+                            className={cn(
+                              "h-8 min-w-8 rounded-lg border text-xs font-bold transition-colors",
+                              pageNum === page
+                                ? "bg-primary text-white border-primary"
+                                : "border-[#e2e8f0] text-[#0A1528] hover:border-primary hover:text-primary"
+                            )}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => setPage(Math.min(Math.ceil(totalLeads / PAGE_SIZE), page + 1))}
+                    disabled={page === Math.ceil(totalLeads / PAGE_SIZE)}
+                    className="px-2 py-1.5 text-xs font-bold text-[#0A1528] hover:opacity-70 disabled:opacity-40"
+                  >
+                    Next ›
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
       )}
     </div>
   );

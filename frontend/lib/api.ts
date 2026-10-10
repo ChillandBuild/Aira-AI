@@ -1645,6 +1645,41 @@ export const api = {
       const res = await apiFetch<{ data: Lead[] }>(`/api/v1/leads/?${qs}`);
       return res.data || [];
     },
+    listPage: async (params: {
+      segment?: string;
+      page?: number;
+      limit?: number;
+      assigned_to?: string;
+      source_filter?: string;
+      broadcast_id?: string;
+      ad_campaign_id?: string;
+      date_from?: string;
+      date_to?: string;
+      search?: string;
+      reply_window?: "open" | "closed";
+      sort?: "newest" | "oldest" | "urgent";
+    }) => {
+      const qs = new URLSearchParams();
+      if (params?.segment) qs.set("segment", params.segment);
+      if (params?.search) qs.set("search", params.search);
+      if (params?.assigned_to) qs.set("assigned_to", params.assigned_to);
+      if (params?.source_filter) qs.set("source_filter", params.source_filter);
+      if (params?.broadcast_id) qs.set("broadcast_id", params.broadcast_id);
+      if (params?.ad_campaign_id) qs.set("ad_campaign_id", params.ad_campaign_id);
+      if (params?.date_from) qs.set("date_from", params.date_from);
+      if (params?.date_to) qs.set("date_to", params.date_to);
+      if (params?.reply_window) qs.set("reply_window", params.reply_window);
+      if (params?.sort) qs.set("sort", params.sort);
+      if (typeof params?.page === "number" && Number.isFinite(params.page)) {
+        qs.set("page", String(params.page));
+      }
+      if (typeof params?.limit === "number" && Number.isFinite(params.limit)) {
+        const normalizedLimit = Math.min(Math.max(Math.trunc(params.limit), 1), MAX_LEADS_LIST_LIMIT);
+        qs.set("limit", String(normalizedLimit));
+      }
+      const res = await apiFetch<{ data: Lead[]; total: number; page: number; limit: number }>(`/api/v1/leads/?${qs}`);
+      return { data: res.data || [], total: res.total ?? 0 };
+    },
     get: (id: string) => apiFetch<Lead>(`/api/v1/leads/${id}`),
     update: (id: string, data: Partial<Pick<Lead, "name" | "score" | "segment">>) =>
       apiFetch<Lead>(`/api/v1/leads/${id}`, {
