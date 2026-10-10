@@ -29,7 +29,7 @@ const ACTIVE_LABEL = "text-white font-semibold tracking-tight";
 const ROW_ACTIVE = "bg-[rgba(var(--primary-400-rgb),0.14)] border-[rgba(var(--primary-400-rgb),0.28)]";
 const ROW_IDLE = "border-transparent text-slate-300 hover:bg-white/[0.06] hover:text-white";
 const ICON_ACTIVE = "text-[var(--primary-300)]";
-const ICON_IDLE = "text-slate-400 group-hover:text-white";
+const ICON_IDLE = "text-slate-300 group-hover:text-white";
 const GROUP_BUTTON =
   "flex items-center gap-3 px-3 py-2 w-full rounded-xl text-sm font-semibold text-left transition-all group";
 
@@ -103,7 +103,7 @@ function TelecallingGroup({
       >
         <Icon size={16} className={active ? ICON_ACTIVE : ICON_IDLE} />
         <span className="flex-1">{group.label}</span>
-        {open ? <ChevronDown size={14} className="text-slate-500" /> : <ChevronRight size={14} className="text-slate-500" />}
+        {open ? <ChevronDown size={14} className="text-slate-400" /> : <ChevronRight size={14} className="text-slate-400" />}
       </button>
       {open && (
         <div className="space-y-0.5">
@@ -148,7 +148,7 @@ function SettingsGroupButton({ group, active, onOpen }: { group: NavGroup; activ
     <button type="button" onClick={onOpen} className={cn(GROUP_BUTTON, active ? "text-[var(--primary-300)]" : "text-slate-300 hover:bg-white/[0.06] hover:text-white")}>
       <Icon size={16} className={active ? ICON_ACTIVE : ICON_IDLE} />
       <span className="flex-1">{group.label}</span>
-      <ChevronRight size={14} className="text-slate-500" />
+      <ChevronRight size={14} className="text-slate-400" />
     </button>
   );
 }
@@ -383,7 +383,7 @@ export function Sidebar(_props: SidebarProps) {
             if (groupItems.length === 0) return null;
             return (
               <div key={group} className="pt-2 first:pt-0">
-                <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <div className="px-3 pb-1 font-label text-[10px] font-bold uppercase tracking-wider text-slate-300">
                   {group}
                 </div>
                 {groupItems.map((item) => {
