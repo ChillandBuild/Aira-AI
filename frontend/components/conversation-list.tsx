@@ -272,7 +272,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
             {/* ── Title row ── */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-1.5">
-                <h2 className="font-display text-base font-bold text-on-surface tracking-tight capitalize">
+                <h2 className="font-display text-[15px] font-bold text-on-surface tracking-tight capitalize">
                   {folder === "chats" ? "Shared Inbox" : folder}
                 </h2>
                 {onCollapse && (
@@ -307,7 +307,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                   placeholder="Type and submit to search"
                   value={searchQuery}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  className="w-full pl-8 pr-7 py-2 bg-surface-low border border-surface-mid rounded-xl text-[13px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className="w-full pl-8 pr-7 py-1.5 bg-surface-low border border-surface-mid rounded-xl text-[12.5px] text-on-surface placeholder:text-on-surface-muted focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
                 />
                 {searchQuery && (
                   <button onClick={() => onSearchChange("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-muted hover:text-on-surface p-0.5 rounded-full hover:bg-surface-mid transition-colors">
@@ -469,7 +469,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
               role="button"
               tabIndex={0}
               className={cn(
-                "w-full text-left px-4 py-3.5 border-b border-surface-mid/40 transition-all duration-150 group flex items-start gap-3 relative cursor-pointer",
+                "w-full text-left px-3.5 py-3 border-b border-surface-mid/40 transition-all duration-150 group flex items-start gap-3 relative cursor-pointer",
                 selectedId === lead.id
                   ? "bg-surface before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-primary"
                   : "hover:bg-surface"
@@ -487,7 +487,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
               )}
 
               {/* Channel avatar — the logo of the channel the chat arrived on */}
-              <ChannelAvatar source={lead.source} size={44} className="mt-0.5" />
+              <ChannelAvatar source={lead.source} size={40} className="mt-0.5" />
 
               {/* Content */}
               <div className="flex-1 min-w-0">
@@ -495,7 +495,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <div className="flex items-center gap-1 min-w-0">
                     <span className={cn(
-                      "font-display text-[13.5px] font-semibold truncate",
+                      "font-display text-[13px] font-semibold truncate",
                       selectedId === lead.id ? "text-primary" : "text-on-surface"
                     )}>
                       {lead.name || formatPhone(lead.phone) || "Unknown"}
@@ -529,7 +529,7 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
                 {/* Row 2: preview + sender indicator */}
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <p className={cn(
-                    "font-body text-[12px] truncate leading-snug min-w-0",
+                    "font-body text-[11.5px] truncate leading-snug min-w-0",
                     isLink ? "text-primary" : "text-on-surface-muted"
                   )}>
                     {preview}
