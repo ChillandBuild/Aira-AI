@@ -8,13 +8,15 @@ import { usePolling } from "@/hooks/usePolling";
 import { ChannelAvatar, getChannel, CHANNEL_LABEL } from "./channel-avatar";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { SwitchPill } from "@/components/ui/controls";
+import { ShareProductMenu } from "@/components/chat/ShareProductMenu";
+import { NewDealDialog } from "@/components/deals/NewDealDialog";
 import { fetchHandovers, resolveHandover } from "@/lib/escalations";
 import {
   CheckCircle2,
   AlertTriangle, Pencil, Trash2,
   FileText, Image as ImageIcon,
   Music, Video, Download, X, Eraser, MoreVertical,
-  ArrowLeft, Check, CheckCheck, Flag, Info, Smile, SendHorizontal, Paperclip,
+  ArrowLeft, Check, CheckCheck, Flag, Info, Smile, SendHorizontal, Paperclip, CreditCard,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -223,6 +225,8 @@ export function ChatThread({
 }) {
   const { role, permissions } = useAuthRole();
   const canReplyToConversations = role === "owner" || permissions.includes("conversations.reply");
+  const canManageDeals = role === "owner" || permissions.includes("deals.manage");
+  const [paymentDealOpen, setPaymentDealOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState<Lead>(lead);
@@ -717,30 +721,50 @@ export function ChatThread({
           </div>
         )}
 
-        {/* Quick actions row */}
+        {/* Quick actions row. Templates, products and payment links go out on WhatsApp only. */}
+        {isWhatsApp && canReplyToConversations && (
         <div className="mb-2 flex flex-wrap gap-2">
-          {/* Send template button */}
           <button
+            type="button"
             onClick={() => setTemplateModalOpen(true)}
             className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors"
-            title="Send a template"
+            title="Send an approved WhatsApp template (works any time)"
           >
             <FileText size={13} />
             Send template
           </button>
 
-          {/* Attach button */}
-          {canSendMedia && (
+          <ShareProductMenu
+            leadId={current.id}
+            className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors"
+            disabledReason={outsideWindow ? "WhatsApp only delivers this within 24 hours of the customer's last message. Send a template instead." : null}
+            onSent={() => void pollMessages()}
+          />
+
+          {canManageDeals && (
             <button
-              onClick={() => fileInputRef.current?.click()}
+              type="button"
+              onClick={() => setPaymentDealOpen(true)}
               className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors"
-              title="Attach a file"
+              title="Create a deal and send its payment link on WhatsApp"
             >
-              <Paperclip size={13} />
-              Attach
+              <CreditCard size={13} />
+              Payment link
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!canSendMedia}
+            className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            title={canSendMedia ? "Attach a file" : "Turn AI replies off to send a file yourself"}
+          >
+            <Paperclip size={13} />
+            Attach
+          </button>
         </div>
+        )}
 
         {/* Hidden file input */}
         <input
@@ -753,6 +777,18 @@ export function ChatThread({
             if (f) setSelectedFile(f);
             e.target.value = "";
           }}
+        />
+
+        <NewDealDialog
+          open={paymentDealOpen}
+          onClose={() => setPaymentDealOpen(false)}
+          onCreated={() => {
+            setPaymentDealOpen(false);
+            void pollMessages();
+          }}
+          defaultLead={{ id: current.id, name: current.name ?? null, phone: current.phone ?? null }}
+          defaultSource="manual"
+          defaultOutcome="link"
         />
 
         {/* Template modal */}
@@ -769,7 +805,7 @@ export function ChatThread({
                   <X size={18} />
                 </button>
               </div>
-              <SendDetailsCard leadId={current.id} />
+              <SendDetailsCard leadId={current.id} explainUnavailable />
             </div>
           </div>
         )}
@@ -827,7 +863,7 @@ export function ChatThread({
                 <Smile size={16} />
               </button>
               {emojiOpen && (
-                <div className="absolute bottom-full right-0 mb-2 bg-white border border-[#e2e8f0] rounded-xl shadow-xl p-3 grid grid-cols-8 gap-1 z-40">
+                <div className="absolute bottom-full right-0 z-40 mb-2 grid w-[288px] grid-cols-8 gap-0.5 rounded-xl border border-[#e2e8f0] bg-white p-2 shadow-xl">
                   {["😊", "🙏", "👍", "❤️", "🎉", "😀", "😂", "🤝", "✅", "🔥", "💐", "🌟", "📞", "📅", "💰", "🙌"].map((emoji) => (
                     <button
                       key={emoji}
@@ -835,7 +871,8 @@ export function ChatThread({
                         setDraft(draft + emoji);
                         setEmojiOpen(false);
                       }}
-                      className="text-lg hover:bg-slate-100 rounded p-1 transition-colors"
+                      type="button"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-[19px] leading-none transition-colors hover:bg-slate-100"
                       title={emoji}
                     >
                       {emoji}

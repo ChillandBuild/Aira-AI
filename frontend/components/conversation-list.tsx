@@ -196,7 +196,8 @@ export function ConversationList(props: Props) {
         </div>
 
         {/* ── Escalation panel content ── */}
-        <div className="flex-1 overflow-hidden">
+        {/* A bounded flex column, so the panel's table area is what scrolls. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {escalationPanelContent}
         </div>
       </div>

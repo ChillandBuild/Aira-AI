@@ -24,6 +24,8 @@ interface NewDealDialogProps {
   onCreated: (result: DealMutationResult) => void;
   defaultLead?: { id: string; name: string | null; phone: string | null };
   defaultSource?: ManualSource;
+  /** Preselect what happens on save, e.g. "link" from the chat's Payment link button. */
+  defaultOutcome?: Outcome;
 }
 
 const SOURCE_OPTIONS: { value: ManualSource; label: string }[] = [
@@ -88,7 +90,7 @@ function CopyLinkRow({ link }: { link: string }) {
   );
 }
 
-export function NewDealDialog({ open, onClose, onCreated, defaultLead, defaultSource }: NewDealDialogProps) {
+export function NewDealDialog({ open, onClose, onCreated, defaultLead, defaultSource, defaultOutcome }: NewDealDialogProps) {
   const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [lines, setLines] = useState<DealLineDraft[]>([newLine()]);
@@ -106,7 +108,7 @@ export function NewDealDialog({ open, onClose, onCreated, defaultLead, defaultSo
     setName("");
     setLines([newLine()]);
     setSource(defaultSource ?? "walk_in");
-    setOutcome("quote");
+    setOutcome(defaultOutcome ?? "quote");
     setPaymentMethod("cash");
     setNotes("");
     setPendingLink(null);

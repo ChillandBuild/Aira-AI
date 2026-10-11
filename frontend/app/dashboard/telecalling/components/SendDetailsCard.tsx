@@ -139,7 +139,16 @@ function SendDetailsSkeleton() {
 }
 
 /** Lead page card. Hidden when the tenant has no WhatsApp or the lead opted out. */
-export default function SendDetailsCard({ leadId, readOnly = false }: { leadId: string; readOnly?: boolean }) {
+export default function SendDetailsCard({
+  leadId,
+  readOnly = false,
+  explainUnavailable = false,
+}: {
+  leadId: string;
+  readOnly?: boolean;
+  /** In a dialog opened just for this, say why nothing can be sent instead of showing nothing. */
+  explainUnavailable?: boolean;
+}) {
   const [context, setContext] = useState<SendDetailsContext | null>(() => contextCache.get(leadId) ?? null);
   const [sending, setSending] = useState(false);
 
@@ -161,7 +170,14 @@ export default function SendDetailsCard({ leadId, readOnly = false }: { leadId: 
   }, [leadId, load]);
 
   if (!context) return <SendDetailsSkeleton />;
-  if (!context.available) return null;
+  if (!context.available) {
+    return explainUnavailable ? (
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 font-body text-sm text-amber-800">
+        WhatsApp templates can&apos;t go to this lead. They need a WhatsApp number on the lead, a connected WhatsApp
+        account, and a lead who hasn&apos;t opted out.
+      </p>
+    ) : null;
+  }
 
   async function send(body: { text: string } | { template_id: string; variables: string[] }) {
     setSending(true);

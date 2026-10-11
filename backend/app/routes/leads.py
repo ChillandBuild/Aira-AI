@@ -21,6 +21,7 @@ from app.services.ai_reply import (
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
+from app.services.share_product import ShareProductError, share_product
 from app.services.call_details_share import ShareError, compose_templates, send_approved_template
 
 logger = logging.getLogger(__name__)
@@ -972,6 +973,19 @@ async def send_human_message(
     db.table("leads").update({"needs_human_intervention": False}).eq("id", str(lead_id)).eq("tenant_id", tenant_id).execute()
     
     return row.data[0] if row.data else {"sent": True, "sid": sid}
+
+
+class ShareProductIn(BaseModel):
+    item_id: str = Field(..., max_length=64)
+
+
+@router.post("/{lead_id}/share-product")
+async def share_product_route(lead_id: UUID, payload: ShareProductIn, ctx: dict = Depends(require_conversations_reply)):
+    """Conversations 'Share product': one catalogue item, photo + name + price, on WhatsApp."""
+    try:
+        return await share_product(get_supabase(), ctx["tenant_id"], str(lead_id), payload.item_id)
+    except ShareProductError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 class ComposeMessage(BaseModel):

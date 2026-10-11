@@ -83,6 +83,8 @@ export default function ConversationsPage() {
   const [detailsOpen, setDetailsOpen] = useState(getDetailsPanelDefault);
   const [escalationCount, setEscalationCount] = useState(0);
   const [total, setTotal] = useState(0);
+  // The Inbox tab's badge: always the Inbox count, whichever tab is open.
+  const [inboxTotal, setInboxTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -126,9 +128,22 @@ export default function ConversationsPage() {
     if (folder === "escalations") return;
     const limit = debouncedSearch ? SEARCH_RESULTS_LIMIT : Math.max(CONVERSATIONS_PAGE_SIZE, leadsCountRef.current);
     fetchConversations(folder, limit, 0, debouncedSearch || undefined)
-      .then(({ leads: loaded, total: t }) => { setLeads(loaded); setTotal(t); setError(false); })
+      .then(({ leads: loaded, total: t }) => {
+        setLeads(loaded);
+        setTotal(t);
+        if (folder === "chats" && !debouncedSearch) setInboxTotal(t);
+        setError(false);
+      })
       .catch(() => setError(true));
   }, [folder, debouncedSearch]);
+
+  // On the other tabs, read the Inbox count on its own (one row is enough).
+  useEffect(() => {
+    if (folder === "chats") return;
+    fetchConversations("chats", 1, 0)
+      .then(({ total: t }) => setInboxTotal(t))
+      .catch(() => {});
+  }, [folder]);
 
   useEffect(() => { leadsCountRef.current = leads.length; }, [leads]);
   useEffect(() => { load(); }, [load]);
@@ -248,7 +263,7 @@ export default function ConversationsPage() {
     return (
       <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-[220px]">
         {/* Escalations take the whole page width, with the Conversations tabs above. */}
-        <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <ConversationList
             leads={[]}
             selectedId={null}
@@ -266,7 +281,7 @@ export default function ConversationsPage() {
             folder={folder}
             onFolderChange={handleFolderChange}
             escalationCount={escalationCount}
-            total={total}
+            total={inboxTotal}
             hasMore={false}
             loadingMore={false}
             onLoadMore={() => {}}
@@ -306,7 +321,7 @@ export default function ConversationsPage() {
           folder={folder}
           onFolderChange={handleFolderChange}
           escalationCount={escalationCount}
-          total={total}
+          total={inboxTotal}
           hasMore={leads.length < total}
           loadingMore={loadingMore}
           onLoadMore={loadMore}

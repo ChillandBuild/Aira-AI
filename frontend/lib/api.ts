@@ -1747,6 +1747,11 @@ export const api = {
       }
       return res.json();
     },
+    shareProduct: (leadId: string, itemId: string) =>
+      apiFetch<Message>(`/api/v1/leads/${leadId}/share-product`, {
+        method: "POST",
+        body: JSON.stringify({ item_id: itemId }),
+      }),
     compose: (phone: string, content: string, name?: string) =>
       apiFetch<{ lead_id: string; sid: string; phone: string }>(`/api/v1/leads/compose`, {
         method: "POST",

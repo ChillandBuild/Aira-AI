@@ -225,10 +225,14 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
   };
 
-  const setDate = (key: "date_from" | "date_to", value: string) => {
+  // Both dates in ONE url update: two back-to-back router.replace calls each start
+  // from the same old url, so the second would silently drop the first date.
+  const setDates = (from: string, to: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value) params.set(key, value);
-    else params.delete(key);
+    if (from) params.set("date_from", from);
+    else params.delete("date_from");
+    if (to) params.set("date_to", to);
+    else params.delete("date_to");
     router.replace(`/dashboard/leads?${params.toString()}`, { scroll: false });
   };
 
@@ -296,7 +300,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
   useEffect(() => {
     setPage(1);
     setSelectedIds(new Set());
-  }, [search, sourceFilter, selectedCampaignId, selectedBroadcastId, dateFrom, dateTo, assigned, replyWindow]);
+  }, [search, sourceFilter, selectedCampaignId, selectedBroadcastId, dateFrom, dateTo, assigned, replyWindow, sort]);
 
   // Search debounce effect
   useEffect(() => {
@@ -728,27 +732,23 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 value={getDatePreset()}
                 onChange={(val) => {
                   if (val === "any") {
-                    setDate("date_from", "");
-                    setDate("date_to", "");
+                    setDates("", "");
                   } else if (val === "today") {
                     const today = new Date();
                     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-                    setDate("date_from", todayStr);
-                    setDate("date_to", todayStr);
+                    setDates(todayStr, todayStr);
                   } else if (val === "7d") {
                     const to = new Date();
                     const toStr = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`;
                     const from = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
                     const fromStr = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
-                    setDate("date_from", fromStr);
-                    setDate("date_to", toStr);
+                    setDates(fromStr, toStr);
                   } else if (val === "30d") {
                     const to = new Date();
                     const toStr = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, "0")}-${String(to.getDate()).padStart(2, "0")}`;
                     const from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
                     const fromStr = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, "0")}-${String(from.getDate()).padStart(2, "0")}`;
-                    setDate("date_from", fromStr);
-                    setDate("date_to", toStr);
+                    setDates(fromStr, toStr);
                   }
                 }}
                 showValue={true}
@@ -977,8 +977,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                         setAssigned(undefined);
                         setReplyWindow(undefined);
                         setSort(undefined);
-                        setDate("date_from", "");
-                        setDate("date_to", "");
+                        setDates("", "");
                       }}
                       className="text-primary text-xs font-semibold mt-2 hover:opacity-70"
                     >

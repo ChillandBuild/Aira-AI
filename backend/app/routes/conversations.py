@@ -19,10 +19,18 @@ async def list_conversations(
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
 
-    rpc_params = {"p_tenant_id": tenant_id, "p_limit": limit, "p_offset": offset}
+    # The folder and the caller's own-leads rule are applied inside the SQL
+    # function (migration 223), so `total` and the page offsets count only the
+    # rows this folder shows.
     search = q.strip() if q else None
-    if search:
-        rpc_params["p_search"] = search
+    rpc_params = {
+        "p_tenant_id": tenant_id,
+        "p_limit": limit,
+        "p_offset": offset,
+        "p_search": search or None,
+        "p_folder": folder,
+        "p_caller_id": ctx["caller_id"] if ctx.get("role") == "caller" and ctx.get("caller_id") else None,
+    }
 
     rpc_rows = db.rpc("get_conversation_leads", rpc_params).execute()
 
@@ -49,23 +57,6 @@ async def list_conversations(
         .eq("tenant_id", tenant_id)
         .is_("deleted_at", "null")
     )
-
-    # Inbox folders. Default "chats" hides archived + blocked; the folder views
-    # surface exactly one of them.
-    if folder == "archived":
-        lead_query = lead_query.not_.is_("archived_at", "null")
-    elif folder == "blocked":
-        lead_query = lead_query.not_.is_("blocked_at", "null")
-    else:
-        lead_query = lead_query.is_("archived_at", "null").is_("blocked_at", "null")
-
-    # Callers see their assigned leads PLUS any lead in the shared escalation
-    # pool (a pending handover sets needs_human_attention) so they can resolve it.
-    if ctx.get("role") == "caller" and ctx.get("caller_id"):
-        lead_query = lead_query.or_(
-            f"assigned_to.eq.{ctx['caller_id']},needs_human_attention.eq.true"
-        )
-
     lead_rows = lead_query.execute()
 
     lead_map = {l["id"]: l for l in (lead_rows.data or [])}

@@ -27,7 +27,7 @@ export function SendTemplateModal({ leadId, onClose }: SendTemplateModalProps) {
           </button>
         </div>
 
-        <SendDetailsCard leadId={leadId} />
+        <SendDetailsCard leadId={leadId} explainUnavailable />
       </div>
     </div>
   );
