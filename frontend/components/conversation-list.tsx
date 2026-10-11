@@ -151,21 +151,6 @@ export function ConversationList(props: Props) {
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
             <h2 className="font-display text-[19px] font-bold text-[#0A1528]">Conversations</h2>
-            <div className="relative" ref={menuRef}>
-              <button onClick={() => setMenuOpen(!menuOpen)} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors">
-                <MoreVertical size={18} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden z-20 py-1.5">
-                  <button onClick={() => { setSelectionMode(true); setMenuOpen(false); }} className="w-full text-left px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                    Select chats
-                  </button>
-                  <button onClick={() => { setSelectionMode(true); setSelectedIds(new Set(visible.map(l => l.id))); setMenuOpen(false); }} className="w-full text-left px-4 py-2 text-[13px] font-medium text-slate-700 hover:bg-slate-50 transition-colors">
-                    Select all
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         </div>
 
