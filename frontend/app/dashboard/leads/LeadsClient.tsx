@@ -687,19 +687,19 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
           {/* Main card with filters and table */}
           <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
             {/* Filter bar: Refresh and Export stay on the first line; the filters wrap beside them. */}
-            <div className="flex flex-col gap-2 p-4 border-b border-[#e2e8f0] md:flex-row md:items-start">
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-2 p-4 border-b border-[#e2e8f0] min-[1360px]:flex-row min-[1360px]:items-center">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 min-[1360px]:flex-nowrap">
               {viewToggle}
 
               {/* Search input */}
-              <div className="relative">
+              <div className="relative min-w-[150px] flex-1 min-[1360px]:max-w-xs">
                 <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
                 <input
                   type="text"
                   placeholder="Search name or number"
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
-                  className="pl-10 pr-3 py-2 w-64 text-xs border border-[#e2e8f0] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="pl-10 pr-3 py-2 w-full text-xs border border-[#e2e8f0] rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
 
@@ -795,14 +795,16 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
               </div>
 
               {/* Right side buttons */}
-              <div className="flex shrink-0 gap-2">
+              <div className="flex shrink-0 gap-2 self-end min-[1360px]:self-auto">
                 <button
                   onClick={refreshLeads}
+                  title="Refresh"
+                  aria-label="Refresh"
                   disabled={refreshing}
                   className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors disabled:opacity-40"
                 >
                   <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-                  Refresh
+                  <span className="min-[1360px]:hidden 2xl:inline">Refresh</span>
                 </button>
                 <button
                   onClick={async () => {
@@ -813,10 +815,12 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                       toast.error(err instanceof Error ? err.message : "Export failed");
                     }
                   }}
+                  title="Export"
+                  aria-label="Export"
                   className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors"
                 >
                   <Download size={14} />
-                  Export
+                  <span className="min-[1360px]:hidden 2xl:inline">Export</span>
                 </button>
               </div>
             </div>

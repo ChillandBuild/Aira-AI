@@ -52,11 +52,11 @@ export function FilterMenu({ label, options, value, onChange, showValue = true, 
   const selectedLabel = options.find((o) => o.value === value)?.label || options[0]?.label;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative shrink-0">
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "rounded-lg px-3 py-1.5 text-xs font-bold flex items-center gap-2 transition-colors",
+          "shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold flex items-center gap-2 transition-colors",
           dark
             ? "bg-white/10 text-white hover:bg-white/20"
             : "border border-[#e2e8f0] bg-white text-[#0A1528] hover:border-slate-300"
