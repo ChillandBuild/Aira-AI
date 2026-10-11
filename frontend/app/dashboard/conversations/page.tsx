@@ -6,8 +6,7 @@ import { ConversationList } from "@/components/conversation-list";
 import { ChatThread } from "@/components/chat-thread";
 import { LeadDetailsPanel } from "@/components/lead-details-panel";
 import { EscalationPanel } from "@/components/escalation-panel";
-import { InboxRail, type InboxFolder } from "@/components/inbox-rail";
-import { ChevronLeft } from "lucide-react";
+import { type InboxFolder } from "@/components/inbox-rail";
 import { usePolling } from "@/hooks/usePolling";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -247,26 +246,47 @@ export default function ConversationsPage() {
 
   if (folder === "escalations") {
     return (
-      <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-[284px]">
-        <div className="hidden md:block">
-          <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
+      <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-[220px]">
+        {/* ── Conversation list with header (tabs visible above escalation panel) ── */}
+        <div className={`relative w-full flex-shrink-0 md:block md:w-[380px] md:max-w-[38vw]`}>
+          <ConversationList
+            leads={[]}
+            selectedId={null}
+            onSelect={() => {}}
+            platform={platform}
+            onPlatformChange={setPlatform}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onRefresh={load}
+            onPin={handlePin}
+            onPinSelected={handlePinSelected}
+            onArchive={handleArchive}
+            canArchive={canReplyToConversations}
+            onBlock={handleBlock}
+            folder={folder}
+            onFolderChange={handleFolderChange}
+            escalationCount={escalationCount}
+            total={total}
+            hasMore={false}
+            loadingMore={false}
+            onLoadMore={() => {}}
+            onDeleted={() => {}}
+            escalationPanelContent={
+              <EscalationPanel
+                onReply={handleEscalationReply}
+                onCountChange={setEscalationCount}
+                currentCallerId={callerId}
+                canReplyToConversations={canReplyToConversations}
+              />
+            }
+          />
         </div>
-        <EscalationPanel
-          onReply={handleEscalationReply}
-          onCountChange={setEscalationCount}
-          currentCallerId={callerId}
-          canReplyToConversations={canReplyToConversations}
-        />
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-[284px]">
-      <div className="hidden md:block">
-        <InboxRail folder={folder} onFolderChange={handleFolderChange} escalationCount={escalationCount} />
-      </div>
-
+    <div className="flex h-[calc(100dvh-5.25rem)] overflow-hidden bg-background md:h-screen md:pl-[220px]">
       {/* ── Conversation list ── */}
       <div className={`relative w-full flex-shrink-0 md:block md:w-[380px] md:max-w-[38vw] ${selected ? "hidden" : "block"}`}>
         <ConversationList
@@ -284,6 +304,9 @@ export default function ConversationsPage() {
           canArchive={canReplyToConversations}
           onBlock={handleBlock}
           folder={folder}
+          onFolderChange={handleFolderChange}
+          escalationCount={escalationCount}
+          total={total}
           hasMore={leads.length < total}
           loadingMore={loadingMore}
           onLoadMore={loadMore}
@@ -306,6 +329,8 @@ export default function ConversationsPage() {
             setSelected(null);
           }}
           onLeadUpdate={(updated) => setSelected(updated)}
+          detailsOpen={detailsOpen}
+          onToggleDetails={() => setDetailsOpen((open) => !open)}
         />
       ) : (
         <div className="hidden flex-1 md:flex">
@@ -317,26 +342,15 @@ export default function ConversationsPage() {
       )}
 
       {/* ── Right: Lead details panel ── */}
-      {selected && (
-        <>
-          {detailsOpen ? (
-            <div className="hidden xl:block">
-              <LeadDetailsPanel
-                lead={selected}
-                onCollapse={() => setDetailsOpen(false)}
-                onLeadUpdate={(updated) => setSelected(updated)}
-              />
-            </div>
-          ) : (
-            <button
-              onClick={() => setDetailsOpen(true)}
-              title="Show contact details"
-              className="absolute right-0 top-1/2 z-30 hidden h-12 w-6 -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-surface-mid bg-surface text-on-surface-muted shadow-md transition-colors hover:bg-surface-low hover:text-primary xl:flex"
-            >
-              <ChevronLeft size={14} />
-            </button>
-          )}
-        </>
+      {/* Opened and closed from the chat header's "Lead info" button. */}
+      {selected && detailsOpen && (
+        <div className="hidden xl:block">
+          <LeadDetailsPanel
+            lead={selected}
+            onCollapse={() => setDetailsOpen(false)}
+            onLeadUpdate={(updated) => setSelected(updated)}
+          />
+        </div>
       )}
     </div>
   );

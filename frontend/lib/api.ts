@@ -28,6 +28,9 @@ export interface Lead {
   ad_campaign_id?: string | null;
   created_at: string;
   last_message_content?: string | null;
+  /** Who sent the last message (inbox rows); null when unknown. */
+  last_message_direction?: "inbound" | "outbound" | null;
+  last_message_is_ai?: boolean | null;
   pinned_at?: string | null;
   last_inbound_at?: string | null;
   broadcast_sent_at?: string | null;

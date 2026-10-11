@@ -69,12 +69,46 @@ async def list_conversations(
     lead_rows = lead_query.execute()
 
     lead_map = {l["id"]: l for l in (lead_rows.data or [])}
+    last_sender = _last_message_senders(db, tenant_id, last_reply_map)
     leads = []
     for lid in lead_ids:
         if lid in lead_map:
             lead = dict(lead_map[lid])
             lead["last_reply_at"] = last_reply_map.get(lid)
             lead["last_message_content"] = last_message_map.get(lid)
+            # Who sent the last message: lets the inbox say "AI replied" only when it did.
+            sender = last_sender.get(lid)
+            lead["last_message_direction"] = sender["direction"] if sender else None
+            lead["last_message_is_ai"] = bool(sender and sender.get("is_ai_generated")) if sender else None
             leads.append(lead)
 
     return {"leads": leads, "total": total}
+
+
+def _last_message_senders(db, tenant_id: str, last_reply_map: dict) -> dict:
+    """lead_id -> {direction, is_ai_generated} of that lead's latest message.
+
+    One query for the whole page: messages newer than the page's oldest activity,
+    newest first, keeping the first row seen per lead. A lead whose last message
+    falls outside the window is simply left out (the inbox then shows no sender tag)."""
+    times = [t for t in last_reply_map.values() if t]
+    if not times:
+        return {}
+    try:
+        rows = (
+            db.table("messages")
+            .select("lead_id,direction,is_ai_generated,created_at")
+            .eq("tenant_id", tenant_id)
+            .in_("lead_id", list(last_reply_map.keys()))
+            .gte("created_at", min(times))
+            .order("created_at", desc=True)
+            .limit(1000)
+            .execute()
+        ).data or []
+    except Exception as e:
+        logger.warning(f"last message sender lookup failed: {e}")
+        return {}
+    senders: dict = {}
+    for r in rows:
+        senders.setdefault(r["lead_id"], r)
+    return senders

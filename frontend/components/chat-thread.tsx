@@ -3,18 +3,22 @@ import { toast } from "sonner";
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import { api, Lead, Message } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
+import { cn, formatPhone } from "@/lib/utils";
 import { usePolling } from "@/hooks/usePolling";
-import { ChannelAvatar } from "./channel-avatar";
+import { ChannelAvatar, getChannel, CHANNEL_LABEL } from "./channel-avatar";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
-import { SegmentBadge } from "./segment-badge";
+import { SwitchPill } from "@/components/ui/controls";
+import { fetchHandovers, resolveHandover } from "@/lib/escalations";
 import {
-  Bot, User, CheckCircle2, Send, PowerOff, Power,
-  AlertTriangle, Pencil, MessageCircle, Trash2,
-  Plus, Mic, MicOff, FileText, Image as ImageIcon,
+  CheckCircle2,
+  AlertTriangle, Pencil, Trash2,
+  FileText, Image as ImageIcon,
   Music, Video, Download, X, Eraser, MoreVertical,
-  ArrowLeft,
+  ArrowLeft, Check, CheckCheck, Flag, Info, Smile, SendHorizontal, Paperclip,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+const SendDetailsCard = dynamic(() => import("@/app/dashboard/telecalling/components/SendDetailsCard"), { ssr: false });
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -32,33 +36,6 @@ function formatDateDivider(dateStr: string): string {
     month: "long",
     year: date.getFullYear() === now.getFullYear() ? undefined : "numeric",
   });
-}
-
-function IgIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function TgIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
-    </svg>
-  );
-}
-
-function FbIcon({ size = 10, className = "" }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-    </svg>
-  );
 }
 
 // ─── Media bubble renderer ────────────────────────────────────────────────────
@@ -139,51 +116,42 @@ function MediaBubble({ msg }: { msg: Message }) {
 
 // ─── Single message bubble (memoized — only re-renders when this message changes) ─
 const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
-  const isAiMediaRecommendation =
-    msg.direction === "outbound" &&
-    msg.is_ai_generated &&
-    msg.media_type === "image";
+  const isOutbound = msg.direction === "outbound";
+  const isAi = isOutbound && msg.is_ai_generated;
+  // Where an AI reply came from, shown in its label.
+  const aiSource = !isAi ? null
+    : msg.media_type === "image" ? "media recommendation"
+    : msg.reply_source === "knowledge" ? "📄 Knowledge Base"
+    : null;
 
   return (
-    <div className={cn("flex gap-2", msg.direction === "outbound" && "flex-row-reverse")}>
+    <div className={cn("flex", isOutbound && "justify-end")}>
       <div className={cn(
-        "w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5",
-        msg.direction === "outbound"
-          ? (msg.is_ai_generated ? "bg-secondary/10" : "bg-primary/10")
-          : "bg-surface-mid"
+        "max-w-[82%] md:max-w-[62%] px-3.5 py-2 rounded-2xl font-body text-[12.5px] leading-relaxed",
+        isOutbound
+          ? isAi
+            ? "bg-[#e6f6f5] text-[#0A1528] border border-primary/10 rounded-tr-md"
+            : "bg-primary text-white rounded-tr-md"
+          : "bg-white border border-[#eef1f5] text-[#0A1528] rounded-tl-md shadow-sm"
       )}>
-        {msg.direction === "outbound" ? (
-          msg.is_ai_generated ? <Bot size={14} className="text-secondary" /> : <User size={14} className="text-primary" />
-        ) : (
-          <User size={14} className="text-on-surface-muted" />
+        {isAi && (
+          <p className="mb-0.5 text-[10.5px] font-bold text-primary">
+            ✦ Anril AI{aiSource && <span className="font-semibold text-[#64748b]"> · {aiSource}</span>}
+          </p>
         )}
-      </div>
-      <div className={cn(
-        "max-w-[82%] md:max-w-[60%] px-3 py-1.5 rounded-xl font-body text-[12px] leading-relaxed",
-        msg.direction === "outbound"
-          ? "bg-primary text-white rounded-tr-sm"
-          : "bg-surface text-on-surface shadow-card rounded-tl-sm"
-      )}>
         {msg.media_type && <MediaBubble msg={msg} />}
         {msg.content && !(msg.media_type && msg.content.startsWith("[")) && (
           <p className={cn("whitespace-pre-wrap", msg.media_type && "mt-1.5 text-xs opacity-80")}>
             {msg.content}
           </p>
         )}
-        <p className="mt-1 text-[10px] opacity-60">
-          {msg.direction === "outbound" && (
-            <>
-              {isAiMediaRecommendation
-                ? "AI media recommendation"
-                : msg.is_ai_generated
-                ? msg.reply_source === "knowledge"
-                  ? "📄 Knowledge Base"
-                  : "✨ AI"
-                : "Sent by you"}
-              {" · "}
-            </>
-          )}
-          {new Date(msg.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+        <p className={cn(
+          "mt-1 flex items-center gap-1 text-[10px]",
+          isOutbound && !isAi ? "text-white/70" : "text-[#64748b]"
+        )}>
+          {isOutbound && !isAi && <span>Sent by you ·</span>}
+          <span>{new Date(msg.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+          {isOutbound && <CheckCheck size={12} />}
         </p>
       </div>
     </div>
@@ -194,7 +162,7 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
 function DateDivider({ dateStr }: { dateStr: string }) {
   return (
     <div className="flex justify-center my-3 select-none">
-      <span className="rounded-full bg-surface-low px-3 py-1 font-label text-[11px] font-semibold text-on-surface-muted shadow-sm">
+      <span className="rounded-full bg-slate-50 px-3 py-1 font-label text-[11px] font-semibold text-[#64748b] shadow-sm">
         {formatDateDivider(dateStr)}
       </span>
     </div>
@@ -217,7 +185,7 @@ function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
   const sizeMB = (file.size / 1024 / 1024).toFixed(1);
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-surface-low rounded-xl border border-surface-mid">
+    <div className="flex items-center gap-2 px-3 py-2 mb-2 bg-slate-50 rounded-xl border border-[#e2e8f0]">
       {isImage && previewUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={previewUrl} alt={file.name} loading="lazy" decoding="async" className="w-10 h-10 object-cover rounded-lg shrink-0" />
@@ -227,10 +195,10 @@ function FilePreview({ file, onRemove }: { file: File; onRemove: () => void }) {
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="font-label text-xs font-semibold text-on-surface truncate">{file.name}</p>
-        <p className="font-label text-[10px] text-on-surface-muted">{sizeMB} MB</p>
+        <p className="font-label text-xs font-semibold text-[#0A1528] truncate">{file.name}</p>
+        <p className="font-label text-[10px] text-[#64748b]">{sizeMB} MB</p>
       </div>
-      <button onClick={onRemove} className="p-1 rounded-lg hover:bg-surface-mid transition-colors text-on-surface-muted hover:text-red-500">
+      <button onClick={onRemove} className="p-1 rounded-lg hover:bg-slate-200 transition-colors text-[#64748b] hover:text-red-500">
         <X size={14} />
       </button>
     </div>
@@ -243,11 +211,15 @@ export function ChatThread({
   onDeleted,
   onLeadUpdate,
   onBack,
+  detailsOpen = false,
+  onToggleDetails,
 }: {
   lead: Lead;
   onDeleted?: (id: string) => void;
   onLeadUpdate?: (updated: Lead) => void;
   onBack?: () => void;
+  detailsOpen?: boolean;
+  onToggleDetails?: () => void;
 }) {
   const { role, permissions } = useAuthRole();
   const canReplyToConversations = role === "owner" || permissions.includes("conversations.reply");
@@ -255,7 +227,6 @@ export function ChatThread({
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState<Lead>(lead);
   const [converting, setConverting] = useState(false);
-  const [toggling, setToggling] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -268,12 +239,18 @@ export function ChatThread({
   // Media state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileCaption, setFileCaption] = useState("");
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+
+  // New header state
+  const [callers, setCallers] = useState<Record<string, string>>({});
+  const [handovers, setHandovers] = useState<Array<{ id: string; lead_id: string; reason?: string | null }>>([]);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [resolvingHandover, setResolvingHandover] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const emojiRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setCurrent(lead);
@@ -301,10 +278,37 @@ export function ChatThread({
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
+      if (emojiRef.current && !emojiRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Load callers and handovers on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.callers.list();
+        const callerMap: Record<string, string> = {};
+        (res.data || []).forEach((c: { id: string; name: string }) => {
+          callerMap[c.id] = c.name;
+        });
+        setCallers(callerMap);
+      } catch {
+        // Silent fail
+      }
+
+      try {
+        const ho = await fetchHandovers();
+        setHandovers(ho);
+      } catch {
+        // Silent fail
+      }
+    })();
+    // Re-read on each lead so the escalation reason belongs to the chat on screen.
+  }, [lead.id]);
 
   async function saveName() {
     const trimmed = nameDraft.trim();
@@ -356,14 +360,53 @@ export function ChatThread({
   }
 
   async function toggleAI() {
-    setToggling(true);
     try {
       const updated = await api.leads.toggleAI(lead.id, !current.ai_enabled);
       setCurrent(updated);
       onLeadUpdate?.(updated);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Toggle failed");
-    } finally { setToggling(false); }
+    }
+  }
+
+  function closeTemplateModal() {
+    setTemplateModalOpen(false);
+    // Show the template that was just sent.
+    void pollMessages();
+  }
+
+  async function markResolved() {
+    setResolvingHandover(true);
+    try {
+      // Fetch fresh: an escalation may have opened after this chat was loaded.
+      const pending = (await fetchHandovers()).filter((h) => h.lead_id === current.id);
+      if (pending.length === 0) {
+        toast.info("Nothing to resolve");
+        setResolvingHandover(false);
+        return;
+      }
+      for (const h of pending) {
+        await resolveHandover(h.id);
+      }
+      // Refetch the lead
+      const fresh = await api.leads.get(current.id);
+      setCurrent(fresh);
+      onLeadUpdate?.(fresh);
+      toast.success("Marked resolved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to resolve");
+    } finally { setResolvingHandover(false); }
+  }
+
+  function getSegmentPill() {
+    const segmentInfo: Record<string, { icon: string; label: string; bg: string; text: string; border: string }> = {
+      A: { icon: "🔥", label: "Hot lead", bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-200" },
+      B: { icon: "🌡️", label: "Warm lead", bg: "bg-amber-50", text: "text-amber-600", border: "border-amber-200" },
+      C: { icon: "❄️", label: "Cold lead", bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-200" },
+      D: { icon: "👋", label: "Not interested", bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" },
+    };
+    const info = segmentInfo[current.segment] || segmentInfo.D;
+    return info;
   }
 
   async function sendReply() {
@@ -401,41 +444,6 @@ export function ChatThread({
     } finally { setSending(false); }
   }
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Try OGG first (WhatsApp native), fall back to webm
-      const mimeType = MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
-        ? "audio/ogg;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? "audio/webm;codecs=opus"
-          : "audio/webm";
-
-      const recorder = new MediaRecorder(stream, { mimeType });
-      const chunks: Blob[] = [];
-
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-      recorder.onstop = () => {
-        const ext = mimeType.includes("ogg") ? "ogg" : "webm";
-        const blob = new Blob(chunks, { type: mimeType });
-        const file = new File([blob], `voice-note.${ext}`, { type: mimeType });
-        setSelectedFile(file);
-        stream.getTracks().forEach(t => t.stop());
-      };
-
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-    } catch {
-      toast.error("Microphone access denied — please allow access in browser settings");
-    }
-  }
-
-  function stopRecording() {
-    mediaRecorder?.stop();
-    setIsRecording(false);
-    setMediaRecorder(null);
-  }
 
   useEffect(() => {
     let mounted = true;
@@ -505,127 +513,182 @@ export function ChatThread({
     : Infinity;
   const outsideWindow = hoursSinceInbound > 24;
 
+  const segmentPill = getSegmentPill();
+  const hasEscalation = current.needs_human_attention || current.needs_human_intervention;
+  const pendingHandover = handovers.find((h) => h.lead_id === current.id);
+
   return (
     <div className="flex-1 flex flex-col h-full min-w-0">
       {/* Header */}
-      <div className="px-3 py-3 md:px-5 border-b border-surface-mid bg-surface flex items-center gap-3">
+      <div className="px-5 py-3 border-b border-[#e2e8f0] bg-white flex items-center gap-3">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-surface-low text-on-surface hover:bg-surface-mid md:hidden"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[#0A1528] hover:bg-slate-200 md:hidden"
             title="Back to conversations"
           >
             <ArrowLeft size={18} />
           </button>
         )}
-        {/* Channel avatar — the logo of the channel this chat arrived on */}
-        <ChannelAvatar source={current.source} size={28} />
 
-        {/* Name + subtitle */}
+        {/* Lead initials avatar */}
+        <ChannelAvatar source={current.source} size={38} />
+
+        {/* Name + segment pill + subtitle */}
         <div className="flex-1 min-w-0">
-          {editingName ? (
-            <input
-              autoFocus
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={saveName}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveName();
-                if (e.key === "Escape") setEditingName(false);
-              }}
-              placeholder="Add a name"
-              className="font-body text-sm font-semibold text-on-surface bg-surface-low px-2 py-0.5 rounded border border-primary focus:outline-none focus:ring-1 focus:ring-primary w-56"
-            />
-          ) : (
-            <button
-              onClick={() => { setNameDraft(current.name || ""); setEditingName(true); }}
-              className="group flex items-center gap-1.5 text-left"
-              title="Click to rename"
-            >
-              <span className="font-body text-[13px] font-semibold text-on-surface truncate">
-                {current.name || current.phone || "Unknown"}
-              </span>
-              <Pencil size={11} className="opacity-0 group-hover:opacity-50 text-on-surface-muted shrink-0" />
-            </button>
-          )}
-          <p className="font-label text-[11px] text-on-surface-muted flex items-center gap-1">
-            {isInstagram ? (
-              <span className="inline-flex items-center gap-0.5 text-pink-500 font-semibold"><IgIcon size={9} /> Instagram</span>
-            ) : isTelegram ? (
-              <span className="inline-flex items-center gap-0.5 text-sky-500 font-semibold"><TgIcon size={9} /> Telegram</span>
-            ) : isFacebook ? (
-              <span className="inline-flex items-center gap-0.5 text-blue-600 font-semibold"><FbIcon size={9} /> Facebook</span>
+          <div className="flex items-center gap-2 mb-1">
+            {editingName ? (
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                placeholder="Add a name"
+                className="font-display text-[15px] font-bold text-[#0A1528] bg-slate-50 px-2 py-0.5 rounded border border-primary focus:outline-none focus:ring-1 focus:ring-primary flex-1"
+              />
             ) : (
-              <span className="inline-flex items-center gap-0.5 text-green-600 font-semibold"><MessageCircle size={9} /> WhatsApp</span>
+              <button
+                onClick={() => { setNameDraft(current.name || ""); setEditingName(true); }}
+                className="group flex items-center gap-1.5"
+                title="Click to rename"
+              >
+                <span className="font-display text-[15px] font-bold text-[#0A1528] truncate">
+                  {current.name || current.phone || "Unknown"}
+                </span>
+                <Pencil size={13} className="opacity-0 group-hover:opacity-50 text-[#94a3b8] shrink-0" />
+              </button>
             )}
-            <span className="text-on-surface-muted/50">·</span>
-            <SegmentBadge segment={current.segment} />
-            {!aiEnabled && <span className="text-amber-600 font-semibold ml-1">· Handling</span>}
+            <div className={cn(
+              "rounded-full px-2 py-0.5 text-[10.5px] font-bold border",
+              segmentPill.bg,
+              segmentPill.text,
+              segmentPill.border
+            )}>
+              {segmentPill.icon} {segmentPill.label}
+            </div>
+          </div>
+          <p className="font-label text-[11px] text-[#64748b] flex items-center gap-1 flex-wrap">
+            {formatPhone(current.phone) || "—"}
+            <span className="text-[#cbd5e1]">·</span>
+            {CHANNEL_LABEL[getChannel(current.source)]}
+            {current.ad_campaign_id || current.ad_campaign_name ? (
+              <>
+                <span className="text-[#cbd5e1]">·</span>
+                <span>From Meta Ad{current.ad_campaign_name ? ` (${current.ad_campaign_name})` : ""}</span>
+              </>
+            ) : null}
+            {current.assigned_to ? (
+              <>
+                <span className="text-[#cbd5e1]">·</span>
+                <span>Assigned to {callers[current.assigned_to] || "a teammate"}</span>
+              </>
+            ) : null}
           </p>
         </div>
 
-        {/* ⋯ dropdown — AI toggle + Clear + Delete */}
-        <div className="relative shrink-0" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen((v) => !v)}
-            className="p-1.5 rounded-lg hover:bg-surface-low text-on-surface-muted hover:text-on-surface transition-colors"
-            title="More actions"
-          >
-            <MoreVertical size={16} />
-          </button>
-          {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-1 w-44 bg-surface border border-surface-mid rounded-xl shadow-xl overflow-hidden z-30 py-1.5">
-              <button
-                onClick={() => { setDropdownOpen(false); toggleAI(); }}
-                disabled={toggling}
-                className={cn(
-                  "w-full text-left px-4 py-2 text-[13px] font-medium transition-colors flex items-center gap-2 disabled:opacity-40",
-                  aiEnabled ? "text-amber-600 hover:bg-amber-50" : "text-emerald-600 hover:bg-emerald-50"
-                )}
-              >
-                {aiEnabled ? <PowerOff size={13} /> : <Power size={13} />}
-                {toggling ? "Updating…" : aiEnabled ? "Pause AI" : "Resume AI"}
-              </button>
-              {!converted && (
-                <button
-                  onClick={() => { setDropdownOpen(false); markConverted(); }}
-                  disabled={converting}
-                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-primary hover:bg-primary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
-                >
-                  <CheckCircle2 size={13} /> {converting ? "Saving…" : "Mark Converted"}
-                </button>
-              )}
-              <div className="border-t border-surface-mid my-1" />
-              {role === "owner" && (
-                <button
-                  onClick={() => { setDropdownOpen(false); clearData(); }}
-                  disabled={clearing}
-                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2 disabled:opacity-40"
-                >
-                  <Eraser size={13} /> {clearing ? "Clearing…" : "Clear Data"}
-                </button>
-              )}
-              <button
-                onClick={() => { setDropdownOpen(false); deleteConversation(); }}
-                disabled={deleting}
-                className="w-full text-left px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-40"
-              >
-                <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete"}
-              </button>
-            </div>
+        {/* Right side controls */}
+        <div className="ml-auto flex items-center gap-2">
+          {/* AI replies switch */}
+          <div className="rounded-xl border border-[#e2e8f0] px-3 py-1.5 flex items-center gap-2">
+            <span className="text-[12px] font-semibold text-[#0A1528]">AI replies</span>
+            <SwitchPill on={aiEnabled} onChange={() => toggleAI()} size="sm" aria-label="AI replies" />
+            <span className="text-[11px] text-[#64748b]">{aiEnabled ? "On" : "Off"}</span>
+          </div>
+
+          {/* Mark resolved button - only show if escalated */}
+          {hasEscalation && (
+            <button
+              onClick={markResolved}
+              disabled={resolvingHandover}
+              className="rounded-xl bg-primary px-3.5 py-2 text-[12px] font-bold text-white hover:bg-[var(--primary-900)] disabled:opacity-50 flex items-center gap-1.5"
+              title="Mark this escalation as resolved"
+            >
+              <Check size={14} />
+              {resolvingHandover ? "Resolving…" : "Mark resolved"}
+            </button>
           )}
+
+          {/* Lead info button - only at xl and up */}
+          {onToggleDetails && (
+            <button
+              onClick={onToggleDetails}
+              className="hidden xl:flex rounded-xl border border-[#e2e8f0] px-3 py-2 text-[12px] font-semibold text-primary items-center gap-1 hover:bg-slate-50"
+              title={detailsOpen ? "Hide lead info" : "Show lead info"}
+            >
+              <Info size={13} />
+              {detailsOpen ? "Hide info" : "Lead info ›"}
+            </button>
+          )}
+
+          {/* More menu */}
+          <div className="relative shrink-0" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen((v) => !v)}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-[#64748b] hover:text-[#0A1528] transition-colors"
+              title="More actions"
+            >
+              <MoreVertical size={16} />
+            </button>
+            {dropdownOpen && (
+              <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-[#e2e8f0] rounded-xl shadow-xl overflow-hidden z-30 py-1.5">
+                {!converted && (
+                  <button
+                    onClick={() => { setDropdownOpen(false); markConverted(); }}
+                    disabled={converting}
+                    className="w-full text-left px-4 py-2 text-[13px] font-medium text-primary hover:bg-primary/5 transition-colors flex items-center gap-2 disabled:opacity-40"
+                  >
+                    <CheckCircle2 size={13} /> {converting ? "Saving…" : "Mark Converted"}
+                  </button>
+                )}
+                <div className="border-t border-[#e2e8f0] my-1" />
+                {role === "owner" && (
+                  <button
+                    onClick={() => { setDropdownOpen(false); clearData(); }}
+                    disabled={clearing}
+                    className="w-full text-left px-4 py-2 text-[13px] font-medium text-orange-600 hover:bg-orange-50 transition-colors flex items-center gap-2 disabled:opacity-40"
+                  >
+                    <Eraser size={13} /> {clearing ? "Clearing…" : "Clear Data"}
+                  </button>
+                )}
+                <button
+                  onClick={() => { setDropdownOpen(false); deleteConversation(); }}
+                  disabled={deleting}
+                  className="w-full text-left px-4 py-2 text-[13px] font-medium text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 disabled:opacity-40"
+                >
+                  <Trash2 size={13} /> {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Escalation banner */}
+      {hasEscalation && (
+        <div className="mx-5 mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[12px] text-red-700 flex items-center gap-2">
+          <Flag size={13} className="fill-red-600 text-red-600 shrink-0" />
+          <span>
+            <span className="font-bold">Escalated</span>
+            {" – "}
+            {pendingHandover?.reason || "The customer needs a person to reply."}
+            {" Reply soon so this lead isn't lost."}
+          </span>
+        </div>
+      )}
+
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 md:px-6 space-y-3 bg-background">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-white">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-on-surface-muted font-body text-sm">
+          <div className="flex items-center justify-center h-full text-[#64748b] font-body text-sm">
             Loading messages…
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-on-surface-muted font-body text-sm">
+          <div className="flex items-center justify-center h-full text-[#64748b] font-body text-sm">
             No messages yet
           </div>
         ) : (
@@ -644,7 +707,7 @@ export function ChatThread({
       </div>
 
       {/* Input area */}
-      <div className="border-t border-surface-mid bg-surface px-3 py-3 md:px-4">
+      <div className="border-t border-[#e2e8f0] bg-white px-5 pt-3 pb-4">
         {outsideWindow && isWhatsApp && (
           <div className="mb-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
             <AlertTriangle size={13} className="mt-0.5 shrink-0" />
@@ -653,11 +716,31 @@ export function ChatThread({
             </p>
           </div>
         )}
-        {!aiEnabled && (
-          <p className="font-label text-[11px] text-amber-700 mb-2">
-            AI is paused — your replies go directly to the lead.
-          </p>
-        )}
+
+        {/* Quick actions row */}
+        <div className="mb-2 flex flex-wrap gap-2">
+          {/* Send template button */}
+          <button
+            onClick={() => setTemplateModalOpen(true)}
+            className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors"
+            title="Send a template"
+          >
+            <FileText size={13} />
+            Send template
+          </button>
+
+          {/* Attach button */}
+          {canSendMedia && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg bg-[#f1f5f9] px-2.5 py-1.5 text-[11.5px] font-semibold text-[#334155] hover:bg-[#e2e8f0] flex items-center gap-1.5 transition-colors"
+              title="Attach a file"
+            >
+              <Paperclip size={13} />
+              Attach
+            </button>
+          )}
+        </div>
 
         {/* Hidden file input */}
         <input
@@ -672,44 +755,50 @@ export function ChatThread({
           }}
         />
 
+        {/* Template modal */}
+        {templateModalOpen && (
+          <div className="fixed inset-0 z-dialog bg-black/40 flex items-center justify-center p-4" onClick={closeTemplateModal}>
+            <div className="bg-white rounded-2xl max-w-lg w-full p-5 shadow-xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-[#0A1528]">Send template</h2>
+                <button
+                  onClick={closeTemplateModal}
+                  aria-label="Close"
+                  className="p-1 hover:bg-slate-100 rounded-lg text-[#64748b]"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <SendDetailsCard leadId={current.id} />
+            </div>
+          </div>
+        )}
+
         {selectedFile ? (
           /* File preview + send */
           <div className="space-y-2">
             <FilePreview file={selectedFile} onRemove={() => { setSelectedFile(null); setFileCaption(""); }} />
-            <div className="flex items-center gap-2 bg-surface-low border border-surface-mid rounded-2xl px-4 py-2">
+            <div className="flex items-center gap-2 bg-white border border-[#e2e8f0] rounded-2xl px-4 py-2.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
               <input
                 value={fileCaption}
                 onChange={(e) => setFileCaption(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") sendMedia(); }}
                 placeholder="Add a caption (optional)…"
                 disabled={sending}
-                className="flex-1 bg-transparent font-body text-[12px] focus:outline-none disabled:opacity-50"
+                className="flex-1 bg-transparent font-body text-[13px] focus:outline-none disabled:opacity-50"
               />
               <button
                 onClick={sendMedia}
                 disabled={sending}
-                className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                className="h-9 w-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 hover:bg-[var(--primary-900)] disabled:opacity-40 transition-colors"
               >
-                <Send size={14} />
+                <SendHorizontal size={16} />
               </button>
             </div>
           </div>
         ) : (
           /* Main input bar */
-          <div className="flex items-center gap-2 bg-surface-low border border-surface-mid rounded-2xl px-3 py-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 transition-all">
-            {canSendMedia ? (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isRecording}
-                title="Attach file"
-                className="p-1 text-on-surface-muted hover:text-primary transition-colors disabled:opacity-40 shrink-0"
-              >
-                <Plus size={18} />
-              </button>
-            ) : (
-              <div className="w-1" />
-            )}
-
+          <div className="rounded-2xl border border-[#e2e8f0] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 flex items-center gap-2 px-4 py-2.5 transition-all">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
@@ -717,9 +806,9 @@ export function ChatThread({
                 if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
               }}
               rows={1}
-              disabled={!canReplyToConversations || sending || isRecording}
-              placeholder={canReplyToConversations ? (isRecording ? "Recording… tap 🔴 to stop" : "Type a message…") : "Read-only conversation"}
-              className="flex-1 bg-transparent font-body text-[13.5px] resize-none focus:outline-none disabled:opacity-50 max-h-28 leading-relaxed"
+              disabled={!canReplyToConversations || sending}
+              placeholder={canReplyToConversations ? "Type your reply…" : "Read-only conversation"}
+              className="flex-1 bg-transparent font-body text-[13px] resize-none focus:outline-none disabled:opacity-50 max-h-28 leading-relaxed"
               style={{ minHeight: "24px" }}
               onInput={(e) => {
                 const t = e.currentTarget;
@@ -728,26 +817,41 @@ export function ChatThread({
               }}
             />
 
-            {canSendMedia && (
+            {/* Emoji button */}
+            <div className="relative" ref={emojiRef}>
               <button
-                onClick={isRecording ? stopRecording : startRecording}
-                title={isRecording ? "Stop recording" : "Voice note"}
-                className={cn(
-                  "p-1.5 rounded-full transition-colors shrink-0",
-                  isRecording ? "text-red-600 bg-red-50 animate-pulse" : "text-on-surface-muted hover:text-primary"
-                )}
+                onClick={() => setEmojiOpen(!emojiOpen)}
+                className="p-1 text-[#94a3b8] hover:text-[#0A1528] transition-colors"
+                title="Add emoji"
               >
-                {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
+                <Smile size={16} />
               </button>
-            )}
+              {emojiOpen && (
+                <div className="absolute bottom-full right-0 mb-2 bg-white border border-[#e2e8f0] rounded-xl shadow-xl p-3 grid grid-cols-8 gap-1 z-40">
+                  {["😊", "🙏", "👍", "❤️", "🎉", "😀", "😂", "🤝", "✅", "🔥", "💐", "🌟", "📞", "📅", "💰", "🙌"].map((emoji) => (
+                    <button
+                      key={emoji}
+                      onClick={() => {
+                        setDraft(draft + emoji);
+                        setEmojiOpen(false);
+                      }}
+                      className="text-lg hover:bg-slate-100 rounded p-1 transition-colors"
+                      title={emoji}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={sendReply}
-              disabled={!canReplyToConversations || sending || !draft.trim() || isRecording}
+              disabled={!canReplyToConversations || sending || !draft.trim()}
               title={canReplyToConversations ? "Send message" : "You have read-only access to conversations"}
-              className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center shrink-0 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+              className="h-9 w-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 hover:bg-[var(--primary-900)] disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             >
-              <Send size={13} />
+              <SendHorizontal size={16} />
             </button>
           </div>
         )}
