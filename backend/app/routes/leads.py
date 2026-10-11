@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from app.config import settings
 from app.db.supabase import get_supabase
@@ -76,12 +77,95 @@ class BulkAssignPayload(BaseModel):
     caller_id: str | None = None
 
 
-class CustomBroadcastRequest(BaseModel):
-    message: str
-    segment: str | None = None
+class LeadFilters(BaseModel):
+    """The Segments table's filters. The table and the broadcast share them, so a
+    broadcast reaches exactly the leads the table shows."""
+    segment: str | None = Field(None, pattern="^[ABCD]$")
+    assigned_to: str | None = None
     source_filter: str | None = None
     broadcast_id: str | None = None
     ad_campaign_id: str | None = None
+    date_from: str | None = None
+    date_to: str | None = None
+    search: str | None = Field(None, max_length=100)
+    reply_window: str | None = Field(None, pattern="^(open|closed)$")
+
+
+class CustomBroadcastRequest(LeadFilters):
+    message: str
+
+
+INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
+
+
+def _filtered_leads_query(db, ctx: dict, f: LeadFilters, columns: str = "*", count: str | None = None):
+    """Leads matching the Segments filters, or None when nothing can match."""
+    tenant_id = ctx["tenant_id"]
+    # NULL-safe "IS NOT TRUE": a bare .neq("col", True) compiles to `col <> true`,
+    # which SQL evaluates to NULL (row excluded) whenever the column is NULL rather
+    # than explicitly false. Both columns were added via manual ALTER outside the
+    # migration set with no guaranteed NOT NULL DEFAULT false, so untouched leads
+    # (e.g. freshly assigned, never opted out / never delivery-failed) can be NULL
+    # here and were silently vanishing from this endpoint's callers (Segments page,
+    # telecaller Dialer queue) while still showing up via Conversations' RPC path,
+    # which never applied this filter in the first place.
+    query = (db.table("leads").select(columns, count=count)
+             .eq("tenant_id", tenant_id)
+             .is_("deleted_at", "null")
+             .or_("opted_out.is.null,opted_out.eq.false")
+             .or_("whatsapp_undeliverable.is.null,whatsapp_undeliverable.eq.false"))
+    if f.date_from:
+        try:
+            date.fromisoformat(f.date_from)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
+        query = query.gte("created_at", f.date_from)
+    if f.date_to:
+        try:
+            date_to_parsed = date.fromisoformat(f.date_to)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
+        query = query.lt("created_at", (date_to_parsed + timedelta(days=1)).isoformat())
+    if f.segment:
+        query = query.eq("segment", f.segment)
+    # Name or phone, substring, case-insensitive. Phones are stored with the
+    # country code (+916369781582), so a term typed without it still has to
+    # match — hence a contains match on both sides rather than a prefix one.
+    search_term = _sanitize_search(f.search)
+    if search_term:
+        query = query.or_(f"name.ilike.*{search_term}*,phone.ilike.*{search_term}*")
+    if ctx.get("role") == "caller" and ctx.get("caller_id"):
+        query = query.eq("assigned_to", ctx["caller_id"])
+    elif f.assigned_to:
+        if f.assigned_to == "unassigned":
+            query = query.is_("assigned_to", "null")
+        else:
+            query = query.eq("assigned_to", f.assigned_to)
+
+    # Medium / campaign / broadcast filters
+    if f.source_filter == "inbound":
+        query = query.in_("source", list(INBOUND_SOURCES))
+    elif f.source_filter == "organic":
+        query = query.in_("source", list(INBOUND_SOURCES)).is_("ad_campaign_id", "null")
+    elif f.source_filter == "meta_ads":
+        query = query.in_("source", list(INBOUND_SOURCES)).not_.is_("ad_campaign_id", "null")
+        if f.ad_campaign_id:
+            query = query.eq("ad_campaign_id", f.ad_campaign_id)
+    elif f.source_filter == "broadcast":
+        if f.broadcast_id:
+            br_result = db.table("broadcast_recipients").select("lead_id").eq("broadcast_id", f.broadcast_id).eq("tenant_id", tenant_id).execute()
+            lead_ids = [r["lead_id"] for r in (br_result.data or []) if r.get("lead_id")]
+            if not lead_ids:
+                return None
+            query = query.in_("id", lead_ids)
+
+    if f.reply_window:
+        cutoff_iso = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        if f.reply_window == "open":
+            query = query.gte("last_inbound_at", cutoff_iso)
+        else:
+            query = query.or_(f"last_inbound_at.is.null,last_inbound_at.lt.{cutoff_iso}")
+    return query
 
 
 @router.get("/", response_model=PaginatedResponse)
@@ -103,79 +187,13 @@ async def list_leads(
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
     offset = (page - 1) * limit
-    # NULL-safe "IS NOT TRUE": a bare .neq("col", True) compiles to `col <> true`,
-    # which SQL evaluates to NULL (row excluded) whenever the column is NULL rather
-    # than explicitly false. Both columns were added via manual ALTER outside the
-    # migration set with no guaranteed NOT NULL DEFAULT false, so untouched leads
-    # (e.g. freshly assigned, never opted out / never delivery-failed) can be NULL
-    # here and were silently vanishing from this endpoint's callers (Segments page,
-    # telecaller Dialer queue) while still showing up via Conversations' RPC path,
-    # which never applied this filter in the first place.
-    query = (db.table("leads").select("*", count="exact")
-             .eq("tenant_id", tenant_id)
-             .is_("deleted_at", "null")
-             .or_("opted_out.is.null,opted_out.eq.false")
-             .or_("whatsapp_undeliverable.is.null,whatsapp_undeliverable.eq.false"))
-    if date_from:
-        try:
-            date.fromisoformat(date_from)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="date_from must be YYYY-MM-DD")
-        query = query.gte("created_at", date_from)
-    if date_to:
-        try:
-            date_to_parsed = date.fromisoformat(date_to)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="date_to must be YYYY-MM-DD")
-        query = query.lt("created_at", (date_to_parsed + timedelta(days=1)).isoformat())
-    if segment:
-        query = query.eq("segment", segment)
-    # Name or phone, substring, case-insensitive. Phones are stored with the
-    # country code (+916369781582), so a term typed without it still has to
-    # match — hence a contains match on both sides rather than a prefix one.
-    search_term = _sanitize_search(search)
-    if search_term:
-        query = query.or_(f"name.ilike.*{search_term}*,phone.ilike.*{search_term}*")
-    if ctx.get("role") == "caller" and ctx.get("caller_id"):
-        query = query.eq("assigned_to", ctx["caller_id"])
-    elif assigned_to:
-        if assigned_to == "unassigned":
-            query = query.is_("assigned_to", "null")
-        else:
-            query = query.eq("assigned_to", assigned_to)
-
-    # Apply medium / campaign / broadcast filters
-    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
-    if source_filter == "inbound":
-        query = query.in_("source", list(INBOUND_SOURCES))
-    elif source_filter == "organic":
-        query = query.in_("source", list(INBOUND_SOURCES)).is_("ad_campaign_id", "null")
-    elif source_filter == "meta_ads":
-        query = query.in_("source", list(INBOUND_SOURCES)).not_.is_("ad_campaign_id", "null")
-        if ad_campaign_id:
-            query = query.eq("ad_campaign_id", ad_campaign_id)
-    elif source_filter == "broadcast":
-        if broadcast_id:
-            br_result = db.table("broadcast_recipients").select("lead_id").eq("broadcast_id", broadcast_id).eq("tenant_id", tenant_id).execute()
-            lead_ids = [r["lead_id"] for r in (br_result.data or []) if r.get("lead_id")]
-            if not lead_ids:
-                return PaginatedResponse(
-                    data=[],
-                    total=0,
-                    page=page,
-                    limit=limit,
-                )
-            query = query.in_("id", lead_ids)
-
-    # Apply reply_window filter
-    if reply_window == "open":
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
-        query = query.gte("last_inbound_at", cutoff_iso)
-    elif reply_window == "closed":
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
-        cutoff_iso = cutoff.strftime("%Y-%m-%dT%H:%M:%SZ")
-        query = query.or_(f"last_inbound_at.is.null,last_inbound_at.lt.{cutoff_iso}")
+    filters = LeadFilters(
+        segment=segment, assigned_to=assigned_to, source_filter=source_filter, broadcast_id=broadcast_id,
+        ad_campaign_id=ad_campaign_id, date_from=date_from, date_to=date_to, search=search, reply_window=reply_window,
+    )
+    query = _filtered_leads_query(db, ctx, filters, count="exact")
+    if query is None:
+        return PaginatedResponse(data=[], total=0, page=page, limit=limit)
 
     # Apply sorting
     if sort == "newest":
@@ -233,6 +251,56 @@ async def list_leads(
     )
 
 
+BROADCAST_PAGE = 1000  # PostgREST caps one response at 1000 rows
+
+
+def _broadcast_targets(db, ctx: dict, f: LeadFilters) -> tuple[int, list[dict], set[str]]:
+    """(leads the table shows, those with an opt-in record, ids inside the 24-hour window)."""
+    tenant_id = ctx["tenant_id"]
+    query = _filtered_leads_query(db, ctx, f, columns="id,phone,source,ig_user_id,tg_user_id,fb_user_id,opt_in_source")
+    if query is None:
+        return 0, [], set()
+    rows: list[dict] = []
+    while True:
+        page = (query.order("created_at").order("id")
+                .range(len(rows), len(rows) + BROADCAST_PAGE - 1).execute().data or [])
+        rows.extend(page)
+        if len(page) < BROADCAST_PAGE:
+            break
+    # Hard invariant: bulk-send rejects leads with null opt_in_source
+    targets = [r for r in rows if r.get("opt_in_source")]
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    eligible: set[str] = set()
+    ids = [t["id"] for t in targets]
+    for i in range(0, len(ids), 200):
+        recent = (
+            db.table("messages").select("lead_id")
+            .eq("direction", "inbound").eq("tenant_id", tenant_id)
+            .gte("created_at", cutoff).in_("lead_id", ids[i:i + 200]).execute()
+        )
+        eligible.update(r["lead_id"] for r in (recent.data or []))
+    return len(rows), targets, eligible
+
+
+def _reachable(target: dict, eligible: set[str]) -> bool:
+    # Telegram has no 24h window
+    return target.get("source") == "telegram" or target["id"] in eligible
+
+
+@router.post("/broadcast/preview")
+def broadcast_preview(body: LeadFilters, ctx: dict = Depends(require_leads_manage)):
+    """How many leads a broadcast with these filters would reach, before sending."""
+    matching, targets, eligible = _broadcast_targets(get_supabase(), ctx, body)
+    reachable = sum(1 for t in targets if _reachable(t, eligible))
+    return {
+        "matching": matching,
+        "reachable": reachable,
+        "outside_window": len(targets) - reachable,
+        "no_opt_in": matching - len(targets),
+    }
+
+
 @router.post("/broadcast")
 async def broadcast_custom_message(
     body: CustomBroadcastRequest,
@@ -240,57 +308,12 @@ async def broadcast_custom_message(
 ):
     db = get_supabase()
     tenant_id = ctx["tenant_id"]
+    if not body.message.strip():
+        raise HTTPException(status_code=400, detail="Message is empty")
 
-    # Step 1: Query all leads matching filters (no pagination)
-    query = (db.table("leads").select("id,phone,source,ig_user_id,tg_user_id,fb_user_id")
-             .eq("tenant_id", tenant_id)
-             .is_("deleted_at", "null")
-             .neq("opted_out", True)
-             .neq("whatsapp_undeliverable", True))
-
-    if body.segment:
-        query = query.eq("segment", body.segment)
-
-    # Apply source filter
-    INBOUND_SOURCES = ('whatsapp', 'instagram', 'facebook', 'telegram', 'indiamart', 'justdial')
-    if body.source_filter == "inbound":
-        query = query.in_("source", list(INBOUND_SOURCES))
-    elif body.source_filter == "organic":
-        query = query.in_("source", list(INBOUND_SOURCES)).is_("ad_campaign_id", "null")
-    elif body.source_filter == "meta_ads":
-        query = query.in_("source", list(INBOUND_SOURCES)).not_.is_("ad_campaign_id", "null")
-        if body.ad_campaign_id:
-            query = query.eq("ad_campaign_id", body.ad_campaign_id)
-    elif body.source_filter == "broadcast":
-        if body.broadcast_id:
-            br_result = db.table("broadcast_recipients").select("lead_id").eq("broadcast_id", body.broadcast_id).eq("tenant_id", tenant_id).execute()
-            lead_ids = [r["lead_id"] for r in (br_result.data or []) if r.get("lead_id")]
-            if not lead_ids:
-                return {"sent": 0, "failed": 0, "skipped_window": 0, "total": 0}
-            query = query.in_("id", lead_ids)
-
-    # Hard Invariant: bulk-send rejects leads with null opt_in_source
-    query = query.not_.is_("opt_in_source", "null")
-
-    result = query.execute()
-    targets = result.data or []
+    _, targets, eligible_ids = await run_in_threadpool(_broadcast_targets, db, ctx, body)
     if not targets:
         return {"sent": 0, "failed": 0, "skipped_window": 0, "total": 0}
-
-    # Step 2: Fetch leads with inbound message in the last 24h
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    lead_ids = [t["id"] for t in targets]
-
-    recent = (
-        db.table("messages")
-        .select("lead_id")
-        .eq("direction", "inbound")
-        .eq("tenant_id", tenant_id)
-        .gte("created_at", cutoff)
-        .in_("lead_id", lead_ids)
-        .execute()
-    )
-    eligible_ids = {r["lead_id"] for r in (recent.data or [])}
 
     sent = 0
     failed = 0
@@ -300,8 +323,7 @@ async def broadcast_custom_message(
         lead_id = t["id"]
         source = t.get("source", "whatsapp")
 
-        # Telegram has no 24h window
-        if source != "telegram" and lead_id not in eligible_ids:
+        if not _reachable(t, eligible_ids):
             skipped_window += 1
             continue
 

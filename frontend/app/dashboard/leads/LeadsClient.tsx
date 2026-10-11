@@ -496,6 +496,29 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
   }
 
   // Helper to compute date preset from URL dates (using local dates)
+  // Shown in the broadcast window so it's clear which leads the message goes to.
+  function activeFilterLabels(): string[] {
+    const out: string[] = [];
+    if (search) out.push(`Search: "${search}"`);
+    if (sourceFilter !== "ALL") {
+      const source = SOURCE_FILTERS.find((o) => o.value === sourceFilter)?.label ?? sourceFilter;
+      const detail =
+        sourceFilter === "META_ADS" ? getSelectedCampaignName()
+        : sourceFilter === "BROADCAST" ? broadcastHistory.find((b) => b.broadcast_id === selectedBroadcastId)?.template_name
+        : undefined;
+      out.push(`Source: ${source}${detail ? ` · ${detail}` : ""}`);
+    }
+    const preset = getDatePreset();
+    if (preset !== "any") {
+      out.push(`Added: ${{ today: "Today", "7d": "Last 7 days", "30d": "Last 30 days" }[preset] ?? `${dateFrom} to ${dateTo}`}`);
+    }
+    if (assigned) {
+      out.push(`Assigned: ${assigned === "unassigned" ? "Unassigned" : callers.find((c) => c.id === assigned)?.name ?? "Caller"}`);
+    }
+    if (replyWindow) out.push(`Reply window: ${replyWindow === "open" ? "Open" : "Closed"}`);
+    return out;
+  }
+
   function getDatePreset(): string {
     if (!dateFrom || !dateTo) return "any";
     const today = new Date();
@@ -545,11 +568,8 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
       {broadcastModalOpen && (
         <SegmentBroadcastModal
           segment={tab}
-          sourceFilter={sourceFilter}
-          selectedCampaignId={selectedCampaignId}
-          selectedBroadcastId={selectedBroadcastId}
-          selectedCampaignName={getSelectedCampaignName()}
-          broadcastHistory={broadcastHistory}
+          filters={sharedFilters}
+          filterLabels={activeFilterLabels()}
           templates={templates}
           canManageLeads={canManageLeads}
           onClose={closeBroadcast}
@@ -666,9 +686,9 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
 
           {/* Main card with filters and table */}
           <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-            {/* Filter bar */}
-            <div className="flex flex-wrap items-center gap-2 p-4 border-b border-[#e2e8f0]">
-
+            {/* Filter bar: Refresh and Export stay on the first line; the filters wrap beside them. */}
+            <div className="flex flex-col gap-2 p-4 border-b border-[#e2e8f0] md:flex-row md:items-start">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               {viewToggle}
 
               {/* Search input */}
@@ -772,8 +792,10 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 showValue={true}
               />
 
+              </div>
+
               {/* Right side buttons */}
-              <div className="ml-auto flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   onClick={refreshLeads}
                   disabled={refreshing}
@@ -916,7 +938,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                           key={seg}
                           onClick={() => bulkChangeSegment(seg)}
                           className={cn(
-                            "w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors hover:bg-slate-50",
+                            "w-full text-left px-4 py-2.5 text-xs font-semibold text-[#334155] transition-colors hover:bg-slate-50 hover:text-[#0A1528]",
                             idx > 0 && "border-t border-[#f1f5f9]"
                           )}
                         >

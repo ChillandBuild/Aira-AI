@@ -587,6 +587,26 @@ export interface AutoMessageSend {
   created_at: string;
 }
 
+/** The Segments table's filters; a broadcast reaches exactly the leads they match. */
+export interface BroadcastFilters {
+  segment?: string;
+  search?: string;
+  source_filter?: string;
+  ad_campaign_id?: string;
+  broadcast_id?: string;
+  date_from?: string;
+  date_to?: string;
+  assigned_to?: string;
+  reply_window?: "open" | "closed";
+}
+
+export interface BroadcastPreview {
+  matching: number;
+  reachable: number;
+  outside_window: number;
+  no_opt_in: number;
+}
+
 export interface WabaTemplate {
   id: string;
   name: string;
@@ -1736,13 +1756,12 @@ export const api = {
       }),
     composeTemplates: async () =>
       (await apiFetch<{ templates: SendDetailsTemplate[] }>(`/api/v1/leads/compose/templates`)).templates ?? [],
-    broadcast: (data: {
-      message: string;
-      segment?: string;
-      source_filter?: string;
-      broadcast_id?: string;
-      ad_campaign_id?: string;
-    }) =>
+    broadcastPreview: (filters: BroadcastFilters) =>
+      apiFetch<BroadcastPreview>(`/api/v1/leads/broadcast/preview`, {
+        method: "POST",
+        body: JSON.stringify(filters),
+      }),
+    broadcast: (data: BroadcastFilters & { message: string }) =>
       apiFetch<{ total: number; sent: number; failed: number; skipped_window: number }>(
         `/api/v1/leads/broadcast`,
         {
