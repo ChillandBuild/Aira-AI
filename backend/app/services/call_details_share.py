@@ -147,6 +147,42 @@ def _approved_templates(db, tenant_id: str) -> list[dict]:
     ]
 
 
+def compose_templates(db, tenant_id: str) -> list[dict]:
+    """Approved templates for a message to a number that may not be a lead yet.
+
+    Blanks tied to the business are pre-filled; the customer's name is left for
+    the caller to fill from what was typed."""
+    business = _business_name(db, tenant_id)
+    return [
+        {
+            "id": t["id"], "name": t["name"], "language": t.get("language") or "en",
+            "body_text": t.get("body_text") or "",
+            "variables": template_variables(t["name"], t.get("body_text"), {"business_name": business}),
+        }
+        for t in _approved_templates(db, tenant_id)
+    ]
+
+
+async def send_approved_template(db, tenant_id: str, phone: str, template_id: str, variables: list[str]) -> tuple[str | None, str]:
+    """Send one approved template; returns (Meta message id, the text as the customer sees it)."""
+    template = next((t for t in _approved_templates(db, tenant_id) if t["id"] == template_id), None)
+    if not template:
+        raise ShareError("That template isn't approved for this WhatsApp number.")
+    values = [one_line(v) for v in variables]
+    count = len(template_variables(template["name"], template.get("body_text"), {}))
+    if len(values) != count or any(not v for v in values):
+        raise ShareError("Fill every blank in the template.")
+    components = [{"type": "body", "parameters": [{"type": "text", "text": v} for v in values]}] if count else None
+    try:
+        resp = await send_template_message(
+            phone, template["name"], template.get("language") or "en", components=components, tenant_id=tenant_id,
+        )
+    except HTTPException as e:
+        raise ShareError(f"WhatsApp didn't send it: {str(e.detail)[:300]}")
+    sid = ((resp or {}).get("messages") or [{}])[0].get("id")
+    return sid, render_template(template.get("body_text"), values)
+
+
 def share_context(db, tenant_id: str, lead_id: str, *, now: datetime) -> dict | None:
     lead = _lead(db, tenant_id, lead_id)
     if not lead:
@@ -199,22 +235,7 @@ async def send_details(db, tenant_id: str, lead_id: str, *, text: str | None, te
             raise ShareError(f"WhatsApp didn't send it: {get_last_send_error() or 'unknown error'}")
         content = body
     else:
-        template = next((t for t in _approved_templates(db, tenant_id) if t["id"] == template_id), None)
-        if not template:
-            raise ShareError("That template isn't approved for this WhatsApp number.")
-        values = [one_line(v) for v in variables]
-        count = len(template_variables(template["name"], template.get("body_text"), {}))
-        if len(values) != count or any(not v for v in values):
-            raise ShareError("Fill every blank in the template.")
-        components = [{"type": "body", "parameters": [{"type": "text", "text": v} for v in values]}] if count else None
-        try:
-            resp = await send_template_message(
-                lead["phone"], template["name"], template.get("language") or "en", components=components, tenant_id=tenant_id,
-            )
-        except HTTPException as e:
-            raise ShareError(f"WhatsApp didn't send it: {str(e.detail)[:300]}")
-        sid = ((resp or {}).get("messages") or [{}])[0].get("id")
-        content = render_template(template.get("body_text"), values)
+        sid, content = await send_approved_template(db, tenant_id, lead["phone"], template_id or "", variables)
     rows = db.table("messages").insert({
         "lead_id": lead_id, "tenant_id": tenant_id, "direction": "outbound", "channel": "whatsapp",
         "content": content, "is_ai_generated": False, "meta_message_id": sid,

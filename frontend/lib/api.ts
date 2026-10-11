@@ -1729,6 +1729,13 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ phone, content, name }),
       }),
+    composeTemplate: (phone: string, templateId: string, variables: string[], name?: string) =>
+      apiFetch<{ lead_id: string; sid: string; phone: string }>(`/api/v1/leads/compose`, {
+        method: "POST",
+        body: JSON.stringify({ phone, template_id: templateId, variables, name }),
+      }),
+    composeTemplates: async () =>
+      (await apiFetch<{ templates: SendDetailsTemplate[] }>(`/api/v1/leads/compose/templates`)).templates ?? [],
     broadcast: (data: {
       message: string;
       segment?: string;

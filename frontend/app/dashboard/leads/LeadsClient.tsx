@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
 import { api, Lead, Caller, SegmentTemplate, BroadcastHistoryItem, WabaTemplate, getAuthHeaders, API_URL } from "@/lib/api";
-import { Download, Send, Pencil, X, Loader2, RefreshCw, MessageSquare, UserPlus, ArrowLeftRight, Search, Info } from "lucide-react";
+import { Download, Pencil, X, RefreshCw, MessageSquare, UserPlus, ArrowLeftRight, Search, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { timeAgo, formatPhone } from "@/lib/utils";
 import { useAuthRole } from "../contexts/AuthRoleContext";
@@ -14,6 +14,8 @@ import { MobileRecordCard, MobileRecordField, MobileRecordGrid, MobileRecordHead
 import { SegmentBadge } from "@/components/segment-badge";
 import { FilterMenu, FilterMenuOption } from "./FilterMenu";
 import { SegmentBroadcastModal } from "./SegmentBroadcastModal";
+import { ComposeModal } from "./ComposeModal";
+import { CheckTick } from "@/components/ui/controls";
 import { SendMessageModal } from "./SendMessageModal";
 import { SendTemplateModal } from "./SendTemplateModal";
 
@@ -136,116 +138,6 @@ function getInitialColor(leadId: string): string {
   return colors[Math.abs(hash) % colors.length];
 }
 
-function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void; onSent: () => void; canManageLeads: boolean }) {
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function send() {
-    if (!canManageLeads) return;
-    if (!phone.trim() || !message.trim()) {
-      setError("Phone and message are required");
-      return;
-    }
-    setSending(true);
-    setError(null);
-    try {
-      await api.leads.compose(phone.trim(), message.trim(), name.trim() || undefined);
-      onSent();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Send failed");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-dialog flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="bg-surface rounded-card shadow-card w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between mb-5">
-          <h3 className="font-display text-lg font-bold text-primary">New WhatsApp Message</h3>
-          <button onClick={onClose} className="text-on-surface-muted hover:text-on-surface">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">
-              Phone Number
-            </label>
-            <input
-              autoFocus
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+919876543210"
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">
-              Name <span className="text-on-surface-muted/60 normal-case">(optional)</span>
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Lead name"
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="font-label text-xs font-semibold text-on-surface-muted uppercase tracking-wider">
-              Message
-            </label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="Hello! ..."
-              className="mt-1 w-full px-4 py-2.5 bg-surface-low rounded-xl font-body text-sm border border-surface-mid focus:ring-2 focus:ring-primary focus:outline-none resize-none"
-            />
-          </div>
-
-          <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-100">
-            <p className="font-label text-xs text-amber-800 leading-relaxed">
-              <strong>Heads up:</strong> If this person hasn&apos;t messaged you in the last 24 hours, WhatsApp requires an <strong>approved template message</strong> — freeform text will fail. Use the Templates page to send templated outreach.
-            </p>
-          </div>
-
-          {error && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-100">
-              <p className="font-label text-xs text-red-700">{error}</p>
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-surface-low text-on-surface-muted rounded-xl font-label text-sm font-semibold hover:bg-surface-mid"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={send}
-            disabled={sending || !canManageLeads}
-            title={canManageLeads ? "Send message" : "Read-only role: sending is disabled"}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 disabled:blur-[0.5px]"
-          >
-            {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            {sending ? "Sending…" : "Send"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
   const { role, permissions } = useAuthRole();
   const canManageLeads = role === "owner" || permissions.includes("leads.manage");
@@ -289,7 +181,6 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
   const changeSegmentPopoverRef = useRef<HTMLDivElement>(null);
 
   // Checkbox ref for indeterminate state
-  const headerCheckboxRef = useRef<HTMLInputElement>(null);
 
   // Re-engagement states
   const [wabaTemplates, setWabaTemplates] = useState<WabaTemplate[]>([]);
@@ -406,13 +297,6 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     setPage(1);
     setSelectedIds(new Set());
   }, [search, sourceFilter, selectedCampaignId, selectedBroadcastId, dateFrom, dateTo, assigned, replyWindow]);
-
-  // Update indeterminate checkbox state
-  useEffect(() => {
-    if (headerCheckboxRef.current) {
-      headerCheckboxRef.current.indeterminate = selectedIds.size > 0 && selectedIds.size < leads.length;
-    }
-  }, [selectedIds, leads.length]);
 
   // Search debounce effect
   useEffect(() => {
@@ -1081,18 +965,11 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                   <thead>
                     <tr className="border-b border-[#f1f5f9]">
                       <th className="px-4 py-3 text-left">
-                        <input
-                          ref={headerCheckboxRef}
-                          type="checkbox"
+                        <CheckTick
                           checked={selectedIds.size === leads.length && leads.length > 0}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedIds(new Set(leads.map((l) => l.id)));
-                            } else {
-                              setSelectedIds(new Set());
-                            }
-                          }}
-                          className="accent-[var(--primary)] h-4 w-4 rounded"
+                          indeterminate={selectedIds.size > 0 && selectedIds.size < leads.length}
+                          onChange={(next) => setSelectedIds(next ? new Set(leads.map((l) => l.id)) : new Set())}
+                          aria-label="Select all leads on this page"
                         />
                       </th>
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
@@ -1167,19 +1044,15 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                             className="px-4 py-3"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <input
-                              type="checkbox"
+                            <CheckTick
                               checked={selectedIds.has(lead.id)}
-                              onChange={(e) => {
+                              onChange={(next) => {
                                 const newIds = new Set(selectedIds);
-                                if (e.target.checked) {
-                                  newIds.add(lead.id);
-                                } else {
-                                  newIds.delete(lead.id);
-                                }
+                                if (next) newIds.add(lead.id);
+                                else newIds.delete(lead.id);
                                 setSelectedIds(newIds);
                               }}
-                              className="accent-[var(--primary)] h-4 w-4 rounded"
+                              aria-label="Select lead"
                             />
                           </td>
                           <td className="px-4 py-3">

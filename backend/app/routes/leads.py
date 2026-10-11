@@ -6,7 +6,7 @@ from datetime import date, datetime, timezone, timedelta
 from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.config import settings
 from app.db.supabase import get_supabase
 from app.services.call_evaluation import strip_evaluation
@@ -20,6 +20,7 @@ from app.services.ai_reply import (
 from app.services.growth import record_stage_event, sync_follow_up_jobs
 from app.services.assignment import get_telecalling_config, record_assignment_event
 from app.services.segmentation import new_lead_score_and_segment
+from app.services.call_details_share import ShareError, compose_templates, send_approved_template
 
 logger = logging.getLogger(__name__)
 
@@ -953,8 +954,17 @@ async def send_human_message(
 
 class ComposeMessage(BaseModel):
     phone: str
-    content: str
+    content: str | None = None
     name: str | None = None
+    # Send an approved template instead of free text (required outside the 24-hour window).
+    template_id: str | None = Field(None, max_length=64)
+    variables: list[str] = Field(default_factory=list, max_length=20)
+
+
+@router.get("/compose/templates")
+def compose_template_options(ctx: dict = Depends(require_leads_manage)):
+    """Approved WhatsApp templates the New message form can send."""
+    return {"templates": compose_templates(get_supabase(), ctx["tenant_id"])}
 
 
 @router.post("/compose")
@@ -966,8 +976,10 @@ async def compose_new_message(
     """Send a WhatsApp message to any phone — creates lead if it doesn't exist."""
     tenant_id = ctx["tenant_id"]
     content = (payload.content or "").strip()
-    if not content:
+    if payload.template_id is None and not content:
         raise HTTPException(status_code=400, detail="Message is empty")
+    if payload.template_id is not None and content:
+        raise HTTPException(status_code=400, detail="Send either a message or a template")
 
     phone = payload.phone.strip().replace(" ", "").replace("-", "")
     if not phone.startswith("+"):
@@ -990,7 +1002,13 @@ async def compose_new_message(
         lead_id = new_lead.data[0]["id"]
         record_stage_event(lead_id, to_segment=initial_segment, event_type="created", metadata={"source": "manual"}, tenant_id=tenant_id, db=db)
 
-    sid = await send_whatsapp(phone, content, tenant_id=tenant_id)
+    if payload.template_id is not None:
+        try:
+            sid, content = await send_approved_template(db, tenant_id, phone, payload.template_id, payload.variables)
+        except ShareError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    else:
+        sid = await send_whatsapp(phone, content, tenant_id=tenant_id)
     if not sid:
         meta_err = get_last_send_error() or "unknown error"
         # Note: outside 24h window, freeform text fails — Meta requires templates
