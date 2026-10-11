@@ -159,7 +159,7 @@ const MessageBubble = memo(function MessageBubble({ msg }: { msg: Message }) {
         )}
       </div>
       <div className={cn(
-        "max-w-[82%] md:max-w-[68%] px-3.5 py-2 rounded-2xl font-body text-[13px] leading-relaxed",
+        "max-w-[82%] md:max-w-[60%] px-3 py-1.5 rounded-xl font-body text-[12px] leading-relaxed",
         msg.direction === "outbound"
           ? "bg-primary text-white rounded-tr-sm"
           : "bg-surface text-on-surface shadow-card rounded-tl-sm"
@@ -520,7 +520,7 @@ export function ChatThread({
           </button>
         )}
         {/* Channel avatar — the logo of the channel this chat arrived on */}
-        <ChannelAvatar source={current.source} size={32} />
+        <ChannelAvatar source={current.source} size={28} />
 
         {/* Name + subtitle */}
         <div className="flex-1 min-w-0">
@@ -543,7 +543,7 @@ export function ChatThread({
               className="group flex items-center gap-1.5 text-left"
               title="Click to rename"
             >
-              <span className="font-body text-[13.5px] font-semibold text-on-surface truncate">
+              <span className="font-body text-[13px] font-semibold text-on-surface truncate">
                 {current.name || current.phone || "Unknown"}
               </span>
               <Pencil size={11} className="opacity-0 group-hover:opacity-50 text-on-surface-muted shrink-0" />
@@ -683,7 +683,7 @@ export function ChatThread({
                 onKeyDown={(e) => { if (e.key === "Enter") sendMedia(); }}
                 placeholder="Add a caption (optional)…"
                 disabled={sending}
-                className="flex-1 bg-transparent font-body text-[13px] focus:outline-none disabled:opacity-50"
+                className="flex-1 bg-transparent font-body text-[12px] focus:outline-none disabled:opacity-50"
               />
               <button
                 onClick={sendMedia}
