@@ -77,10 +77,12 @@ interface Props {
   folder?: "chats" | "archived" | "blocked";
   hasMore?: boolean;
   loadingMore?: boolean;
+  /** True until the first list arrives: show placeholder rows, not the empty state. */
+  initialLoading?: boolean;
   onLoadMore?: () => void;
 }
 
-export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, searchQuery, onSearchChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats", hasMore = false, loadingMore = false, onLoadMore }: Props) {
+export function ConversationList({ leads, selectedId, onSelect, onDeleted, platform, onPlatformChange, searchQuery, onSearchChange, onCollapse, onPin, onPinSelected, onRefresh, onArchive, canArchive = false, onBlock, folder = "chats", hasMore = false, loadingMore = false, initialLoading = false, onLoadMore }: Props) {
   const [segment, setSegment] = useState<"A" | "B" | "C" | "D" | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
@@ -434,7 +436,19 @@ export function ConversationList({ leads, selectedId, onSelect, onDeleted, platf
         )}
       </div>
       <div className="flex-1 overflow-y-auto bg-surface-low/30">
-        {visible.length === 0 ? (
+        {initialLoading && visible.length === 0 ? (
+          <div className="divide-y divide-surface-mid/60" aria-busy="true" aria-label="Loading conversations">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3.5">
+                <div className="h-10 w-10 shrink-0 animate-pulse rounded-full bg-surface-mid" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3 w-2/5 animate-pulse rounded bg-surface-mid" />
+                  <div className="h-2.5 w-3/4 animate-pulse rounded bg-surface-mid/70" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center px-6 py-10 text-on-surface-muted space-y-3 animate-in fade-in duration-300">
             <div className="w-14 h-14 rounded-2xl bg-surface-low border border-surface-mid flex items-center justify-center shadow-sm">
               <SearchX size={24} className="text-on-surface-muted opacity-60" />

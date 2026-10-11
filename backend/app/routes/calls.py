@@ -1177,7 +1177,7 @@ async def list_call_alerts(
 
 
 @router.get("/alerts/count")
-async def count_call_alerts(ctx: dict = Depends(require_permission("team.manage"))):
+def count_call_alerts(ctx: dict = Depends(require_permission("team.manage"))):
     db = get_supabase()
     is_sim = get_telecalling_config(ctx["tenant_id"], db=db).get("calling_provider", "telecmi") == "sim_basic"
     query = db.table("call_alerts").select("id", count="exact").eq("tenant_id", ctx["tenant_id"]).is_("seen_at", "null")

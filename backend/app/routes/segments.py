@@ -30,7 +30,7 @@ def _ensure_templates(db, tenant_id: str) -> list[dict]:
 
 
 @router.get("/templates")
-async def list_templates(
+def list_templates(
     tenant_id: str = Depends(get_tenant_id),
     _ctx: dict = Depends(require_leads_view),
 ):
