@@ -85,9 +85,6 @@ export default function ConversationsPage() {
   const [escalationCount, setEscalationCount] = useState(0);
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  // False until the first list for this folder arrives, so the list shows
-  // placeholders instead of "No conversations found" while it loads.
-  const [listLoaded, setListLoaded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const leadsCountRef = useRef(0);
@@ -131,8 +128,7 @@ export default function ConversationsPage() {
     const limit = debouncedSearch ? SEARCH_RESULTS_LIMIT : Math.max(CONVERSATIONS_PAGE_SIZE, leadsCountRef.current);
     fetchConversations(folder, limit, 0, debouncedSearch || undefined)
       .then(({ leads: loaded, total: t }) => { setLeads(loaded); setTotal(t); setError(false); })
-      .catch(() => setError(true))
-      .finally(() => setListLoaded(true));
+      .catch(() => setError(true));
   }, [folder, debouncedSearch]);
 
   useEffect(() => { leadsCountRef.current = leads.length; }, [leads]);
@@ -290,7 +286,6 @@ export default function ConversationsPage() {
           folder={folder}
           hasMore={leads.length < total}
           loadingMore={loadingMore}
-          initialLoading={!listLoaded}
           onLoadMore={loadMore}
           onDeleted={(deletedIds) => {
             setLeads((prev) => prev.filter((l) => !deletedIds.includes(l.id)));

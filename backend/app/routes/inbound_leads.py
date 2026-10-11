@@ -198,7 +198,7 @@ def _enrich(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/campaigns")
-def list_campaigns(tenant_id: str = Depends(get_tenant_id)):
+async def list_campaigns(tenant_id: str = Depends(get_tenant_id)):
     """Return all ad campaigns for this tenant (used for filter dropdown)."""
     db = get_supabase()
     try:

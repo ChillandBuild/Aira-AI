@@ -84,7 +84,7 @@ class CustomBroadcastRequest(BaseModel):
 
 
 @router.get("/", response_model=PaginatedResponse)
-def list_leads(
+async def list_leads(
     segment: str | None = Query(None, pattern="^[ABCD]$"),
     assigned_to: str | None = Query(None),
     source_filter: str | None = Query(None),

@@ -246,7 +246,7 @@ function ComposeModal({ onClose, onSent, canManageLeads }: { onClose: () => void
   );
 }
 
-export function LeadsClient({ initialTab = "A" }: { initialTab?: typeof SEGMENTS[number] }) {
+export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | null; initialTab?: typeof SEGMENTS[number] }) {
   const { role, permissions } = useAuthRole();
   const canManageLeads = role === "owner" || permissions.includes("leads.manage");
   // Sending a chat message needs the same right as replying in Conversations.

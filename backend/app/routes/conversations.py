@@ -9,7 +9,7 @@ require_conversations_view = require_permission("conversations.view")
 
 
 @router.get("")
-def list_conversations(
+async def list_conversations(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     folder: str = Query(default="chats", pattern="^(chats|archived|blocked)$"),
