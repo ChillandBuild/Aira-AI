@@ -268,7 +268,7 @@ export default function ConversationsPage() {
       </div>
 
       {/* ── Conversation list ── */}
-      <div className={`relative w-full flex-shrink-0 md:block md:w-[440px] md:max-w-[42vw] ${selected ? "hidden" : "block"}`}>
+      <div className={`relative w-full flex-shrink-0 md:block md:w-[380px] md:max-w-[38vw] ${selected ? "hidden" : "block"}`}>
         <ConversationList
           leads={leads}
           selectedId={selected?.id ?? null}
