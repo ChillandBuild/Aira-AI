@@ -2,11 +2,10 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { getAuthHeaders, API_URL, Lead, api } from "@/lib/api";
-import { ConversationList } from "@/components/conversation-list";
+import { ConversationList, type InboxFolder } from "@/components/conversation-list";
 import { ChatThread } from "@/components/chat-thread";
 import { LeadDetailsPanel } from "@/components/lead-details-panel";
 import { EscalationPanel } from "@/components/escalation-panel";
-import { type InboxFolder } from "@/components/inbox-rail";
 import { usePolling } from "@/hooks/usePolling";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";

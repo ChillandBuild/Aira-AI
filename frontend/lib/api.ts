@@ -2060,8 +2060,6 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ message, enabled }),
       }),
-    broadcast: (segment: string) =>
-      apiFetch<BroadcastResult>(`/api/v1/segments/${segment}/broadcast`, { method: "POST" }),
   },
   broadcasts: {
     history: async () => {

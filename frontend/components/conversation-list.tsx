@@ -5,9 +5,11 @@ import { formatConvoTime, formatPhone, cn } from "@/lib/utils";
 import { Trash2, MoreVertical, MoreHorizontal, Search, X, SearchX, Pin, RefreshCw, Archive, Ban, Flag, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { CheckTick } from "@/components/ui/controls";
-import { type InboxFolder } from "./inbox-rail";
 
 type ConversationLead = Lead & { last_reply_at?: string };
+
+/** The inbox tabs. */
+export type InboxFolder = "chats" | "escalations" | "archived" | "blocked";
 
 interface Props {
   leads: Lead[];
