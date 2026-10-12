@@ -268,8 +268,8 @@ export function DealsTab({
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
         <div className="flex flex-col gap-2 border-b border-[#e2e8f0] p-4 min-[1360px]:flex-row min-[1360px]:items-center">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <div className="relative min-w-[160px] flex-1 min-[1360px]:max-w-xs">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 min-[1360px]:flex-nowrap">
+            <div className="relative min-w-[140px] flex-1 min-[1360px]:max-w-xs">
               <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
               <input
                 type="text"
@@ -403,7 +403,7 @@ export function DealsTab({
             </FilterPopover>
 
             {hasFilters && (
-              <button type="button" onClick={clearFilters} className="px-1 text-xs font-semibold text-primary hover:opacity-70">
+              <button type="button" onClick={clearFilters} className="shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-primary hover:opacity-70">
                 Clear filters
               </button>
             )}
