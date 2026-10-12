@@ -24,7 +24,6 @@ export default function DealsPage() {
   const { role, permissions, loading: roleLoading } = useAuthRole();
   const rawTab = searchParams.get("tab");
   const [intakeEnabled, setIntakeEnabled] = useState(false);
-  const [showNewDeal, setShowNewDeal] = useState(false);
   const [openDealId, setOpenDealId] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -33,6 +32,21 @@ export default function DealsPage() {
 
   const visibleTabs = TABS.filter((t) => t.id !== "forms" || intakeEnabled);
   const tab = (visibleTabs.some((t) => t.id === rawTab) ? rawTab : "deals") as PageTab;
+
+  const showNewDeal = canManage && searchParams.get("new") === "1";
+
+  function openNewDeal() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("new", "1");
+    router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
+  }
+
+  function closeNewDeal() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("new");
+    const qs = params.toString();
+    router.replace(`/dashboard/deals${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
 
   function setTab(next: PageTab) {
     const params = new URLSearchParams(searchParams.toString());
@@ -76,47 +90,42 @@ export default function DealsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Tab navigation with underline style */}
-      <div className="flex items-center justify-between gap-4 border-b border-border px-4">
-        <div className="flex gap-1">
+    <div className="min-w-0">
+      {/* The tabs live in the app header from md up; phones get them here. */}
+      <div className="mb-4 flex items-center justify-between gap-2 md:hidden">
+        <div className="flex w-max gap-1 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-1">
           {visibleTabs.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               onClick={() => setTab(id)}
-              className={`px-3 py-3 font-label text-sm font-bold border-b-2 transition-all ${
-                tab === id
-                  ? "border-primary text-ink"
-                  : "border-transparent text-ink-secondary hover:text-ink"
+              className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                tab === id ? "bg-white text-[#0A1528] shadow-sm" : "text-[#64748b] hover:text-[#0A1528]"
               }`}
             >
               {label}
             </button>
           ))}
         </div>
-
         {canManage && tab === "deals" && (
           <button
             type="button"
-            onClick={() => setShowNewDeal(true)}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white shadow-sm hover:bg-primary/90"
+            onClick={openNewDeal}
+            className="inline-flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary/90"
           >
             <Plus size={14} /> New deal
           </button>
         )}
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {tab === "deals" && <DealsTab onOpenDeal={setOpenDealId} reloadToken={reloadToken} />}
-        {tab === "insights" && <InsightsTab />}
-        {tab === "forms" && intakeEnabled && <FormAnswersTab />}
-      </div>
+      {tab === "deals" && <DealsTab onOpenDeal={setOpenDealId} reloadToken={reloadToken} />}
+      {tab === "insights" && <InsightsTab />}
+      {tab === "forms" && intakeEnabled && <FormAnswersTab />}
 
       {showNewDeal && (
         <NewDealDialog
           open={showNewDeal}
-          onClose={() => setShowNewDeal(false)}
+          onClose={closeNewDeal}
           onCreated={handleCreated}
         />
       )}

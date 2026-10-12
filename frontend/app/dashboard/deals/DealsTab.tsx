@@ -1,20 +1,101 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, List, KanbanSquare } from "lucide-react";
+import { toast } from "sonner";
+import { Check, Download, RefreshCw, Search } from "lucide-react";
 import { api, DealStage, DealSummaryStats, DealSource, PaymentMethod, DealAttention } from "@/lib/api";
 import { filtersFromParams, filtersToParams, ATTENTION_LABEL, shortRupees, SOURCE_LABEL, PAYMENT_LABEL } from "@/lib/deal-filters";
-import { ListTab } from "./ListTab";
-import { BoardTab } from "./BoardTab";
+import { cn } from "@/lib/utils";
+import { ListTab, downloadDealsCsv, fetchAllDeals } from "./ListTab";
 import { FilterPopover } from "@/components/deals/FilterPopover";
 
-const STAGE_ORDER: DealStage[] = ["quoted", "awaiting_payment", "won", "lost"];
-const STAGE_LABEL: Record<DealStage, string> = {
-  quoted: "Quoted",
-  awaiting_payment: "Awaiting payment",
-  won: "Won",
-  lost: "Lost",
-};
+type Filters = ReturnType<typeof filtersFromParams>;
+type StageKey = DealStage | "all";
+
+const STAGE_CARDS: { key: StageKey; label: string; hint: string; edge: string }[] = [
+  { key: "all", label: "All deals", hint: "Every deal", edge: "bg-primary" },
+  { key: "quoted", label: "Quoted", hint: "Price sent · follow up", edge: "bg-slate-400" },
+  { key: "awaiting_payment", label: "Awaiting payment", hint: "Link sent · chase it", edge: "bg-amber-400" },
+  { key: "won", label: "Won", hint: "Paid", edge: "bg-emerald-500" },
+  { key: "lost", label: "Lost", hint: "Didn't close", edge: "bg-rose-500" },
+];
+
+const SOURCES: DealSource[] = ["whatsapp", "form", "call", "walk_in", "manual", "indiamart", "justdial"];
+const PAYMENTS: PaymentMethod[] = ["razorpay", "cash", "upi", "card", "bank_transfer", "other"];
+const ATTENTIONS: DealAttention[] = ["unpaid_3d", "link_expiring", "refund"];
+
+function weekAgoIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(d);
+}
+
+function daysAgoIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(d);
+}
+
+// Saved views: each one is a fixed set of filters. Stage is left alone so a view
+// combines with the stage card above.
+const VIEWS: { id: string; label: string; filters: () => Partial<Filters> }[] = [
+  { id: "all", label: "All deals", filters: () => ({}) },
+  { id: "unpaid", label: "Unpaid 3+ days", filters: () => ({ attention: ["unpaid_3d"] }) },
+  { id: "big", label: "Big deals ₹10k+", filters: () => ({ min_rupees: 10000 }) },
+  { id: "indiamart", label: "IndiaMART", filters: () => ({ source: ["indiamart"] }) },
+  { id: "week", label: "This week", filters: () => ({ created_from: weekAgoIso() }) },
+];
+
+// Keys a saved view or filter can set (stage, sort and paging are separate controls).
+const FILTER_KEYS = ["q", "source", "created_from", "created_to", "min_rupees", "max_rupees", "payment_method", "product", "attention"] as const;
+
+function sameFilters(a: Partial<Filters>, b: Partial<Filters>): boolean {
+  return FILTER_KEYS.every((k) => JSON.stringify(a[k] ?? null) === JSON.stringify(b[k] ?? null));
+}
+
+function listText<T extends string>(values: T[] | undefined, labels: Record<T, string>): string {
+  if (!values || values.length === 0) return "All";
+  return values.map((v) => labels[v] ?? v).join(", ");
+}
+
+function toggled<T>(list: T[] | undefined, value: T, on: boolean): T[] | undefined {
+  const next = on ? [...(list || []), value] : (list || []).filter((v) => v !== value);
+  return next.length > 0 ? next : undefined;
+}
+
+function TickRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (on: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#334155] hover:bg-slate-50">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="h-3.5 w-3.5 rounded border-[#cbd5e1] accent-primary"
+      />
+      <span className="truncate">{label}</span>
+    </label>
+  );
+}
+
+function PickRow({ selected, label, onClick }: { selected: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold hover:bg-slate-50",
+        selected ? "text-primary" : "text-[#334155]"
+      )}
+    >
+      {label}
+      {selected && <Check size={14} />}
+    </button>
+  );
+}
+
+const fieldLabel = "block text-[10px] font-bold uppercase tracking-wider text-[#64748b]";
+const fieldInput =
+  "mt-1 w-full rounded-lg border border-[#e2e8f0] px-2.5 py-1.5 text-xs text-[#0A1528] focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 export function DealsTab({
   onOpenDeal,
@@ -29,35 +110,37 @@ export function DealsTab({
   const [summaryError, setSummaryError] = useState(false);
   const [summary, setSummary] = useState<DealSummaryStats | null>(null);
   const [searchText, setSearchText] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  // Fix infinite fetch loop: memoize filters by URL string
+  // Memoize filters by URL string so the fetches don't loop
   const paramsKey = searchParams.toString();
   const filters = useMemo(() => filtersFromParams(new URLSearchParams(paramsKey)), [paramsKey]);
-  const view = (filters.view || "table") as "table" | "board";
 
   const updateFilters = useCallback(
-    (newFilters: typeof filters) => {
-      const params = filtersToParams(newFilters);
-      router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
+    (newFilters: Filters) => {
+      router.replace(`/dashboard/deals?${filtersToParams(newFilters).toString()}`, { scroll: false });
     },
     [router]
   );
 
-  // Sync search text from URL
+  const setFilter = (patch: Partial<Filters>) => updateFilters({ ...filters, ...patch, page: 1 });
+
   useEffect(() => {
     setSearchText(filters.q ?? "");
   }, [filters.q]);
 
-  // Handle search input with 300ms debounce
+  // Search with a 300ms debounce
   useEffect(() => {
-    if (searchText === (filters.q ?? "")) return; // No change
+    if (searchText === (filters.q ?? "")) return;
     const timer = setTimeout(() => {
       updateFilters({ ...filters, q: searchText || undefined, page: 1 });
     }, 300);
     return () => clearTimeout(timer);
   }, [searchText, filters, updateFilters]);
 
-  // Memoize summary filters to keep loadSummary stable
+  // Stage counts ignore the stage filter so every card keeps its number.
   const summaryFilters = useMemo(
     () => ({
       source: filters.source,
@@ -77,8 +160,7 @@ export function DealsTab({
     setSummaryLoading(true);
     setSummaryError(false);
     try {
-      const data = await api.deals.summary(summaryFilters);
-      setSummary(data);
+      setSummary(await api.deals.summary(summaryFilters));
     } catch {
       setSummaryError(true);
     } finally {
@@ -88,699 +170,282 @@ export function DealsTab({
 
   useEffect(() => {
     loadSummary();
-  }, [loadSummary, reloadToken]);
+  }, [loadSummary, reloadToken, refreshToken]);
 
-  const stageTotals = summary ? summary.stages : null;
-  const allStageCount = stageTotals ? Object.values(stageTotals).reduce((sum, s) => sum + s.count, 0) : 0;
-  const allStageTotal = stageTotals ? Object.values(stageTotals).reduce((sum, s) => sum + s.total_paise, 0) : 0;
-
-  const openCount = stageTotals
-    ? (stageTotals.quoted?.count || 0) + (stageTotals.awaiting_payment?.count || 0)
-    : 0;
-  const openTotal = stageTotals
-    ? (stageTotals.quoted?.total_paise || 0) + (stageTotals.awaiting_payment?.total_paise || 0)
-    : 0;
-
-  const wonCount = stageTotals?.won?.count || 0;
-  const wonTotal = stageTotals?.won?.total_paise || 0;
-
-  const lostCount = stageTotals?.lost?.count || 0;
-  const closedCount = wonCount + lostCount;
-
-  const winRate = closedCount > 0 ? ((wonCount / closedCount) * 100).toFixed(0) : null;
-  const avgDeal = wonCount > 0 ? wonTotal / wonCount : null;
-
-  const unpaid3dCount = summary?.unpaid_3d?.count || 0;
-  const unpaid3dTotal = summary?.unpaid_3d?.total_paise || 0;
-
-  // Fixed preset detection: filter out undefined values and internal keys
-  const activeKeys = (Object.keys(filters) as (keyof typeof filters)[]).filter(
-    (k) => !["view", "sort", "dir", "page", "stage"].includes(k) && filters[k] !== undefined
-  );
-
-  const viewName = {
-    "all-deals": activeKeys.length === 0,
-    "unpaid-3d":
-      activeKeys.length === 1 &&
-      activeKeys[0] === "attention" &&
-      filters.attention?.length === 1 &&
-      filters.attention[0] === "unpaid_3d",
-    "big-deals":
-      activeKeys.length === 1 &&
-      activeKeys[0] === "min_rupees" &&
-      filters.min_rupees === 10000,
-    indiamart:
-      activeKeys.length === 1 &&
-      activeKeys[0] === "source" &&
-      filters.source?.length === 1 &&
-      filters.source[0] === "indiamart",
-    "this-week": (() => {
-      if (activeKeys.length !== 1 || activeKeys[0] !== "created_from") return false;
-      const weekAgo = new Date();
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      const weekAgoIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(weekAgo);
-      return filters.created_from === weekAgoIso;
-    })(),
+  const stages = summary?.stages;
+  const stageStat = (key: StageKey) => {
+    if (!stages) return { count: undefined, total: 0 };
+    if (key === "all") {
+      const all = Object.values(stages);
+      return { count: all.reduce((s, x) => s + x.count, 0), total: all.reduce((s, x) => s + x.total_paise, 0) };
+    }
+    return { count: stages[key]?.count ?? 0, total: stages[key]?.total_paise ?? 0 };
   };
 
+  const activeView = VIEWS.find((v) => sameFilters(filters, v.filters()));
+  const hasFilters = FILTER_KEYS.some((k) => filters[k] !== undefined) || !!filters.stage;
+
+  const createdText = filters.created_from || filters.created_to
+    ? `${filters.created_from ?? "…"} – ${filters.created_to ?? "now"}`
+    : "Any time";
+  const valueText = filters.min_rupees != null || filters.max_rupees != null
+    ? `₹${filters.min_rupees ?? 0} – ${filters.max_rupees != null ? `₹${filters.max_rupees}` : "any"}`
+    : "Any";
+
+  function clearFilters() {
+    setSearchText("");
+    updateFilters({});
+  }
+
+  async function refresh() {
+    setRefreshing(true);
+    setRefreshToken((n) => n + 1);
+    // The list and numbers reload on the token; keep the spinner up briefly so the click registers.
+    setTimeout(() => setRefreshing(false), 600);
+  }
+
+  async function exportAll() {
+    setExporting(true);
+    try {
+      const deals = await fetchAllDeals(filters, filters.sort || "created_at", filters.dir || "desc");
+      if (deals.length === 0) {
+        toast.info("No deals to export");
+        return;
+      }
+      downloadDealsCsv(deals, "deals.csv");
+      toast.success(`Exported ${deals.length} deal${deals.length === 1 ? "" : "s"}`);
+    } catch {
+      toast.error("Export failed — try again");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
-    <div className="flex h-full flex-col bg-white">
-      {/* Header row */}
-      <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
-        <div>
-          <h1 className="font-display text-2xl font-extrabold text-ink">Deals</h1>
-          {!summaryLoading && allStageCount > 0 && (
-            <p className="font-body text-xs text-ink-muted">{allStageCount} deals</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1 rounded-full border border-border bg-surface-subtle p-1">
-          <button
-            type="button"
-            onClick={() => {
-              const params = filtersToParams({ ...filters, view: "table" });
-              router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
-            }}
-            className={`rounded-full p-2 transition-all ${
-              view === "table" ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-            }`}
-            title="Table view"
-          >
-            <List size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const params = filtersToParams({ ...filters, view: "board" });
-              router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
-            }}
-            className={`rounded-full p-2 transition-all ${
-              view === "board" ? "bg-white text-ink shadow-sm" : "text-ink-muted hover:text-ink"
-            }`}
-            title="Board view"
-          >
-            <KanbanSquare size={16} />
-          </button>
-        </div>
+    <div className="space-y-4">
+      {/* Stage cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        {STAGE_CARDS.map(({ key, label, hint, edge }) => {
+          const { count, total } = stageStat(key);
+          const isSelected = (filters.stage || "all") === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter({ stage: key === "all" ? undefined : key })}
+              className={cn(
+                "relative flex items-center gap-3 overflow-hidden rounded-2xl border bg-white py-4 pl-5 pr-4 text-left transition-all",
+                isSelected ? "border-2 border-primary ring-4 ring-primary/10" : "border-[#e2e8f0] hover:border-slate-300"
+              )}
+            >
+              <div className={cn("absolute bottom-3 left-0 top-3 w-1 rounded-r", edge)} />
+              <div className="min-w-[2ch] font-display text-3xl font-bold tabular-nums text-[#0A1528]">
+                {summaryLoading && count === undefined ? (
+                  <span className="inline-block h-8 w-8 animate-pulse rounded bg-[#f1f5f9] align-middle" />
+                ) : (
+                  count ?? "—"
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold text-[#0A1528]">{label}</div>
+                <div className="text-xs font-bold tabular-nums text-[#334155]">{shortRupees(total)}</div>
+                <div className="truncate text-xs text-[#64748b]">{hint}</div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
-      {/* KPI strip with error state */}
       {summaryError && (
-        <div className="flex items-center justify-between bg-amber-50 px-5 py-2 border-b border-amber-200">
-          <p className="font-body text-xs text-amber-700">Couldn&apos;t load the numbers.</p>
-          <button
-            type="button"
-            onClick={loadSummary}
-            className="rounded px-2 py-1 font-label text-xs font-bold text-amber-700 hover:bg-amber-100"
-          >
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+          <p className="text-xs text-amber-700">Couldn&apos;t load the stage numbers.</p>
+          <button type="button" onClick={loadSummary} className="text-xs font-bold text-amber-700 hover:opacity-70">
             Retry
           </button>
         </div>
       )}
 
-      {summaryLoading && (
-        <div className="grid grid-cols-2 gap-px border-b border-border lg:grid-cols-5">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-20 animate-pulse bg-border-subtle" />
-          ))}
-        </div>
-      )}
-      {!summaryLoading && summary && (
-        <div className="grid grid-cols-2 border-b border-border lg:grid-cols-5">
-          {/* Open pipeline */}
-          <div className="border-r border-border px-5 py-4 last:border-r-0">
-            <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-muted">Open pipeline</p>
-            <p className="font-display text-xl font-extrabold tabular-nums text-ink">{shortRupees(openTotal)}</p>
-            <p className="font-body text-xs text-ink-muted">{openCount} deals open</p>
-          </div>
-
-          {/* Won */}
-          <div className="border-r border-border px-5 py-4 last:border-r-0">
-            <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-muted">Won</p>
-            <p className="font-display text-xl font-extrabold tabular-nums text-emerald-600">{shortRupees(wonTotal)}</p>
-            <p className="font-body text-xs text-ink-muted">{wonCount} deals</p>
-          </div>
-
-          {/* Win rate */}
-          <div className="border-r border-border px-5 py-4 last:border-r-0">
-            <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-muted">Win rate</p>
-            <p className="font-display text-xl font-extrabold tabular-nums text-ink">{winRate ? `${winRate}%` : "—"}</p>
-            <p className="font-body text-xs text-ink-muted">
-              {wonCount > 0 && closedCount > 0 ? `${wonCount} won of ${closedCount} closed` : "—"}
-            </p>
-          </div>
-
-          {/* Avg deal */}
-          <div className="border-r border-border px-5 py-4 last:border-r-0">
-            <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-muted">Avg deal</p>
-            <p className="font-display text-xl font-extrabold tabular-nums text-ink">
-              {avgDeal ? shortRupees(avgDeal) : "—"}
-            </p>
-            <p className="font-body text-xs text-ink-muted">{wonCount > 0 ? `per won deal` : "—"}</p>
-          </div>
-
-          {/* Unpaid 3+ days */}
-          <div className="px-5 py-4">
-            <button
-              type="button"
-              onClick={() => {
-                updateFilters({
-                  ...filters,
-                  attention: filters.attention?.includes("unpaid_3d") ? undefined : ["unpaid_3d"],
-                  page: 1,
-                });
-              }}
-              className="w-full text-left hover:opacity-80 transition-opacity"
-            >
-              <p className="font-label text-[11px] font-bold uppercase tracking-wide text-ink-muted">Unpaid 3+ days</p>
-              <p className="font-display text-xl font-extrabold tabular-nums text-ink">{unpaid3dCount}</p>
-              <p className={`font-body text-xs ${unpaid3dTotal > 0 ? "text-amber-600" : "text-ink-muted"}`}>
-                {unpaid3dTotal > 0 ? `${shortRupees(unpaid3dTotal)} waiting` : "Nothing waiting"}
-              </p>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Stage tabs - only in table view */}
-      {view === "table" && (
-        <div className="flex gap-0 border-b border-border px-5 text-sm">
-          <button
-            type="button"
-            onClick={() => updateFilters({ ...filters, stage: undefined, page: 1 })}
-            className={`px-3 py-3 font-label font-bold border-b-2 transition-all ${
-              !filters.stage
-                ? "border-primary text-ink"
-                : "border-transparent text-ink-secondary hover:text-ink"
-            }`}
-          >
-            All
-            <span className="rounded-full bg-surface-mid px-1.5 text-[11px] text-ink-muted inline-block ml-2">
-              {allStageCount}
-            </span>
-            <span className="text-ink-muted ml-1">{shortRupees(allStageTotal)}</span>
-          </button>
-          {STAGE_ORDER.map((stage) => {
-            const count = stageTotals?.[stage]?.count || 0;
-            const total = stageTotals?.[stage]?.total_paise || 0;
-            return (
-              <button
-                key={stage}
-                type="button"
-                onClick={() => updateFilters({ ...filters, stage, page: 1 })}
-                className={`px-3 py-3 font-label font-bold border-b-2 transition-all ${
-                  filters.stage === stage
-                    ? "border-primary text-ink"
-                    : "border-transparent text-ink-secondary hover:text-ink"
-                }`}
-              >
-                {STAGE_LABEL[stage]}
-                <span
-                  className={`rounded-full px-1.5 text-[11px] inline-block ml-2 ${
-                    filters.stage === stage
-                      ? "bg-primary/10 text-primary"
-                      : "bg-surface-mid text-ink-muted"
-                  }`}
-                >
-                  {count}
-                </span>
-                <span className="text-ink-muted ml-1">{shortRupees(total)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
-        <div className="flex items-center gap-2 rounded-full border border-border bg-white px-3 py-2">
-          <Search size={16} className="text-ink-muted" />
-          <input
-            type="text"
-            placeholder="Search name, phone or D-0012"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            className="flex-1 bg-transparent font-body text-sm text-ink placeholder:text-ink-muted outline-none"
-          />
-        </div>
-
-        <FilterPopover
-          label="Source"
-          active={(filters.source?.length || 0) > 0}
-          count={filters.source?.length}
-        >
-          <div className="space-y-1.5">
-            {(["whatsapp", "form", "call", "walk_in", "manual", "indiamart", "justdial"] as const).map((source) => (
-              <label key={source} className="flex items-center gap-2.5 cursor-pointer px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={filters.source?.includes(source) || false}
-                  onChange={(e) => {
-                    const newSources = e.target.checked
-                      ? [...(filters.source || []), source]
-                      : (filters.source || []).filter((s) => s !== source);
-                    updateFilters({ ...filters, source: newSources.length > 0 ? newSources : undefined, page: 1 });
-                  }}
-                  className="rounded border-border"
-                />
-                <span className="font-body text-sm text-ink">{SOURCE_LABEL[source]}</span>
-              </label>
-            ))}
-          </div>
-        </FilterPopover>
-
-        <FilterPopover
-          label="Created"
-          active={!!(filters.created_from || filters.created_to)}
-          count={filters.created_from || filters.created_to ? 1 : undefined}
-        >
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() =>
-                updateFilters({
-                  ...filters,
-                  created_from: undefined,
-                  created_to: undefined,
-                  page: 1,
-                })
-              }
-              className="w-full rounded px-2 py-1.5 text-left font-body text-sm text-ink hover:bg-surface-subtle"
-            >
-              Any time
-            </button>
-            {["Last 7", "Last 30", "Last 90"].map((label, idx) => {
-              const days = [7, 30, 90][idx];
-              const from = new Date();
-              from.setDate(from.getDate() - days);
-              const fromIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(from);
-              return (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() =>
-                    updateFilters({
-                      ...filters,
-                      created_from: fromIso,
-                      created_to: undefined,
-                      page: 1,
-                    })
-                  }
-                  className="w-full rounded px-2 py-1.5 text-left font-body text-sm text-ink hover:bg-surface-subtle"
-                >
-                  {label}
-                </button>
-              );
-            })}
-            <div className="space-y-1.5 border-t border-border pt-2">
-              <label className="block">
-                <span className="font-label text-[10px] font-bold uppercase text-ink-muted">From</span>
-                <input
-                  type="date"
-                  value={filters.created_from || ""}
-                  onChange={(e) =>
-                    updateFilters({
-                      ...filters,
-                      created_from: e.target.value || undefined,
-                      page: 1,
-                    })
-                  }
-                  className="w-full rounded border border-border px-2 py-1.5 font-body text-sm"
-                />
-              </label>
-              <label className="block">
-                <span className="font-label text-[10px] font-bold uppercase text-ink-muted">To</span>
-                <input
-                  type="date"
-                  value={filters.created_to || ""}
-                  onChange={(e) =>
-                    updateFilters({
-                      ...filters,
-                      created_to: e.target.value || undefined,
-                      page: 1,
-                    })
-                  }
-                  className="w-full rounded border border-border px-2 py-1.5 font-body text-sm"
-                />
-              </label>
+      {/* Main card: filters + table */}
+      <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
+        <div className="flex flex-col gap-2 border-b border-[#e2e8f0] p-4 min-[1360px]:flex-row min-[1360px]:items-center">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <div className="relative min-w-[160px] flex-1 min-[1360px]:max-w-xs">
+              <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
+              <input
+                type="text"
+                placeholder="Search name, phone or D-0012"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full rounded-xl border border-[#e2e8f0] py-2 pl-10 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
             </div>
-          </div>
-        </FilterPopover>
 
-        <FilterPopover
-          label="Value"
-          active={!!(filters.min_rupees || filters.max_rupees)}
-          count={filters.min_rupees || filters.max_rupees ? 1 : undefined}
-        >
-          <div className="space-y-2">
-            <label className="block">
-              <span className="font-label text-[10px] font-bold uppercase text-ink-muted">Min ₹</span>
-              <input
-                type="number"
-                value={filters.min_rupees ?? ""}
-                onChange={(e) =>
-                  updateFilters({
-                    ...filters,
-                    min_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined,
-                    page: 1,
-                  })
-                }
-                placeholder="0"
-                className="w-full rounded border border-border px-2 py-1.5 font-body text-sm"
-              />
-            </label>
-            <label className="block">
-              <span className="font-label text-[10px] font-bold uppercase text-ink-muted">Max ₹</span>
-              <input
-                type="number"
-                value={filters.max_rupees ?? ""}
-                onChange={(e) =>
-                  updateFilters({
-                    ...filters,
-                    max_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined,
-                    page: 1,
-                  })
-                }
-                placeholder="∞"
-                className="w-full rounded border border-border px-2 py-1.5 font-body text-sm"
-              />
-            </label>
-          </div>
-        </FilterPopover>
-
-        <FilterPopover
-          label="Payment"
-          active={(filters.payment_method?.length || 0) > 0}
-          count={filters.payment_method?.length}
-        >
-          <div className="space-y-1.5">
-            {(["razorpay", "cash", "upi", "card", "bank_transfer", "other"] as const).map((method) => (
-              <label key={method} className="flex items-center gap-2.5 cursor-pointer px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={filters.payment_method?.includes(method) || false}
-                  onChange={(e) => {
-                    const newMethods = e.target.checked
-                      ? [...(filters.payment_method || []), method]
-                      : (filters.payment_method || []).filter((m) => m !== method);
-                    updateFilters({
-                      ...filters,
-                      payment_method: newMethods.length > 0 ? newMethods : undefined,
-                      page: 1,
-                    });
-                  }}
-                  className="rounded border-border"
+            <FilterPopover label="View" value={activeView?.label ?? "Custom"} active={!!activeView && activeView.id !== "all"} closeOnPick>
+              {VIEWS.map((v) => (
+                <PickRow
+                  key={v.id}
+                  label={v.label}
+                  selected={activeView?.id === v.id}
+                  onClick={() => updateFilters({ ...v.filters(), stage: filters.stage, sort: filters.sort, dir: filters.dir })}
                 />
-                <span className="font-body text-sm text-ink">{PAYMENT_LABEL[method]}</span>
-              </label>
-            ))}
-          </div>
-        </FilterPopover>
-
-        {summary && summary.products.length > 0 && (
-          <FilterPopover
-            label="Product"
-            active={(filters.product?.length || 0) > 0}
-            count={filters.product?.length}
-          >
-            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {summary.products.map((product) => (
-                <label key={product} className="flex items-center gap-2.5 cursor-pointer px-2 py-1.5">
-                  <input
-                    type="checkbox"
-                    checked={filters.product?.includes(product) || false}
-                    onChange={(e) => {
-                      const newProducts = e.target.checked
-                        ? [...(filters.product || []), product]
-                        : (filters.product || []).filter((p) => p !== product);
-                      updateFilters({
-                        ...filters,
-                        product: newProducts.length > 0 ? newProducts : undefined,
-                        page: 1,
-                      });
-                    }}
-                    className="rounded border-border"
-                  />
-                  <span className="font-body text-sm text-ink truncate">{product}</span>
-                </label>
               ))}
-            </div>
-          </FilterPopover>
-        )}
+            </FilterPopover>
 
-        <FilterPopover
-          label="More"
-          active={(filters.attention?.length || 0) > 0}
-          count={filters.attention?.length}
-        >
-          <div className="space-y-1.5">
-            {(["unpaid_3d", "link_expiring", "refund"] as const).map((att) => (
-              <label key={att} className="flex items-center gap-2.5 cursor-pointer px-2 py-1.5">
-                <input
-                  type="checkbox"
-                  checked={filters.attention?.includes(att) || false}
-                  onChange={(e) => {
-                    const newAttention = e.target.checked
-                      ? [...(filters.attention || []), att]
-                      : (filters.attention || []).filter((a) => a !== att);
-                    updateFilters({
-                      ...filters,
-                      attention: newAttention.length > 0 ? newAttention : undefined,
-                      page: 1,
-                    });
-                  }}
-                  className="rounded border-border"
+            <FilterPopover label="Source" value={listText(filters.source, SOURCE_LABEL)} active={!!filters.source}>
+              {SOURCES.map((s) => (
+                <TickRow
+                  key={s}
+                  label={SOURCE_LABEL[s]}
+                  checked={filters.source?.includes(s) ?? false}
+                  onChange={(on) => setFilter({ source: toggled(filters.source, s, on) })}
                 />
-                <span className="font-body text-sm text-ink">{ATTENTION_LABEL[att]}</span>
-              </label>
-            ))}
+              ))}
+            </FilterPopover>
+
+            <FilterPopover label="Created" value={createdText} active={!!(filters.created_from || filters.created_to)}>
+              <PickRow
+                label="Any time"
+                selected={!filters.created_from && !filters.created_to}
+                onClick={() => setFilter({ created_from: undefined, created_to: undefined })}
+              />
+              {[7, 30, 90].map((days) => (
+                <PickRow
+                  key={days}
+                  label={`Last ${days} days`}
+                  selected={filters.created_from === daysAgoIso(days) && !filters.created_to}
+                  onClick={() => setFilter({ created_from: daysAgoIso(days), created_to: undefined })}
+                />
+              ))}
+              <div className="mt-1 space-y-2 border-t border-[#f1f5f9] px-2.5 pb-1 pt-2">
+                <label className="block">
+                  <span className={fieldLabel}>From</span>
+                  <input
+                    type="date"
+                    value={filters.created_from || ""}
+                    onChange={(e) => setFilter({ created_from: e.target.value || undefined })}
+                    className={fieldInput}
+                  />
+                </label>
+                <label className="block">
+                  <span className={fieldLabel}>To</span>
+                  <input
+                    type="date"
+                    value={filters.created_to || ""}
+                    onChange={(e) => setFilter({ created_to: e.target.value || undefined })}
+                    className={fieldInput}
+                  />
+                </label>
+              </div>
+            </FilterPopover>
+
+            <FilterPopover label="Value" value={valueText} active={filters.min_rupees != null || filters.max_rupees != null}>
+              <div className="space-y-2 p-1.5">
+                <label className="block">
+                  <span className={fieldLabel}>Min ₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={filters.min_rupees ?? ""}
+                    onChange={(e) => setFilter({ min_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                    placeholder="0"
+                    className={fieldInput}
+                  />
+                </label>
+                <label className="block">
+                  <span className={fieldLabel}>Max ₹</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={filters.max_rupees ?? ""}
+                    onChange={(e) => setFilter({ max_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                    placeholder="Any"
+                    className={fieldInput}
+                  />
+                </label>
+              </div>
+            </FilterPopover>
+
+            <FilterPopover label="Payment" value={listText(filters.payment_method, PAYMENT_LABEL)} active={!!filters.payment_method}>
+              {PAYMENTS.map((m) => (
+                <TickRow
+                  key={m}
+                  label={PAYMENT_LABEL[m]}
+                  checked={filters.payment_method?.includes(m) ?? false}
+                  onChange={(on) => setFilter({ payment_method: toggled(filters.payment_method, m, on) })}
+                />
+              ))}
+            </FilterPopover>
+
+            {summary && summary.products.length > 0 && (
+              <FilterPopover label="Product" value={filters.product?.join(", ") || "All"} active={!!filters.product}>
+                <div className="max-h-56 overflow-y-auto">
+                  {summary.products.map((p) => (
+                    <TickRow
+                      key={p}
+                      label={p}
+                      checked={filters.product?.includes(p) ?? false}
+                      onChange={(on) => setFilter({ product: toggled(filters.product, p, on) })}
+                    />
+                  ))}
+                </div>
+              </FilterPopover>
+            )}
+
+            <FilterPopover label="More" value={listText(filters.attention, ATTENTION_LABEL)} active={!!filters.attention}>
+              {ATTENTIONS.map((a) => (
+                <TickRow
+                  key={a}
+                  label={ATTENTION_LABEL[a]}
+                  checked={filters.attention?.includes(a) ?? false}
+                  onChange={(on) => setFilter({ attention: toggled(filters.attention, a, on) })}
+                />
+              ))}
+            </FilterPopover>
+
+            {hasFilters && (
+              <button type="button" onClick={clearFilters} className="px-1 text-xs font-semibold text-primary hover:opacity-70">
+                Clear filters
+              </button>
+            )}
           </div>
-        </FilterPopover>
-      </div>
 
-      {/* Views row - always show */}
-      <div className="space-y-1.5 border-b border-border bg-surface-subtle px-5 py-2.5">
-        <p className="font-label text-xs font-bold uppercase tracking-wide text-ink-muted">Views</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => updateFilters({ ...filters, view, page: 1 })}
-            className={`inline-flex items-center rounded-full border px-3 py-1.5 font-body text-xs transition-all ${
-              viewName["all-deals"]
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-ink hover:bg-white"
-            }`}
-          >
-            All deals
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateFilters({ attention: ["unpaid_3d"], view, page: 1 })}
-            className={`inline-flex items-center rounded-full border px-3 py-1.5 font-body text-xs transition-all ${
-              viewName["unpaid-3d"]
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-ink hover:bg-white"
-            }`}
-          >
-            Unpaid 3+ days
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateFilters({ min_rupees: 10000, view, page: 1 })}
-            className={`inline-flex items-center rounded-full border px-3 py-1.5 font-body text-xs transition-all ${
-              viewName["big-deals"]
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-ink hover:bg-white"
-            }`}
-          >
-            Big deals ₹10k+
-          </button>
-
-          <button
-            type="button"
-            onClick={() => updateFilters({ source: ["indiamart"], view, page: 1 })}
-            className={`inline-flex items-center rounded-full border px-3 py-1.5 font-body text-xs transition-all ${
-              viewName["indiamart"]
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-ink hover:bg-white"
-            }`}
-          >
-            IndiaMART
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              const weekAgo = new Date();
-              weekAgo.setDate(weekAgo.getDate() - 7);
-              const weekAgoIso = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(weekAgo);
-              updateFilters({ created_from: weekAgoIso, view, page: 1 });
-            }}
-            className={`inline-flex items-center rounded-full border px-3 py-1.5 font-body text-xs transition-all ${
-              viewName["this-week"]
-                ? "border-primary bg-primary/10 text-primary"
-                : "border-border text-ink hover:bg-white"
-            }`}
-          >
-            This week
-          </button>
-
-          {/* Active filter chips */}
-          {activeKeys.map((key) => {
-            const value = filters[key];
-            if (!value) return null;
-
-            if (key === "q" && typeof value === "string") {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => updateFilters({ ...filters, q: undefined, page: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                >
-                  &quot;{value}&quot; ×
-                </button>
-              );
-            }
-
-            if (key === "source" && Array.isArray(value)) {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => updateFilters({ ...filters, source: undefined, page: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                >
-                  {(value as string[]).map((s) => SOURCE_LABEL[s as DealSource]).join(", ")} ×
-                </button>
-              );
-            }
-
-            if (
-              (key === "created_from" || key === "created_to") &&
-              typeof value === "string"
-            ) {
-              if (key === "created_from") {
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() =>
-                      updateFilters({
-                        ...filters,
-                        created_from: undefined,
-                        created_to: undefined,
-                        page: 1,
-                      })
-                    }
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                  >
-                    Created {value} to {filters.created_to || "∞"} ×
-                  </button>
-                );
-              }
-              return null;
-            }
-
-            if ((key === "min_rupees" || key === "max_rupees") && typeof value === "number") {
-              if (key === "min_rupees") {
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() =>
-                      updateFilters({
-                        ...filters,
-                        min_rupees: undefined,
-                        max_rupees: undefined,
-                        page: 1,
-                      })
-                    }
-                    className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                  >
-                    Value {value} to {filters.max_rupees || "∞"} ×
-                  </button>
-                );
-              }
-              return null;
-            }
-
-            if (key === "payment_method" && Array.isArray(value)) {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => updateFilters({ ...filters, payment_method: undefined, page: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                >
-                  {(value as string[]).map((m) => PAYMENT_LABEL[m as PaymentMethod]).join(", ")} ×
-                </button>
-              );
-            }
-
-            if (key === "product" && Array.isArray(value)) {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => updateFilters({ ...filters, product: undefined, page: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                >
-                  {value.join(", ")} ×
-                </button>
-              );
-            }
-
-            if (key === "attention" && Array.isArray(value)) {
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => updateFilters({ ...filters, attention: undefined, page: 1 })}
-                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-3 py-1.5 font-body text-xs text-primary"
-                >
-                  {(value as string[]).map((a) => ATTENTION_LABEL[a as DealAttention]).join(", ")} ×
-                </button>
-              );
-            }
-
-            return null;
-          })}
-
-          {activeKeys.length > 0 && (
+          <div className="flex shrink-0 gap-2 self-end min-[1360px]:self-auto">
             <button
               type="button"
-              onClick={() => updateFilters({ view, page: 1 })}
-              className="font-body text-xs text-ink-muted hover:text-ink"
+              onClick={refresh}
+              title="Refresh"
+              aria-label="Refresh"
+              disabled={refreshing}
+              className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
             >
-              Clear all
+              <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+              <span className="min-[1360px]:hidden 2xl:inline">Refresh</span>
             </button>
-          )}
+            <button
+              type="button"
+              onClick={exportAll}
+              title="Export"
+              aria-label="Export"
+              disabled={exporting}
+              className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+            >
+              <Download size={14} />
+              <span className="min-[1360px]:hidden 2xl:inline">{exporting ? "Exporting…" : "Export"}</span>
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Body */}
-      <div className="flex-1 overflow-hidden">
-        {view === "table" ? (
-          <ListTab
-            filters={filters}
-            sort={filters.sort || "created_at"}
-            dir={filters.dir || "desc"}
-            page={filters.page || 1}
-            onSortChange={(sort, dir) => updateFilters({ ...filters, sort, dir, page: 1 })}
-            onPageChange={(page) => updateFilters({ ...filters, page })}
-            onOpenDeal={onOpenDeal}
-            reloadToken={reloadToken}
-          />
-        ) : (
-          <BoardTab
-            filters={filters}
-            summary={summary}
-            onOpenDeal={onOpenDeal}
-            reloadToken={reloadToken}
-          />
-        )}
+        <ListTab
+          filters={filters}
+          sort={filters.sort || "created_at"}
+          dir={filters.dir || "desc"}
+          page={filters.page || 1}
+          onSortChange={(sort, dir) => updateFilters({ ...filters, sort, dir, page: 1 })}
+          onPageChange={(page) => updateFilters({ ...filters, page })}
+          onOpenDeal={onOpenDeal}
+          onClearFilters={clearFilters}
+          reloadToken={reloadToken + refreshToken}
+        />
       </div>
     </div>
   );

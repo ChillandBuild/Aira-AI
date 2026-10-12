@@ -50,7 +50,6 @@ export function filtersFromParams(params: URLSearchParams): DealFilters & {
   sort?: DealSort;
   dir?: "asc" | "desc";
   page?: number;
-  view?: "table" | "board";
 } {
   const stage = params.get("stage");
   const q = params.get("q");
@@ -65,7 +64,6 @@ export function filtersFromParams(params: URLSearchParams): DealFilters & {
   const sort = params.get("sort");
   const dir = params.get("dir");
   const page = params.get("page");
-  const view = params.get("view");
 
   return {
     stage: (stage as "" | "quoted" | "awaiting_payment" | "won" | "lost") || undefined,
@@ -81,12 +79,11 @@ export function filtersFromParams(params: URLSearchParams): DealFilters & {
     sort: (sort as DealSort) || undefined,
     dir: (dir as "asc" | "desc") || undefined,
     page: wholeNumber(page),
-    view: (view as "table" | "board") || undefined,
   };
 }
 
 export function filtersToParams(
-  filters: DealFilters & { sort?: DealSort; dir?: "asc" | "desc"; page?: number; view?: "table" | "board" },
+  filters: DealFilters & { sort?: DealSort; dir?: "asc" | "desc"; page?: number },
   base: URLSearchParams = new URLSearchParams()
 ): URLSearchParams {
   const params = new URLSearchParams(base);
@@ -129,9 +126,6 @@ export function filtersToParams(
 
   if (filters.page) params.set("page", String(filters.page));
   else params.delete("page");
-
-  if (filters.view) params.set("view", filters.view);
-  else params.delete("view");
 
   return params;
 }

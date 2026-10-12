@@ -5,7 +5,7 @@ import { ChevronsDownUp, ChevronsUpDown, ClipboardList, Clock, LayoutGrid, List,
 import { NotificationBell } from "@/components/NotificationBell";
 import { ProfileMenu } from "@/components/ProfileMenu";
 import { MoreMenu } from "@/components/MoreMenu";
-import { api } from "@/lib/api";
+import { api, API_URL, getAuthHeaders } from "@/lib/api";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { useHeaderAccordion } from "@/lib/headerAccordion";
 
@@ -246,6 +246,10 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
   const rolesTab = (searchParams.get("tab") === "users" || searchParams.get("tab") === "audit") ? searchParams.get("tab")! : "roles";
   const [callingProvider, setCallingProvider] = useState<"telecmi" | "sim_basic">("telecmi");
 
+  // Deals: "Form answers" tab only shows when form intake is switched on
+  const [dealsFormsEnabled, setDealsFormsEnabled] = useState(false);
+  const canManageDeals = role === "owner" || permissions.includes("deals.manage");
+
   // Notes switcher states
   const [notesPageMode, setNotesPageMode] = useState<"by_lead" | "all_notes">("by_lead");
   const [notesViewMode, setNotesViewMode] = useState<"grid" | "list">("grid");
@@ -268,6 +272,22 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
     api.calls.assignmentMode().then((data) => {
       if (active) setCallingProvider(data.calling_provider ?? "telecmi");
     }).catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    if (pathname !== "/dashboard/deals") return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/settings/intake-config`, { headers: await getAuthHeaders() });
+        if (res.ok && active) setDealsFormsEnabled(Boolean((await res.json()).enabled));
+      } catch {
+        // No intake config: the Form answers tab stays hidden.
+      }
+    })();
     return () => {
       active = false;
     };
@@ -473,6 +493,48 @@ export function AppHeader({ onOpenCalendar }: { onOpenCalendar: () => void }) {
               <Send size={14} className="mr-1.5 inline" />
               Message {({ A: "Hot", B: "Warm", C: "Cold", D: "Not interested" }[leadSegment] || "Hot")} leads
             </button>
+          </div>
+        )}
+
+        {pathname === "/dashboard/deals" && (
+          <div className="mr-2 hidden items-center gap-2 md:flex">
+            <div className="flex gap-1 rounded-2xl bg-[#e2e8f0]/60 p-1">
+              {(["deals", "insights", ...(dealsFormsEnabled ? ["forms"] : [])] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams.toString());
+                    if (t === "deals") params.delete("tab");
+                    else params.set("tab", t);
+                    const query = params.toString();
+                    router.replace(`/dashboard/deals${query ? `?${query}` : ""}`, { scroll: false });
+                  }}
+                  className={cn(
+                    "px-3 py-1.5 rounded-xl font-label text-xs font-bold transition-all",
+                    (tab === t || (t === "deals" && tab !== "insights" && tab !== "forms"))
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-[#475569] hover:text-[#13284A]"
+                  )}
+                >
+                  {t === "deals" ? "Deals" : t === "insights" ? "Insights" : "Form answers"}
+                </button>
+              ))}
+            </div>
+            {canManageDeals && tab !== "insights" && tab !== "forms" && (
+              <button
+                type="button"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("new", "1");
+                  router.replace(`/dashboard/deals?${params.toString()}`, { scroll: false });
+                }}
+                className="rounded-xl bg-primary px-3.5 py-2 font-label text-xs font-bold text-white shadow-sm hover:bg-[var(--primary-900)]"
+              >
+                <Plus size={14} className="mr-1.5 inline" />
+                New deal
+              </button>
+            )}
           </div>
         )}
 
