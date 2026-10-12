@@ -165,7 +165,7 @@
 | **119_telecmi_agent_password** | TeleCMI credentials support for voice call lines |
 
 
-## DB Migrations Index (120–222, generated from filenames)
+## DB Migrations Index (120–224, generated from filenames)
 
 Scope is the filename; the *why* lives in the dated entries below (grep the number). 196/197 do not exist (deleted); two files share 144. Regenerate with `ls backend/supabase/migrations` — do not hand-edit.
 
@@ -277,6 +277,8 @@ Scope is the filename; the *why* lives in the dated entries below (grep the numb
 | **220** | rbac new page permissions |
 | **221** | auto message events |
 | **222** | partner sends log |
+| **223** | conversation leads folder |
+| **224** | drop old conversation leads |
 
 ---
 
@@ -1788,3 +1790,9 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - Telecalling Live Agent Status: the admin caller card is tighter and labelled "Admin" (`a2a5e06e`, `5a4521b2`, `LiveAgentStatus.tsx`).
 - Telecalling Send details card loads its data in parallel so it no longer pops in (`5be2e352`, `services/call_details_share.py`, `SendDetailsCard.tsx`, test added in `test_call_details_share.py`).
 - Second-brain close run 2026-10-08: health check clean (0 issues); brain caught up on the domain move, fonts and migrations 221/222 live status; wiki and graph refreshed.
+
+### 2026-10-12 — Inbox folders move into get_conversation_leads (migrations 223, 224)
+- **Why:** the RPC paged across every conversation and `conversations.py` dropped other folders afterwards, so `total` was always the all-folders count (Blocked tab with 1 chat showed "Load more" against 697), Archived/Blocked only searched the 50 newest chats, Inbox "Load more" offsets drifted, and callers' own-leads filter had the same flaw.
+- **Decision:** a 6-argument `get_conversation_leads(p_tenant_id, p_limit, p_offset, p_search, p_folder, p_caller_id)` applies folder + caller rule before COUNT/LIMIT/OFFSET; `conversations.py` passes both. The Inbox tab badge is read separately (`fetchConversations("chats", 1, 0)`) so it stays the Inbox count on other tabs.
+- **223_conversation_leads_folder.sql — applied live 2026-10-12** (via Supabase MCP; verified Inbox 696 / Blocked 1 / Archived 0 on the busiest tenant). **224_drop_old_conversation_leads.sql — applied live 2026-10-12 by the user** in the SQL editor, after the backend with `p_folder` was confirmed on Render (its new `/share-product` route was live). 224 is not in `schema_migrations` because it ran in the editor; the old 4-arg function is gone (checked `pg_proc`).
+- Same session also shipped: Segments redesign (filter-aware broadcast with preview counts, `POST /leads/broadcast/preview`; the old `POST /segments/{segment}/broadcast` was removed), Conversations redesign (tabs, chips, AI-replied tags from the real last sender, quick actions incl. `POST /leads/{id}/share-product`), and the Segments date filter fix (both dates in one URL update).
