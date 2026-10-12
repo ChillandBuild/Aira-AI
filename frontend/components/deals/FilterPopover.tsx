@@ -42,7 +42,7 @@ export function FilterPopover({ label, value, active, closeOnPick = false, child
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-haspopup="true"
-        title={active ? `${label}: ${value}` : label}
+        title={`${label}: ${value}`}
         className={cn(
           "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
           active
@@ -50,8 +50,9 @@ export function FilterPopover({ label, value, active, closeOnPick = false, child
             : "border-[#e2e8f0] bg-white text-[#0A1528] hover:border-slate-300"
         )}
       >
-        {/* Only an active filter spells out its value, so the whole bar fits on one line. */}
-        <span className="max-w-[160px] truncate">{active ? `${label}: ${value}` : label}</span>
+        <span className="max-w-[180px] truncate">
+          {label}: {value}
+        </span>
         <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
       </button>
 
