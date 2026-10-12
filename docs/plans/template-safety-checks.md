@@ -89,7 +89,7 @@ with warnings that aren't real rules.
   locally and screenshotting the states (clean, auto-fixed note, blocker, tip) before showing the user.
 - Regression: an existing approved template (e.g. `escalation_alert`) opens in the edit page with no warnings.
 
-## GSTACK REVIEW REPORT
+## REVIEW REPORT
 
 | Run | Status | Findings |
 |---|---|---|

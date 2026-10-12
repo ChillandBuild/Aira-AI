@@ -119,8 +119,8 @@ Setting: app_settings key `deal_idle_close_days` (per tenant, int, clamp 2–90,
 
 ## Part 2 — Implementation Plan
 
-Rules for every release: TDD (a test fails first), `cd backend && .venv/bin/python -m pytest` green, /gstack-review on the diff,
-/gstack-cso for R2 (payments/webhooks), push only on the user's say-so, check it live afterwards.
+Rules for every release: TDD (a test fails first), `cd backend && .venv/bin/python -m pytest` green, a review of the diff,
+a security review for R2 (payments/webhooks), push only on the user's say-so, check it live afterwards.
 
 ### R1 — Scheduler actually runs its jobs
 1. Read what crm-cutoff-sweep, ad-insights-sync and number-quality-sync do. For each, what would its first run in 30+ days act on? Report before turning them on.

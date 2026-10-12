@@ -1,6 +1,6 @@
 ---
 name: brief
-description: Turn a rough idea into a sharp brief with Aira's real files and rules. Shows it, waits for "go", then routes into the gstack sprint. Never builds before "go".
+description: Turn a rough idea into a sharp brief with Aira's real files and rules. Shows it, waits for "go", then routes into the sprint. Never builds before "go".
 ---
 
 The founder typed: $ARGUMENTS
@@ -60,22 +60,22 @@ If the founder corrects one of their own words or meanings, append it to `.agent
 ## Step 6 — On "go" (or "go" plus edits)
 1. Apply the edits, then save the brief to `.agents/briefs/<YYYY-MM-DD>-<short-name>.md` (create the folder if missing).
 2. From now on work from the saved brief, not from the original messy wording. Re-read it before each stage.
-3. Route into the gstack sprint (pinned 1.91.2.0, prefix gstack-). If several rows apply, run all that apply:
+3. Route into the sprint. If several rows apply, run all that apply:
 
 | Ask | Route |
 |---|---|
-| bug | `/gstack-investigate` (root cause first, then a regression test that fails before the fix and passes after) |
-| feature or idea | `/gstack-office-hours`, then `/gstack-autoplan`, then show the plan and WAIT for approval, then build |
-| UI change | `/gstack-plan-design-review` on the plan; after building `/gstack-qa` (local backend only via `make dev-backend`, point the frontend with NEXT_PUBLIC_API_URL=http://localhost:8000) |
-| auth, webhooks, payments, RLS | also `/gstack-cso` (and the security-reviewer agent for new auth, webhook or payment code) |
+| bug | root cause first, then a regression test that fails before the fix and passes after |
+| feature or idea | write the plan, show it and WAIT for approval, then build |
+| UI change | review the design in the plan first; after building, run a UI QA pass (local backend only via `make dev-backend`, point the frontend with NEXT_PUBLIC_API_URL=http://localhost:8000) |
+| auth, webhooks, payments, RLS | also a security review (and the security-reviewer agent for new auth, webhook or payment code) |
 | research | answer in chat using an Explore agent for wide reads; no build, no branch |
 | chore | write a 3-step plan, wait for approval, then do it |
 
-4. Every route that changed code ends with `/gstack-review` on the diff, then `make verify` (must say RESULT: PASS).
+4. Every route that changed code ends with a review of the diff, then `make verify` (must say RESULT: PASS).
    Frontend-only: typecheck and lint also.
 5. Before finishing: `git fetch`, check `HEAD..origin/main` for teammate commits on the same files; if any, rebase
    and re-run the checks.
-6. STOP. Do not push or deploy. The founder pushes. (`/gstack-ship` and deploys are user-only.)
+6. STOP. Do not push or deploy. The founder pushes. (Deploys are user-only.)
 
 ## Rules for this skill
 - Under 40 lines of brief output in FULL mode. If it is longer, cut, don't summarise.

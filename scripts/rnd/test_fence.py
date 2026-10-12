@@ -105,9 +105,9 @@ def test_mcp_is_read_only(tool, expected):
 
 
 def test_ship_skills_denied():
-    assert run("Skill", {"skill": "gstack-ship"}) == "deny"
-    assert run("Skill", {"skill": "gstack-land-and-deploy"}) == "deny"
-    assert run("Skill", {"skill": "gstack-qa-only"}) == "pass"
+    assert run("Skill", {"skill": "ship"}) == "deny"
+    assert run("Skill", {"skill": "land-and-deploy"}) == "deny"
+    assert run("Skill", {"skill": "qa-only"}) == "pass"
 
 
 def test_off_unless_autonomous():

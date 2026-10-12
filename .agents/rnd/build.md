@@ -17,7 +17,7 @@ database (read-only SELECT) and Render logs are available through their tools.
 - **NOT CODE** — needs a person (Meta / Render / Supabase console, a client, an API key):
   write step-by-step instructions and what you verified. Status `INSTRUCTIONS`.
 
-## A CODE FIX follows the gstack sprint (its method, not its interactive skills)
+## A CODE FIX follows the sprint method
 
 1. **Investigate.** Evidence before any edit: read the code (grep, then targeted reads),
    read-only SQL, Render logs. State the root cause with file:line. No fix without it.
@@ -28,7 +28,7 @@ database (read-only SELECT) and Render logs are available through their tools.
 4. **Prove it.** The new test PASSES; then the full suite for what you touched —
    backend: `cd backend && SUPABASE_URL=https://dummy.supabase.co SUPABASE_SERVICE_KEY=dummy .venv/bin/python -m pytest -q -p no:cacheprovider`
    frontend: `cd frontend && npx tsc --noEmit && npm run -s lint`
-5. **Review your own diff** (`git diff`) like /gstack-review: correctness, every query scoped
+5. **Review your own diff** (`git diff`) like a careful reviewer: correctness, every query scoped
    by `tenant_id`, errors handled, no secrets, no stray edits, no debug prints. Fix findings.
 
 Three hypotheses without a working fix → stop. Status `GAVE_UP`, with what you learned.
