@@ -348,36 +348,6 @@ and a standalone image are both fine (they hit the Gemini path).
   Recommendation was warn first, gather real hit data, then decide. User has not picked.
 - The Documents guide copy now warns clients about this shape of file; the pipeline is unchanged.
 
-## Vercel production deploy failing — cause not yet known (open, 2026-09-11)
-**Update 2026-10-08:** the site is serving (`https://www.anrilaitech.com/` and `/login` return 200) and commit `5462acef` fixed a Vercel build crash caused by Google Fonts (see decisions log, 2026-10-08), so this may be resolved. NOT confirmed green: the Vercel connector returns 403 for project `anril-ai` (team `team_3Qiq09Rp7bzrdQ3NrW9AgFlZ`). Next step is one look at the latest deployment's state in the Vercel dashboard; if it is READY, delete this section.
-
-The user reported the Vercel deployment "blocked"; they confirmed it shows as a **failed build
-(red ✗)**, not a protection wall or a paused project. Not resolved this session — the build log
-was never retrieved, and this machine has no Vercel credentials (`vercel whoami` → "No existing
-credentials found") and no Vercel MCP connector, so the deployment cannot be inspected or
-retriggered from here. **Ask for the build log first; do not re-derive the list below.**
-
-Already ruled out this session, with evidence:
-- **Not unpushed code.** `main` == `origin/main` == `ce1e58cb`, verified with `git ls-remote`
-  against GitHub (git itself DOES have network here, unlike the general no-network rule).
-- **Not a code-level build break.** Full `npm run build` in `frontend/` compiles clean, all
-  routes generated, zero errors.
-- **Not case-sensitive imports** (the usual Windows-passes/Linux-fails trap). Scanned all 657
-  local imports across `app/`, `components/`, `lib/`, `hooks/` resolving each against the real
-  on-disk casing: zero mismatches, zero unresolved.
-- **Not a teammate's commits.** `191e89c3` and `0b618416` touched only backend files and a stray
-  `_atest_temp.txt`; nothing under `frontend/`.
-
-Prime remaining suspect: **missing environment variables in the Vercel project.** The frontend
-reads eight at build time — `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`, and four `NEXT_PUBLIC_META_*_CONFIG_ID`/`NEXT_PUBLIC_META_APP_ID`.
-The local build only passes because an untracked `frontend/.env.local` supplies them. Reading that
-file was permission-denied (correctly — it holds secrets), so the hypothesis was never confirmed.
-Second suspect: Node version (no `engines` field in `frontend/package.json`, so Vercel picks its
-own default). `frontend/package-lock.json` is committed but dates from 2026-07-19.
-
-Unrelated cleanup while there: `_atest_temp.txt` was committed to the repo root by `0b618416`.
-
 ## Knowledge Auto-Sort — follow-ups after the first live sort (open, 2026-09-18)
 Shipped and merged to local `main` (not pushed); migration 190 applied live. See
 `decisions/log.md` 2026-09-18 and `docs/superpowers/specs/2026-09-18-knowledge-auto-sort-design.md`.
@@ -465,30 +435,19 @@ or earlier, so anything newer is genuine and worth acting on.
   `telecalling/components/performance-view.tsx` all landed in commit `8fbd112a`. Still not
   rendered/visually verified.
 
-## Local tooling gaps — re-checked and mostly resolved (2026-09-23, second-brain audit)
+## Local tooling — state on the Windows machine (re-checked 2026-10-13, second-brain audit)
 
-Three earlier sections (2026-09-09, 2026-09-18, 2026-09-20) independently reported lefthook,
-gitleaks, graphify and a stale `frontend/node_modules` as broken. Re-checked on the user's actual
-Mac (not an agent sandbox) during a `/auditing-second-brain` pass — most of it no longer holds:
+Supersedes the 2026-09-23 Mac notes. Work now happens on Windows (Git Bash + PowerShell).
 
-- **Hooks work.** `lefthook` binary is on PATH (`/opt/homebrew/bin/lefthook`), `.git/hooks/`
-  has 4 real (non-sample) hooks, and they fired for real on this session's commit + push
-  (`tenant-audit`, `backend-syntax`, `full-typecheck` all ran and passed). The "no root
-  `node_modules` → hooks no-op" theory was specific to whatever sandbox produced those reports.
-- **`gitleaks` is installed** (`/opt/homebrew/bin/gitleaks`).
-- **`frontend/node_modules` is no longer stale** — `@supabase/supabase-js` is 2.116.0 installed,
-  matching `package-lock.json`. `npx tsc --noEmit` is clean (0 errors); the passkey-option error
-  these notes blamed on the mismatch is gone.
-- **`make` is on PATH** (`/usr/bin/make`) on this machine. The "not on PATH" reports were from a
-  Git Bash/Windows environment — environment-specific, not a repo bug.
-- **Still a real, partial gap: `graphify` the Python module.** The `graphify` CLI binary now
-  exists (`~/.local/bin/graphify`), and `graphify-out/` is not empty (dated subdirs from
-  2026-06-24 through 2026-07-02) — so the older "doesn't exist at all" claim is also stale. But
-  `python3 -c "import graphify"` still raises `ModuleNotFoundError`, so `scripts/build_wiki.py`
-  still can't run, and the wiki content is at least 2 months old. `graphify query` (CLAUDE.md's
-  step 1) is unverified either way. **Next step**: find out how the CLI binary was installed
-  (pipx? a venv?) and get the same Python env `build_wiki.py` runs in, or accept the wiki is
-  rebuild-only-via-CLI for now and confirm what `graphify query` actually does before trusting it.
+- **Hooks work.** `lefthook` is not on PATH, but `.git/hooks/{pre-commit,pre-push,post-merge}`
+  fall back to `node_modules/lefthook-windows-x64/bin/lefthook.exe` (v2.1.6, from the root
+  `package.json` devDependency). The audit script's "binary MISSING" flag is a false positive here.
+- **`graphify` is absent** — no CLI on PATH, no Python module in `.venv` or system Python 3.13,
+  and `graphify-out/` does not exist (gitignored, never committed, so nothing to restore from git).
+  `make wiki` / `make wiki-refresh` / `/wiki` cannot run. CLAUDE.md and AGENTS.md lookup step 1
+  now falls back to Grep/Glob. **Next step, if the wiki is wanted back:** install graphify into
+  `.venv` (confirm the right package name first), run `make wiki-refresh`, and drop the
+  "neither exists" note from both routers.
 
 ## AI reply context — gaps found while building the persona simulator (open, 2026-09-22)
 Measured against Astro Tamil (`eba3ed94`) with `backend/scripts/sim/`, which runs the real

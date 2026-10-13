@@ -14,7 +14,7 @@
 
 ## How to Work Efficiently (low context — this is the DEFAULT, no need to be told)
 - The brain is **queried, not loaded**. Never read whole files or the whole wiki "to get context."
-- Lookup order for ANY task: (1) `graphify query "<question>"` → exact file:line, (2) the ONE relevant `graphify-out/wiki/<Module>.md` or `.agents/context/subsystem-notes.md` section, (3) at most 2–3 targeted reads. Full-file reads are the last resort.
+- Lookup order for ANY task: (1) find the exact file:line — `graphify query "<question>"` if `graphify` is installed AND `graphify-out/` exists, otherwise a targeted Grep/Glob for the symbol or UI string (as of 2026-10-13 neither graphify nor `graphify-out/` exists on the Windows machine), (2) the ONE relevant `graphify-out/wiki/<Module>.md` (when present) or `.agents/context/subsystem-notes.md` section, (3) at most 2–3 targeted reads. Full-file reads are the last resort.
 - Pull ONLY the `.agents/` file the task scope points to (below) — never preload all of them.
 - **Database/schema work:** the wiki is CODE only. Use the migration index in [decisions/log.md](.agents/decisions/log.md) + live Supabase `list_tables`/`execute_sql` — NOT the wiki.
 - This runs automatically for every task; the user does NOT have to say "use the wiki/graph."
