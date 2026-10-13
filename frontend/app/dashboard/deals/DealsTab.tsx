@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Download, RefreshCw, Search } from "lucide-react";
@@ -118,35 +118,6 @@ export function DealsTab({
   const paramsKey = searchParams.toString();
   const filters = useMemo(() => filtersFromParams(new URLSearchParams(paramsKey)), [paramsKey]);
 
-  const stripRef = useRef<HTMLDivElement>(null);
-  const [stripEdges, setStripEdges] = useState({ left: false, right: false });
-
-  // Fade the strip's edge on whichever side has more filters scrolled out of view.
-  const updateStripEdges = useCallback(() => {
-    const el = stripRef.current;
-    if (!el) return;
-    const left = el.scrollLeft > 1;
-    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-    setStripEdges((prev) => (prev.left === left && prev.right === right ? prev : { left, right }));
-  }, []);
-
-  useEffect(() => {
-    const el = stripRef.current;
-    if (!el) return;
-    updateStripEdges();
-    const observer = new ResizeObserver(updateStripEdges);
-    observer.observe(el);
-    Array.from(el.children).forEach((child) => observer.observe(child));
-    return () => observer.disconnect();
-  }, [updateStripEdges, paramsKey, summary]);
-
-  const stripMask = useMemo(() => {
-    if (!stripEdges.left && !stripEdges.right) return undefined;
-    const mask = `linear-gradient(to right, ${stripEdges.left ? "transparent, black 32px" : "black"}, ${
-      stripEdges.right ? "black calc(100% - 32px), transparent" : "black"
-    })`;
-    return { maskImage: mask, WebkitMaskImage: mask };
-  }, [stripEdges]);
 
   const updateFilters = useCallback(
     (newFilters: Filters) => {
@@ -297,10 +268,10 @@ export function DealsTab({
 
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-        {/* One row from md up: search, a filter strip that scrolls sideways when the screen is too
-            narrow for every filter, then Refresh and Export. Phones stack search above the strip. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] p-4 md:flex-nowrap">
-          <div className="relative w-full md:w-60 md:min-w-[170px] md:shrink">
+        {/* Two planned rows: search with Refresh/Export on top, every filter on its own row below. */}
+        <div className="space-y-3 border-b border-[#e2e8f0] p-4">
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1 md:max-w-md">
               <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
               <input
                 type="text"
@@ -309,14 +280,35 @@ export function DealsTab({
                 onChange={(e) => setSearchText(e.target.value)}
                 className="w-full rounded-xl border border-[#e2e8f0] py-2 pl-10 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
+            </div>
+
+            <div className="ml-auto flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={refresh}
+                title="Refresh"
+                aria-label="Refresh"
+                disabled={refreshing}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+              >
+                <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={exportAll}
+                title="Export"
+                aria-label="Export"
+                disabled={exporting}
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+              >
+                <Download size={14} />
+                {exporting ? "Exporting…" : "Export"}
+              </button>
+            </div>
           </div>
 
-          <div
-            ref={stripRef}
-            onScroll={updateStripEdges}
-            style={stripMask}
-            className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
+          <div className="flex flex-wrap items-center gap-2">
             <FilterPopover label="View" value={activeView?.label ?? "Custom"} active={!!activeView && activeView.id !== "all"} closeOnPick>
               {VIEWS.map((v) => (
                 <PickRow
@@ -450,30 +442,6 @@ export function DealsTab({
             )}
           </div>
 
-          <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={refresh}
-              title="Refresh"
-              aria-label="Refresh"
-              disabled={refreshing}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
-            >
-              <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={exportAll}
-              title="Export"
-              aria-label="Export"
-              disabled={exporting}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
-            >
-              <Download size={14} />
-              {exporting ? "Exporting…" : "Export"}
-            </button>
-          </div>
         </div>
 
         <ListTab
