@@ -268,13 +268,14 @@ export function DealsTab({
 
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-        {/* One row: search shrinks (160–224px) so the filters and Refresh/Export fit on a single line. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] p-4">
-          <div className="relative min-w-40 flex-1 sm:max-w-56">
+        {/* One row on desktop: filters and buttons keep their size, the search box (max 176px) absorbs the squeeze. */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] p-4 lg:flex-nowrap">
+          <div className="relative min-w-0 flex-1 sm:max-w-44">
             <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
             <input
               type="text"
-              placeholder="Name, phone or D-0012"
+              placeholder="Search deals"
+              title="Search by name, phone or deal ID (D-0012)"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               className="w-full rounded-xl border border-[#e2e8f0] py-2 pl-10 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
