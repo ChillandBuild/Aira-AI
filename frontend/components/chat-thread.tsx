@@ -16,7 +16,7 @@ import {
   AlertTriangle, Pencil, Trash2,
   FileText, Image as ImageIcon,
   Music, Video, Download, X, Eraser, MoreVertical,
-  ArrowLeft, Check, CheckCheck, Flag, Info, Smile, SendHorizontal, Paperclip, CreditCard,
+  ArrowLeft, Check, CheckCheck, Flag, Info, Smile, SendHorizontal, Paperclip, CreditCard, Lock,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -415,7 +415,7 @@ export function ChatThread({
 
   async function sendReply() {
     const text = draft.trim();
-    if (!canReplyToConversations || !text || sending) return;
+    if (!canReplyToConversations || replyLocked || !text || sending) return;
     setSending(true);
     setSendError(null);
     try {
@@ -516,6 +516,9 @@ export function ChatThread({
     ? (Date.now() - new Date(lastInbound.created_at).getTime()) / 3_600_000
     : Infinity;
   const outsideWindow = hoursSinceInbound > 24;
+  // WhatsApp drops free-text replies after 24h, so the reply box is blurred and only templates go out.
+  // Wait for messages to load, or every thread would flash locked before its last inbound arrives.
+  const replyLocked = !loading && outsideWindow && isWhatsApp && canReplyToConversations;
 
   const segmentPill = getSegmentPill();
   const hasEscalation = current.needs_human_attention || current.needs_human_intervention;
@@ -834,62 +837,82 @@ export function ChatThread({
           </div>
         ) : (
           /* Main input bar */
-          <div className="rounded-2xl border border-[#e2e8f0] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 flex items-center gap-2 px-4 py-2.5 transition-all">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
-              }}
-              rows={1}
-              disabled={!canReplyToConversations || sending}
-              placeholder={canReplyToConversations ? "Type your reply…" : "Read-only conversation"}
-              className="flex-1 bg-transparent font-body text-[13px] resize-none focus:outline-none disabled:opacity-50 max-h-28 leading-relaxed"
-              style={{ minHeight: "24px" }}
-              onInput={(e) => {
-                const t = e.currentTarget;
-                t.style.height = "auto";
-                t.style.height = `${Math.min(t.scrollHeight, 112)}px`;
-              }}
-            />
-
-            {/* Emoji button */}
-            <div className="relative" ref={emojiRef}>
-              <button
-                onClick={() => setEmojiOpen(!emojiOpen)}
-                className="p-1 text-[#94a3b8] hover:text-[#0A1528] transition-colors"
-                title="Add emoji"
-              >
-                <Smile size={16} />
-              </button>
-              {emojiOpen && (
-                <div className="absolute bottom-full right-0 z-40 mb-2 grid w-[288px] grid-cols-8 gap-0.5 rounded-xl border border-[#e2e8f0] bg-white p-2 shadow-xl">
-                  {["😊", "🙏", "👍", "❤️", "🎉", "😀", "😂", "🤝", "✅", "🔥", "💐", "🌟", "📞", "📅", "💰", "🙌"].map((emoji) => (
-                    <button
-                      key={emoji}
-                      onClick={() => {
-                        setDraft(draft + emoji);
-                        setEmojiOpen(false);
-                      }}
-                      type="button"
-                      className="flex h-8 w-8 items-center justify-center rounded-lg text-[19px] leading-none transition-colors hover:bg-slate-100"
-                      title={emoji}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+          <div className="relative">
+            <div
+              aria-hidden={replyLocked || undefined}
+              className={cn(
+                "rounded-2xl border border-[#e2e8f0] focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15 flex items-center gap-2 px-4 py-2.5 transition-all",
+                replyLocked && "pointer-events-none select-none blur-[3px]"
               )}
-            </div>
-
-            <button
-              onClick={sendReply}
-              disabled={!canReplyToConversations || sending || !draft.trim()}
-              title={canReplyToConversations ? "Send message" : "You have read-only access to conversations"}
-              className="h-9 w-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 hover:bg-[var(--primary-900)] disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
             >
-              <SendHorizontal size={16} />
-            </button>
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
+                }}
+                rows={1}
+                disabled={!canReplyToConversations || replyLocked || sending}
+                placeholder={canReplyToConversations ? "Type your reply…" : "Read-only conversation"}
+                className="flex-1 bg-transparent font-body text-[13px] resize-none focus:outline-none disabled:opacity-50 max-h-28 leading-relaxed"
+                style={{ minHeight: "24px" }}
+                onInput={(e) => {
+                  const t = e.currentTarget;
+                  t.style.height = "auto";
+                  t.style.height = `${Math.min(t.scrollHeight, 112)}px`;
+                }}
+              />
+
+              {/* Emoji button */}
+              <div className="relative" ref={emojiRef}>
+                <button
+                  onClick={() => setEmojiOpen(!emojiOpen)}
+                  className="p-1 text-[#94a3b8] hover:text-[#0A1528] transition-colors"
+                  title="Add emoji"
+                >
+                  <Smile size={16} />
+                </button>
+                {emojiOpen && (
+                  <div className="absolute bottom-full right-0 z-40 mb-2 grid w-[288px] grid-cols-8 gap-0.5 rounded-xl border border-[#e2e8f0] bg-white p-2 shadow-xl">
+                    {["😊", "🙏", "👍", "❤️", "🎉", "😀", "😂", "🤝", "✅", "🔥", "💐", "🌟", "📞", "📅", "💰", "🙌"].map((emoji) => (
+                      <button
+                        key={emoji}
+                        onClick={() => {
+                          setDraft(draft + emoji);
+                          setEmojiOpen(false);
+                        }}
+                        type="button"
+                        className="flex h-8 w-8 items-center justify-center rounded-lg text-[19px] leading-none transition-colors hover:bg-slate-100"
+                        title={emoji}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={sendReply}
+                disabled={!canReplyToConversations || sending || !draft.trim()}
+                title={canReplyToConversations ? "Send message" : "You have read-only access to conversations"}
+                className="h-9 w-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 hover:bg-[var(--primary-900)] disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+              >
+                <SendHorizontal size={16} />
+              </button>
+            </div>
+            {replyLocked && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-white/40">
+                <button
+                  type="button"
+                  onClick={() => setTemplateModalOpen(true)}
+                  className="flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-bold text-[#0A1528] shadow-sm transition-colors hover:border-primary hover:text-primary"
+                >
+                  <Lock size={13} className="text-[#64748b]" />
+                  Reply window closed · Send template
+                </button>
+              </div>
+            )}
           </div>
         )}
 
