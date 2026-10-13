@@ -269,8 +269,8 @@ export function DealsTab({
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
         {/* One row on desktop: filters and buttons keep their size, the search box (max 176px) absorbs the squeeze. */}
-        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] p-4 lg:flex-nowrap">
-          <div className="relative min-w-0 flex-1 sm:max-w-44">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-[#e2e8f0] p-4 lg:flex-nowrap">
+          <div className="relative min-w-28 flex-1 sm:max-w-44">
             <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
             <input
               type="text"
@@ -414,17 +414,16 @@ export function DealsTab({
             </button>
           )}
 
-          <div className="ml-auto flex shrink-0 gap-2">
+          <div className="ml-auto flex shrink-0 gap-1.5">
             <button
               type="button"
               onClick={refresh}
               title="Refresh"
               aria-label="Refresh"
               disabled={refreshing}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-2.5 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
             >
               <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-              Refresh
             </button>
             <button
               type="button"

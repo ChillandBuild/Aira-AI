@@ -44,16 +44,16 @@ export function FilterPopover({ label, value, active, closeOnPick = false, child
         aria-haspopup="true"
         title={`${label}: ${value}`}
         className={cn(
-          "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
+          "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors",
           active
             ? "border-primary bg-primary/5 text-primary"
             : "border-[#e2e8f0] bg-white text-[#0A1528] hover:border-slate-300"
         )}
       >
-        <span className="max-w-[180px] truncate">
+        <span className="max-w-[130px] truncate">
           {label}: {value}
         </span>
-        <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
+        <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
