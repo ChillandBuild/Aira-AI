@@ -268,9 +268,9 @@ export function DealsTab({
 
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-        {/* One row on desktop: filters and buttons keep their size, the search box (max 176px) absorbs the squeeze. */}
+        {/* One row on desktop: filters and buttons keep their size; the search box fills the leftover space and gives it up to "Clear filters" when one shows. */}
         <div className="flex flex-wrap items-center gap-1.5 border-b border-[#e2e8f0] p-4 lg:flex-nowrap">
-          <div className="relative min-w-28 flex-1 sm:max-w-44">
+          <div className="relative min-w-28 flex-1">
             <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
             <input
               type="text"
