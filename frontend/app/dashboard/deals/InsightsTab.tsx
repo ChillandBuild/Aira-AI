@@ -6,16 +6,19 @@ import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, Download, X } 
 import { api, API_URL, DealSource, DealStats, getAuthHeaders } from "@/lib/api";
 import { SOURCE_LABEL } from "@/lib/deal-filters";
 import { cn, istTodayIso } from "@/lib/utils";
-import { MonthGrid, Popover } from "@/components/deals/insights/MonthPicker";
+import { CompareGrid, MonthGrid, Popover } from "@/components/deals/insights/MonthPicker";
 import { KpiStrip } from "@/components/deals/insights/KpiStrip";
 import { SalesCalendar } from "@/components/deals/insights/SalesCalendar";
 import { TrendChart } from "@/components/deals/insights/TrendChart";
 import { Breakdown } from "@/components/deals/insights/Breakdown";
 import {
+  averageTotals,
   daysInMonth,
   fillDays,
+  MAX_COMPARE,
   Metric,
   monthLabel,
+  monthsText,
   shiftMonth,
   SOURCE_COLOR,
   SOURCE_ORDER,
@@ -28,7 +31,8 @@ interface Loaded {
   key: string;
   base: DealStats;
   filtered: DealStats;
-  compare: DealStats | null;
+  /** One per comparison month, same order as the `vs` months. */
+  compare: DealStats[];
 }
 
 export function InsightsTab() {
@@ -39,12 +43,21 @@ export function InsightsTab() {
   const currentMonth = today.slice(0, 7);
   const todayDay = Number(today.slice(8));
 
-  // URL state: ?month=2026-10&vs=2026-09|none&src=whatsapp,form — survives refresh and can be shared.
+  // URL state: ?month=2026-10&vs=2026-07,2026-08|none&src=whatsapp,form — survives refresh and can be shared.
+  // No `vs` means "previous month", so that default follows the month being viewed.
   const rawMonth = searchParams.get("month");
   const month = rawMonth && MONTH_RE.test(rawMonth) && rawMonth <= currentMonth ? rawMonth : currentMonth;
-  const rawVs = searchParams.get("vs");
-  const compareMonth =
-    rawVs === "none" ? null : rawVs && MONTH_RE.test(rawVs) && rawVs <= currentMonth && rawVs !== month ? rawVs : shiftMonth(month, -1);
+  const rawVs = searchParams.get("vs") ?? "";
+  const prevMonth = shiftMonth(month, -1);
+  const vsKey = useMemo(() => {
+    if (rawVs === "none") return "";
+    const picked = Array.from(new Set(rawVs.split(",")))
+      .filter((m) => MONTH_RE.test(m) && m <= currentMonth && m !== month)
+      .sort()
+      .slice(-MAX_COMPARE);
+    return (picked.length ? picked : [prevMonth]).join(",");
+  }, [rawVs, currentMonth, month, prevMonth]);
+  const compareMonths = useMemo(() => (vsKey ? vsKey.split(",") : []), [vsKey]);
   const srcParam = searchParams.get("src") ?? "";
   const sources = useMemo(
     () => SOURCE_ORDER.filter((s) => srcParam.split(",").includes(s)),
@@ -73,7 +86,7 @@ export function InsightsTab() {
     [pathname, router, searchParams]
   );
 
-  const loadKey = `${month}|${compareMonth ?? ""}|${sources.join(",")}`;
+  const loadKey = `${month}|${vsKey}|${sources.join(",")}`;
 
   const load = useCallback(async () => {
     const id = ++requestId.current;
@@ -84,7 +97,7 @@ export function InsightsTab() {
       const [base, filtered, compare] = await Promise.all([
         api.deals.stats(month),
         filteredBy ? api.deals.stats(month, filteredBy) : Promise.resolve(null),
-        compareMonth ? api.deals.stats(compareMonth, filteredBy) : Promise.resolve(null),
+        Promise.all(compareMonths.map((m) => api.deals.stats(m, filteredBy))),
       ]);
       if (id !== requestId.current) return;
       setData({ key: loadKey, base, filtered: filtered ?? base, compare });
@@ -93,7 +106,7 @@ export function InsightsTab() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [month, compareMonth, sources, loadKey]);
+  }, [month, compareMonths, sources, loadKey]);
 
   useEffect(() => {
     load();
@@ -136,9 +149,13 @@ export function InsightsTab() {
   }
 
   const days = useMemo(() => fillDays(data?.filtered ?? null, month), [data, month]);
-  const compareDays = useMemo(
-    () => (data?.compare && compareMonth ? fillDays(data.compare, compareMonth) : null),
-    [data, compareMonth]
+  // Only use comparison data that matches the months asked for (it lags one load behind a change).
+  const compares = useMemo(
+    () =>
+      data && data.compare.length === compareMonths.length
+        ? compareMonths.map((m, i) => ({ month: m, days: fillDays(data.compare[i], m) }))
+        : [],
+    [data, compareMonths]
   );
 
   if (!data) {
@@ -175,19 +192,35 @@ export function InsightsTab() {
   const isCurrent = month === currentMonth;
   const lastDay = isCurrent ? todayDay : daysInMonth(month);
   const now = totalsUpTo(days, lastDay);
-  const before = compareDays ? totalsUpTo(compareDays, isCurrent ? todayDay : compareDays.length) : null;
-  const compareText = compareMonth
-    ? isCurrent
-      ? `vs ${monthLabel(compareMonth, true).split(" ")[0]} 1–${Math.min(todayDay, daysInMonth(compareMonth))}${
-          compareMonth.slice(0, 4) !== month.slice(0, 4) ? ` ${compareMonth.slice(0, 4)}` : ""
-        }`
-      : `vs ${monthLabel(compareMonth, true)}`
+  // While a month is running, compare the same dates (1–14) of each comparison month.
+  const before = averageTotals(compares.map((c) => totalsUpTo(c.days, isCurrent ? todayDay : c.days.length)));
+  const sameDays = isCurrent ? ` 1–${todayDay}` : "";
+  const compareText = compares.length
+    ? compares.length === 1
+      ? `vs ${monthLabel(compares[0].month, true)}${sameDays}`
+      : `vs avg of ${compares.length} months${isCurrent ? ` (1–${todayDay})` : ""}`
     : null;
+  const compareTitle = compares.length > 1 ? `Average of ${monthsText(compareMonths)}${sameDays ? `, days${sameDays}` : ""}` : undefined;
 
   const sourceQuery = sources.length ? `&source=${sources.join(",")}` : "";
   const shownSources = SOURCE_ORDER.filter((s) => data.base.by_source[s]?.count || sources.includes(s));
-  const prevMonth = shiftMonth(month, -1);
   const lastYear = shiftMonth(month, -12);
+  const lastThree = [shiftMonth(month, -3), shiftMonth(month, -2), prevMonth];
+  const presets = [
+    { months: [prevMonth], label: "Previous month", hint: monthLabel(prevMonth, true) },
+    { months: lastThree, label: "Last 3 months", hint: monthsText(lastThree) },
+    { months: [lastYear], label: "Same month last year", hint: monthLabel(lastYear, true) },
+  ];
+  const setCompare = (months: string[]) => {
+    const sorted = [...months].sort();
+    setParams({ vs: sorted.length === 0 ? "none" : sorted.join(",") === prevMonth ? null : sorted.join(",") });
+  };
+  const compareLabel =
+    compareMonths.length === 0
+      ? "Compare with…"
+      : compareMonths.length === 1
+        ? `Compare: ${monthLabel(compareMonths[0], true)}`
+        : `Compare: ${compareMonths.length} months`;
   const stale = loading && data.key !== loadKey;
 
   return (
@@ -249,59 +282,60 @@ export function InsightsTab() {
                 type="button"
                 onClick={toggle}
                 aria-expanded={open}
+                title={compareMonths.length > 1 ? `Comparing with ${monthsText(compareMonths)}` : undefined}
                 className={cn(
                   "flex h-9 items-center gap-1.5 border px-3 text-xs font-bold transition-colors",
-                  compareMonth
+                  compareMonths.length
                     ? "rounded-l-xl border-primary bg-primary/5 text-primary"
                     : "rounded-xl border-[#e2e8f0] bg-white text-[#0A1528] hover:border-slate-300"
                 )}
               >
-                {compareMonth ? `Compare: ${monthLabel(compareMonth, true)}` : "Compare with…"}
-                <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+                <span className="max-w-[200px] truncate">{compareLabel}</span>
+                <ChevronDown size={12} className={cn("shrink-0 transition-transform", open && "rotate-180")} />
               </button>
             )}
           >
             {(close) => (
               <div className="w-[264px]">
-                {[
-                  { key: prevMonth, label: "Previous month", hint: monthLabel(prevMonth, true) },
-                  { key: lastYear, label: "Same month last year", hint: monthLabel(lastYear, true) },
-                ].map((opt) => (
+                {presets.map((opt) => (
                   <button
                     key={opt.label}
                     type="button"
                     onClick={() => {
-                      setParams({ vs: opt.key === prevMonth ? null : opt.key });
+                      setCompare(opt.months);
                       close();
                     }}
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50"
+                    className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50"
                   >
-                    <span>
+                    <span className="min-w-0 truncate">
                       {opt.label} <span className="text-[#94a3b8]">· {opt.hint}</span>
                     </span>
-                    {compareMonth === opt.key && <Check size={14} className="text-primary" />}
+                    {vsKey === [...opt.months].sort().join(",") && <Check size={14} className="shrink-0 text-primary" />}
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={() => {
-                    setParams({ vs: "none" });
+                    setCompare([]);
                     close();
                   }}
                   className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50"
                 >
                   No comparison
-                  {!compareMonth && <Check size={14} className="text-primary" />}
+                  {compareMonths.length === 0 && <Check size={14} className="text-primary" />}
                 </button>
                 <div className="mx-1 mt-1 border-t border-[#f1f5f9] pt-2">
-                  <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#64748b]">Or pick any month</p>
-                  <MonthGrid
-                    value={compareMonth}
+                  <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#64748b]">
+                    Or pick up to {MAX_COMPARE} months
+                  </p>
+                  <CompareGrid
+                    key={vsKey}
+                    picked={compareMonths}
                     max={currentMonth}
-                    activeMonths={activeMonths}
                     exclude={month}
-                    onPick={(m) => {
-                      setParams({ vs: m === prevMonth ? null : m });
+                    activeMonths={activeMonths}
+                    onApply={(months) => {
+                      setCompare(months);
                       close();
                     }}
                   />
@@ -309,7 +343,7 @@ export function InsightsTab() {
               </div>
             )}
           </Popover>
-          {compareMonth && (
+          {compareMonths.length > 0 && (
             <button
               type="button"
               onClick={() => setParams({ vs: "none" })}
@@ -385,6 +419,7 @@ export function InsightsTab() {
         now={now}
         before={before}
         compareText={compareText}
+        compareTitle={compareTitle}
         days={days}
         upTo={lastDay}
         lostCount={data.filtered.lost_count}
@@ -418,8 +453,7 @@ export function InsightsTab() {
           days={days}
           lastDay={lastDay}
           today={isCurrent ? todayDay : null}
-          compareMonth={compareMonth}
-          compareDays={compareDays}
+          compares={compares}
           metric={metric}
           mode={mode}
           onMode={setMode}

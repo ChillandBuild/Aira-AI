@@ -16,6 +16,19 @@ export const SOURCE_COLOR: Record<DealSource, string> = {
 
 export type Metric = "revenue" | "deals" | "avg";
 
+/** Up to this many months can be compared at once; each gets its own dashed line colour. */
+export const MAX_COMPARE = 3;
+export const COMPARE_COLORS = ["#94a3b8", "#38bdf8", "#a78bfa"];
+
+/** "Jul, Aug, Sep 2026" / "Dec 2025, Jan 2026" — short, oldest first. */
+export function monthsText(months: string[]): string {
+  if (months.length === 0) return "";
+  const sorted = [...months].sort();
+  const sameYear = sorted.every((m) => m.slice(0, 4) === sorted[0].slice(0, 4));
+  if (!sameYear) return sorted.map((m) => monthLabel(m, true)).join(", ");
+  return `${sorted.map((m) => SHORT_MONTHS[parseMonth(m).mon - 1]).join(", ")} ${sorted[0].slice(0, 4)}`;
+}
+
 /** One calendar day of the viewed month, filled in even when nothing sold. */
 export interface DayPoint {
   day: number;
@@ -72,6 +85,14 @@ export interface Totals {
   count: number;
   total_paise: number;
   avg_paise: number;
+}
+
+/** Average of several months' totals; the average sale is total ÷ deals across all of them. */
+export function averageTotals(list: Totals[]): Totals | null {
+  if (list.length === 0) return null;
+  const count = list.reduce((s, t) => s + t.count, 0) / list.length;
+  const total = list.reduce((s, t) => s + t.total_paise, 0) / list.length;
+  return { count, total_paise: total, avg_paise: count ? total / count : 0 };
 }
 
 /** Totals over days 1..upTo (the "same days" comparison while a month is still running). */

@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { formatRupees } from "@/components/deals/money";
 import { DealSource } from "@/lib/api";
 import { SOURCE_LABEL } from "@/lib/deal-filters";
-import { DayPoint, METRICS, Metric, monthLabel, niceStep, plural, runningSeries, SOURCE_COLOR, SOURCE_ORDER } from "./shared";
+import { COMPARE_COLORS, DayPoint, METRICS, Metric, monthLabel, monthsText, niceStep, plural, runningSeries, SOURCE_COLOR, SOURCE_ORDER } from "./shared";
 
 const L = 48;
 const R = 14;
@@ -17,8 +17,7 @@ export function TrendChart({
   days,
   lastDay,
   today,
-  compareMonth,
-  compareDays,
+  compares,
   metric,
   mode,
   onMode,
@@ -29,8 +28,8 @@ export function TrendChart({
   days: DayPoint[];
   lastDay: number;
   today: number | null;
-  compareMonth: string | null;
-  compareDays: DayPoint[] | null;
+  /** Months to compare with (up to MAX_COMPARE), each drawn as its own dashed line. */
+  compares: { month: string; days: DayPoint[] }[];
   metric: Metric;
   mode: "running" | "daily";
   onMode: (m: "running" | "daily") => void;
@@ -53,12 +52,19 @@ export function TrendChart({
 
   const m = METRICS[metric];
   const monthShort = monthLabel(month, true).split(" ")[0];
-  const cmpShort = compareMonth ? monthLabel(compareMonth, true) : "";
   const now = runningSeries(days, metric, lastDay, mode);
-  const before = compareDays ? runningSeries(compareDays, metric, compareDays.length, mode) : [];
-  const span = Math.max(days.length, compareDays?.length ?? 0);
+  const befores = compares.map((c) => runningSeries(c.days, metric, c.days.length, mode));
+  const span = Math.max(days.length, ...compares.map((c) => c.days.length));
+  // Per day, several months of bars side by side get unreadable, so the grey bar is their average.
+  const avgBefore = Array.from({ length: span }, (_, i) => {
+    const vals = befores.map((b) => b[i]).filter((v): v is number => v != null);
+    return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
+  });
+  const compareName =
+    compares.length === 0 ? "" : compares.length === 1 ? monthLabel(compares[0].month) : `Avg of ${monthsText(compares.map((c) => c.month))}`;
 
-  const peak = Math.max(0, ...[...now, ...before].filter((v): v is number => v !== null));
+  const plotted = mode === "daily" ? [...now, ...avgBefore] : [...now, ...befores.flat()];
+  const peak = Math.max(0, ...plotted.filter((v): v is number => v != null));
   // An empty month still gets a readable scale (₹1k / 4 deals); deal counts only use whole steps.
   const floor = metric === "deals" ? 4 : 100000;
   const rawStep = niceStep(Math.max(peak, floor));
@@ -83,7 +89,8 @@ export function TrendChart({
   const slot = pw / Math.max(1, span - 1);
 
   const hoverNow = hover !== null ? now[hover - 1] ?? null : null;
-  const hoverBefore = hover !== null ? before[hover - 1] ?? null : null;
+  const hoverBefores = hover !== null ? compares.map((c, i) => ({ month: c.month, value: befores[i][hover - 1] ?? null, color: COMPARE_COLORS[i] })) : [];
+  const hoverAnchor = hoverNow ?? hoverBefores.find((b) => b.value !== null)?.value ?? null;
   const selected = selectedDay ? days[selectedDay - 1] : null;
   const selectedValue = selectedDay ? now[selectedDay - 1] : null;
   const title = mode === "daily" ? "per day" : metric === "avg" ? "month so far" : "running total";
@@ -121,16 +128,20 @@ export function TrendChart({
           )}
           {monthLabel(month)}
         </span>
-        {compareMonth && (
-          <span className="flex items-center gap-1.5">
-            {mode === "daily" ? (
+        {compares.length > 0 &&
+          (mode === "daily" ? (
+            <span className="flex items-center gap-1.5">
               <i className="h-2.5 w-2.5 rounded-[3px] bg-[#cbd5e1]" />
-            ) : (
-              <i className="w-4 border-t-2 border-dashed border-[#94a3b8]" />
-            )}
-            {monthLabel(compareMonth)}
-          </span>
-        )}
+              {compareName}
+            </span>
+          ) : (
+            compares.map((c, i) => (
+              <span key={c.month} className="flex items-center gap-1.5">
+                <i className="w-4 border-t-2 border-dashed" style={{ borderColor: COMPARE_COLORS[i] }} />
+                {monthLabel(c.month)}
+              </span>
+            ))
+          ))}
       </div>
 
       <div ref={box} className="relative mt-1 min-h-[240px] flex-1">
@@ -138,7 +149,9 @@ export function TrendChart({
           className="absolute inset-0 h-full w-full overflow-visible"
           viewBox={`0 0 ${size.w} ${size.h}`}
           role="img"
-          aria-label={`${m.chartLabel} in ${monthLabel(month)}${compareMonth ? ` compared with ${monthLabel(compareMonth)}` : ""}`}
+          aria-label={`${m.chartLabel} in ${monthLabel(month)}${
+            compares.length ? ` compared with ${compares.map((c) => monthLabel(c.month)).join(", ")}` : ""
+          }`}
         >
           <defs>
             <linearGradient id="insights-area" x1="0" x2="0" y1="0" y2="1">
@@ -172,17 +185,18 @@ export function TrendChart({
           )}
           {mode === "daily" ? (
             // Daily values jump around too much for a line; bars read better. With a
-            // comparison, each day gets a grey bar (that month) beside the teal one.
+            // comparison, each day gets a grey bar (that month, or the months' average) beside the teal one.
             (() => {
-              const width = Math.min(compareDays ? 9 : 18, slot * (compareDays ? 0.36 : 0.64));
+              const paired = compares.length > 0;
+              const width = Math.min(paired ? 9 : 18, slot * (paired ? 0.36 : 0.64));
               const bar = (v: number | null | undefined, cx: number, key: string, fill: string, opacity = 1) =>
                 v ? <rect key={key} x={cx} y={y(v)} width={width} height={Math.max(0, y(0) - y(v))} rx={2.5} fill={fill} opacity={opacity} /> : null;
               return Array.from({ length: span }, (_, i) => {
                 const day = i + 1;
-                const nowX = compareDays ? x(day) : x(day) - width / 2;
+                const nowX = paired ? x(day) : x(day) - width / 2;
                 return (
                   <g key={day}>
-                    {compareDays && bar(before[i], x(day) - width, `c${day}`, "#cbd5e1")}
+                    {paired && bar(avgBefore[i], x(day) - width, `c${day}`, "#cbd5e1")}
                     {bar(now[i], nowX, `n${day}`, selectedDay === day ? "#0A1528" : "#038285", hover === day || selectedDay === day ? 1 : 0.85)}
                   </g>
                 );
@@ -190,9 +204,17 @@ export function TrendChart({
             })()
           ) : (
             <>
-              {compareDays && (
-                <path d={path(before)} fill="none" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" />
-              )}
+              {befores.map((b, i) => (
+                <path
+                  key={compares[i].month}
+                  d={path(b)}
+                  fill="none"
+                  stroke={COMPARE_COLORS[i]}
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  strokeLinejoin="round"
+                />
+              ))}
               <path d={area} fill="url(#insights-area)" />
               <path d={nowPath} fill="none" stroke="#038285" strokeWidth={2.6} strokeLinejoin="round" />
               {lastIdx >= 0 && (
@@ -222,10 +244,10 @@ export function TrendChart({
           ))}
         </div>
 
-        {hover !== null && (hoverNow !== null || hoverBefore !== null) && (
+        {hover !== null && hoverAnchor !== null && (
           <div
             className="pointer-events-none absolute z-10 whitespace-nowrap rounded-xl bg-[#0A1528] px-2.5 py-2 text-[11px] leading-relaxed text-white shadow-lg"
-            style={{ left: x(hover), top: y(hoverNow ?? hoverBefore ?? 0), transform: "translate(-50%, calc(-100% - 12px))" }}
+            style={{ left: x(hover), top: y(hoverAnchor), transform: "translate(-50%, calc(-100% - 12px))" }}
           >
             <b className="text-xs">Day {hover}</b>
             <br />
@@ -236,14 +258,14 @@ export function TrendChart({
             ) : (
               <span className="text-slate-300">{monthShort}: not yet</span>
             )}
-            {compareMonth && hoverBefore !== null && (
-              <>
-                <br />
-                <span className="text-slate-300">
-                  {cmpShort}: {m.format(hoverBefore)}
+            {hoverBefores
+              .filter((b) => b.value !== null)
+              .map((b) => (
+                <span key={b.month} className="flex items-center gap-1.5 text-slate-300">
+                  <i className="h-1.5 w-1.5 rounded-full" style={{ background: b.color }} />
+                  {monthLabel(b.month, true)}: {m.format(b.value as number)}
                 </span>
-              </>
-            )}
+              ))}
           </div>
         )}
       </div>

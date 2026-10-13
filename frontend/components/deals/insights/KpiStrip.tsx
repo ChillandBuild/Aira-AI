@@ -51,6 +51,7 @@ export function KpiStrip({
   now,
   before,
   compareText,
+  compareTitle,
   days,
   upTo,
   lostCount,
@@ -64,6 +65,8 @@ export function KpiStrip({
   now: Totals;
   before: Totals | null;
   compareText: string | null;
+  /** Full month names behind a short "vs avg of 3 months". */
+  compareTitle?: string;
   days: DayPoint[];
   upTo: number;
   lostCount: number;
@@ -109,7 +112,7 @@ export function KpiStrip({
               {before && compareText ? (
                 <>
                   <Delta now={value} before={m.value(before)} />
-                  <span>{compareText}</span>
+                  <span title={compareTitle}>{compareText}</span>
                 </>
               ) : (
                 subs[key]
