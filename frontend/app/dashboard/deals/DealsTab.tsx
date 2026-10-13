@@ -268,7 +268,7 @@ export function DealsTab({
 
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-        {/* One row on desktop: filters and buttons keep their size; the search box fills the leftover space and gives it up to "Clear filters" when one shows. */}
+        {/* One row on desktop: filters and buttons keep their size; the search box fills the leftover space and gives it up to "Clear" when one shows. */}
         <div className="flex flex-wrap items-center gap-1.5 border-b border-[#e2e8f0] p-4 lg:flex-nowrap">
           <div className="relative min-w-28 flex-1">
             <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
@@ -410,7 +410,7 @@ export function DealsTab({
               onClick={clearFilters}
               className="shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-primary hover:opacity-70"
             >
-              Clear filters
+              Clear
             </button>
           )}
 
@@ -427,7 +427,7 @@ export function DealsTab({
               )}
             >
               <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-              {/* Label only when no filter is set — "Clear filters" needs the room otherwise. */}
+              {/* Label only when no filter is set — "Clear" needs the room otherwise. */}
               {!hasFilters && "Refresh"}
             </button>
             <button
