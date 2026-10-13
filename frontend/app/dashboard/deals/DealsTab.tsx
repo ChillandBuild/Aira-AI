@@ -268,180 +268,175 @@ export function DealsTab({
 
       {/* Main card: filters + table */}
       <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
-        {/* Two planned rows: search with Refresh/Export on top, every filter on its own row below. */}
-        <div className="space-y-3 border-b border-[#e2e8f0] p-4">
-          <div className="flex items-center gap-2">
-            <div className="relative min-w-0 flex-1 md:max-w-md">
-              <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
-              <input
-                type="text"
-                placeholder="Search name, phone or D-0012"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="w-full rounded-xl border border-[#e2e8f0] py-2 pl-10 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-
-            <div className="ml-auto flex shrink-0 gap-2">
-              <button
-                type="button"
-                onClick={refresh}
-                title="Refresh"
-                aria-label="Refresh"
-                disabled={refreshing}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
-              >
-                <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-                Refresh
-              </button>
-              <button
-                type="button"
-                onClick={exportAll}
-                title="Export"
-                aria-label="Export"
-                disabled={exporting}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
-              >
-                <Download size={14} />
-                {exporting ? "Exporting…" : "Export"}
-              </button>
-            </div>
+        {/* One row: search shrinks (160–224px) so the filters and Refresh/Export fit on a single line. */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#e2e8f0] p-4">
+          <div className="relative min-w-40 flex-1 sm:max-w-56">
+            <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
+            <input
+              type="text"
+              placeholder="Name, phone or D-0012"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              className="w-full rounded-xl border border-[#e2e8f0] py-2 pl-10 pr-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterPopover label="View" value={activeView?.label ?? "Custom"} active={!!activeView && activeView.id !== "all"} closeOnPick>
-              {VIEWS.map((v) => (
-                <PickRow
-                  key={v.id}
-                  label={v.label}
-                  selected={activeView?.id === v.id}
-                  onClick={() => updateFilters({ ...v.filters(), stage: filters.stage, sort: filters.sort, dir: filters.dir })}
-                />
-              ))}
-            </FilterPopover>
-
-            <FilterPopover label="Source" value={listText(filters.source, SOURCE_LABEL)} active={!!filters.source}>
-              {SOURCES.map((s) => (
-                <TickRow
-                  key={s}
-                  label={SOURCE_LABEL[s]}
-                  checked={filters.source?.includes(s) ?? false}
-                  onChange={(on) => setFilter({ source: toggled(filters.source, s, on) })}
-                />
-              ))}
-            </FilterPopover>
-
-            <FilterPopover label="Created" value={createdText} active={!!(filters.created_from || filters.created_to)}>
+          <FilterPopover label="View" value={activeView?.label ?? "Custom"} active={!!activeView && activeView.id !== "all"} closeOnPick>
+            {VIEWS.map((v) => (
               <PickRow
-                label="Any time"
-                selected={!filters.created_from && !filters.created_to}
-                onClick={() => setFilter({ created_from: undefined, created_to: undefined })}
+                key={v.id}
+                label={v.label}
+                selected={activeView?.id === v.id}
+                onClick={() => updateFilters({ ...v.filters(), stage: filters.stage, sort: filters.sort, dir: filters.dir })}
               />
-              {[7, 30, 90].map((days) => (
-                <PickRow
-                  key={days}
-                  label={`Last ${days} days`}
-                  selected={filters.created_from === daysAgoIso(days) && !filters.created_to}
-                  onClick={() => setFilter({ created_from: daysAgoIso(days), created_to: undefined })}
+            ))}
+          </FilterPopover>
+
+          <FilterPopover label="Source" value={listText(filters.source, SOURCE_LABEL)} active={!!filters.source}>
+            {SOURCES.map((s) => (
+              <TickRow
+                key={s}
+                label={SOURCE_LABEL[s]}
+                checked={filters.source?.includes(s) ?? false}
+                onChange={(on) => setFilter({ source: toggled(filters.source, s, on) })}
+              />
+            ))}
+          </FilterPopover>
+
+          <FilterPopover label="Created" value={createdText} active={!!(filters.created_from || filters.created_to)}>
+            <PickRow
+              label="Any time"
+              selected={!filters.created_from && !filters.created_to}
+              onClick={() => setFilter({ created_from: undefined, created_to: undefined })}
+            />
+            {[7, 30, 90].map((days) => (
+              <PickRow
+                key={days}
+                label={`Last ${days} days`}
+                selected={filters.created_from === daysAgoIso(days) && !filters.created_to}
+                onClick={() => setFilter({ created_from: daysAgoIso(days), created_to: undefined })}
+              />
+            ))}
+            <div className="mt-1 space-y-2 border-t border-[#f1f5f9] px-2.5 pb-1 pt-2">
+              <label className="block">
+                <span className={fieldLabel}>From</span>
+                <input
+                  type="date"
+                  value={filters.created_from || ""}
+                  onChange={(e) => setFilter({ created_from: e.target.value || undefined })}
+                  className={fieldInput}
                 />
-              ))}
-              <div className="mt-1 space-y-2 border-t border-[#f1f5f9] px-2.5 pb-1 pt-2">
-                <label className="block">
-                  <span className={fieldLabel}>From</span>
-                  <input
-                    type="date"
-                    value={filters.created_from || ""}
-                    onChange={(e) => setFilter({ created_from: e.target.value || undefined })}
-                    className={fieldInput}
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>To</span>
+                <input
+                  type="date"
+                  value={filters.created_to || ""}
+                  onChange={(e) => setFilter({ created_to: e.target.value || undefined })}
+                  className={fieldInput}
+                />
+              </label>
+            </div>
+          </FilterPopover>
+
+          <FilterPopover label="Value" value={valueText} active={filters.min_rupees != null || filters.max_rupees != null}>
+            <div className="space-y-2 p-1.5">
+              <label className="block">
+                <span className={fieldLabel}>Min ₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={filters.min_rupees ?? ""}
+                  onChange={(e) => setFilter({ min_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                  placeholder="0"
+                  className={fieldInput}
+                />
+              </label>
+              <label className="block">
+                <span className={fieldLabel}>Max ₹</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={filters.max_rupees ?? ""}
+                  onChange={(e) => setFilter({ max_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
+                  placeholder="Any"
+                  className={fieldInput}
+                />
+              </label>
+            </div>
+          </FilterPopover>
+
+          <FilterPopover label="Payment" value={listText(filters.payment_method, PAYMENT_LABEL)} active={!!filters.payment_method}>
+            {PAYMENTS.map((m) => (
+              <TickRow
+                key={m}
+                label={PAYMENT_LABEL[m]}
+                checked={filters.payment_method?.includes(m) ?? false}
+                onChange={(on) => setFilter({ payment_method: toggled(filters.payment_method, m, on) })}
+              />
+            ))}
+          </FilterPopover>
+
+          {summary && summary.products.length > 0 && (
+            <FilterPopover label="Product" value={filters.product?.join(", ") || "All"} active={!!filters.product}>
+              <div className="max-h-56 overflow-y-auto">
+                {summary.products.map((p) => (
+                  <TickRow
+                    key={p}
+                    label={p}
+                    checked={filters.product?.includes(p) ?? false}
+                    onChange={(on) => setFilter({ product: toggled(filters.product, p, on) })}
                   />
-                </label>
-                <label className="block">
-                  <span className={fieldLabel}>To</span>
-                  <input
-                    type="date"
-                    value={filters.created_to || ""}
-                    onChange={(e) => setFilter({ created_to: e.target.value || undefined })}
-                    className={fieldInput}
-                  />
-                </label>
+                ))}
               </div>
             </FilterPopover>
+          )}
 
-            <FilterPopover label="Value" value={valueText} active={filters.min_rupees != null || filters.max_rupees != null}>
-              <div className="space-y-2 p-1.5">
-                <label className="block">
-                  <span className={fieldLabel}>Min ₹</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={filters.min_rupees ?? ""}
-                    onChange={(e) => setFilter({ min_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
-                    placeholder="0"
-                    className={fieldInput}
-                  />
-                </label>
-                <label className="block">
-                  <span className={fieldLabel}>Max ₹</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={filters.max_rupees ?? ""}
-                    onChange={(e) => setFilter({ max_rupees: e.target.value ? parseInt(e.target.value, 10) : undefined })}
-                    placeholder="Any"
-                    className={fieldInput}
-                  />
-                </label>
-              </div>
-            </FilterPopover>
+          <FilterPopover label="More" value={listText(filters.attention, ATTENTION_LABEL)} active={!!filters.attention}>
+            {ATTENTIONS.map((a) => (
+              <TickRow
+                key={a}
+                label={ATTENTION_LABEL[a]}
+                checked={filters.attention?.includes(a) ?? false}
+                onChange={(on) => setFilter({ attention: toggled(filters.attention, a, on) })}
+              />
+            ))}
+          </FilterPopover>
 
-            <FilterPopover label="Payment" value={listText(filters.payment_method, PAYMENT_LABEL)} active={!!filters.payment_method}>
-              {PAYMENTS.map((m) => (
-                <TickRow
-                  key={m}
-                  label={PAYMENT_LABEL[m]}
-                  checked={filters.payment_method?.includes(m) ?? false}
-                  onChange={(on) => setFilter({ payment_method: toggled(filters.payment_method, m, on) })}
-                />
-              ))}
-            </FilterPopover>
+          {hasFilters && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-primary hover:opacity-70"
+            >
+              Clear filters
+            </button>
+          )}
 
-            {summary && summary.products.length > 0 && (
-              <FilterPopover label="Product" value={filters.product?.join(", ") || "All"} active={!!filters.product}>
-                <div className="max-h-56 overflow-y-auto">
-                  {summary.products.map((p) => (
-                    <TickRow
-                      key={p}
-                      label={p}
-                      checked={filters.product?.includes(p) ?? false}
-                      onChange={(on) => setFilter({ product: toggled(filters.product, p, on) })}
-                    />
-                  ))}
-                </div>
-              </FilterPopover>
-            )}
-
-            <FilterPopover label="More" value={listText(filters.attention, ATTENTION_LABEL)} active={!!filters.attention}>
-              {ATTENTIONS.map((a) => (
-                <TickRow
-                  key={a}
-                  label={ATTENTION_LABEL[a]}
-                  checked={filters.attention?.includes(a) ?? false}
-                  onChange={(on) => setFilter({ attention: toggled(filters.attention, a, on) })}
-                />
-              ))}
-            </FilterPopover>
-
-            {hasFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-primary hover:opacity-70"
-              >
-                Clear filters
-              </button>
-            )}
+          <div className="ml-auto flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={refresh}
+              title="Refresh"
+              aria-label="Refresh"
+              disabled={refreshing}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+            >
+              <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={exportAll}
+              title="Export"
+              aria-label="Export"
+              disabled={exporting}
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+            >
+              <Download size={14} />
+              {exporting ? "Exporting…" : "Export"}
+            </button>
           </div>
-
         </div>
 
         <ListTab
