@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COMPARE_COLORS, MAX_COMPARE, monthKey, monthsText, parseMonth, SHORT_MONTHS } from "./shared";
 
@@ -77,7 +77,112 @@ export function Popover({
   );
 }
 
-/** Year header with ‹ › and a 3×4 grid of months. Months after `max` can't be picked. */
+const MIN_YEAR = 2000;
+
+/**
+ * Year header for the month grids. ‹ › step one year; clicking the year opens a grid of
+ * 12 years (‹ › then jump 12 at a time), so going back to e.g. 2004 takes two clicks.
+ */
+function YearPanel({
+  year,
+  onYear,
+  maxYear,
+  activeYears,
+  badge,
+  children,
+}: {
+  year: number;
+  onYear: (y: number) => void;
+  maxYear: number;
+  activeYears: Set<number>;
+  /** Small count shown on a year, e.g. how many of its months are ticked. */
+  badge?: (y: number) => number;
+  children: React.ReactNode;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [pageEnd, setPageEnd] = useState(maxYear);
+  const pageYears = Array.from({ length: 12 }, (_, i) => pageEnd - 11 + i).filter((y) => y >= MIN_YEAR);
+  const arrow = "grid h-7 w-7 place-items-center rounded-lg text-[#334155] hover:bg-slate-50 disabled:text-slate-300 disabled:hover:bg-transparent";
+
+  function openYears() {
+    setPageEnd(maxYear - Math.floor((maxYear - year) / 12) * 12);
+    setPicking(true);
+  }
+
+  if (picking) {
+    return (
+      <div>
+        <div className="flex items-center justify-between px-1 pb-1.5">
+          <button type="button" onClick={() => setPageEnd((e) => e - 12)} disabled={pageEnd - 12 < MIN_YEAR} aria-label="Earlier years" className={arrow}>
+            <ChevronLeft size={15} />
+          </button>
+          <button type="button" onClick={() => setPicking(false)} className="rounded-lg px-2 py-1 text-sm font-extrabold tabular-nums text-[#0A1528] hover:bg-slate-50">
+            {pageYears[0]}–{pageYears[pageYears.length - 1]}
+          </button>
+          <button type="button" onClick={() => setPageEnd((e) => e + 12)} disabled={pageEnd >= maxYear} aria-label="Later years" className={arrow}>
+            <ChevronRight size={15} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {pageYears.map((y) => {
+            const count = badge?.(y) ?? 0;
+            return (
+              <button
+                key={y}
+                type="button"
+                onClick={() => {
+                  onYear(y);
+                  setPicking(false);
+                }}
+                className={cn(
+                  "relative rounded-lg py-2 text-xs font-bold tabular-nums transition-colors",
+                  y === year ? "bg-[#0A1528] text-white" : "text-[#0A1528] hover:bg-slate-50"
+                )}
+              >
+                {y}
+                {count > 0 && (
+                  <span className="absolute right-1 top-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-primary px-0.5 text-[9px] text-white">
+                    {count}
+                  </span>
+                )}
+                {activeYears.has(y) && count === 0 && (
+                  <span className={cn("absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full", y === year ? "bg-white" : "bg-primary")} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between px-1 pb-1.5">
+        <button type="button" onClick={() => onYear(year - 1)} disabled={year <= MIN_YEAR} aria-label="Previous year" className={arrow}>
+          <ChevronLeft size={15} />
+        </button>
+        <button
+          type="button"
+          onClick={openYears}
+          title="Pick a year"
+          className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-extrabold tabular-nums text-[#0A1528] hover:bg-slate-50"
+        >
+          {year}
+          <ChevronDown size={13} className="text-[#64748b]" />
+        </button>
+        <button type="button" onClick={() => onYear(year + 1)} disabled={year >= maxYear} aria-label="Next year" className={arrow}>
+          <ChevronRight size={15} />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+const yearsOf = (months: Iterable<string>) => new Set(Array.from(months, (m) => parseMonth(m).year));
+
+/** Year header and a 3×4 grid of months. Months after `max` can't be picked. */
 export function MonthGrid({
   value,
   max,
@@ -94,56 +199,38 @@ export function MonthGrid({
 
   return (
     <div className="w-[248px]">
-      <div className="flex items-center justify-between px-1 pb-2">
-        <button
-          type="button"
-          onClick={() => setYear((y) => y - 1)}
-          aria-label="Previous year"
-          className="grid h-7 w-7 place-items-center rounded-lg text-[#334155] hover:bg-slate-50"
-        >
-          <ChevronLeft size={15} />
-        </button>
-        <span className="text-sm font-extrabold tabular-nums text-[#0A1528]">{year}</span>
-        <button
-          type="button"
-          onClick={() => setYear((y) => y + 1)}
-          disabled={year >= maxYear}
-          aria-label="Next year"
-          className="grid h-7 w-7 place-items-center rounded-lg text-[#334155] hover:bg-slate-50 disabled:text-slate-300 disabled:hover:bg-transparent"
-        >
-          <ChevronRight size={15} />
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-1">
-        {SHORT_MONTHS.map((name, i) => {
-          const key = monthKey(year, i + 1);
-          const blocked = key > max;
-          const selected = key === value;
-          return (
-            <button
-              key={key}
-              type="button"
-              disabled={blocked}
-              onClick={() => onPick(key)}
-              className={cn(
-                "relative rounded-lg py-2 text-xs font-bold transition-colors",
-                selected ? "bg-primary text-white" : "text-[#0A1528] hover:bg-slate-50",
-                blocked && "cursor-not-allowed text-slate-300 hover:bg-transparent"
-              )}
-            >
-              {name}
-              {activeMonths.has(key) && (
-                <span
-                  className={cn(
-                    "absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full",
-                    selected ? "bg-white" : "bg-primary"
-                  )}
-                />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <YearPanel year={year} onYear={setYear} maxYear={maxYear} activeYears={yearsOf(activeMonths)}>
+        <div className="grid grid-cols-3 gap-1">
+          {SHORT_MONTHS.map((name, i) => {
+            const key = monthKey(year, i + 1);
+            const blocked = key > max;
+            const selected = key === value;
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={blocked}
+                onClick={() => onPick(key)}
+                className={cn(
+                  "relative rounded-lg py-2 text-xs font-bold transition-colors",
+                  selected ? "bg-primary text-white" : "text-[#0A1528] hover:bg-slate-50",
+                  blocked && "cursor-not-allowed text-slate-300 hover:bg-transparent"
+                )}
+              >
+                {name}
+                {activeMonths.has(key) && (
+                  <span
+                    className={cn(
+                      "absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full",
+                      selected ? "bg-white" : "bg-primary"
+                    )}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </YearPanel>
       <p className="mt-2 flex items-center gap-1.5 px-1 text-[11px] text-[#64748b]">
         <span className="h-1 w-1 rounded-full bg-primary" /> had sales
       </p>
@@ -151,10 +238,7 @@ export function MonthGrid({
   );
 }
 
-/**
- * Tick up to MAX_COMPARE months to compare with. Year chips jump straight to a year
- * (the current one, last year, and any year that had sales); nothing applies until "Compare".
- */
+/** Tick up to MAX_COMPARE months, across any years, to compare with; nothing applies until "Compare". */
 export function CompareGrid({
   picked,
   max,
@@ -171,9 +255,6 @@ export function CompareGrid({
   const maxYear = parseMonth(max).year;
   const [draft, setDraft] = useState<string[]>(picked);
   const [year, setYear] = useState(() => parseMonth([...picked].sort().pop() ?? max).year);
-  const years = Array.from(
-    new Set([maxYear, maxYear - 1, ...Array.from(activeMonths).concat(picked).map((m) => parseMonth(m).year)])
-  ).sort((a, b) => b - a);
   const full = draft.length >= MAX_COMPARE;
   const unchanged = draft.length === picked.length && draft.every((m) => picked.includes(m));
 
@@ -183,60 +264,43 @@ export function CompareGrid({
 
   return (
     <div className="w-[264px]">
-      <div className="flex flex-wrap gap-1 px-0.5 pb-2" role="group" aria-label="Year">
-        {years.map((y) => {
-          const count = draft.filter((m) => parseMonth(m).year === y).length;
-          return (
-            <button
-              key={y}
-              type="button"
-              onClick={() => setYear(y)}
-              aria-pressed={year === y}
-              className={cn(
-                "relative rounded-full border px-3 py-1 text-xs font-bold tabular-nums transition-colors",
-                year === y ? "border-[#0A1528] bg-[#0A1528] text-white" : "border-[#e2e8f0] text-[#334155] hover:border-slate-300"
-              )}
-            >
-              {y}
-              {count > 0 && year !== y && (
-                <span className="absolute -right-1 -top-1 grid h-3.5 w-3.5 place-items-center rounded-full bg-primary text-[9px] text-white">
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid grid-cols-3 gap-1">
-        {SHORT_MONTHS.map((name, i) => {
-          const key = monthKey(year, i + 1);
-          const index = draft.indexOf(key);
-          const on = index >= 0;
-          const blocked = key > max || key === exclude || (!on && full);
-          return (
-            <button
-              key={key}
-              type="button"
-              disabled={blocked}
-              onClick={() => toggle(key)}
-              aria-pressed={on}
-              title={key === exclude ? "This is the month you're viewing" : !on && full ? `You can compare up to ${MAX_COMPARE} months` : undefined}
-              className={cn(
-                "relative flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-colors",
-                on ? "border-primary bg-primary/10 text-primary" : "border-transparent text-[#0A1528] hover:bg-slate-50",
-                blocked && "cursor-not-allowed text-slate-300 hover:bg-transparent"
-              )}
-            >
-              {on && <i className="h-2 w-2 rounded-full" style={{ background: COMPARE_COLORS[index] }} />}
-              {name}
-              {activeMonths.has(key) && !on && (
-                <span className={cn("absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full", blocked ? "bg-slate-300" : "bg-primary")} />
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <YearPanel
+        year={year}
+        onYear={setYear}
+        maxYear={maxYear}
+        activeYears={yearsOf(activeMonths)}
+        badge={(y) => draft.filter((m) => parseMonth(m).year === y).length}
+      >
+        <div className="grid grid-cols-3 gap-1">
+          {SHORT_MONTHS.map((name, i) => {
+            const key = monthKey(year, i + 1);
+            const index = draft.indexOf(key);
+            const on = index >= 0;
+            const blocked = key > max || key === exclude || (!on && full);
+            return (
+              <button
+                key={key}
+                type="button"
+                disabled={blocked}
+                onClick={() => toggle(key)}
+                aria-pressed={on}
+                title={key === exclude ? "This is the month you're viewing" : !on && full ? `You can compare up to ${MAX_COMPARE} months` : undefined}
+                className={cn(
+                  "relative flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-bold transition-colors",
+                  on ? "border-primary bg-primary/10 text-primary" : "border-transparent text-[#0A1528] hover:bg-slate-50",
+                  blocked && "cursor-not-allowed text-slate-300 hover:bg-transparent"
+                )}
+              >
+                {on && <i className="h-2 w-2 rounded-full" style={{ background: COMPARE_COLORS[index] }} />}
+                {name}
+                {activeMonths.has(key) && !on && (
+                  <span className={cn("absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full", blocked ? "bg-slate-300" : "bg-primary")} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </YearPanel>
 
       <div className="mt-2 flex items-center justify-between gap-2 px-1">
         <span className="min-w-0 truncate text-[11px] text-[#64748b]">
