@@ -421,9 +421,14 @@ export function DealsTab({
               title="Refresh"
               aria-label="Refresh"
               disabled={refreshing}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-2.5 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
+              className={cn(
+                "flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40",
+                hasFilters ? "px-2.5" : "px-3"
+              )}
             >
               <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
+              {/* Label only when no filter is set — "Clear filters" needs the room otherwise. */}
+              {!hasFilters && "Refresh"}
             </button>
             <button
               type="button"
