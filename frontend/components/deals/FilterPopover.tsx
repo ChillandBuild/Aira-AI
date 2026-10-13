@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,11 +19,35 @@ interface FilterPopoverProps {
 export function FilterPopover({ label, value, active, closeOnPick = false, children }: FilterPopoverProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  // The panel is portalled to <body> with fixed coordinates: the dashboard's content
+  // wrapper (ClientLayout) has overflow-x-hidden — which also clips vertically — and
+  // is only as tall as the page, so an in-place panel was cut off when the list was short.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      const width = panelRef.current?.offsetWidth ?? 220;
+      setPos({ top: rect.bottom + 4, left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function handleEscape(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -56,14 +81,18 @@ export function FilterPopover({ label, value, active, closeOnPick = false, child
         <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
       </button>
 
-      {open && (
-        <div
-          onClick={closeOnPick ? () => setOpen(false) : undefined}
-          className="absolute left-0 top-full z-30 mt-1 min-w-[220px] rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg"
-        >
-          {children}
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            onClick={closeOnPick ? () => setOpen(false) : undefined}
+            style={{ top: pos?.top ?? 0, left: pos?.left ?? 0, visibility: pos ? "visible" : "hidden" }}
+            className="fixed z-50 min-w-[220px] rounded-xl border border-[#e2e8f0] bg-white p-1.5 shadow-lg"
+          >
+            {children}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
