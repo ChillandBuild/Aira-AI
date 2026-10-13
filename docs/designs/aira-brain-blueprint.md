@@ -295,7 +295,7 @@ Worked example. A client's handover line is "Call us 10am to 6pm." After the dat
 
 ## 13. Implementation plan (one iteration, built in this order)
 
-Process gates from CLAUDE.md: /gstack-plan-design-review on this plan first, then /gstack-cso for the permission and sandbox rules. Commit to main in checkpoints using the "feat:" style. Run pytest, typecheck and lint before each commit. Push only when the founder says so. Run `git fetch` and check HEAD..origin/main before finishing.
+Process gates from CLAUDE.md: review the design in this plan first, then a security review for the permission and sandbox rules. Commit to main in checkpoints using the "feat:" style. Run pytest, typecheck and lint before each commit. Push only when the founder says so. Run `git fetch` and check HEAD..origin/main before finishing.
 
 0. **Description to 8 sections** (section 9B). Order inside this step: failing tests first for get_handover_line, the Auto-Sort routing and the 8-section parse and render; then the code.
    Files to change:
