@@ -1519,7 +1519,13 @@ export interface DealStats {
   open_count: number;
   open_total_paise: number;
   by_source: Partial<Record<DealSource, { count: number; total_paise: number }>>;
-  by_day: { date: string; total_paise: number; count: number }[];
+  /** Only days with a sale; the Insights tab fills in the empty days itself. */
+  by_day: {
+    date: string;
+    total_paise: number;
+    count: number;
+    by_source: Partial<Record<DealSource, { count: number; total_paise: number }>>;
+  }[];
   top_items: { name: string; qty: number; total_paise: number }[];
   low_stock: { id: string; name: string; stock_quantity: number; held_quantity: number }[];
 }
@@ -2920,7 +2926,13 @@ export const api = {
       const res = await apiFetch<{ data: DealSummary[] }>(`/api/v1/deals/by-lead/${leadId}`);
       return res.data || [];
     },
-    stats: (month: string) => apiFetch<DealStats>(`/api/v1/deals/stats?month=${encodeURIComponent(month)}`),
+    stats: (month: string, sources?: DealSource[]) =>
+      apiFetch<DealStats>(
+        `/api/v1/deals/stats?month=${encodeURIComponent(month)}${
+          sources && sources.length > 0 ? `&source=${encodeURIComponent(sources.join(","))}` : ""
+        }`
+      ),
+    activeMonths: () => apiFetch<{ months: string[] }>("/api/v1/deals/active-months"),
     // Downloaded with a raw fetch + blob (auth header needed), same as intake.csvPath.
     exportPath: (month: string, format: "xlsx" | "csv" = "xlsx") =>
       `/api/v1/deals/export?month=${encodeURIComponent(month)}&format=${format}`,

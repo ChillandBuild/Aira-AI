@@ -9,6 +9,7 @@ from openpyxl import load_workbook
 
 from app.services import deals_reports
 from app.services.deals_reports import _tax_split, month_bounds
+from tests.fake_supabase import FakeSupabase
 
 
 def test_month_bounds_are_ist_calendar_month_in_utc():
@@ -157,3 +158,86 @@ def test_intake_gst_refund_row_is_negative_gross():
 def test_intake_gst_without_gstin_still_reports_what_was_charged():
     text = _register([_intake_gst_deal()], [], PROFILE, fmt="csv")[0].decode("utf-8-sig")
     assert "TOTAL,57.82" in text
+
+
+# ---------------------------------------------------------------- monthly stats (Insights tab)
+
+def _stats_db():
+    db = FakeSupabase()
+    for source, when, total, stage in [
+        ("whatsapp", "2026-10-01T05:00:00+00:00", 1000, "won"),
+        ("whatsapp", "2026-10-01T06:00:00+00:00", 500, "won"),
+        ("form", "2026-10-01T07:00:00+00:00", 200, "won"),
+        ("form", "2026-10-08T07:00:00+00:00", 300, "won"),
+        ("form", "2026-09-30T19:00:00+00:00", 700, "won"),  # 00:30 IST Oct 1 -- October in IST
+        ("whatsapp", "2026-09-10T05:00:00+00:00", 9999, "won"),  # September: out of range
+    ]:
+        db.add("deals", tenant_id="t1", source=source, won_at=when, total_paise=total, stage=stage, deal_items=[])
+    db.add("deals", tenant_id="t1", source="whatsapp", stage="lost", lost_at="2026-10-05T05:00:00+00:00", total_paise=400)
+    db.add("deals", tenant_id="t1", source="form", stage="lost", lost_at="2026-10-06T05:00:00+00:00", total_paise=400)
+    db.add("deals", tenant_id="t1", source="whatsapp", stage="quoted", total_paise=800)
+    db.add("deals", tenant_id="t1", source="form", stage="awaiting_payment", total_paise=600)
+    db.add("deals", tenant_id="t2", source="form", won_at="2026-10-02T05:00:00+00:00", total_paise=5, stage="won", deal_items=[])
+    return db
+
+
+def _stats(db, sources=None):
+    with patch.object(deals_reports, "_low_stock", return_value=[{"id": "x"}]):
+        return deals_reports.monthly_stats("t1", "2026-10", sources=sources, db=db)
+
+
+def test_stats_by_day_lists_only_days_with_sales():
+    # The frontend draws every day of the month itself; the API sends sale days only.
+    stats = _stats(_stats_db())
+    assert [d["date"] for d in stats["by_day"]] == ["2026-10-01", "2026-10-08"]
+
+
+def test_stats_by_day_splits_each_day_by_source_and_the_parts_add_up():
+    day1 = _stats(_stats_db())["by_day"][0]
+    assert day1["by_source"] == {"whatsapp": {"count": 2, "total_paise": 1500}, "form": {"count": 2, "total_paise": 900}}
+    assert sum(v["total_paise"] for v in day1["by_source"].values()) == day1["total_paise"]
+    assert sum(v["count"] for v in day1["by_source"].values()) == day1["count"]
+
+
+def test_stats_source_filter_narrows_won_lost_and_open_but_not_stock():
+    stats = _stats(_stats_db(), sources=["form"])
+    assert stats["won_count"] == 3 and stats["won_total_paise"] == 1200
+    assert stats["lost_count"] == 1
+    assert stats["open_count"] == 1 and stats["open_total_paise"] == 600
+    assert set(stats["by_source"]) == {"form"}
+    assert stats["low_stock"] == [{"id": "x"}]
+
+
+def test_stats_without_filter_counts_every_source_for_this_tenant_only():
+    stats = _stats(_stats_db())
+    assert stats["won_count"] == 5 and stats["won_total_paise"] == 2700
+    assert stats["lost_count"] == 2 and stats["open_count"] == 2
+
+
+def test_stats_route_passes_the_source_list_and_the_callers_tenant():
+    from app.routes import deals as deals_routes
+    with patch.object(deals_reports, "monthly_stats", return_value={}) as stats:
+        deals_routes.deal_stats("2026-10", source="form,whatsapp", ctx={"tenant_id": "t1"})
+        deals_routes.deal_stats("2026-10", source=None, ctx={"tenant_id": "t1"})
+    assert stats.call_args_list[0].args == ("t1", "2026-10") and stats.call_args_list[0].kwargs == {"sources": ["form", "whatsapp"]}
+    assert stats.call_args_list[1].kwargs == {"sources": None}
+
+
+def test_stats_route_rejects_an_unknown_source():
+    from app.routes import deals as deals_routes
+    with pytest.raises(HTTPException) as err:
+        deals_routes.deal_stats("2026-10", source="carrier_pigeon", ctx={"tenant_id": "t1"})
+    assert err.value.status_code == 400
+
+
+def test_active_months_route_is_scoped_to_the_callers_tenant():
+    from app.routes import deals as deals_routes
+    with patch.object(deals_reports, "active_months", return_value=["2026-10"]) as months:
+        assert deals_routes.deal_active_months(ctx={"tenant_id": "t9"}) == {"months": ["2026-10"]}
+    months.assert_called_once_with("t9")
+
+
+def test_active_months_are_ist_months_with_a_won_deal_for_this_tenant_newest_first():
+    assert deals_reports.active_months("t1", db=_stats_db(), today="2026-10-13") == ["2026-10", "2026-09"]
+    assert deals_reports.active_months("t2", db=_stats_db(), today="2026-10-13") == ["2026-10"]
+    assert deals_reports.active_months("t3", db=_stats_db(), today="2026-10-13") == []

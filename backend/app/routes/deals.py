@@ -378,8 +378,14 @@ def list_deals(
 
 
 @router.get("/stats")
-def deal_stats(month: str, ctx: dict = Depends(require_deals_view)):
-    return deals_reports.monthly_stats(ctx["tenant_id"], month)
+def deal_stats(month: str, source: str | None = None, ctx: dict = Depends(require_deals_view)):
+    sources = _csv(source, deals_service.SOURCES, "source") or None
+    return deals_reports.monthly_stats(ctx["tenant_id"], month, sources=sources)
+
+
+@router.get("/active-months")
+def deal_active_months(ctx: dict = Depends(require_deals_view)):
+    return {"months": deals_reports.active_months(ctx["tenant_id"])}
 
 
 @router.get("/export")

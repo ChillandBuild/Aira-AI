@@ -1,37 +1,114 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
-import { Download } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { api, API_URL, DealSource, DealStats, getAuthHeaders } from "@/lib/api";
-import { formatRupees } from "@/components/deals/money";
-import { SourceBadge } from "@/components/deals/SourceBadge";
-import { istTodayIso } from "@/lib/utils";
+import { SOURCE_LABEL } from "@/lib/deal-filters";
+import { cn, istTodayIso } from "@/lib/utils";
+import { MonthGrid, Popover } from "@/components/deals/insights/MonthPicker";
+import { KpiStrip } from "@/components/deals/insights/KpiStrip";
+import { SalesCalendar } from "@/components/deals/insights/SalesCalendar";
+import { TrendChart } from "@/components/deals/insights/TrendChart";
+import { Breakdown } from "@/components/deals/insights/Breakdown";
+import {
+  daysInMonth,
+  fillDays,
+  Metric,
+  monthLabel,
+  shiftMonth,
+  SOURCE_COLOR,
+  SOURCE_ORDER,
+  totalsUpTo,
+} from "@/components/deals/insights/shared";
 
-function currentMonth(): string {
-  return istTodayIso().slice(0, 7);
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+interface Loaded {
+  key: string;
+  base: DealStats;
+  filtered: DealStats;
+  compare: DealStats | null;
 }
 
 export function InsightsTab() {
-  const [month, setMonth] = useState(currentMonth());
-  const [stats, setStats] = useState<DealStats | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const today = istTodayIso();
+  const currentMonth = today.slice(0, 7);
+  const todayDay = Number(today.slice(8));
+
+  // URL state: ?month=2026-10&vs=2026-09|none&src=whatsapp,form — survives refresh and can be shared.
+  const rawMonth = searchParams.get("month");
+  const month = rawMonth && MONTH_RE.test(rawMonth) && rawMonth <= currentMonth ? rawMonth : currentMonth;
+  const rawVs = searchParams.get("vs");
+  const compareMonth =
+    rawVs === "none" ? null : rawVs && MONTH_RE.test(rawVs) && rawVs <= currentMonth && rawVs !== month ? rawVs : shiftMonth(month, -1);
+  const srcParam = searchParams.get("src") ?? "";
+  const sources = useMemo(
+    () => SOURCE_ORDER.filter((s) => srcParam.split(",").includes(s)),
+    [srcParam]
+  );
+
+  const [metric, setMetric] = useState<Metric>("revenue");
+  const [mode, setMode] = useState<"running" | "daily">("running");
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [data, setData] = useState<Loaded | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [activeMonths, setActiveMonths] = useState<Set<string>>(new Set());
+  const requestId = useRef(0);
+
+  const setParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      for (const [k, v] of Object.entries(patch)) {
+        if (v === null) params.delete(k);
+        else params.set(k, v);
+      }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const loadKey = `${month}|${compareMonth ?? ""}|${sources.join(",")}`;
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError(false);
     try {
-      setStats(await api.deals.stats(month));
+      const filteredBy = sources.length > 0 ? sources : undefined;
+      const [base, filtered, compare] = await Promise.all([
+        api.deals.stats(month),
+        filteredBy ? api.deals.stats(month, filteredBy) : Promise.resolve(null),
+        compareMonth ? api.deals.stats(compareMonth, filteredBy) : Promise.resolve(null),
+      ]);
+      if (id !== requestId.current) return;
+      setData({ key: loadKey, base, filtered: filtered ?? base, compare });
     } catch {
-      setError(true);
+      if (id === requestId.current) setError(true);
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [month]);
+  }, [month, compareMonth, sources, loadKey]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setSelectedDay(null);
+  }, [month]);
+
+  useEffect(() => {
+    api.deals
+      .activeMonths()
+      .then((res) => setActiveMonths(new Set(res.months)))
+      .catch(() => setActiveMonths(new Set()));
+  }, []);
 
   async function downloadExport() {
     setDownloading(true);
@@ -53,163 +130,311 @@ export function InsightsTab() {
     }
   }
 
-  if (loading && !stats) {
+  function toggleSource(s: DealSource) {
+    const next = sources.includes(s) ? sources.filter((x) => x !== s) : [...sources, s];
+    setParams({ src: next.length ? next.join(",") : null });
+  }
+
+  const days = useMemo(() => fillDays(data?.filtered ?? null, month), [data, month]);
+  const compareDays = useMemo(
+    () => (data?.compare && compareMonth ? fillDays(data.compare, compareMonth) : null),
+    [data, compareMonth]
+  );
+
+  if (!data) {
+    if (error) {
+      return (
+        <div className="flex flex-col items-center gap-3 py-16 text-center">
+          <p className="text-sm text-[#64748b]">Couldn&apos;t load insights.</p>
+          <button
+            type="button"
+            onClick={load}
+            className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white hover:bg-primary/90"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
     return (
-      <div className="grid grid-cols-2 gap-4 p-6 lg:grid-cols-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-28 animate-pulse rounded-2xl bg-border-subtle" />
-        ))}
+      <div className="space-y-3.5">
+        <div className="h-9 w-64 animate-pulse rounded-xl bg-[#f1f5f9]" />
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-5">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-32 animate-pulse rounded-2xl bg-[#f1f5f9]" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+          <div className="h-96 animate-pulse rounded-2xl bg-[#f1f5f9]" />
+          <div className="h-96 animate-pulse rounded-2xl bg-[#f1f5f9]" />
+        </div>
       </div>
     );
   }
 
-  if (error && !stats) {
-    return (
-      <div className="flex flex-col items-center gap-3 py-16 text-center">
-        <p className="font-body text-sm text-ink-muted">Could not load insights.</p>
-        <button
-          type="button"
-          onClick={load}
-          className="rounded-xl bg-primary px-4 py-2 font-label text-xs font-bold text-white hover:bg-primary/90"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  const isCurrent = month === currentMonth;
+  const lastDay = isCurrent ? todayDay : daysInMonth(month);
+  const now = totalsUpTo(days, lastDay);
+  const before = compareDays ? totalsUpTo(compareDays, isCurrent ? todayDay : compareDays.length) : null;
+  const compareText = compareMonth
+    ? isCurrent
+      ? `vs ${monthLabel(compareMonth, true).split(" ")[0]} 1–${Math.min(todayDay, daysInMonth(compareMonth))}${
+          compareMonth.slice(0, 4) !== month.slice(0, 4) ? ` ${compareMonth.slice(0, 4)}` : ""
+        }`
+      : `vs ${monthLabel(compareMonth, true)}`
+    : null;
 
-  if (!stats) return null;
-
-  const maxDay = Math.max(1, ...stats.by_day.map((d) => d.total_paise));
-  const sources = Object.entries(stats.by_source) as [DealSource, { count: number; total_paise: number }][];
-  const maxSource = Math.max(1, ...sources.map(([, v]) => v.total_paise));
-
-  const cards = [
-    { label: "Won total", value: formatRupees(stats.won_total_paise), sub: `${stats.won_count} deals`, tone: "border-t-emerald-400" },
-    { label: "Open pipeline", value: formatRupees(stats.open_total_paise), sub: `${stats.open_count} deals`, tone: "border-t-amber-400" },
-    { label: "Lost", value: stats.lost_count, sub: "this month", tone: "border-t-rose-400" },
-    { label: "Won deals", value: stats.won_count, sub: "this month", tone: "border-t-teal-400" },
-  ];
+  const sourceQuery = sources.length ? `&source=${sources.join(",")}` : "";
+  const shownSources = SOURCE_ORDER.filter((s) => data.base.by_source[s]?.count || sources.includes(s));
+  const prevMonth = shiftMonth(month, -1);
+  const lastYear = shiftMonth(month, -12);
+  const stale = loading && data.key !== loadKey;
 
   return (
-    <div className="max-w-5xl space-y-6 p-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="rounded-xl border border-border px-3 py-2 font-body text-sm text-ink"
-        />
-      </div>
-
-      {error && (
-        <p className="font-body text-xs text-amber-600">Could not refresh just now — showing the last loaded numbers.</p>
-      )}
-
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {cards.map((c) => (
-          <div key={c.label} className={`rounded-2xl border border-border border-t-4 bg-white p-4 ${c.tone}`}>
-            <p className="font-display text-2xl font-bold leading-none text-ink">{c.value}</p>
-            <p className="mt-1.5 font-label text-xs font-semibold text-ink">{c.label}</p>
-            <p className="font-body text-[11px] text-ink-muted">{c.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <p className="mb-3 font-label text-xs font-semibold text-ink">Revenue by source</p>
-          {sources.length === 0 ? (
-            <p className="font-body text-xs text-ink-muted">No won deals yet this month.</p>
-          ) : (
-            <div className="space-y-2">
-              {sources.map(([src, v]) => (
-                <div key={src} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <SourceBadge source={src} />
-                    <span className="font-body text-xs text-ink">{formatRupees(v.total_paise)}</span>
-                  </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-border-subtle">
-                    <div
-                      className="h-full rounded-full bg-primary"
-                      style={{ width: `${Math.max(4, (v.total_paise / maxSource) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+    <div className={cn("space-y-3.5 transition-opacity", stale && "opacity-70")}>
+      {/* Month, comparison, download */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center overflow-hidden rounded-xl border border-[#e2e8f0] bg-white">
+          <button
+            type="button"
+            onClick={() => setParams({ month: shiftMonth(month, -1) })}
+            aria-label="Previous month"
+            className="grid h-9 w-9 place-items-center text-[#334155] hover:bg-[#f8fafc]"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <Popover
+            trigger={(open, toggle) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={open}
+                className="flex h-9 items-center gap-1.5 border-x border-[#e2e8f0] px-3 text-[13px] font-extrabold text-[#0A1528] hover:bg-[#f8fafc]"
+              >
+                <Calendar size={14} className="text-[#64748b]" />
+                {monthLabel(month)}
+              </button>
+            )}
+          >
+            {(close) => (
+              <MonthGrid
+                value={month}
+                max={currentMonth}
+                activeMonths={activeMonths}
+                onPick={(m) => {
+                  setParams({ month: m === currentMonth ? null : m });
+                  close();
+                }}
+              />
+            )}
+          </Popover>
+          <button
+            type="button"
+            onClick={() => {
+              const next = shiftMonth(month, 1);
+              setParams({ month: next === currentMonth ? null : next });
+            }}
+            disabled={isCurrent}
+            aria-label="Next month"
+            className="grid h-9 w-9 place-items-center text-[#334155] hover:bg-[#f8fafc] disabled:text-slate-300 disabled:hover:bg-transparent"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
 
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <p className="mb-3 font-label text-xs font-semibold text-ink">Won revenue by day</p>
-          {stats.by_day.length === 0 ? (
-            <p className="font-body text-xs text-ink-muted">No won deals yet this month.</p>
-          ) : (
-            <div className="flex h-28 items-end gap-1">
-              {stats.by_day.map((d) => (
-                <div key={d.date} className="flex min-w-0 flex-1 flex-col items-center gap-1" title={`${d.date}: ${formatRupees(d.total_paise)}`}>
-                  <div
-                    className={`w-full rounded-t-md ${d.total_paise > 0 ? "bg-primary-500" : "bg-border-subtle"}`}
-                    style={{ height: `${Math.max(4, (d.total_paise / maxDay) * 96)}px` }}
+        <div className="flex items-center">
+          <Popover
+            trigger={(open, toggle) => (
+              <button
+                type="button"
+                onClick={toggle}
+                aria-expanded={open}
+                className={cn(
+                  "flex h-9 items-center gap-1.5 border px-3 text-xs font-bold transition-colors",
+                  compareMonth
+                    ? "rounded-l-xl border-primary bg-primary/5 text-primary"
+                    : "rounded-xl border-[#e2e8f0] bg-white text-[#0A1528] hover:border-slate-300"
+                )}
+              >
+                {compareMonth ? `Compare: ${monthLabel(compareMonth, true)}` : "Compare with…"}
+                <ChevronDown size={12} className={cn("transition-transform", open && "rotate-180")} />
+              </button>
+            )}
+          >
+            {(close) => (
+              <div className="w-[264px]">
+                {[
+                  { key: prevMonth, label: "Previous month", hint: monthLabel(prevMonth, true) },
+                  { key: lastYear, label: "Same month last year", hint: monthLabel(lastYear, true) },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => {
+                      setParams({ vs: opt.key === prevMonth ? null : opt.key });
+                      close();
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50"
+                  >
+                    <span>
+                      {opt.label} <span className="text-[#94a3b8]">· {opt.hint}</span>
+                    </span>
+                    {compareMonth === opt.key && <Check size={14} className="text-primary" />}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setParams({ vs: "none" });
+                    close();
+                  }}
+                  className="flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50"
+                >
+                  No comparison
+                  {!compareMonth && <Check size={14} className="text-primary" />}
+                </button>
+                <div className="mx-1 mt-1 border-t border-[#f1f5f9] pt-2">
+                  <p className="px-1.5 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-[#64748b]">Or pick any month</p>
+                  <MonthGrid
+                    value={compareMonth}
+                    max={currentMonth}
+                    activeMonths={activeMonths}
+                    exclude={month}
+                    onPick={(m) => {
+                      setParams({ vs: m === prevMonth ? null : m });
+                      close();
+                    }}
                   />
-                  <span className="font-body text-[9px] text-ink-muted">{d.date.slice(8)}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <p className="mb-3 font-label text-xs font-semibold text-ink">Top items</p>
-          {stats.top_items.length === 0 ? (
-            <p className="font-body text-xs text-ink-muted">Nothing sold yet this month.</p>
-          ) : (
-            <div className="space-y-2">
-              {stats.top_items.map((item) => (
-                <div key={item.name} className="flex items-center justify-between">
-                  <p className="font-body text-sm text-ink truncate">{item.name} <span className="text-ink-muted">×{item.qty}</span></p>
-                  <p className="font-body text-sm font-semibold text-ink">{formatRupees(item.total_paise)}</p>
-                </div>
-              ))}
-            </div>
+              </div>
+            )}
+          </Popover>
+          {compareMonth && (
+            <button
+              type="button"
+              onClick={() => setParams({ vs: "none" })}
+              aria-label="Stop comparing"
+              title="Stop comparing"
+              className="grid h-9 w-8 place-items-center rounded-r-xl border border-l-0 border-primary bg-primary/5 text-primary hover:bg-primary/10"
+            >
+              <X size={13} />
+            </button>
           )}
         </div>
 
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <p className="mb-3 font-label text-xs font-semibold text-ink">Low stock</p>
-          {stats.low_stock.length === 0 ? (
-            <p className="font-body text-xs text-ink-muted">Nothing running low.</p>
-          ) : (
-            <div className="space-y-2">
-              {stats.low_stock.map((item) => (
-                <div key={item.id} className="flex items-center justify-between">
-                  <p className="font-body text-sm text-ink truncate">{item.name}</p>
-                  <p className="font-body text-xs text-amber-700">
-                    {item.stock_quantity} in stock · {item.held_quantity} held
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div>
         <button
           type="button"
           onClick={downloadExport}
           disabled={downloading}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 font-label text-xs font-bold text-white hover:bg-primary/90 disabled:opacity-50"
+          title="Excel file of this month's sales for your accountant. Uses the business details from Settings → Business details."
+          className="ml-auto flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] transition-colors hover:bg-[#f8fafc] disabled:opacity-40"
         >
-          <Download size={12} /> {downloading ? "Preparing…" : "Download month for auditor"}
+          <Download size={14} />
+          {downloading ? "Preparing…" : "Download for auditor"}
         </button>
-        <p className="mt-1.5 font-body text-[11px] text-ink-muted">
-          This file uses the business details from Settings → Business details.
-        </p>
       </div>
+
+      {/* Source filter */}
+      {(shownSources.length > 1 || sources.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[10px] font-extrabold uppercase tracking-wider text-[#64748b]">Source</span>
+          <button
+            type="button"
+            onClick={() => setParams({ src: null })}
+            aria-pressed={sources.length === 0}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
+              sources.length === 0 ? "border-[#0A1528] bg-[#0A1528] text-white" : "border-[#e2e8f0] bg-white text-[#334155] hover:border-slate-300"
+            )}
+          >
+            All sources
+          </button>
+          {shownSources.map((s) => {
+            const on = sources.includes(s);
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => toggleSource(s)}
+                aria-pressed={on}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
+                  on ? "border-[#0A1528] bg-[#0A1528] text-white" : "border-[#e2e8f0] bg-white text-[#334155] hover:border-slate-300"
+                )}
+              >
+                <i className="h-[7px] w-[7px] rounded-[3px]" style={{ background: SOURCE_COLOR[s] }} />
+                {SOURCE_LABEL[s]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-2">
+          <p className="text-xs text-amber-700">Couldn&apos;t refresh just now. Showing the last numbers that loaded.</p>
+          <button type="button" onClick={load} className="text-xs font-bold text-amber-700 hover:opacity-70">
+            Retry
+          </button>
+        </div>
+      )}
+
+      <KpiStrip
+        metric={metric}
+        onMetric={setMetric}
+        now={now}
+        before={before}
+        compareText={compareText}
+        days={days}
+        upTo={lastDay}
+        lostCount={data.filtered.lost_count}
+        openCount={data.filtered.open_count}
+        openTotal={data.filtered.open_total_paise}
+        lostHref={`/dashboard/deals?tab=deals&stage=lost${sourceQuery}`}
+        openHref={`/dashboard/deals?tab=deals&stage=awaiting_payment${sourceQuery}`}
+      />
+
+      {data.base.won_count === 0 && (
+        <p className="rounded-xl border border-dashed border-[#e2e8f0] bg-white px-4 py-3 text-xs text-[#64748b]">
+          No deals were paid in {monthLabel(month)}{isCurrent ? " yet" : ""}. A deal shows up here on the day it&apos;s marked won.{" "}
+          <Link href="/dashboard/deals?tab=deals" className="font-bold text-primary hover:opacity-70">
+            Go to deals →
+          </Link>
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <SalesCalendar
+          month={month}
+          days={days}
+          metric={metric}
+          lastDay={lastDay}
+          today={isCurrent ? todayDay : null}
+          selectedDay={selectedDay}
+          onSelect={setSelectedDay}
+        />
+        <TrendChart
+          month={month}
+          days={days}
+          lastDay={lastDay}
+          today={isCurrent ? todayDay : null}
+          compareMonth={compareMonth}
+          compareDays={compareDays}
+          metric={metric}
+          mode={mode}
+          onMode={setMode}
+          selectedDay={selectedDay}
+          onSelect={setSelectedDay}
+        />
+      </div>
+
+      <Breakdown
+        allSources={data.base.by_source}
+        selected={sources}
+        onToggleSource={toggleSource}
+        topItems={data.filtered.top_items}
+        lowStock={data.base.low_stock}
+      />
     </div>
   );
 }

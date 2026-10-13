@@ -38,19 +38,19 @@ def _ist_date(iso: str) -> str:
     return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(IST).strftime("%Y-%m-%d")
 
 
-def _won_in_month(db, tenant_id: str, start: str, end: str) -> list[dict]:
+def _won_in_month(db, tenant_id: str, start: str, end: str, sources: list[str] | None = None) -> list[dict]:
     """Deals won inside the month, whatever their stage now -- a sale refunded
     next month still happened this month."""
-    return (
+    query = (
         db.table("deals")
         .select("*, leads(name, phone), deal_items(name, qty, unit_price_paise, gst_rate, line_total_paise)")
         .eq("tenant_id", tenant_id)
         .gte("won_at", start)
         .lt("won_at", end)
-        .order("won_at")
-        .limit(ROW_CAP)
-        .execute()
-    ).data or []
+    )
+    if sources:
+        query = query.in_("source", sources)
+    return query.order("won_at").limit(ROW_CAP).execute().data or []
 
 
 def _refunded_in_month(db, tenant_id: str, start: str, end: str) -> list[dict]:
@@ -70,18 +70,25 @@ def _refunded_in_month(db, tenant_id: str, start: str, end: str) -> list[dict]:
 
 # ---------------------------------------------------------------- stats
 
-def monthly_stats(tenant_id: str, month: str, db=None) -> dict:
+def monthly_stats(tenant_id: str, month: str, sources: list[str] | None = None, db=None) -> dict:
+    """`sources` narrows every sales number (won, lost, open) to those deal sources;
+    low stock is about products, not sales, so it is never filtered."""
     db = db or get_supabase()
     start, end = month_bounds(month)
-    won = _won_in_month(db, tenant_id, start, end)
-    lost = (
+    won = _won_in_month(db, tenant_id, start, end, sources)
+    lost_query = (
         db.table("deals").select("id").eq("tenant_id", tenant_id).eq("stage", "lost")
-        .gte("lost_at", start).lt("lost_at", end).limit(ROW_CAP).execute()
-    ).data or []
-    open_rows = (
+        .gte("lost_at", start).lt("lost_at", end)
+    )
+    open_query = (
         db.table("deals").select("total_paise").eq("tenant_id", tenant_id)
-        .in_("stage", ["quoted", "awaiting_payment"]).limit(ROW_CAP).execute()
-    ).data or []
+        .in_("stage", ["quoted", "awaiting_payment"])
+    )
+    if sources:
+        lost_query = lost_query.in_("source", sources)
+        open_query = open_query.in_("source", sources)
+    lost = lost_query.limit(ROW_CAP).execute().data or []
+    open_rows = open_query.limit(ROW_CAP).execute().data or []
 
     by_source: dict[str, dict] = {}
     by_day: dict[str, dict] = {}
@@ -90,9 +97,12 @@ def monthly_stats(tenant_id: str, month: str, db=None) -> dict:
         src = by_source.setdefault(deal["source"], {"count": 0, "total_paise": 0})
         src["count"] += 1
         src["total_paise"] += deal["total_paise"]
-        day = by_day.setdefault(_ist_date(deal["won_at"]), {"count": 0, "total_paise": 0})
+        day = by_day.setdefault(_ist_date(deal["won_at"]), {"count": 0, "total_paise": 0, "by_source": {}})
         day["count"] += 1
         day["total_paise"] += deal["total_paise"]
+        day_src = day["by_source"].setdefault(deal["source"], {"count": 0, "total_paise": 0})
+        day_src["count"] += 1
+        day_src["total_paise"] += deal["total_paise"]
         for line in deal.get("deal_items") or []:
             agg = items.setdefault(line["name"], {"name": line["name"], "qty": 0, "total_paise": 0})
             agg["qty"] += line["qty"]
@@ -110,6 +120,24 @@ def monthly_stats(tenant_id: str, month: str, db=None) -> dict:
         "top_items": sorted(items.values(), key=lambda i: i["total_paise"], reverse=True)[:10],
         "low_stock": _low_stock(db, tenant_id),
     }
+
+
+ACTIVE_MONTHS_LOOKBACK = 36
+
+
+def active_months(tenant_id: str, db=None, today: str | None = None) -> list[str]:
+    """IST months (YYYY-MM, newest first) with at least one won deal in the last
+    three years -- the Insights month picker marks these so a client can see
+    which months are worth opening or comparing."""
+    db = db or get_supabase()
+    year, mon = map(int, (today or datetime.now(IST).strftime("%Y-%m-%d"))[:7].split("-"))
+    first = year * 12 + mon - 1 - (ACTIVE_MONTHS_LOOKBACK - 1)
+    start, _ = month_bounds(f"{first // 12}-{first % 12 + 1:02d}")
+    rows = (
+        db.table("deals").select("won_at").eq("tenant_id", tenant_id)
+        .gte("won_at", start).order("won_at", desc=True).limit(ROW_CAP).execute()
+    ).data or []
+    return sorted({_ist_date(r["won_at"])[:7] for r in rows if r.get("won_at")}, reverse=True)
 
 
 def _low_stock(db, tenant_id: str) -> list[dict]:
