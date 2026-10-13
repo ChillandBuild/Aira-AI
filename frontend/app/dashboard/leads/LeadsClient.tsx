@@ -523,6 +523,16 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     return out;
   }
 
+  function clearFilters() {
+    setSearchInput("");
+    setSourceFilter("ALL");
+    setSelectedCampaignId("");
+    setSelectedBroadcastId("");
+    setAssigned(undefined);
+    setReplyWindow(undefined);
+    setDates("", "");
+  }
+
   function getDatePreset(): string {
     if (!dateFrom || !dateTo) return "any";
     const today = new Date();
@@ -792,6 +802,15 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 showValue={true}
               />
 
+              {hasFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="shrink-0 whitespace-nowrap px-1 text-xs font-semibold text-primary hover:opacity-70"
+                >
+                  Clear
+                </button>
+              )}
               </div>
 
               {/* Right side buttons */}
@@ -804,7 +823,8 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                   className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors disabled:opacity-40"
                 >
                   <RefreshCw size={14} className={cn(refreshing && "animate-spin")} />
-                  <span className="min-[1360px]:hidden 2xl:inline">Refresh</span>
+                  {/* With a filter set, "Clear" takes the label's room so nothing wraps. */}
+                  <span className={cn("min-[1360px]:hidden", !hasFilters && "2xl:inline")}>Refresh</span>
                 </button>
                 <button
                   onClick={async () => {
