@@ -113,7 +113,7 @@ const SEGMENT_COLORS: Record<string, { text: string; edge: string }> = {
 
 // Matches the FilterMenu buttons beside it; capped width so a long campaign name can't push the row.
 const PICKER_CLASS =
-  "h-[30px] max-w-[200px] shrink-0 truncate rounded-lg border border-[#e2e8f0] bg-white pl-3 pr-7 text-xs font-bold text-[#0A1528] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20";
+  "h-[30px] max-w-[170px] shrink-0 truncate rounded-lg border border-[#e2e8f0] bg-white pl-3 pr-7 text-xs font-bold text-[#0A1528] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 const SOURCE_FILTERS: FilterMenuOption[] = [
   { value: "ALL", label: "All" },
@@ -499,6 +499,9 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     return null;
   }
 
+  const showsSourcePicker =
+    (sourceFilter === "META_ADS" && campaigns.length > 0) || (sourceFilter === "BROADCAST" && broadcastHistory.length > 0);
+
   // Meta allows two campaigns with the same name; add the month each was created in Meta so they can be told apart.
   // Until the next sync stores Meta's date, fall back to when Aira first saw the campaign.
   function campaignLabel(c: { id: string; campaign_name: string; created_at?: string; meta_created_at?: string | null }): string {
@@ -718,7 +721,8 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
           <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
             {/* Filter bar: Refresh and Export stay on the first line; the filters wrap beside them. */}
             <div className="flex flex-col gap-2 p-4 border-b border-[#e2e8f0] min-[1360px]:flex-row min-[1360px]:items-center">
-              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 min-[1360px]:flex-nowrap">
+              {/* One line on wide screens, but the campaign/broadcast picker adds a control, so then let it wrap rather than run under Refresh/Export. */}
+              <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2", !showsSourcePicker && "min-[1360px]:flex-nowrap")}>
               {viewToggle}
 
               {/* Search input */}
@@ -747,7 +751,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
               />
 
               {/* Which campaign / broadcast, in the same row as the Source it narrows. */}
-              {sourceFilter === "META_ADS" && campaigns.length > 0 && (
+              {showsSourcePicker && sourceFilter === "META_ADS" && (
                 <select
                   value={selectedCampaignId}
                   onChange={(e) => setSelectedCampaignId(e.target.value)}
@@ -763,7 +767,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 </select>
               )}
 
-              {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
+              {showsSourcePicker && sourceFilter === "BROADCAST" && (
                 <select
                   value={selectedBroadcastId}
                   onChange={(e) => setSelectedBroadcastId(e.target.value)}
@@ -889,7 +893,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                   className="flex items-center gap-1.5 rounded-xl border border-[#e2e8f0] bg-white px-3 py-2 text-xs font-bold text-[#0A1528] hover:bg-[#f8fafc] transition-colors"
                 >
                   <Download size={14} />
-                  <span className="min-[1360px]:hidden 2xl:inline">Export</span>
+                  <span className={cn("min-[1360px]:hidden", !hasFilters && "2xl:inline")}>Export</span>
                 </button>
               </div>
             </div>
