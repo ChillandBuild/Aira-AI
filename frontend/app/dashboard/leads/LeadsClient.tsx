@@ -111,6 +111,10 @@ const SEGMENT_COLORS: Record<string, { text: string; edge: string }> = {
   D: { text: "text-[#0A1528]", edge: "bg-slate-400" },
 };
 
+// Matches the FilterMenu buttons beside it; capped width so a long campaign name can't push the row.
+const PICKER_CLASS =
+  "h-[30px] max-w-[200px] shrink-0 truncate rounded-lg border border-[#e2e8f0] bg-white pl-3 pr-7 text-xs font-bold text-[#0A1528] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20";
+
 const SOURCE_FILTERS: FilterMenuOption[] = [
   { value: "ALL", label: "All" },
   { value: "INBOUND", label: "Inbound" },
@@ -742,6 +746,39 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 showValue={true}
               />
 
+              {/* Which campaign / broadcast, in the same row as the Source it narrows. */}
+              {sourceFilter === "META_ADS" && campaigns.length > 0 && (
+                <select
+                  value={selectedCampaignId}
+                  onChange={(e) => setSelectedCampaignId(e.target.value)}
+                  aria-label="Campaign"
+                  className={PICKER_CLASS}
+                >
+                  <option value="">All campaigns</option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {campaignLabel(c)}
+                    </option>
+                  ))}
+                </select>
+              )}
+
+              {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
+                <select
+                  value={selectedBroadcastId}
+                  onChange={(e) => setSelectedBroadcastId(e.target.value)}
+                  aria-label="Broadcast"
+                  className={PICKER_CLASS}
+                >
+                  <option value="">All broadcasts</option>
+                  {broadcastHistory.map((h) => (
+                    <option key={h.broadcast_id} value={h.broadcast_id}>
+                      {h.template_name} · {new Date(h.timestamp).toLocaleDateString()}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <FilterMenu
                 label="Added"
                 options={[
@@ -856,41 +893,6 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                 </button>
               </div>
             </div>
-
-            {/* Campaign/Broadcast pickers */}
-            {sourceFilter === "META_ADS" && campaigns.length > 0 && (
-              <div className="mx-4 px-3 py-2.5 rounded-xl border border-[#e2e8f0] bg-white">
-                <select
-                  value={selectedCampaignId}
-                  onChange={(e) => setSelectedCampaignId(e.target.value)}
-                  className="h-9 rounded-xl border border-[#e2e8f0] bg-white px-3 text-xs font-semibold text-[#0A1528] focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">All campaigns</option>
-                  {campaigns.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {campaignLabel(c)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {sourceFilter === "BROADCAST" && broadcastHistory.length > 0 && (
-              <div className="mx-4 px-3 py-2.5 rounded-xl border border-[#e2e8f0] bg-white">
-                <select
-                  value={selectedBroadcastId}
-                  onChange={(e) => setSelectedBroadcastId(e.target.value)}
-                  className="h-9 rounded-xl border border-[#e2e8f0] bg-white px-3 text-xs font-semibold text-[#0A1528] focus:outline-none focus:ring-2 focus:ring-primary/20"
-                >
-                  <option value="">All broadcasts</option>
-                  {broadcastHistory.map((h) => (
-                    <option key={h.broadcast_id} value={h.broadcast_id}>
-                      {h.template_name} · {new Date(h.timestamp).toLocaleDateString()}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             {/* Info banner */}
             {!tipsDismissed && (
