@@ -111,9 +111,10 @@ const SEGMENT_COLORS: Record<string, { text: string; edge: string }> = {
   D: { text: "text-[#0A1528]", edge: "bg-slate-400" },
 };
 
-// Matches the FilterMenu buttons beside it; capped width so a long campaign name can't push the row.
+// Matches the FilterMenu buttons beside it. Fixed width fits "All campaigns"/"All broadcasts"; a long
+// name is cut short here but shown in full in the list. No right padding: Chrome's arrow sits inside it.
 const PICKER_CLASS =
-  "h-[30px] max-w-[170px] shrink-0 truncate rounded-lg border border-[#e2e8f0] bg-white pl-3 pr-7 text-xs font-bold text-[#0A1528] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20";
+  "h-[30px] w-[132px] shrink-0 truncate rounded-lg border border-[#e2e8f0] bg-white pl-2 pr-1 text-xs font-bold text-[#0A1528] hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 const SOURCE_FILTERS: FilterMenuOption[] = [
   { value: "ALL", label: "All" },
@@ -721,12 +722,15 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
           <div className="rounded-2xl border border-[#e2e8f0] bg-white shadow-sm">
             {/* Filter bar: Refresh and Export stay on the first line; the filters wrap beside them. */}
             <div className="flex flex-col gap-2 p-4 border-b border-[#e2e8f0] min-[1360px]:flex-row min-[1360px]:items-center">
-              {/* One line on wide screens, but the campaign/broadcast picker adds a control, so then let it wrap rather than run under Refresh/Export. */}
-              <div className={cn("flex min-w-0 flex-1 flex-wrap items-center gap-2", !showsSourcePicker && "min-[1360px]:flex-nowrap")}>
+              {/* One line on wide screens. The campaign/broadcast picker adds a control, so with it the row needs 1440px+. */}
+              <div className={cn(
+                "flex min-w-0 flex-1 flex-wrap items-center gap-2",
+                showsSourcePicker ? "min-[1440px]:flex-nowrap" : "min-[1360px]:flex-nowrap",
+              )}>
               {viewToggle}
 
               {/* Search input */}
-              <div className="relative min-w-[150px] flex-1 min-[1360px]:max-w-xs">
+              <div className={cn("relative min-w-[150px] flex-1 min-[1360px]:max-w-xs", showsSourcePicker && "min-[1440px]:min-w-[100px]")}>
                 <Search size={14} className="absolute left-3 top-2.5 text-[#64748b]" />
                 <input
                   type="text"
@@ -738,8 +742,9 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
               </div>
 
               {/* Filter dropdowns */}
+              {/* With the picker beside it, "Meta Ads" / "Broadcast" alone says enough and saves room. */}
               <FilterMenu
-                label="Source"
+                label={showsSourcePicker ? SOURCE_FILTERS.find((o) => o.value === sourceFilter)?.label ?? "Source" : "Source"}
                 options={SOURCE_FILTERS}
                 value={sourceFilter === "ALL" ? undefined : sourceFilter}
                 onChange={(val) => {
@@ -747,7 +752,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                   setSelectedCampaignId("");
                   setSelectedBroadcastId("");
                 }}
-                showValue={true}
+                showValue={!showsSourcePicker}
               />
 
               {/* Which campaign / broadcast, in the same row as the Source it narrows. */}
