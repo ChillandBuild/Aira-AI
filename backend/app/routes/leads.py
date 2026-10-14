@@ -151,7 +151,11 @@ def _filtered_leads_query(db, ctx: dict, f: LeadFilters, columns: str = "*", cou
     elif f.source_filter == "meta_ads":
         query = query.in_("source", list(INBOUND_SOURCES)).not_.is_("ad_campaign_id", "null")
         if f.ad_campaign_id:
-            query = query.eq("ad_campaign_id", f.ad_campaign_id)
+            # Include leads the webhook filed under a placeholder for one of this
+            # campaign's ads before the ad synced (see campaign_ids_with_placeholders).
+            from app.services.ad_performance import campaign_ids_with_placeholders
+
+            query = query.in_("ad_campaign_id", campaign_ids_with_placeholders(db, tenant_id, f.ad_campaign_id))
     elif f.source_filter == "broadcast":
         if f.broadcast_id:
             br_result = db.table("broadcast_recipients").select("lead_id").eq("broadcast_id", f.broadcast_id).eq("tenant_id", tenant_id).execute()

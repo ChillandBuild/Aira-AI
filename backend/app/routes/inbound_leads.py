@@ -198,9 +198,24 @@ def _enrich(
 # ─────────────────────────────────────────────────────────────────────────────
 
 @router.get("/campaigns")
-async def list_campaigns(tenant_id: str = Depends(get_tenant_id)):
-    """Return all ad campaigns for this tenant (used for filter dropdown)."""
+async def list_campaigns(
+    current_account: bool = Query(False),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Return ad campaigns for this tenant (used for filter dropdowns).
+
+    current_account=true (the Segments page) limits it to campaigns synced from the
+    ad account connected now -- the same scope as the Meta Ads table. Without it,
+    every campaign ever recorded is returned, as before."""
     db = get_supabase()
+    if current_account:
+        from app.services.ad_performance import current_account_campaigns
+
+        try:
+            return {"data": current_account_campaigns(db, tenant_id)}
+        except Exception as e:
+            logger.error(f"inbound-leads current-account campaigns fetch error: {e}")
+            return {"data": []}
     try:
         result = (
             db.table("ad_campaigns")

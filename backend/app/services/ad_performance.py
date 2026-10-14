@@ -230,6 +230,21 @@ def build_creative_performance(
         if lead.get("segment") == "A":
             f["hot"] += 1
 
+    def _status(c: dict) -> str | None:
+        # The ad's own status first -- it is the only one that reflects an ad
+        # deleted or paused on its own. The campaign/ad-set statuses are
+        # fallbacks for rows synced before ad_effective_status existed.
+        return (
+            c.get("ad_effective_status")
+            or campaigns.get(c.get("campaign_id"), {}).get("effective_status")
+            or c.get("effective_status")
+        )
+
+    last_delivery = last_delivery_dates(
+        db, tenant_id, account,
+        [c["id"] for c in creatives if (_status(c) or "").upper() == "ACTIVE"],
+    )
+
     out: list[dict] = []
     for c in creatives:
         ins = ins_by_creative.get(c["id"], {
@@ -262,14 +277,9 @@ def build_creative_performance(
             "adset_name": c.get("meta_adset_name"),
             "campaign_id": c.get("campaign_id"),
             "campaign_name": campaign.get("campaign_name") or "—",
-            # The ad's own status first -- it is the only one that reflects an ad
-            # deleted or paused on its own. The campaign/ad-set statuses are
-            # fallbacks for rows synced before ad_effective_status existed.
-            "delivery_status": (
-                c.get("ad_effective_status")
-                or campaign.get("effective_status")
-                or c.get("effective_status")
-            ),
+            "delivery_status": _status(c),
+            # Only set for ACTIVE ads; None there means it has never delivered.
+            "last_delivery_date": last_delivery.get(c["id"]),
             "daily_budget": (
                 adset.get("daily_budget") if uses_adset_budget
                 else campaign.get("daily_budget")
@@ -317,6 +327,80 @@ def build_creative_performance(
     out = filter_by_delivery(out, delivery_status)
     out.sort(key=lambda r: r["inline_link_clicks"], reverse=True)
     return out
+
+
+def last_delivery_dates(db, tenant_id: str, account: str, creative_ids: list[str]) -> dict[str, str]:
+    """Latest day each creative was actually shown (impressions > 0), over all time --
+    not the page's date range. Lets the table flag an ad Meta reports as ACTIVE but
+    that hasn't delivered in weeks. One small query per creative: callers pass only
+    the ACTIVE ones, and per-creative LIMIT 1 avoids the PostgREST row cap that a
+    single "all days for all ads" read would hit on a long-running account."""
+    out: dict[str, str] = {}
+    for creative_id in creative_ids:
+        rows = (
+            db.table("ad_insights_daily").select("insight_date")
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .eq("ad_creative_id", creative_id)
+            .gte("impressions", 1)
+            .order("insight_date", desc=True)
+            .limit(1)
+            .execute()
+            .data
+        ) or []
+        if rows:
+            out[creative_id] = str(rows[0]["insight_date"])[:10]
+    return out
+
+
+def current_account_campaigns(db, tenant_id: str) -> list[dict]:
+    """Campaigns synced from the ad account connected right now. Campaigns from an
+    account the tenant used before, and the webhook's ad-headline placeholders (no
+    account id), are left out -- the same scope as the Meta Ads table."""
+    from app.services.meta_ads_insights_sync import get_current_ads_account_id
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return []
+    return (
+        db.table("ad_campaigns").select("id,campaign_name,platform,created_at")
+        .eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .order("campaign_name")
+        .execute()
+        .data
+    ) or []
+
+
+def campaign_ids_with_placeholders(db, tenant_id: str, campaign_id: str) -> list[str]:
+    """The campaign plus any placeholder rows standing in for its ads.
+
+    When a lead arrives from an ad that hasn't synced yet, the WhatsApp webhook files
+    it under a placeholder ad_campaigns row named after the ad's headline and keyed by
+    the AD id (routes/webhook.py, get_or_create_campaign fallback). Those leads belong
+    to the real campaign, so filtering by it must include them."""
+    ad_ids = [
+        r["meta_ad_id"]
+        for r in (
+            db.table("ad_creatives").select("meta_ad_id")
+            .eq("tenant_id", tenant_id)
+            .eq("campaign_id", campaign_id)
+            .execute()
+            .data
+        ) or []
+        if r.get("meta_ad_id")
+    ]
+    ids = [campaign_id]
+    if ad_ids:
+        placeholders = (
+            db.table("ad_campaigns").select("id")
+            .eq("tenant_id", tenant_id)
+            .in_("external_campaign_id", ad_ids)
+            .execute()
+            .data
+        ) or []
+        ids += sorted(p["id"] for p in placeholders if p["id"] != campaign_id)
+    return ids
 
 
 def build_ad_filter_tree(db, tenant_id: str) -> dict:

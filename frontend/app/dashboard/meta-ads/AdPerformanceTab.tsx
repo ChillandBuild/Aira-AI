@@ -183,24 +183,52 @@ function matchesDelivery(row: AdPerformanceRow, key: string) {
   return group ? group.statuses.has((row.delivery_status || "").toUpperCase()) : true;
 }
 
-function StatusBadge({ status }: { status: string | null | undefined }) {
+/** Days between an ISO date and today in India. */
+function daysSinceIst(isoDate: string): number {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  return Math.round((Date.parse(today) - Date.parse(isoDate.slice(0, 10))) / 86_400_000);
+}
+
+/**
+ * Meta's ACTIVE only means the ad is switched on. When it hasn't actually been shown
+ * for 2+ days (a day of slack for Meta's reporting delay), say so on the pill.
+ */
+function idleSince(status: string, lastDelivery: string | null | undefined): string | null {
+  if (status !== "ACTIVE") return null;
+  if (!lastDelivery) return "not delivered yet";
+  if (daysSinceIst(lastDelivery) < 2) return null;
+  const day = new Date(`${lastDelivery.slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  return `no delivery since ${day}`;
+}
+
+function StatusBadge({ status, lastDelivery }: { status: string | null | undefined; lastDelivery?: string | null }) {
   const normalized = (status || "").toUpperCase();
   const removed = isRemoved(normalized);
   const isError = normalized.includes("DISAPPROVED") || normalized.includes("ERROR");
+  // lastDelivery is undefined on rows the backend didn't check (e.g. the Total row).
+  const idle = lastDelivery === undefined ? null : idleSince(normalized, lastDelivery);
   return (
     <span
-      title={removed ? "Removed in Meta Ads Manager. Kept here for its spend history." : undefined}
+      title={
+        removed
+          ? "Removed in Meta Ads Manager. Kept here for its spend history."
+          : idle
+            ? "Switched on in Meta, but it hasn't been shown to anyone recently. Check its budget, schedule and payment method in Ads Manager."
+            : undefined
+      }
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-label text-[10px] font-bold",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-label text-[10px] font-bold",
         removed
           ? "bg-stone-200/60 text-stone-500 ring-1 ring-inset ring-stone-300/70"
-          : normalized === "ACTIVE"
-            ? "bg-emerald-50 text-emerald-700"
-            : normalized === "PAUSED"
-              ? "bg-amber-50 text-amber-700"
-              : isError
-                ? "bg-red-50 text-red-700"
-                : "bg-stone-100 text-stone-600",
+          : idle
+            ? "bg-amber-50 text-amber-700"
+            : normalized === "ACTIVE"
+              ? "bg-emerald-50 text-emerald-700"
+              : normalized === "PAUSED"
+                ? "bg-amber-50 text-amber-700"
+                : isError
+                  ? "bg-red-50 text-red-700"
+                  : "bg-stone-100 text-stone-600",
       )}
     >
       {removed ? (
@@ -208,16 +236,19 @@ function StatusBadge({ status }: { status: string | null | undefined }) {
       ) : (
         <span className={cn(
           "h-1.5 w-1.5 rounded-full",
-          normalized === "ACTIVE"
-            ? "bg-emerald-500"
-            : normalized === "PAUSED"
-              ? "bg-amber-500"
-              : isError
-                ? "bg-red-500"
-                : "bg-stone-400",
+          idle
+            ? "bg-amber-500"
+            : normalized === "ACTIVE"
+              ? "bg-emerald-500"
+              : normalized === "PAUSED"
+                ? "bg-amber-500"
+                : isError
+                  ? "bg-red-500"
+                  : "bg-stone-400",
         )} />
       )}
       {statusLabel(status)}
+      {idle && <span className="font-semibold">· {idle}</span>}
     </span>
   );
 }
@@ -277,7 +308,7 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
 function metricValue(metric: MetricKey, row: AdPerformanceRow) {
   switch (metric) {
     case "delivery_status":
-      return <StatusBadge status={row.delivery_status} />;
+      return <StatusBadge status={row.delivery_status} lastDelivery={row.last_delivery_date} />;
     case "budget":
       return budgetLabel(row);
     case "impressions":
@@ -406,14 +437,21 @@ export function AdPerformanceTab() {
         toast.error(result.error ?? "Sync failed — no details returned");
         return;
       }
+      // Refresh first so the message below can say whether the table still has saved rows.
+      const [fresh] = await Promise.all([mutate(), mutateFilters()]);
+      const tableHasRows = (fresh?.data ?? []).length > 0;
       if (result.written > 0) {
         toast.success(`Synced ${result.written} Click-to-WhatsApp row${result.written === 1 ? "" : "s"}`);
       } else if (result.rows_fetched > 0) {
-        toast.info("Meta returned ads, but none were single-destination Click-to-WhatsApp ads.");
+        toast.info("Meta returned ads for the last 30 days, but none were single-destination Click-to-WhatsApp ads.");
       } else {
-        toast.info("Meta returned no ad data for this account and period.");
+        // Sync only asks Meta for the last 30 days; the table shows whatever dates are picked.
+        toast.info(
+          tableHasRows
+            ? "No ad delivery in the last 30 days — the table shows saved numbers from earlier."
+            : "No ad delivery in the last 30 days."
+        );
       }
-      await Promise.all([mutate(), mutateFilters()]);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Sync failed");
     } finally {

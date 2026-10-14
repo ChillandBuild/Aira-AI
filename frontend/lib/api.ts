@@ -2685,8 +2685,11 @@ export const api = {
       }),
   },
   inboundLeads: {
-    campaigns: async () => {
-      const res = await apiFetch<{ data: { id: string; campaign_name: string; platform: string }[] }>(`/api/v1/inbound-leads/campaigns`);
+    /** currentAccount: only campaigns from the ad account connected now (the Meta Ads table's scope). */
+    campaigns: async (opts?: { currentAccount?: boolean }) => {
+      const res = await apiFetch<{ data: { id: string; campaign_name: string; platform: string; created_at?: string }[] }>(
+        `/api/v1/inbound-leads/campaigns${opts?.currentAccount ? "?current_account=true" : ""}`
+      );
       return res.data || [];
     },
     googleLink: async (campaign: string, gclid?: string) => {
@@ -3013,6 +3016,8 @@ export interface AdPerformanceRow {
   /** The ad's own Meta effective_status (ACTIVE / PAUSED / DELETED / ...), falling
    * back to the campaign's or ad set's for rows synced before it was tracked. */
   delivery_status: string | null;
+  /** Last day the ad was shown (YYYY-MM-DD), any date range. Sent for ACTIVE ads only; null there = never delivered. */
+  last_delivery_date?: string | null;
   daily_budget: number | null;
   lifetime_budget: number | null;
   budget_level: "campaign" | "ad_set" | null;

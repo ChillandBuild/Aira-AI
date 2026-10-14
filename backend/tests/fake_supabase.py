@@ -121,8 +121,8 @@ class _Query:
 
     def is_(self, column, value):
         assert value == "null", "fake only supports is_(col, 'null')"
-        self.filters.append(lambda r: r.get(column) is None)
-        return self
+        # Through _add_filter so `.not_.is_(col, "null")` means IS NOT NULL, as in PostgREST.
+        return self._add_filter(lambda r: r.get(column) is None)
 
     def lt(self, column, value):
         def compare(r, col=column, v=value):

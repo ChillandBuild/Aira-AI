@@ -153,7 +153,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
   const [sourceFilter, setSourceFilter] = useState("ALL");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedBroadcastId, setSelectedBroadcastId] = useState("");
-  const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string }[]>([]);
+  const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string; created_at?: string }[]>([]);
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastHistoryItem[]>([]);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -312,7 +312,8 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
 
   useEffect(() => {
     api.callers.list().then((res) => setCallers((res.data || []).filter((c) => c.active))).catch(() => {});
-    api.inboundLeads.campaigns().then(setCampaigns).catch(() => {});
+    // Same scope as the Meta Ads table: only the ad account connected now.
+    api.inboundLeads.campaigns({ currentAccount: true }).then(setCampaigns).catch(() => {});
     api.broadcasts.history().then(setBroadcastHistory).catch(() => {});
 
     // Fetch WABA templates
@@ -494,9 +495,18 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     return null;
   }
 
+  // Meta allows two campaigns with the same name; add the month each was first seen so they can be told apart.
+  function campaignLabel(c: { id: string; campaign_name: string; created_at?: string }): string {
+    const twins = campaigns.filter((x) => x.campaign_name === c.campaign_name);
+    if (twins.length < 2 || !c.created_at) return c.campaign_name;
+    const month = new Date(c.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+    return `${c.campaign_name} · ${month}`;
+  }
+
   // Helper to get campaign name
   function getSelectedCampaignName(): string | undefined {
-    return campaigns.find((c) => c.id === selectedCampaignId)?.campaign_name;
+    const selected = campaigns.find((c) => c.id === selectedCampaignId);
+    return selected ? campaignLabel(selected) : undefined;
   }
 
   // Helper to compute date preset from URL dates (using local dates)
@@ -856,7 +866,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
                   <option value="">All campaigns</option>
                   {campaigns.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.campaign_name}
+                      {campaignLabel(c)}
                     </option>
                   ))}
                 </select>
