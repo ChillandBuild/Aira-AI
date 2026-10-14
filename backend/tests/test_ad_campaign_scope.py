@@ -123,3 +123,17 @@ def test_campaign_sync_saves_the_creation_date_even_for_campaigns_with_no_recent
     # Everything else stays limited to campaigns with WhatsApp delivery, as before.
     assert row["effective_status"] == "PAUSED"
     assert "objective" not in row
+
+
+def test_campaign_fetch_asks_meta_for_archived_and_deleted_campaigns(monkeypatch):
+    # Meta's /campaigns leaves out ARCHIVED and DELETED unless asked, so their creation date was never saved.
+    import json
+
+    from app.services import meta_ads_insights_sync as sync
+
+    seen = {}
+    monkeypatch.setattr(sync, "_fetch_paged", lambda url, params: seen.update(url=url, params=params) or [])
+    sync._fetch_campaigns("token", CURRENT)
+    assert seen["url"].endswith(f"/{CURRENT}/campaigns")
+    statuses = json.loads(seen["params"]["filtering"])[0]["value"]
+    assert {"ARCHIVED", "DELETED", "ACTIVE", "PAUSED"} <= set(statuses)

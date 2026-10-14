@@ -35,6 +35,7 @@ _ALL_AD_STATUSES = [
     "PREAPPROVED", "PENDING_BILLING_INFO", "CAMPAIGN_PAUSED", "ADSET_PAUSED",
     "IN_PROCESS", "WITH_ISSUES",
 ]
+_ALL_CAMPAIGN_STATUSES = ["ACTIVE", "PAUSED", "DELETED", "ARCHIVED", "IN_PROCESS", "WITH_ISSUES"]
 _ALL_ADSET_STATUSES = [
     "ACTIVE", "PAUSED", "DELETED", "ARCHIVED", "PENDING_REVIEW", "DISAPPROVED",
     "PREAPPROVED", "PENDING_BILLING_INFO", "CAMPAIGN_PAUSED", "IN_PROCESS",
@@ -316,21 +317,14 @@ def _fetch_sync_insights(token: str, account: str, date_preset: str) -> list[dic
 
 
 def _fetch_campaigns(token: str, account: str) -> list[dict]:
-    url = f"{_GRAPH_BASE}/{account}/campaigns"
-    params = {"fields": _CAMPAIGN_FIELDS, "limit": "200", "access_token": token}
-    out: list[dict] = []
-    with httpx.Client(timeout=30) as client:
-        next_url, next_params = url, params
-        for _ in range(20):
-            resp = client.get(next_url, params=next_params)
-            resp.raise_for_status()
-            body = resp.json()
-            out.extend(body.get("data", []))
-            nxt = (body.get("paging") or {}).get("next")
-            if not nxt:
-                break
-            next_url, next_params = nxt, None
-    return out
+    """Includes archived/deleted campaigns: their ads still appear in the Meta Ads
+    table, which shows each campaign's creation date."""
+    return _fetch_paged_all_statuses(
+        f"{_GRAPH_BASE}/{account}/campaigns",
+        {"fields": _CAMPAIGN_FIELDS, "limit": "200", "access_token": token},
+        status_field="campaign.effective_status",
+        statuses=_ALL_CAMPAIGN_STATUSES,
+    )
 
 
 def fetch_unique_reach_by_ad(
