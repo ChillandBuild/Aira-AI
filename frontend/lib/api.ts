@@ -3018,6 +3018,8 @@ export interface AdPerformanceRow {
   delivery_status: string | null;
   /** Last day the ad was shown (YYYY-MM-DD), any date range. Sent for ACTIVE ads only; null there = never delivered. */
   last_delivery_date?: string | null;
+  /** When the campaign was created in Meta Ads Manager; null until the next sync stores it. */
+  campaign_created_at?: string | null;
   daily_budget: number | null;
   lifetime_budget: number | null;
   budget_level: "campaign" | "ad_set" | null;

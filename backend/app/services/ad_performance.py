@@ -115,7 +115,7 @@ def build_creative_performance(
     if campaign_ids:
         campaign_rows = (
             db.table("ad_campaigns").select(
-                "id,campaign_name,effective_status,daily_budget,lifetime_budget"
+                "id,campaign_name,effective_status,daily_budget,lifetime_budget,meta_created_at"
             )
             .eq("tenant_id", tenant_id)
             .eq("meta_ad_account_id", account)
@@ -277,6 +277,8 @@ def build_creative_performance(
             "adset_name": c.get("meta_adset_name"),
             "campaign_id": c.get("campaign_id"),
             "campaign_name": campaign.get("campaign_name") or "—",
+            # When the campaign was created in Ads Manager; None until the next sync stores it.
+            "campaign_created_at": campaign.get("meta_created_at"),
             "delivery_status": _status(c),
             # Only set for ACTIVE ads; None there means it has never delivered.
             "last_delivery_date": last_delivery.get(c["id"]),

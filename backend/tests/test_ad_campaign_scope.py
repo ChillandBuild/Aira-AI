@@ -96,3 +96,12 @@ def test_campaign_sync_saves_metas_creation_date(monkeypatch):
     assert row["meta_created_at"] == "2026-08-14T10:30:00+0530"
     listed = next(c for c in ad_performance.current_account_campaigns(db, "t1") if c["id"] == "c-wb-aug")
     assert listed["meta_created_at"] == "2026-08-14T10:30:00+0530"
+
+
+def test_meta_ads_rows_carry_the_campaigns_meta_creation_date():
+    db = _db()
+    db.tables["ad_campaigns"][0]["meta_created_at"] = "2026-08-14T05:00:00+00:00"
+    db.tables["ad_creatives"][0].update(is_click_to_whatsapp=True, creative_label="Astro Whatsapp-WB",
+                                        ad_effective_status="PAUSED")
+    rows = ad_performance.build_creative_performance(db, "t1")
+    assert [r["campaign_created_at"] for r in rows] == ["2026-08-14T05:00:00+00:00"]

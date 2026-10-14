@@ -184,6 +184,11 @@ function matchesDelivery(row: AdPerformanceRow, key: string) {
 }
 
 /** Days between an ISO date and today in India. */
+/** "14 Aug 2026" in IST: the day the campaign was created in Ads Manager. */
+function createdOn(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+}
+
 function daysSinceIst(isoDate: string): number {
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
   return Math.round((Date.parse(today) - Date.parse(isoDate.slice(0, 10))) / 86_400_000);
@@ -783,7 +788,14 @@ export function AdPerformanceTab() {
                         removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
                       )}
                     >
-                      <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">{row.campaign_name}</td>
+                      <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
+                        {row.campaign_name}
+                        {row.campaign_created_at && (
+                          <span className="mt-0.5 block whitespace-nowrap text-[10px] font-normal text-on-surface-muted">
+                            Created {createdOn(row.campaign_created_at)}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
                       <td className={cn(
                         "px-4 py-3 text-center font-label text-xs font-semibold text-on-surface",
