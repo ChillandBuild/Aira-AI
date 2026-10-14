@@ -153,7 +153,7 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
   const [sourceFilter, setSourceFilter] = useState("ALL");
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [selectedBroadcastId, setSelectedBroadcastId] = useState("");
-  const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string; created_at?: string }[]>([]);
+  const [campaigns, setCampaigns] = useState<{ id: string; campaign_name: string; platform: string; created_at?: string; meta_created_at?: string | null }[]>([]);
   const [broadcastHistory, setBroadcastHistory] = useState<BroadcastHistoryItem[]>([]);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -495,11 +495,13 @@ export function LeadsClient({ initialTab = "A" }: { fallbackLeads?: Lead[] | nul
     return null;
   }
 
-  // Meta allows two campaigns with the same name; add the month each was first seen so they can be told apart.
-  function campaignLabel(c: { id: string; campaign_name: string; created_at?: string }): string {
+  // Meta allows two campaigns with the same name; add the month each was created in Meta so they can be told apart.
+  // Until the next sync stores Meta's date, fall back to when Aira first saw the campaign.
+  function campaignLabel(c: { id: string; campaign_name: string; created_at?: string; meta_created_at?: string | null }): string {
     const twins = campaigns.filter((x) => x.campaign_name === c.campaign_name);
-    if (twins.length < 2 || !c.created_at) return c.campaign_name;
-    const month = new Date(c.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
+    const created = c.meta_created_at ?? c.created_at;
+    if (twins.length < 2 || !created) return c.campaign_name;
+    const month = new Date(created).toLocaleDateString("en-IN", { month: "short", year: "numeric", timeZone: "Asia/Kolkata" });
     return `${c.campaign_name} · ${month}`;
   }
 

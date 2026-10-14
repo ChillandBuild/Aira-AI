@@ -20,7 +20,7 @@ _INSIGHT_FIELDS = (
     "optimization_goal,inline_link_clicks,clicks,spend,impressions,reach,actions"
 )
 
-_CAMPAIGN_FIELDS = "id,name,objective,effective_status,daily_budget,lifetime_budget,bid_strategy"
+_CAMPAIGN_FIELDS = "id,name,objective,effective_status,daily_budget,lifetime_budget,bid_strategy,created_time"
 _ADSET_FIELDS = (
     "id,name,campaign_id,optimization_goal,effective_status,destination_type,"
     "daily_budget,lifetime_budget"
@@ -466,6 +466,7 @@ def sync_campaign_meta(
             "daily_budget": (float(daily) / 100.0) if daily else None,
             "lifetime_budget": (float(lifetime) / 100.0) if lifetime else None,
             "bid_strategy": c.get("bid_strategy"),
+            "meta_created_at": c.get("created_time"),
             "meta_ad_account_id": account,
         }
         res = (

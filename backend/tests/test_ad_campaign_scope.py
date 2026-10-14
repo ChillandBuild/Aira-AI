@@ -81,3 +81,18 @@ def test_last_delivery_is_the_latest_day_with_impressions():
            insight_date="2026-10-01", impressions=0)
     got = ad_performance.last_delivery_dates(db, "t1", CURRENT, ["ad-1", "ad-2"])
     assert got == {"ad-1": "2026-08-25"}
+
+
+def test_campaign_sync_saves_metas_creation_date(monkeypatch):
+    from app.services import meta_ads_insights_sync as sync
+
+    db = _db()
+    monkeypatch.setattr(sync, "_fetch_campaigns", lambda *a, **k: [
+        {"id": "120254794740460747", "name": "Astro Whatsapp-WB", "effective_status": "ACTIVE",
+         "created_time": "2026-08-14T10:30:00+0530"},
+    ])
+    sync.sync_campaign_meta(db, "t1", "token", CURRENT)
+    row = next(c for c in db.tables["ad_campaigns"] if c["id"] == "c-wb-aug")
+    assert row["meta_created_at"] == "2026-08-14T10:30:00+0530"
+    listed = next(c for c in ad_performance.current_account_campaigns(db, "t1") if c["id"] == "c-wb-aug")
+    assert listed["meta_created_at"] == "2026-08-14T10:30:00+0530"

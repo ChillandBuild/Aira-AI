@@ -2687,7 +2687,7 @@ export const api = {
   inboundLeads: {
     /** currentAccount: only campaigns from the ad account connected now (the Meta Ads table's scope). */
     campaigns: async (opts?: { currentAccount?: boolean }) => {
-      const res = await apiFetch<{ data: { id: string; campaign_name: string; platform: string; created_at?: string }[] }>(
+      const res = await apiFetch<{ data: { id: string; campaign_name: string; platform: string; created_at?: string; meta_created_at?: string | null }[] }>(
         `/api/v1/inbound-leads/campaigns${opts?.currentAccount ? "?current_account=true" : ""}`
       );
       return res.data || [];

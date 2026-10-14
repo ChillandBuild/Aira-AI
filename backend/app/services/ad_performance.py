@@ -363,7 +363,7 @@ def current_account_campaigns(db, tenant_id: str) -> list[dict]:
     if not account:
         return []
     return (
-        db.table("ad_campaigns").select("id,campaign_name,platform,created_at")
+        db.table("ad_campaigns").select("id,campaign_name,platform,created_at,meta_created_at")
         .eq("tenant_id", tenant_id)
         .eq("meta_ad_account_id", account)
         .order("campaign_name")
