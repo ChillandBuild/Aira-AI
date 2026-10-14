@@ -105,3 +105,21 @@ def test_meta_ads_rows_carry_the_campaigns_meta_creation_date():
                                         ad_effective_status="PAUSED")
     rows = ad_performance.build_creative_performance(db, "t1")
     assert [r["campaign_created_at"] for r in rows] == ["2026-08-14T05:00:00+00:00"]
+
+
+def test_campaign_sync_saves_the_creation_date_even_for_campaigns_with_no_recent_delivery(monkeypatch):
+    # Astro Tamil: no ad shown in the last 30 days, so the sync sees no WhatsApp rows.
+    from app.services import meta_ads_insights_sync as sync
+
+    db = _db()
+    db.tables["ad_campaigns"][0]["effective_status"] = "PAUSED"
+    monkeypatch.setattr(sync, "_fetch_campaigns", lambda *a, **k: [
+        {"id": "120254794740460747", "effective_status": "ACTIVE", "objective": "OUTCOME_ENGAGEMENT",
+         "created_time": "2026-08-14T10:30:00+0530"},
+    ])
+    sync.sync_campaign_meta(db, "t1", "token", CURRENT, campaign_ids=set())
+    row = next(c for c in db.tables["ad_campaigns"] if c["id"] == "c-wb-aug")
+    assert row["meta_created_at"] == "2026-08-14T10:30:00+0530"
+    # Everything else stays limited to campaigns with WhatsApp delivery, as before.
+    assert row["effective_status"] == "PAUSED"
+    assert "objective" not in row

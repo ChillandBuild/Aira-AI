@@ -455,7 +455,15 @@ def sync_campaign_meta(
     updated = 0
     for c in campaigns:
         cid = (c.get("id") or "").strip()
-        if not cid or (campaign_ids is not None and cid not in campaign_ids):
+        if not cid:
+            continue
+        if campaign_ids is not None and cid not in campaign_ids:
+            # No WhatsApp delivery in this window, but the Meta Ads table still lists the
+            # campaign's ads, so store its Ads Manager creation date anyway.
+            if c.get("created_time"):
+                db.table("ad_campaigns").update({"meta_created_at": c["created_time"]}).eq(
+                    "external_campaign_id", cid
+                ).eq("tenant_id", tenant_id).execute()
             continue
         daily = c.get("daily_budget")
         lifetime = c.get("lifetime_budget")
