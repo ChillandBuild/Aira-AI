@@ -7,7 +7,7 @@ import {
   X, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw,
   Info, ChevronDown, ChevronUp, ChevronRight, Lock, Copy, Phone,
   ShieldCheck, Activity, Smartphone, CheckCircle2,
-  Search, ArrowRightLeft, ExternalLink
+  Search, ArrowRightLeft, ExternalLink, ShieldAlert
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -52,17 +52,25 @@ const QUALITY_BG: Record<PhoneNumber["quality_rating"], string> = {
   red: "bg-red-50 text-red-700 border-red-200",
 };
 
-// Messaging tier labels — based on Meta's current (2025/2026) portfolio-level limits
+// Meta's portfolio-level messaging limits (unique people per rolling 24h).
+// The backend stores Meta's TIER_UNLIMITED as 1,000,000.
+const UNLIMITED_TIER = 1_000_000;
+
 const TIER_LABELS: Record<number, string> = {
-  250: "250 / day · Unverified",
-  1000: "1,000 / day · Tier 1",
+  250: "250 / day · Starter",
+  1000: "1,000 / day · Legacy",
   2000: "2,000 / day · Tier 1",
   10000: "10,000 / day · Tier 2",
   100000: "100,000 / day · Tier 3",
+  [UNLIMITED_TIER]: "Unlimited · Tier 4",
 };
 
 function getTierLabel(tier: number): string {
   return TIER_LABELS[tier] ?? `${tier.toLocaleString()} / day`;
+}
+
+function formatLimit(tier: number): string {
+  return tier >= UNLIMITED_TIER ? "Unlimited" : tier.toLocaleString();
 }
 
 async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -124,11 +132,11 @@ function TierGuide({
   if (!visible) return null;
 
   const tiers = [
-    { limit: "250 / day", label: "Unverified", color: "bg-red-50 text-red-700 border-red-200", trigger: "Default on registration" },
-    { limit: "2,000 / day", label: "Tier 1", color: "bg-amber-50 text-amber-700 border-amber-200", trigger: "Complete Meta Business Verification" },
-    { limit: "10,000 / day", label: "Tier 2", color: "bg-blue-50 text-blue-700 border-blue-200", trigger: "Auto-upgrade: ≥50% usage in 7 days + High/Medium quality" },
-    { limit: "100,000 / day", label: "Tier 3", color: "bg-primary-50 text-primary-700 border-primary-200", trigger: "Auto-upgrade: same criteria" },
-    { limit: "Unlimited", label: "Tier 4", color: "bg-emerald-50 text-emerald-700 border-emerald-200", trigger: "Auto-upgrade: same criteria" },
+    { limit: "250 / day", label: "Starter", color: "bg-red-50 text-red-700 border-red-200", trigger: "Where every new portfolio starts" },
+    { limit: "2,000 / day", label: "Tier 1", color: "bg-amber-50 text-amber-700 border-amber-200", trigger: "Verify your business, or send 2,000 good-quality template messages in 30 days. Meta then reviews." },
+    { limit: "10,000 / day", label: "Tier 2", color: "bg-blue-50 text-blue-700 border-blue-200", trigger: "Automatic: use half your limit in 7 days with high-quality messages" },
+    { limit: "100,000 / day", label: "Tier 3", color: "bg-primary-50 text-primary-700 border-primary-200", trigger: "Automatic: same rule" },
+    { limit: "Unlimited", label: "Tier 4", color: "bg-emerald-50 text-emerald-700 border-emerald-200", trigger: "Automatic: same rule" },
   ];
 
   return (
@@ -153,7 +161,7 @@ function TierGuide({
               How WhatsApp messaging limits work
             </span>
             <span className="px-2 py-0.5 rounded-full bg-primary-100/80 text-primary font-label text-[10px] font-bold">
-              Portfolio-Level · Updated 2025/2026
+              Portfolio-level · Since Oct 2025
             </span>
           </div>
         </div>
@@ -180,8 +188,8 @@ function TierGuide({
       {open && (
         <div className="px-5 pb-5 pt-1 border-t border-primary-100/80 space-y-4">
           <p className="font-body text-xs text-on-surface-muted leading-relaxed">
-            Meta operates on a <strong>portfolio-level</strong> tier system (since Oct 2025). All phone numbers in your Meta Business portfolio share the portfolio tier limit.
-            There is <strong>no fixed 14-day evaluation window</strong> — upgrades trigger automatically when you dispatch ≥50% of your current tier limit over any rolling 7-day period while keeping High or Medium quality.
+            Meta sets <strong>one limit for your whole business portfolio</strong>. Every number shares it, so adding numbers doesn&apos;t add capacity.
+            The limit counts <strong>unique people you message outside a 24-hour customer-service window</strong>, in any rolling 24 hours. Replies inside that window don&apos;t count.
           </p>
 
           {/* Tier progression cards */}
@@ -205,10 +213,10 @@ function TierGuide({
           {/* Key rules */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-1">
             {[
-              { icon: "✅", title: "Business Verification", text: "Complete Meta Business Verification immediately to unlock Tier 1 (2,000/day)." },
-              { icon: "✅", title: "Warm Opt-in Contacts", text: "Only message opted-in leads with relevant templates to protect your quality rating." },
-              { icon: "✅", title: "50% Weekly Pacing", text: "Utilize ≥50% of your daily quota across a rolling week to qualify for the next tier." },
-              { icon: "❌", title: "Avoid Cold Lists", text: "Recipient spam and block reports drop quality to Medium or Low, capping limits instantly." },
+              { icon: "✅", title: "Verify your business", text: "Fastest route to 2,000/day. Meta still checks your message quality before approving." },
+              { icon: "✅", title: "Message opted-in people", text: "Relevant templates to people who asked to hear from you keep quality high." },
+              { icon: "✅", title: "Use half your limit in 7 days", text: "With high-quality messages, Meta raises you one level within 6 hours." },
+              { icon: "❌", title: "Avoid cold lists", text: "Blocks and reports lower your quality. Low quality stops upgrades, and if it stays low Meta can cut your limit." },
             ].map((r, i) => (
               <div key={i} className="flex items-start gap-2.5 bg-white/90 rounded-xl p-3 border border-border/60">
                 <span className="text-sm shrink-0 mt-0.5">{r.icon}</span>
@@ -221,6 +229,132 @@ function TierGuide({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Quality: what to do next ─────────────────────────────────────────────────
+
+type MetaHealth = {
+  quality_rating: string;
+  quality_reasons: string[];
+  can_send_message: string | null;
+  notes: string[];
+  errors: { code: number | null; description: string | null; solution: string | null }[];
+};
+
+const SEND_STATE: Record<string, { label: string; className: string }> = {
+  AVAILABLE: { label: "Can send", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  LIMITED: { label: "Sending limited", className: "bg-amber-50 text-amber-800 border-amber-200" },
+  BLOCKED: { label: "Sending blocked", className: "bg-red-50 text-red-700 border-red-200" },
+};
+
+const WHATSAPP_MANAGER_URL = "https://business.facebook.com/wa/manage/phone-numbers/";
+
+function QualityNextSteps({ num, hasStandby }: { num: PhoneNumber; hasStandby: boolean }) {
+  const [health, setHealth] = useState<MetaHealth | null>(null);
+  const [failed, setFailed] = useState(false);
+  const isLow = num.quality_rating === "red";
+
+  useEffect(() => {
+    let cancelled = false;
+    setFailed(false);
+    apiFetch<MetaHealth>(`/api/v1/numbers/${num.id}/meta-health`)
+      .then((h) => { if (!cancelled) setHealth(h); })
+      .catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [num.id, num.quality_rating]);
+
+  const steps = [
+    "Pause cold or bulk Marketing broadcasts. Message only people who opted in or chatted with you recently.",
+    "Keep templates relevant and add a “Stop” quick reply, so people opt out instead of blocking.",
+    ...(isLow && !hasStandby
+      ? ["Add a warmed-up standby number. When Meta flags a number Low, Aira moves sending to the standby."]
+      : []),
+    isLow
+      ? "Quality recovers as blocks stop. If it stays Low, Meta can lower your messaging limit."
+      : "If blocks continue, quality drops to Low and upgrades stop.",
+  ];
+
+  const metaLines = [...(health?.quality_reasons ?? []), ...(health?.notes ?? [])];
+  const sendState = health?.can_send_message ? SEND_STATE[health.can_send_message] : undefined;
+
+  return (
+    <div className={cn(
+      "mt-4 rounded-xl border p-4 grid gap-4 md:grid-cols-2",
+      isLow ? "border-red-200/80 bg-red-50/40" : "border-amber-200/80 bg-amber-50/40"
+    )}>
+      {/* Meta's own explanation, read live */}
+      <div className="min-w-0 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <ShieldAlert size={15} className={isLow ? "text-red-600" : "text-amber-600"} />
+          <p className="font-label text-xs font-bold text-on-surface">What Meta says</p>
+          {sendState && (
+            <span className={`px-2 py-0.5 rounded-full font-label text-[10px] font-bold border ${sendState.className}`}>
+              {sendState.label}
+            </span>
+          )}
+        </div>
+        {health === null && !failed ? (
+          <div className="space-y-1.5" aria-label="Loading Meta details">
+            <div className="h-3 w-4/5 rounded bg-surface-mid animate-pulse" />
+            <div className="h-3 w-3/5 rounded bg-surface-mid animate-pulse" />
+          </div>
+        ) : failed ? (
+          <p className="font-body text-[11px] text-on-surface-muted">
+            Couldn&apos;t load Meta&apos;s details right now. Press Sync to try again.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {metaLines.length === 0 && (
+              <li className="font-body text-[11px] text-on-surface-muted">Meta didn&apos;t give a specific reason.</li>
+            )}
+            {metaLines.map((line) => (
+              <li key={line} className="flex gap-2 font-body text-[11px] leading-relaxed text-on-surface">
+                <span className="mt-1.5 w-1 h-1 rounded-full bg-on-surface-muted shrink-0" />
+                <span>{line}</span>
+              </li>
+            ))}
+            {health?.errors.map((err) => (
+              <li key={`${err.code}`} className="flex gap-2 font-body text-[11px] leading-relaxed text-on-surface">
+                <span className="mt-1.5 w-1 h-1 rounded-full bg-on-surface-muted shrink-0" />
+                <span>{err.description}{err.solution ? ` — ${err.solution}` : ""}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="font-body text-[10px] text-on-surface-muted leading-relaxed">
+          Meta rates quality from recent blocks and reports, and doesn&apos;t say which messages caused it.
+        </p>
+      </div>
+
+      {/* Our steps */}
+      <div className="min-w-0 space-y-2">
+        <p className="font-label text-xs font-bold text-on-surface">
+          {isLow ? "Low quality · what to do next" : "Medium quality · keep it from dropping"}
+        </p>
+        <ol className="space-y-1.5">
+          {steps.map((step, i) => (
+            <li key={step} className="flex gap-2 font-body text-[11px] leading-relaxed text-on-surface">
+              <span className={cn(
+                "w-4 h-4 rounded-full flex items-center justify-center shrink-0 font-label text-[9px] font-bold mt-px",
+                isLow ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"
+              )}>
+                {i + 1}
+              </span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+        <a
+          href={WHATSAPP_MANAGER_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 font-label text-[11px] font-bold text-primary hover:underline"
+        >
+          Open WhatsApp Manager <ExternalLink size={10} />
+        </a>
+      </div>
     </div>
   );
 }
@@ -485,15 +619,22 @@ function NumbersPageContent() {
 
   // Derived metrics
   const activeCount = numbers.filter((n) => n.status === "active").length;
+  const healthyCount = numbers.filter((n) => n.status === "active" && n.quality_rating !== "red").length;
   const visible = useMemo(() => numbers.filter((n) => n.status !== "archived"), [numbers]);
 
   const totalPoolLimit = numbersPool?.limit ?? 5;
   const totalPoolUsed = visible.length;
   const primaryNumber = visible.find((n) => n.role === "primary");
   const standbyCount = visible.filter((n) => n.role === "standby").length;
+  // handle_quality_red's pick (active standby past warm-up), minus red ones.
+  const hasReadyStandby = visible.some(
+    (n) => n.role === "standby" && n.status === "active" && n.warm_up_day >= 14 && n.quality_rating !== "red"
+  );
   const pausedCount = visible.filter((n) => n.paused_outbound).length;
   const totalDailySends = visible.reduce((acc, n) => acc + (n.daily_send_count || 0), 0);
-  const totalDailyCapacity = visible.reduce((acc, n) => acc + (n.messaging_tier || 0), 0);
+  // Meta's limit is per business portfolio and shared by every number, so
+  // capacity is that one limit -- not the sum across numbers.
+  const totalDailyCapacity = visible.reduce((acc, n) => Math.max(acc, n.messaging_tier || 0), 0);
   const totalSendPct = totalDailyCapacity > 0 ? Math.min((totalDailySends / totalDailyCapacity) * 100, 100) : 0;
 
   // Portfolio overall quality
@@ -680,7 +821,7 @@ function NumbersPageContent() {
               </div>
               <div>
                 <p className="font-display text-2xl font-bold text-on-surface">
-                  {totalDailySends.toLocaleString()} <span className="text-sm font-semibold text-on-surface-muted">/ {totalDailyCapacity.toLocaleString()}</span>
+                  {totalDailySends.toLocaleString()} <span className="text-sm font-semibold text-on-surface-muted">/ {formatLimit(totalDailyCapacity)}</span>
                 </p>
                 <p className="font-label text-xs text-on-surface-muted mt-0.5">Today&apos;s Dispatches</p>
               </div>
@@ -710,7 +851,7 @@ function NumbersPageContent() {
               </div>
               <div>
                 <p className="font-display text-2xl font-bold text-on-surface">
-                  {activeCount} <span className="text-sm font-semibold text-on-surface-muted">Healthy</span>
+                  {healthyCount} <span className="text-sm font-semibold text-on-surface-muted">Healthy</span>
                 </p>
                 <p className="font-label text-xs text-on-surface-muted mt-0.5">Portfolio Health Status</p>
               </div>
@@ -988,7 +1129,7 @@ function NumbersPageContent() {
                             <div className="flex items-center justify-between text-xs">
                               <span className="font-label text-[11px] font-bold text-on-surface-muted">Daily Limit</span>
                               <span className="font-mono font-bold text-on-surface text-[11px]">
-                                {num.daily_send_count.toLocaleString()} / {num.messaging_tier.toLocaleString()}
+                                {num.daily_send_count.toLocaleString()} / {formatLimit(num.messaging_tier)}
                               </span>
                             </div>
                             <div className="w-full h-2 rounded-full bg-surface-mid overflow-hidden">
@@ -1002,7 +1143,13 @@ function NumbersPageContent() {
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-on-surface-muted font-label">
                               <span>{Math.round(sendPct)}% sent</span>
-                              <span>{num.messaging_tier - num.daily_send_count > 0 ? `${(num.messaging_tier - num.daily_send_count).toLocaleString()} left` : "Limit reached"}</span>
+                              <span>
+                                {num.messaging_tier >= UNLIMITED_TIER
+                                  ? "No cap"
+                                  : num.messaging_tier - num.daily_send_count > 0
+                                  ? `${(num.messaging_tier - num.daily_send_count).toLocaleString()} left`
+                                  : "Limit reached"}
+                              </span>
                             </div>
                           </div>
 
@@ -1078,6 +1225,11 @@ function NumbersPageContent() {
                           </div>
                         </div>
                       </div>
+
+                      {/* Medium/Low quality: Meta's reasons + what to do next */}
+                      {num.quality_rating !== "green" && (
+                        <QualityNextSteps num={num} hasStandby={hasReadyStandby} />
+                      )}
 
                       {/* Locked Over-Quota Notice */}
                       {num.locked && (

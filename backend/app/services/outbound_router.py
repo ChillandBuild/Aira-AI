@@ -5,8 +5,6 @@ from app.services.numbers_pool import get_unlocked_number_ids
 
 logger = logging.getLogger(__name__)
 
-_TIER_DAILY_LIMITS: dict[int, int] = {1000: 1_000, 10000: 10_000, 100000: 100_000}
-
 _WARMUP_DAILY_CAPS: list[tuple[int, int]] = [
     # (max_warm_up_day_inclusive, daily_cap)
     (2, 50), (4, 75), (7, 100), (10, 150), (14, 250),
@@ -53,7 +51,9 @@ async def get_best_number(tenant_id: str) -> dict | None:
 
     rows = [
         r for r in rows
-        if (r.get("daily_send_count") or 0) < _TIER_DAILY_LIMITS.get(r.get("messaging_tier") or 1000, 1_000)
+        # messaging_tier is Meta's daily limit itself (250, 2000, ... ;
+        # 1_000_000 stands in for Unlimited), so it is the cap directly.
+        if (r.get("daily_send_count") or 0) < (r.get("messaging_tier") or 1000)
     ]
     if not rows:
         logger.warning("All outbound numbers have hit their daily tier limit")

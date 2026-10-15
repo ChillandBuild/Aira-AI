@@ -91,11 +91,34 @@ CTA_URL_MAX = 2000
 _GRAPH_BASE = "https://graph.facebook.com/v21.0"
 _BUSINESS_LOGIN_GRAPH_BASE = "https://graph.facebook.com/v25.0"
 
+# Meta's messaging-limit enums -> unique users per rolling 24h. Covers the
+# portfolio-level `whatsapp_business_manager_messaging_limit` (TIER_250/2K/
+# 10K/100K/UNLIMITED, the real limit since Oct 2025) and the deprecated
+# per-number `messaging_limit_tier` (TIER_50/250/1K/10K/100K/UNLIMITED).
+UNLIMITED_MESSAGING_TIER = 1_000_000
 _TIER_MAP = {
-    "TIER_1000": 1000,
-    "TIER_10000": 10000,
-    "TIER_100000": 100000,
+    "TIER_50": 50,
+    "TIER_250": 250,
+    "TIER_1K": 1000,
+    "TIER_2K": 2000,
+    "TIER_10K": 10000,
+    "TIER_100K": 100000,
+    "TIER_UNLIMITED": UNLIMITED_MESSAGING_TIER,
 }
+
+_LIMIT_FIELDS = "whatsapp_business_manager_messaging_limit,messaging_limit_tier"
+
+
+def tier_from_meta(value: Optional[str]) -> Optional[int]:
+    """One Meta tier enum -> daily limit, or None when unknown/missing."""
+    return _TIER_MAP.get((value or "").upper())
+
+
+def parse_messaging_tier(meta_num: dict) -> Optional[int]:
+    """Prefer the portfolio limit; fall back to the deprecated per-number field."""
+    return tier_from_meta(meta_num.get("whatsapp_business_manager_messaging_limit")) or tier_from_meta(
+        meta_num.get("messaging_limit_tier")
+    )
 
 # Allowed MIME types and their WhatsApp message type
 _MIME_TO_WA_TYPE: dict[str, str] = {
@@ -1091,7 +1114,7 @@ async def get_number_quality(
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
             url,
-            params={"fields": "quality_rating,messaging_limit_tier,verified_name"},
+            params={"fields": f"quality_rating,{_LIMIT_FIELDS},verified_name"},
             headers={"Authorization": f"Bearer {tok}"},
         )
     if not resp.is_success:
@@ -1100,11 +1123,65 @@ async def get_number_quality(
     data = resp.json()
     return {
         "quality_rating": data.get("quality_rating", "UNKNOWN"),
-        "messaging_tier": _TIER_MAP.get(data.get("messaging_limit_tier", ""), 0),
+        # None (not 0) when Meta sends no known tier, so callers keep the
+        # stored value instead of writing a value the DB check rejects.
+        "messaging_tier": parse_messaging_tier(data),
         # Meta's approved display name. Callers that only care about quality
         # (the daily scheduler job) ignore it; the single-number sync route
         # mirrors it onto phone_numbers.display_name.
         "verified_name": data.get("verified_name"),
+    }
+
+
+# 138xxx are WhatsApp Business Calling errors (SIP not configured etc.) --
+# unrelated to messaging quality, so they're kept out of the health summary.
+_CALLING_ERROR_RANGE = range(138000, 139000)
+
+
+async def get_number_health(
+    phone_number_id: Optional[str] = None,
+    access_token: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+) -> dict:
+    """Meta's own explanation of a number's quality and sending state, read
+    live (nothing is stored): the quality score + reasons, whether it can
+    send, and the plain-text notes Meta attaches to the phone-number entity."""
+    pid, tok = _creds(phone_number_id, access_token, tenant_id)
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            f"{_GRAPH_BASE}/{pid}",
+            params={"fields": f"quality_rating,quality_score,health_status,name_status,{_LIMIT_FIELDS}"},
+            headers={"Authorization": f"Bearer {tok}"},
+        )
+    if not resp.is_success:
+        logger.error("get_number_health failed: %s %s", resp.status_code, resp.text)
+        raise HTTPException(status_code=502, detail="Could not read this number's health from Meta")
+    data = resp.json()
+
+    score = data.get("quality_score") or {}
+    health = data.get("health_status") or {}
+    number_entity = next(
+        (e for e in health.get("entities", []) if e.get("entity_type") == "PHONE_NUMBER"),
+        {},
+    )
+    errors = [
+        {
+            "code": err.get("error_code"),
+            "description": err.get("error_description"),
+            "solution": err.get("possible_solution"),
+        }
+        for err in number_entity.get("errors", [])
+        if err.get("error_code") not in _CALLING_ERROR_RANGE
+    ]
+    reasons = score.get("reasons") or ([score["reason"]] if score.get("reason") else [])
+    return {
+        "quality_rating": data.get("quality_rating", "UNKNOWN"),
+        "quality_reasons": reasons,
+        "can_send_message": number_entity.get("can_send_message") or health.get("can_send_message"),
+        "notes": number_entity.get("additional_info", []),
+        "errors": errors,
+        "name_status": data.get("name_status"),
+        "messaging_tier": parse_messaging_tier(data),
     }
 
 
@@ -1173,12 +1250,12 @@ async def list_waba_phone_numbers(
     """
     Fetch every phone number registered on a WABA, handling pagination.
     Returns Meta's raw phone-number dicts (id, display_phone_number,
-    verified_name, quality_rating, messaging_limit_tier).
+    verified_name, quality_rating, and both messaging-limit fields).
     """
     _, tok = _creds("placeholder", access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{waba_id}/phone_numbers"
     params = {
-        "fields": "id,display_phone_number,verified_name,quality_rating,messaging_limit_tier",
+        "fields": f"id,display_phone_number,verified_name,quality_rating,{_LIMIT_FIELDS}",
         "limit": 100,
     }
     numbers: list[dict] = []

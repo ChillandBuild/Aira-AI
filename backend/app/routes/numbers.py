@@ -6,7 +6,12 @@ from pydantic import BaseModel
 from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
-from app.services.meta_cloud import get_number_quality, list_waba_phone_numbers
+from app.services.meta_cloud import (
+    get_number_health,
+    get_number_quality,
+    list_waba_phone_numbers,
+    parse_messaging_tier,
+)
 from app.services.numbers_pool import (
     get_unlocked_number_ids,
     normalize_phone_number,
@@ -145,14 +150,9 @@ async def sync_all_numbers_from_meta(
                 failed += 1
                 continue
 
-            raw_quality = (meta_num.get("quality_rating") or "").upper()
-            # Meta's phone_numbers list edge returns GREEN/YELLOW/RED (same
-            # format webhook.py's phone_number_quality_update handler and
-            # failover.py's QUALITY_MAP already rely on) -- not the HIGH/
-            # MEDIUM/LOW values _QUALITY_MAP below maps, which belongs to
-            # the older single-number sync_number_from_meta path only.
-            quality = _WABA_QUALITY_MAP.get(raw_quality)
-            tier = _TIER_MAP.get(meta_num.get("messaging_limit_tier") or "")
+            # Meta returns GREEN/YELLOW/RED (UNKNOWN for new numbers -> omitted).
+            quality = _QUALITY_MAP.get((meta_num.get("quality_rating") or "").upper())
+            tier = parse_messaging_tier(meta_num)
             display_number = normalize_phone_number(meta_num.get("display_phone_number") or "")
 
             row = by_meta_id.get(meta_pid) or (by_number.get(display_number) if display_number else None)
@@ -311,9 +311,12 @@ async def update_phone_number(
     return result.data[0]
 
 
-_QUALITY_MAP = {"HIGH": "green", "MEDIUM": "yellow", "LOW": "red"}
-_WABA_QUALITY_MAP = {"GREEN": "green", "YELLOW": "yellow", "RED": "red"}
-_TIER_MAP = {"TIER_1000": 1000, "TIER_10000": 10000, "TIER_100000": 100000}
+# Meta's Graph API sends GREEN/YELLOW/RED; HIGH/MEDIUM/LOW is the WhatsApp
+# Manager wording, kept so either spelling maps.
+_QUALITY_MAP = {
+    "GREEN": "green", "YELLOW": "yellow", "RED": "red",
+    "HIGH": "green", "MEDIUM": "yellow", "LOW": "red",
+}
 _WARM_UP_MAX = 14
 
 
@@ -405,6 +408,29 @@ async def sync_number_from_meta(
             }).execute()
 
     return result.data[0]
+
+
+@router.get("/{number_id}/meta-health")
+async def get_number_meta_health(
+    number_id: UUID,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Meta's live explanation for a number's quality (reasons, sending state,
+    notes). Read-only -- nothing is written."""
+    db = get_supabase()
+    row_result = (
+        db.table("phone_numbers")
+        .select("meta_phone_number_id")
+        .eq("id", str(number_id))
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    if not row_result.data:
+        raise HTTPException(status_code=404, detail="Phone number not found")
+    meta_pid = row_result.data[0].get("meta_phone_number_id")
+    if not meta_pid:
+        raise HTTPException(status_code=400, detail="No Meta phone number ID set for this number")
+    return await get_number_health(phone_number_id=meta_pid, tenant_id=tenant_id)
 
 
 @router.delete("/{number_id}")

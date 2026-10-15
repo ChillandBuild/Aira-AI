@@ -170,6 +170,37 @@ class SyncFromMetaTests(unittest.TestCase):
     @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
     @patch("app.routes.numbers.get_setting")
     @patch("app.routes.numbers.get_supabase")
+    def test_records_meta_portfolio_limit_not_the_1000_default(
+        self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
+    ):
+        existing = [{
+            "id": "row-1", "number": "+919876500001", "display_name": "Number 1",
+            "role": "primary", "status": "active", "quality_rating": "green",
+            "messaging_tier": 1000, "warm_up_day": 14, "meta_phone_number_id": "meta-1",
+            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
+        }]
+        db = _mock_numbers_db(existing)
+        mock_get_db.return_value = db
+        mock_get_setting.return_value = "waba-1"
+        mock_list.return_value = [
+            {"id": "meta-1", "display_phone_number": "+919876500001", "verified_name": "Number 1",
+             "quality_rating": "RED", "messaging_limit_tier": "TIER_250",
+             "whatsapp_business_manager_messaging_limit": "TIER_2K"},
+        ]
+        mock_limit.return_value = 1
+        mock_unlocked.return_value = {"row-1"}
+
+        res = self.client.post("/api/v1/numbers/sync-from-meta")
+        self.assertEqual(res.status_code, 200)
+        updated_row = next(r for r in db._state["rows"] if r["id"] == "row-1")
+        self.assertEqual(updated_row["messaging_tier"], 2000)
+        self.assertEqual(updated_row["quality_rating"], "red")
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.numbers_pool_limit")
+    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.routes.numbers.get_setting")
+    @patch("app.routes.numbers.get_supabase")
     def test_matches_existing_row_by_normalized_number_and_backfills_meta_id(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
     ):

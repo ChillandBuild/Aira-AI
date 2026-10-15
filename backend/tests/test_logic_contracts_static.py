@@ -28,7 +28,7 @@ class LogicContractChecks(unittest.TestCase):
 
         self.assertRegex(router, r"async def get_best_number\(tenant_id: str\)")
         self.assertIn('.eq("tenant_id", tenant_id)', router)
-        self.assertIn("_TIER_DAILY_LIMITS: dict[int, int] = {1000: 1_000, 10000: 10_000, 100000: 100_000}", router)
+        self.assertIn('< (r.get("messaging_tier") or 1000)', router)
         self.assertIn("get_best_number(tenant_id)", upload)
 
     def test_tenant_uniqueness_migration_uses_composite_keys(self):

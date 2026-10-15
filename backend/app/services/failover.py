@@ -4,11 +4,6 @@ from app.db.supabase import get_supabase
 logger = logging.getLogger(__name__)
 
 QUALITY_MAP = {"GREEN": "green", "YELLOW": "yellow", "RED": "red"}
-TIER_MAP = {
-    "TIER_1000": 1000,
-    "TIER_10000": 10000,
-    "TIER_100000": 100000,
-}
 
 
 async def handle_quality_red(phone_number_id: str) -> None:

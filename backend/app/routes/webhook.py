@@ -7,6 +7,7 @@ from app.config import settings
 from app.services.growth import record_stage_event
 from app.services.google_ads_attribution import parse_google_ref
 from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
+from app.services.meta_cloud import tier_from_meta
 from app.services.meta_webhook_verify import verify_meta_signature
 from app.services.entitlements import meter
 from app.services.segmentation import new_lead_score_and_segment
@@ -489,12 +490,7 @@ async def whatsapp_webhook(
                     continue
                 quality_rating = value.get("quality_rating", "")
                 current_limit = value.get("current_limit")
-                messaging_tier = None
-                if current_limit and current_limit.startswith("TIER_"):
-                    try:
-                        messaging_tier = int(current_limit.replace("TIER_", ""))
-                    except ValueError:
-                        pass
+                messaging_tier = tier_from_meta(current_limit)
                 logger.info(f"phone_number_quality_update: meta_id={meta_phone_number_id} quality={quality_rating} limit={current_limit}")
                 row_id = await update_number_quality(meta_phone_number_id, quality_rating, messaging_tier)
                 if row_id:
