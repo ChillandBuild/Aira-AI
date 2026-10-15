@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { buildFinalDescription, normalizeText, wordCount } from "./descriptionDiff";
 import { HANDOVER_SECTION_KEY, type ProfileResponse } from "./profileSections";
+import { TickMark } from "@/components/ui/controls";
 
 interface Props {
   documentId: string;
@@ -124,8 +125,9 @@ function HunkCard({ hunk, checked, onToggle, disabled }: { hunk: KnowledgeHunk; 
         checked={checked}
         onChange={onToggle}
         disabled={disabled}
-        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+        className="peer sr-only"
       />
+      <TickMark checked={checked} disabled={disabled} size="sm" className="mt-0.5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
       <div className="min-w-0 flex-1 space-y-1">
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
           <span className="rounded-md border border-surface-mid bg-white px-1.5 py-0.5 font-label text-[10px] font-bold uppercase tracking-wide text-on-surface-muted">
@@ -555,8 +557,9 @@ export default function KnowledgeReviewModal({ documentId, canManage, isOwner, o
                         checked={acceptedUpdates.has(d.id)}
                         disabled={!canManage}
                         onChange={() => toggle(acceptedUpdates, d.id, setAcceptedUpdates)}
-                        className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
+                        className="peer sr-only"
                       />
+                      <TickMark checked={acceptedUpdates.has(d.id)} disabled={!canManage} size="sm" className="mt-0.5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
                       <div className="min-w-0 flex-1 space-y-1">
                         <p className="font-body text-xs font-semibold text-on-surface">
                           Your Description still says {d.existing_value}. Update it to {d.new_value}?

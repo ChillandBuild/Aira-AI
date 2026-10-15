@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { collectAllKeys, hasOversizedLevel, uniqueKey } from "./packageKeys";
 import { slugify } from "../settings/slugify";
+import { TickMark } from "@/components/ui/controls";
 
 export interface IntakeAddon {
   key: string;
@@ -158,8 +159,9 @@ function PackageNode({
             className="w-24 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
           />
         )}
-        <label className="flex items-center gap-1 text-xs font-body text-ink-muted whitespace-nowrap">
-          <input type="checkbox" checked={node.active} disabled={!canManage} onChange={(e) => onChange({ ...node, active: e.target.checked })} />
+        <label className="flex items-center gap-1.5 text-xs font-body text-ink-muted whitespace-nowrap">
+          <input type="checkbox" checked={node.active} disabled={!canManage} onChange={(e) => onChange({ ...node, active: e.target.checked })} className="peer sr-only" />
+          <TickMark checked={node.active} disabled={!canManage} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
           Active
         </label>
         {canManage && (
@@ -249,8 +251,9 @@ function PackageNode({
                   disabled={!canManage}
                   className="w-20 px-3 py-1.5 rounded-lg border border-border text-sm font-body text-ink bg-white"
                 />
-                <label className="flex items-center gap-1 text-xs font-body text-ink-muted">
-                  <input type="checkbox" checked={addon.active} disabled={!canManage} onChange={(e) => updateAddon(i, { active: e.target.checked })} />
+                <label className="flex items-center gap-1.5 text-xs font-body text-ink-muted">
+                  <input type="checkbox" checked={addon.active} disabled={!canManage} onChange={(e) => updateAddon(i, { active: e.target.checked })} className="peer sr-only" />
+                  <TickMark checked={addon.active} disabled={!canManage} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
                   Active
                 </label>
                 {canManage && (

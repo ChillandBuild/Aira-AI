@@ -8,6 +8,7 @@ import { filtersFromParams, filtersToParams, ATTENTION_LABEL, shortRupees, SOURC
 import { cn } from "@/lib/utils";
 import { ListTab, downloadDealsCsv, fetchAllDeals } from "./ListTab";
 import { FilterPopover } from "@/components/deals/FilterPopover";
+import { TickMark } from "@/components/ui/controls";
 
 type Filters = ReturnType<typeof filtersFromParams>;
 type StageKey = DealStage | "all";
@@ -66,22 +67,13 @@ function toggled<T>(list: T[] | undefined, value: T, on: boolean): T[] | undefin
 function TickRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (on: boolean) => void }) {
   return (
     <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#334155] hover:bg-slate-50">
-      {/* Still a multi-select checkbox underneath; only the box is drawn round. */}
       <input
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
         className="peer sr-only"
       />
-      <span
-        aria-hidden
-        className={cn(
-          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-primary/30",
-          checked ? "border-primary" : "border-[#cbd5e1]"
-        )}
-      >
-        {checked && <span className="h-2 w-2 rounded-full bg-primary" />}
-      </span>
+      <TickMark checked={checked} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
       <span className="truncate">{label}</span>
     </label>
   );

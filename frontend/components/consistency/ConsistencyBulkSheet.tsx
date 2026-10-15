@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { predictedSkip, sourceLabel, toggleId } from "./consistencyLogic";
 import type { Access, BulkAction, Issue } from "./types";
+import { TickMark } from "@/components/ui/controls";
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], textarea:not([disabled])';
 
@@ -115,14 +116,17 @@ export function ConsistencyBulkSheet({ action, issues, access, isBusy, onCancel,
             return (
               <li key={issue.id} className="min-w-0 rounded-xl border border-border-subtle bg-surface-low/50 p-3">
                 <div className="flex items-start gap-2.5">
+                  <label className="shrink-0 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={ticked.has(issue.id)}
                     onChange={() => setTicked((prev) => toggleId(prev, issue.id))}
                     disabled={isBusy}
                     aria-labelledby={labelId}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary"
+                    className="peer sr-only"
                   />
+                  <TickMark checked={ticked.has(issue.id)} disabled={isBusy} size="sm" className="mt-0.5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
+                  </label>
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <p id={labelId} className="break-words font-label text-[11px] font-bold uppercase tracking-wider text-amber-700">
                       {sourceLabel(issue)}

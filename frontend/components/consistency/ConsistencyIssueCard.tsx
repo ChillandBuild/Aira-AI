@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, Pencil, X } from "lucide-react";
 import { fixBlockedReason, manageBlockedReason, sourceLabel } from "./consistencyLogic";
 import type { Access, Issue } from "./types";
+import { TickMark } from "@/components/ui/controls";
 
 const BUTTON_FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
@@ -54,8 +55,9 @@ export function ConsistencyIssueCard({ issue, access, selected, isLocked, onTogg
               onChange={() => onToggleSelected(issue.id)}
               disabled={isLocked}
               aria-label={`Select: ${issue.topic}`}
-              className="h-4 w-4 rounded border-border accent-primary"
+              className="peer sr-only"
             />
+            <TickMark checked={selected} disabled={isLocked} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
           </label>
         )}
         <span className="min-w-0 flex-1 break-words font-label text-[10px] font-bold uppercase tracking-wider text-amber-700">
