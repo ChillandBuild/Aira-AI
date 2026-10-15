@@ -9,4 +9,10 @@ export OUTBOUND_MODE=dry_run
 export OUTBOUND_ALLOW_TO="${OUTBOUND_ALLOW_TO:-}"
 echo "SAFE LOCAL MODE: scheduler PAUSED, outbound DRY-RUN (allow: ${OUTBOUND_ALLOW_TO:-none}), DB = LIVE"
 echo "Point the frontend here with: NEXT_PUBLIC_API_URL=http://localhost:${PORT:-8000} npm run dev"
-exec .venv/bin/python -m uvicorn app.main:app --reload --port "${PORT:-8000}"
+# The venv lives at the repo root on Windows (Scripts/) and may be in backend/ elsewhere (bin/).
+PY=""
+for candidate in ../.venv/Scripts/python.exe ../.venv/bin/python .venv/bin/python .venv/Scripts/python.exe; do
+  if [ -x "$candidate" ]; then PY="$candidate"; break; fi
+done
+if [ -z "$PY" ]; then echo "No .venv python found (looked in ../.venv and backend/.venv)" >&2; exit 1; fi
+exec "$PY" -m uvicorn app.main:app --reload --port "${PORT:-8000}"

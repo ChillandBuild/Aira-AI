@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import { predictedSkip, sourceLabel, toggleId } from "./consistencyLogic";
 import type { Access, BulkAction, Issue } from "./types";
-import { TickMark } from "@/components/ui/controls";
+import { CheckTick } from "@/components/ui/controls";
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), [href], textarea:not([disabled])';
 
@@ -112,23 +112,19 @@ export function ConsistencyBulkSheet({ action, issues, access, isBusy, onCancel,
         <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3 sm:px-5">
           {issues.map((issue) => {
             const skipNote = predictedSkip(issue, action, access);
-            const labelId = `bulk-item-${issue.id}`;
             return (
               <li key={issue.id} className="min-w-0 rounded-xl border border-border-subtle bg-surface-low/50 p-3">
                 <div className="flex items-start gap-2.5">
-                  <label className="shrink-0 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <CheckTick
                     checked={ticked.has(issue.id)}
                     onChange={() => setTicked((prev) => toggleId(prev, issue.id))}
                     disabled={isBusy}
-                    aria-labelledby={labelId}
-                    className="peer sr-only"
+                    aria-label={`Select: ${sourceLabel(issue)}`}
+                    size="sm"
+                    className="mt-0.5 shrink-0"
                   />
-                  <TickMark checked={ticked.has(issue.id)} disabled={isBusy} size="sm" className="mt-0.5 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
-                  </label>
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <p id={labelId} className="break-words font-label text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                    <p className="break-words font-label text-[11px] font-bold uppercase tracking-wider text-amber-700">
                       {sourceLabel(issue)}
                       <span className="ml-1.5 normal-case tracking-normal text-ink">{issue.topic}</span>
                     </p>

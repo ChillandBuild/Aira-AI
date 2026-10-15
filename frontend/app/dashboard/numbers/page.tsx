@@ -269,7 +269,7 @@ function QualityNextSteps({ num, hasStandby }: { num: PhoneNumber; hasStandby: b
     "Pause cold or bulk Marketing broadcasts. Message only people who opted in or chatted with you recently.",
     "Keep templates relevant and add a “Stop” quick reply, so people opt out instead of blocking.",
     ...(isLow && !hasStandby
-      ? ["Add a warmed-up standby number. When Meta flags a number Low, Aira moves sending to the standby."]
+      ? ["Add a warmed-up standby number. When Meta flags a number Low, Anril moves sending to the standby."]
       : []),
     isLow
       ? "Quality recovers as blocks stop. If it stays Low, Meta can lower your messaging limit."

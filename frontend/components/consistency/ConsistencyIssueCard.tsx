@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, Pencil, X } from "lucide-react";
 import { fixBlockedReason, manageBlockedReason, sourceLabel } from "./consistencyLogic";
 import type { Access, Issue } from "./types";
-import { TickMark } from "@/components/ui/controls";
+import { CheckTick } from "@/components/ui/controls";
 
 const BUTTON_FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
 
@@ -49,15 +49,13 @@ export function ConsistencyIssueCard({ issue, access, selected, isLocked, onTogg
       <div className="flex items-start gap-2.5">
         {selected !== null && (
           <label className="-m-2 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center">
-            <input
-              type="checkbox"
+            <CheckTick
               checked={selected}
               onChange={() => onToggleSelected(issue.id)}
               disabled={isLocked}
               aria-label={`Select: ${issue.topic}`}
-              className="peer sr-only"
+              size="sm"
             />
-            <TickMark checked={selected} disabled={isLocked} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
           </label>
         )}
         <span className="min-w-0 flex-1 break-words font-label text-[10px] font-bold uppercase tracking-wider text-amber-700">

@@ -66,16 +66,16 @@ function toggled<T>(list: T[] | undefined, value: T, on: boolean): T[] | undefin
 
 function TickRow({ checked, label, onChange }: { checked: boolean; label: string; onChange: (on: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-[#334155] hover:bg-slate-50">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="peer sr-only"
-      />
-      <TickMark checked={checked} size="sm" className="peer-focus-visible:ring-2 peer-focus-visible:ring-primary/35 peer-focus-visible:ring-offset-1" />
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs font-semibold text-[#334155] hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+    >
+      <TickMark checked={checked} size="sm" />
       <span className="truncate">{label}</span>
-    </label>
+    </button>
   );
 }
 

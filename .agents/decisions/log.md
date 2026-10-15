@@ -1801,3 +1801,11 @@ Backend: 27/27 `test_expert_handoff.py` (4 new), full suite 864/864 (same 2 pre-
 - **Why:** gstack is no longer installed, so the `/gstack-*` commands in CLAUDE.md and the `/brief` command pointed at skills that do not exist. gbrain was gstack's memory layer and is no longer installed either.
 - **Decision:** the sprint rules stay in CLAUDE.md, with plain steps in place of the skill names. The debugging skill is now a standalone `investigate` skill on the machine (not part of this repo). The R&D fence still denies the ship and deploy skills by name.
 - **Removed:** `scripts/rnd/check-gstack.sh`, `.agents/context/gstack-setup.md`, the gstack and gbrain entries in `.claude/settings.json` skill overrides, and gstack references in the brief command, the Codex mirror, and the design docs. The dated entries above (2026-09-28 and 2026-09-29) are history and were not edited.
+
+### 2026-10-14 — Meta campaign creation date (migration 225)
+- **225_ad_campaigns_meta_created_at.sql — applied live 2026-10-14** (in `schema_migrations`). Adds `ad_campaigns.meta_created_at` (Meta's `created_time`), filled by the campaign sync; the Segments campaign list shows its month to tell same-named campaigns apart. Commit `eb7422f9`. Recorded here by the 2026-10-15 brain audit — it had not been logged.
+
+### 2026-10-15 — Numbers pool reads Meta's portfolio limit (migration 226)
+- **Why:** the pool showed 1,000/day for every number. Meta's limit moved to the business portfolio on 2025-10-07 (`whatsapp_business_manager_messaging_limit`), and our enum map keyed values Meta never sends. Astro Tamil was really at 2,000.
+- **226_phone_numbers_meta_tier_values.sql — applied live 2026-10-15 via Supabase MCP** (before the backend that writes the new values). Widens `phone_numbers_messaging_tier_check` to `50, 250, 1000, 2000, 10000, 100000, 1000000` (1000000 = Unlimited).
+- **Also decided:** Meta's "why is it red" text is read live (`GET /numbers/{id}/meta-health`), not stored, so there is no new column. Mechanics in [subsystem-notes](../context/subsystem-notes.md) → *Numbers pool: Meta messaging limits & quality*.
