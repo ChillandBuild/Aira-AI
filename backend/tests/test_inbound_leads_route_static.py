@@ -36,7 +36,12 @@ def test_ad_performance_export_headers_match_table_labels():
     metrics_block = tab.split("const METRICS", 1)[1].split("];", 1)[0]
     table_labels = ["Campaign", "Ad set", "Creative"] + re.findall(r'label: "([^"]+)"', metrics_block)
 
-    assert export_labels == table_labels
+    # The per-app split shows inside the Messages sent cell on screen; the CSV
+    # gives it its own columns right after Messages sent.
+    split = ["WhatsApp messages", "Instagram messages", "Messenger messages"]
+    at = export_labels.index("Messages sent (Anril confirmed)") + 1
+    assert export_labels[at:at + 3] == split
+    assert export_labels[:at] + export_labels[at + 3:] == table_labels
 
 
 def test_main_registers_inbound_leads_prefix_not_ctwa():

@@ -311,3 +311,30 @@ export function AdTypeBadge({ type }: { type: string }) {
     </span>
   );
 }
+
+const CHANNEL_CHIPS: Record<string, { label: string; tone: string }> = {
+  whatsapp: { label: "WhatsApp", tone: "bg-emerald-50 text-emerald-700" },
+  instagram: { label: "Instagram", tone: "bg-rose-50 text-rose-700" },
+  messenger: { label: "Messenger", tone: "bg-sky-50 text-sky-700" },
+};
+
+/** One tiny pill per chat app an ad opens. Renders nothing for an empty list. */
+export function ChannelChips({ channels }: { channels: string[] }) {
+  const chips = channels.map((channel) => CHANNEL_CHIPS[channel]).filter(Boolean);
+  if (chips.length === 0) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      {chips.map((chip) => (
+        <span
+          key={chip.label}
+          className={cn(
+            "inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 font-label text-[9px] font-bold",
+            chip.tone,
+          )}
+        >
+          {chip.label}
+        </span>
+      ))}
+    </span>
+  );
+}

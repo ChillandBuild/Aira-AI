@@ -3,11 +3,21 @@
 Meta provides delivery/click/spend. Anril counts each lead once per Meta ad from
 lead_meta_ad_attributions, so repeat messages from the same lead and ad do not
 duplicate the conversion, while the same lead may count once for another ad.
+
+"Messaging ads" are every ad whose ad set opens a chat app (WhatsApp, Instagram
+Direct or Messenger). Hot-lead counting and the tracking code stay WhatsApp-only.
 """
 import logging
-from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
+
+# Chat apps a messaging ad can open, in report order. Attribution rows written
+# before the channel column existed count as WhatsApp.
+MESSAGING_CHANNELS = ("whatsapp", "instagram", "messenger")
+
+
+def _empty_channel_counts() -> dict[str, int]:
+    return {channel: 0 for channel in MESSAGING_CHANNELS}
 
 
 # Meta reports many delivery states; these are the buckets worth filtering by.
@@ -80,9 +90,6 @@ def build_creative_performance(
     date_from: str | None = None,
     date_to: str | None = None,
     delivery_status: str | None = None,
-    meta_fields: list[str] | None = None,
-    breakdown: str | None = None,
-    errors: list[str] | None = None,
 ) -> list[dict]:
     """One row per creative with volume/quality/money metrics.
 
@@ -94,9 +101,6 @@ def build_creative_performance(
       delivery_status -> the computed delivery_status (see DELIVERY_GROUPS);
                          applied after rows are built, since the value is a
                          coalesce across three tables rather than one column
-      meta_fields     -> extra Meta-computed columns, fetched live into row["meta"]
-      breakdown       -> with meta_fields, live per-breakdown rows in row["breakdown_rows"]
-      errors          -> if given, a message is appended when the live Meta fetch fails
     """
     from app.services.meta_ads_insights_sync import (
         _get_ads_credentials,
@@ -117,10 +121,10 @@ def build_creative_performance(
     q = db.table("ad_creatives").select(
         "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
         "campaign_id,effective_status,ad_effective_status,"
-        "destination_type,tracked_in_anril"
+        "destination_type,tracked_in_anril,messaging_channels"
     ).eq("tenant_id", tenant_id).eq(
         "meta_ad_account_id", account
-    ).eq("is_click_to_whatsapp", True).eq("tracked_in_anril", True)
+    ).neq("messaging_channels", "{}").eq("tracked_in_anril", True)
     if campaign_id:
         q = q.eq("campaign_id", campaign_id)
     if adset_id:
@@ -208,32 +212,6 @@ def build_creative_performance(
             {"onsite_conversion.total_messaging_connection"},
         )
 
-    # Meta-computed columns (and per-breakdown rows) are fetched live from Meta,
-    # keyed by the Meta ad id of each creative.
-    meta_by_ad: dict[str, list[dict]] = {}
-    if (meta_fields or breakdown) and credentials:
-        ad_ids = {c["meta_ad_id"] for c in creatives if c.get("meta_ad_id")}
-        if ad_ids:
-            from app.services.meta_ads_fields import fetch_meta_insights_live
-
-            try:
-                results = fetch_meta_insights_live(
-                    *credentials,
-                    date_from=date_from or (
-                        datetime.now(timezone.utc).date() - timedelta(days=30)
-                    ).isoformat(),
-                    date_to=date_to or datetime.now(timezone.utc).date().isoformat(),
-                    keys=meta_fields or [],
-                    breakdown=breakdown,
-                    ad_ids=ad_ids,
-                )
-                for r in results:
-                    meta_by_ad.setdefault(r["meta_ad_id"], []).append(r)
-            except Exception as error:
-                logger.warning("Meta live columns fetch failed for tenant %s: %s", tenant_id, error)
-                if errors is not None:
-                    errors.append(f"Couldn't load Meta columns right now: {error}")
-
     # Unique lead/ad relationships. The table primary key prevents the same
     # lead from being counted twice for the same Meta ad.
     meta_ad_ids = [c["meta_ad_id"] for c in creatives if c.get("meta_ad_id")]
@@ -241,7 +219,7 @@ def build_creative_performance(
     if meta_ad_ids:
         attribution_q = (
             db.table("lead_meta_ad_attributions")
-            .select("lead_id,meta_ad_id,first_seen_at")
+            .select("lead_id,meta_ad_id,first_seen_at,channel")
             .eq("tenant_id", tenant_id)
             .eq("meta_ad_account_id", account)
             .in_("meta_ad_id", meta_ad_ids)
@@ -272,8 +250,11 @@ def build_creative_performance(
         ad_id = attribution.get("meta_ad_id")
         if not lead or not ad_id:
             continue
-        f = funnel.setdefault(ad_id, {"messages": 0, "hot": 0})
+        f = funnel.setdefault(ad_id, {"messages": 0, "hot": 0, "by_channel": _empty_channel_counts()})
         f["messages"] += 1
+        channel = attribution.get("channel") or "whatsapp"
+        if channel in f["by_channel"]:
+            f["by_channel"][channel] += 1
         if lead.get("segment") == "A":
             f["hot"] += 1
 
@@ -302,7 +283,7 @@ def build_creative_performance(
             "reach": 0,
             "meta_conversations": 0,
         })
-        fn = funnel.get(c["meta_ad_id"], {"messages": 0, "hot": 0})
+        fn = funnel.get(c["meta_ad_id"], {"messages": 0, "hot": 0, "by_channel": _empty_channel_counts()})
         campaign = campaigns.get(c.get("campaign_id"), {})
         adset = adsets.get(c.get("meta_adset_id"), {})
         uses_adset_budget = (
@@ -371,17 +352,9 @@ def build_creative_performance(
             "revenue": 0,
             "destination_type": c.get("destination_type"),
             "is_multi_destination": is_multi_destination(c.get("destination_type")),
-            "meta": None,
-            "breakdown_rows": None,
+            "messaging_channels": c.get("messaging_channels") or [],
+            "messages_by_channel": dict(fn["by_channel"]),
         }
-        ad_meta_rows = meta_by_ad.get(c["meta_ad_id"], [])
-        if breakdown:
-            row["breakdown_rows"] = [
-                {"breakdown": r.get("breakdown"), "meta": r.get("values") or {}}
-                for r in ad_meta_rows
-            ]
-        elif ad_meta_rows:
-            row["meta"] = ad_meta_rows[0].get("values") or {}
         compute_cost_metrics(row)
         out.append(row)
 
@@ -475,10 +448,10 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
     creatives = (
         db.table("ad_creatives").select(
             "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
-            "campaign_id,prefilled_message_code"
+            "campaign_id,prefilled_message_code,messaging_channels"
         ).eq("tenant_id", tenant_id)
         .eq("meta_ad_account_id", account)
-        .eq("is_click_to_whatsapp", True)
+        .neq("messaging_channels", "{}")
         .eq("tracked_in_anril", True)
         .execute().data
     ) or []
@@ -507,6 +480,8 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
             {"id": c["id"], "name": c["creative_label"],
              "meta_ad_id": c.get("meta_ad_id"),
              "tracking_code": c.get("prefilled_message_code"),
+             # Generate ID (the pre-filled tracking code) only works on WhatsApp.
+             "messaging_channels": c.get("messaging_channels") or [],
              "adset_id": c.get("meta_adset_id"), "campaign_id": c.get("campaign_id")}
             for c in creatives
         ],
@@ -515,7 +490,7 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
 
 
 def list_ads_for_tracking(db, tenant_id: str) -> list[dict]:
-    """Every click-to-WhatsApp ad of the connected account, tracked or not, so the
+    """Every messaging ad of the connected account, tracked or not, so the
     user can switch Anril tracking on or off per ad."""
     from app.services.meta_ads_insights_sync import get_current_ads_account_id, is_multi_destination
 
@@ -525,10 +500,11 @@ def list_ads_for_tracking(db, tenant_id: str) -> list[dict]:
     creatives = (
         db.table("ad_creatives").select(
             "id,creative_label,meta_ad_id,meta_adset_name,campaign_id,"
-            "effective_status,ad_effective_status,destination_type,tracked_in_anril"
+            "effective_status,ad_effective_status,destination_type,tracked_in_anril,"
+            "messaging_channels"
         ).eq("tenant_id", tenant_id)
         .eq("meta_ad_account_id", account)
-        .eq("is_click_to_whatsapp", True)
+        .neq("messaging_channels", "{}")
         .execute().data
     ) or []
 
@@ -552,6 +528,7 @@ def list_ads_for_tracking(db, tenant_id: str) -> list[dict]:
             "delivery_status": c.get("ad_effective_status") or c.get("effective_status"),
             "destination_type": c.get("destination_type"),
             "is_multi_destination": is_multi_destination(c.get("destination_type")),
+            "messaging_channels": c.get("messaging_channels") or [],
             "tracked": c.get("tracked_in_anril") is True,
         }
         for c in creatives
@@ -578,8 +555,13 @@ def ad_type_label(destination_type: str | None) -> str:
     }
     if value in exact:
         return exact[value]
-    if "WHATSAPP" in value:
+    from app.services.meta_ads_insights_sync import messaging_channels_for
+
+    channels = messaging_channels_for(value)
+    if len(channels) > 1:
         return "Multi-destination"
+    if channels == ["whatsapp"]:
+        return "WhatsApp"
     if any(word in value for word in ("MESSAGING", "MESSENGER", "INSTAGRAM")):
         return "Messaging"
     return value.replace("_", " ").title()

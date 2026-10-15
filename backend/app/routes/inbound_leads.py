@@ -468,28 +468,22 @@ async def ad_performance(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     delivery_status: str | None = Query(None),
-    meta_fields: str | None = Query(None),
-    breakdown: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Per-creative performance rows for the Ad Performance tab. meta_fields
-    (comma-separated) adds live Meta columns; breakdown adds per-breakdown rows."""
+    """Per-creative performance rows for the Ad Performance tab."""
     from app.services.ad_performance import build_creative_performance
-    breakdown = _check_breakdown(breakdown)
     db = get_supabase()
-    errors: list[str] = []
     rows = build_creative_performance(
         db, tenant_id,
         campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
         date_from=date_from, date_to=date_to, delivery_status=delivery_status,
-        meta_fields=_split_fields(meta_fields), breakdown=breakdown, errors=errors,
     )
-    return {"data": rows, "meta_error": errors[0] if errors else None}
+    return {"data": rows}
 
 
 @router.get("/meta-ads/field-catalog", dependencies=[Depends(require_meta_ads_view)])
 async def meta_ads_field_catalog():
-    """Meta-computed columns and breakdowns the Ad Performance tab can ask for."""
+    """Meta-computed columns and breakdowns the All ads page can ask for."""
     from app.services.meta_ads_fields import breakdowns_for_api, catalog_for_api
     return {"fields": catalog_for_api(), "breakdowns": breakdowns_for_api()}
 
@@ -547,7 +541,7 @@ async def meta_ads_all_ads(
 
 @router.get("/meta-ads/tracked-ads", dependencies=[Depends(require_meta_ads_view)])
 async def meta_ads_tracked_ads(tenant_id: str = Depends(get_tenant_id)):
-    """Every click-to-WhatsApp ad of the connected account with its Anril tracking switch."""
+    """Every messaging ad of the connected account with its Anril tracking switch."""
     from app.services.ad_performance import list_ads_for_tracking
     db = get_supabase()
     return {"data": list_ads_for_tracking(db, tenant_id)}
@@ -650,9 +644,12 @@ AD_PERFORMANCE_EXPORT_COLUMNS = [
     ("impressions", "Impressions"),
     ("reach", "Reach"),
     ("frequency", "Frequency"),
-    ("inline_link_clicks", "WhatsApp clicks"),
+    ("inline_link_clicks", "Chat clicks"),
     ("clicks_all", "Clicks (all)"),
     ("messages", "Messages sent (Anril confirmed)"),
+    ("messages_whatsapp", "WhatsApp messages"),
+    ("messages_instagram", "Instagram messages"),
+    ("messages_messenger", "Messenger messages"),
     ("meta_conversations", "Meta-reported conversations"),
     ("conversation_rate", "Message rate"),
     ("meta_conversation_rate", "Meta-reported message rate"),
@@ -702,8 +699,16 @@ async def ad_performance_export(
     writer = csv.writer(output)
     writer.writerow([label for _, label in AD_PERFORMANCE_EXPORT_COLUMNS])
     for r in rows:
+        by_channel = r.get("messages_by_channel") or {}
+        channel_cells = {
+            "messages_whatsapp": by_channel.get("whatsapp", 0),
+            "messages_instagram": by_channel.get("instagram", 0),
+            "messages_messenger": by_channel.get("messenger", 0),
+        }
         writer.writerow([
-            _budget_label(r) if key == "budget" else ("" if r.get(key) is None else r.get(key))
+            _budget_label(r) if key == "budget"
+            else channel_cells[key] if key in channel_cells
+            else ("" if r.get(key) is None else r.get(key))
             for key, _ in AD_PERFORMANCE_EXPORT_COLUMNS
         ])
     filename = f"ad_performance_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"

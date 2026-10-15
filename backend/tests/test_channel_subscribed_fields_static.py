@@ -7,7 +7,7 @@ sys.path.insert(0, str(ROOT))
 
 # Meta rejects the whole subscribed_apps call with (#100) if any single field is
 # not in the object's vocabulary. These are Messenger-only.
-MESSENGER_ONLY_FIELDS = ("message_deliveries", "message_reads")
+MESSENGER_ONLY_FIELDS = ("message_deliveries", "message_reads", "messaging_referrals")
 
 
 def _read(path: str) -> str:
@@ -36,4 +36,4 @@ def test_instagram_branch_omits_messenger_only_fields():
 
 def test_facebook_still_gets_the_messenger_field_list():
     body = _activate_channel_body(_read("app/routes/app_settings.py"))
-    assert '"messages,messaging_postbacks,message_deliveries,message_reads"' in body
+    assert '"messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals"' in body

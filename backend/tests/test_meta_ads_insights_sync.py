@@ -1,11 +1,15 @@
 from datetime import date, timedelta
 
+import pytest
+
 from app.services.meta_ads_insights_sync import (
     _date_chunks,
     _select_rows,
     compute_sync_since,
     is_click_to_whatsapp_adset,
+    is_messaging_adset,
     is_multi_destination,
+    messaging_channels_for,
     normalize_account_id,
     refresh_ad_registry,
     upsert_creative_from_insight,
@@ -36,12 +40,39 @@ def test_whatsapp_destinations_are_included():
     assert is_click_to_whatsapp_adset(None) is False
 
 
-def test_is_multi_destination_means_whatsapp_plus_another_destination():
+def test_is_multi_destination_means_more_than_one_chat_app():
     assert is_multi_destination("MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP") is True
     assert is_multi_destination("MESSAGING_MESSENGER_WHATSAPP") is True
+    assert is_multi_destination("MESSAGING_INSTAGRAM_DIRECT_MESSENGER") is True
     assert is_multi_destination("WHATSAPP") is False
+    assert is_multi_destination("MESSENGER") is False
+    assert is_multi_destination("INSTAGRAM_DIRECT") is False
     assert is_multi_destination("WEBSITE") is False
     assert is_multi_destination(None) is False
+
+
+@pytest.mark.parametrize("destination_type, channels", [
+    ("WHATSAPP", ["whatsapp"]),
+    ("MESSENGER", ["messenger"]),
+    ("INSTAGRAM_DIRECT", ["instagram"]),
+    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP", ["whatsapp", "instagram", "messenger"]),
+    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER", ["instagram", "messenger"]),
+    ("INSTAGRAM_PROFILE", []),
+    ("WEBSITE", []),
+    ("ON_AD", []),
+    (None, []),
+])
+def test_messaging_channels_for_destinations(destination_type, channels):
+    assert messaging_channels_for(destination_type) == channels
+
+
+def test_messaging_ad_sets_are_any_chat_app_destination():
+    assert is_messaging_adset({"destination_type": "INSTAGRAM_DIRECT"}) is True
+    assert is_messaging_adset({"destination_type": "MESSENGER"}) is True
+    assert is_messaging_adset({"destination_type": "WHATSAPP"}) is True
+    assert is_messaging_adset({"destination_type": "INSTAGRAM_PROFILE"}) is False
+    assert is_messaging_adset({"destination_type": "ON_AD"}) is False
+    assert is_messaging_adset(None) is False
 
 
 def test_unique_reach_uses_one_meta_window_per_ad(monkeypatch):
@@ -420,6 +451,67 @@ def test_date_chunks_are_contiguous_inclusive_and_at_most_30_days():
         assert date.fromisoformat(start) == date.fromisoformat(end) + timedelta(days=1)
     for start, end in chunks:
         assert (date.fromisoformat(end) - date.fromisoformat(start)).days + 1 <= 30
+
+
+def test_select_rows_keeps_every_messaging_ad_set_and_drops_the_rest():
+    rows = [
+        {"ad_id": "W", "adset_id": "as_wa", "date_start": "2026-08-25"},
+        {"ad_id": "M", "adset_id": "as_ms", "date_start": "2026-08-25"},
+        {"ad_id": "I", "adset_id": "as_ig", "date_start": "2026-08-25"},
+        {"ad_id": "SITE", "adset_id": "as_web", "date_start": "2026-08-25"},
+        {"ad_id": "FORM", "adset_id": "as_form", "date_start": "2026-08-25"},
+        {"ad_id": "PROFILE", "adset_id": "as_profile", "date_start": "2026-08-25"},
+    ]
+    adsets = [
+        {"id": "as_wa", "destination_type": "WHATSAPP"},
+        {"id": "as_ms", "destination_type": "MESSENGER"},
+        {"id": "as_ig", "destination_type": "INSTAGRAM_DIRECT"},
+        {"id": "as_web", "destination_type": "WEBSITE"},
+        {"id": "as_form", "destination_type": "ON_AD"},
+        {"id": "as_profile", "destination_type": "INSTAGRAM_PROFILE"},
+    ]
+    eligible = {ad: None for ad in ("W", "M", "I", "SITE", "FORM", "PROFILE")}
+
+    kept, _ = _select_rows(rows, adsets, eligible, None)
+
+    assert sorted(r["ad_id"] for r in kept) == ["I", "M", "W"]
+
+
+def test_upsert_creative_stores_messaging_channels_for_an_instagram_only_ad(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+    monkeypatch.setattr(mod, "get_or_create_campaign", lambda **k: {"id": "camp-1"})
+    greeting_calls = []
+    monkeypatch.setattr(mod, "fetch_prefilled_greeting",
+                        lambda token, ad_id: greeting_calls.append(ad_id) or "hi")
+    db = FakeDB()
+    row = {"ad_id": "IG1", "ad_name": "Insta ad", "adset_id": "as_ig",
+           "adset_name": "IG set", "campaign_id": "c1", "campaign_name": "Camp"}
+    adset = {"id": "as_ig", "name": "IG set", "destination_type": "INSTAGRAM_DIRECT"}
+
+    upsert_creative_from_insight(db, "t1", row, adset_meta=adset, token="tok")
+
+    stored = db.store["ad_creatives"][0]
+    assert stored["messaging_channels"] == ["instagram"]
+    assert stored["is_click_to_whatsapp"] is False
+    assert stored["cta_type"] is None
+    assert greeting_calls == []
+
+
+def test_upsert_creative_refreshes_messaging_channels_on_update(monkeypatch):
+    import app.services.meta_ads_insights_sync as mod
+    monkeypatch.setattr(mod, "get_or_create_campaign", lambda **k: {"id": "camp-1"})
+    monkeypatch.setattr(mod, "fetch_prefilled_greeting", lambda token, ad_id: None)
+    db = FakeDB()
+    db.store["ad_creatives"] = [{
+        "id": "cr-1", "tenant_id": "t1", "meta_ad_id": "M1", "label_edited": False,
+        "messaging_channels": [], "prefilled_greeting_text": "already set",
+    }]
+    row = {"ad_id": "M1", "ad_name": "Messenger ad", "adset_id": "as_ms", "campaign_id": "c1"}
+    adset = {"id": "as_ms", "destination_type": "MESSAGING_INSTAGRAM_DIRECT_MESSENGER"}
+
+    upsert_creative_from_insight(db, "t1", row, adset_meta=adset, token="tok")
+
+    assert db.store["ad_creatives"][0]["messaging_channels"] == ["instagram", "messenger"]
 
 
 def test_select_rows_applies_since_and_eligibility():

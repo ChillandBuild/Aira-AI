@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request, BackgroundTasks, Response
 from app.db.supabase import get_supabase
 from app.config_dynamic import get_setting
-from app.services.growth import record_stage_event, get_or_create_campaign
+from app.services.growth import record_stage_event
+from app.services.meta_ctwa_attribution import attribute_chat_to_ad, parse_ad_referral
 from app.services.ai_reply import generate_reply
 from app.services.meta_webhook_verify import (
     verify_meta_signature,
@@ -15,6 +16,61 @@ from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _get_or_create_facebook_lead(db, tenant_id: str, sender_id: str, page_id: str) -> str | None:
+    """The tenant's lead for this Messenger user, created (and auto-assigned) on first
+    contact; a soft-deleted lead is restored. None only if the insert failed."""
+    existing = (
+        db.table("leads")
+        .select("id,score,segment,deleted_at,ai_enabled")
+        .eq("fb_user_id", sender_id)
+        .eq("tenant_id", tenant_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        lead_id = existing.data[0]["id"]
+        if existing.data[0].get("deleted_at"):
+            db.table("leads").update({
+                "deleted_at": None,
+                "ai_enabled": True,
+                "needs_human_intervention": False,
+            }).eq("id", lead_id).execute()
+            logger.info(f"Restored soft-deleted Facebook lead {lead_id}")
+        return lead_id
+
+    name = f"Facebook User {sender_id[:6]}"
+    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
+    new_lead = db.table("leads").insert({
+        "name": name,
+        "fb_user_id": sender_id,
+        "fb_page_id": page_id,
+        "source": "facebook",
+        "score": initial_score,
+        "segment": initial_segment,
+        "tenant_id": tenant_id,
+        "opt_in_source": "facebook",
+    }).execute()
+    if not new_lead.data:
+        logger.error(f"Failed to create new Facebook lead for sender {sender_id}")
+        return None
+
+    lead_id = new_lead.data[0]["id"]
+    record_stage_event(
+        lead_id,
+        to_segment=initial_segment,
+        event_type="created",
+        metadata={"source": "facebook"},
+        tenant_id=tenant_id,
+        db=db,
+    )
+    try:
+        from app.services.assignment import maybe_assign_lead
+        maybe_assign_lead(lead_id, tenant_id, initial_segment, "facebook", reason="created")
+    except Exception as e:
+        logger.warning(f"Auto-assign failed for Facebook lead {lead_id}: {e}")
+    return lead_id
 
 
 @router.get("/{tenant_id}")
@@ -82,105 +138,47 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
         messaging = entry.get("messaging", [])
         for event in messaging:
             # Ignore echo messages (sent by our page)
-            message = event.get("message", {})
-            if not message or message.get("is_echo"):
+            message = event.get("message") or {}
+            if message.get("is_echo"):
+                continue
+
+            sender_id = event.get("sender", {}).get("id")
+            # Meta Ad referral: {source: "ADS", type: "OPEN_THREAD", ad_id, ...}
+            # on the message when a Click-to-Messenger ad opens a new chat.
+            referral = event.get("referral") or message.get("referral") or {}
+            ad_id = parse_ad_referral(referral)
+
+            if not message:
+                # Standalone messaging_referrals event: someone with an existing
+                # thread came back through an ad. No message to store or reply to,
+                # but the ad still gets credit.
+                if ad_id and sender_id:
+                    lead_id = _get_or_create_facebook_lead(db, tenant_id, sender_id, page_id)
+                    if lead_id:
+                        attribute_chat_to_ad(
+                            db, tenant_id=tenant_id, lead_id=lead_id, referral=referral,
+                            channel="messenger", platform="facebook",
+                        )
                 continue
 
             message_id = message.get("mid")
             text = (message.get("text") or "").strip()
-            sender_id = event.get("sender", {}).get("id")
 
             # Skip non-text messages (images, stickers, etc.)
             if not sender_id or not text or not message_id:
                 continue
 
-            # Meta Ad referral — present when user clicks a Click-to-Messenger ad
-            # Same referral object structure as WhatsApp CTWA
-            referral = event.get("referral") or message.get("referral") or {}
-
             # Step 1: Look up or create lead by fb_user_id
-            existing = (
-                db.table("leads")
-                .select("id,score,segment,deleted_at,ai_enabled")
-                .eq("fb_user_id", sender_id)
-                .eq("tenant_id", tenant_id)
-                .limit(1)
-                .execute()
-            )
+            lead_id = _get_or_create_facebook_lead(db, tenant_id, sender_id, page_id)
+            if not lead_id:
+                continue
 
-            if existing.data:
-                lead_id = existing.data[0]["id"]
-                if existing.data[0].get("deleted_at"):
-                    db.table("leads").update({
-                        "deleted_at": None,
-                        "ai_enabled": True,
-                        "needs_human_intervention": False,
-                    }).eq("id", lead_id).execute()
-                    logger.info(f"Restored soft-deleted Facebook lead {lead_id}")
-            else:
-                name = f"Facebook User {sender_id[:6]}"
-                initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
-                new_lead = db.table("leads").insert({
-                    "name": name,
-                    "fb_user_id": sender_id,
-                    "fb_page_id": page_id,
-                    "source": "facebook",
-                    "score": initial_score,
-                    "segment": initial_segment,
-                    "tenant_id": tenant_id,
-                    "opt_in_source": "facebook",
-                }).execute()
-
-                if not new_lead.data:
-                    logger.error(f"Failed to create new Facebook lead for sender {sender_id}")
-                    continue
-
-                lead_id = new_lead.data[0]["id"]
-                record_stage_event(
-                    lead_id,
-                    to_segment=initial_segment,
-                    event_type="created",
-                    metadata={"source": "facebook"},
-                    tenant_id=tenant_id,
-                    db=db,
+            # Meta Ad attribution (Click-to-Messenger)
+            if ad_id:
+                attribute_chat_to_ad(
+                    db, tenant_id=tenant_id, lead_id=lead_id, referral=referral,
+                    channel="messenger", platform="facebook",
                 )
-                try:
-                    from app.services.assignment import maybe_assign_lead
-                    maybe_assign_lead(lead_id, tenant_id, initial_segment, "facebook", reason="created")
-                except Exception as e:
-                    logger.warning(f"Auto-assign failed for Facebook lead {lead_id}: {e}")
-
-            # ── Meta Ad attribution (Click-to-Messenger) ────────────────────
-            # Only runs when referral.source_type == "ad" (user clicked a Messenger ad)
-            # Links the lead to an ad_campaign row so it appears in Meta Ad Leads page
-            if referral.get("source_type") == "ad":
-                try:
-                    ad_id    = referral.get("source_id", "")
-                    ad_title = referral.get("headline") or referral.get("ad_title") or ad_id
-                    campaign = get_or_create_campaign(
-                        db,
-                        tenant_id=tenant_id,
-                        platform="facebook",
-                        campaign_name=ad_title,
-                        external_campaign_id=ad_id or None,
-                    )
-                    if campaign:
-                        # Only set ad_campaign_id if not already attributed
-                        current = (
-                            db.table("leads").select("ad_campaign_id")
-                            .eq("id", lead_id).limit(1).execute()
-                        )
-                        if current.data and not current.data[0].get("ad_campaign_id"):
-                            db.table("leads").update(
-                                {"ad_campaign_id": campaign["id"]}
-                            ).eq("id", lead_id).execute()
-                            logger.info(
-                                f"Facebook Ad referral: lead {lead_id} linked to "
-                                f"campaign {campaign['id']} (ad_id={ad_id})"
-                            )
-                except Exception as fb_ad_err:
-                    logger.warning(f"Facebook ad referral tracking failed for lead {lead_id}: {fb_ad_err}")
-            # ─────────────────────────────────────────────────────────────────
 
             # Step 2: Prevent duplicate message insertion
             already = (
@@ -205,7 +203,7 @@ async def facebook_webhook(tenant_id: str, request: Request, background_tasks: B
                 "tenant_id": tenant_id,
                 # See instagram.py: the flag belongs on the message because
                 # the lead-level ad link is not refreshed on repeat contacts.
-                "via_ad_referral": referral.get("source_type") == "ad",
+                "via_ad_referral": bool(ad_id),
             }).execute()
 
             try:

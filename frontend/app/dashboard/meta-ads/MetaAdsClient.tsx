@@ -3,7 +3,7 @@ import { AdPerformanceTab } from "./AdPerformanceTab";
 import { AllAdsTab } from "./AllAdsTab";
 
 const TABS: { view: "whatsapp" | "all"; href: string; label: string }[] = [
-  { view: "whatsapp", href: "/dashboard/meta-ads", label: "WhatsApp ads" },
+  { view: "whatsapp", href: "/dashboard/meta-ads", label: "Messaging ads" },
   { view: "all", href: "/dashboard/meta-ads/all-ads", label: "All ads" },
 ];
 

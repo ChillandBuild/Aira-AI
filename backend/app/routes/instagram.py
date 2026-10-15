@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Request, BackgroundTasks, HTTPException, Response
 from app.db.supabase import get_supabase
 from app.config_dynamic import get_setting
-from app.services.growth import record_stage_event, get_or_create_campaign
+from app.services.growth import record_stage_event
+from app.services.meta_ctwa_attribution import attribute_chat_to_ad, parse_ad_referral
 from app.services.ai_reply import generate_reply
 from app.services.meta_webhook_verify import (
     verify_meta_signature,
@@ -15,6 +16,60 @@ from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _get_or_create_instagram_lead(db, tenant_id: str, sender_id: str) -> str | None:
+    """The tenant's lead for this Instagram user, created (and auto-assigned) on first
+    contact; a soft-deleted lead is restored. None only if the insert failed."""
+    existing = (
+        db.table("leads")
+        .select("id,score,segment,deleted_at,ai_enabled")
+        .eq("ig_user_id", sender_id)
+        .eq("tenant_id", tenant_id)
+        .limit(1)
+        .execute()
+    )
+    if existing.data:
+        lead_id = existing.data[0]["id"]
+        if existing.data[0].get("deleted_at"):
+            db.table("leads").update({
+                "deleted_at": None,
+                "ai_enabled": True,
+                "needs_human_intervention": False,
+            }).eq("id", lead_id).execute()
+            logger.info(f"Restored soft-deleted Instagram lead {lead_id}")
+        return lead_id
+
+    name = f"Instagram User {sender_id[:6]}"
+    initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
+    new_lead = db.table("leads").insert({
+        "name": name,
+        "ig_user_id": sender_id,
+        "source": "instagram",
+        "score": initial_score,
+        "segment": initial_segment,
+        "tenant_id": tenant_id,
+        "opt_in_source": "instagram",
+    }).execute()
+    if not new_lead.data:
+        logger.error(f"Failed to create new Instagram lead for sender {sender_id}")
+        return None
+
+    lead_id = new_lead.data[0]["id"]
+    record_stage_event(
+        lead_id,
+        to_segment=initial_segment,
+        event_type="created",
+        metadata={"source": "instagram"},
+        tenant_id=tenant_id,
+        db=db
+    )
+    try:
+        from app.services.assignment import maybe_assign_lead
+        maybe_assign_lead(lead_id, tenant_id, initial_segment, "instagram", reason="created")
+    except Exception as e:
+        logger.warning(f"Auto-assign failed for Instagram lead {lead_id}: {e}")
+    return lead_id
 
 
 @router.get("/{tenant_id}")
@@ -97,8 +152,23 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
 
         for event in messaging:
             # We ignore echo messages (messages sent by our own application/page)
-            message = event.get("message", {})
+            message = event.get("message") or {}
+            sender_id = event.get("sender", {}).get("id")
+            # Meta Ad referral: {source: "ADS", type: "OPEN_THREAD", ad_id, ...}
+            # on the message when a Click-to-Instagram-Direct ad opens the chat.
+            referral = event.get("referral") or message.get("referral") or {}
+            ad_id = parse_ad_referral(referral)
+
             if not message or message.get("is_echo"):
+                if not message and ad_id and sender_id:
+                    # Standalone referral event carrying an ad id: credit the ad.
+                    lead_id = _get_or_create_instagram_lead(db, tenant_id, sender_id)
+                    if lead_id:
+                        attribute_chat_to_ad(
+                            db, tenant_id=tenant_id, lead_id=lead_id, referral=referral,
+                            channel="instagram", platform="instagram",
+                        )
+                    continue
                 logger.info(
                     f"Instagram event skipped for tenant {tenant_id}: "
                     f"has_message={bool(message)} is_echo={bool(message.get('is_echo'))} "
@@ -108,9 +178,17 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
 
             message_id = message.get("mid")
             text = (message.get("text") or "").strip()
-            sender_id = event.get("sender", {}).get("id")
 
             if not sender_id or not text or not message_id:
+                # Meta's documented ad-click message can carry only the referral,
+                # no text. Still credit the ad; there is nothing to store or reply to.
+                if ad_id and sender_id:
+                    lead_id = _get_or_create_instagram_lead(db, tenant_id, sender_id)
+                    if lead_id:
+                        attribute_chat_to_ad(
+                            db, tenant_id=tenant_id, lead_id=lead_id, referral=referral,
+                            channel="instagram", platform="instagram",
+                        )
                 # Attachments, stickers and reactions land here — no text to reply to.
                 logger.info(
                     f"Instagram message skipped for tenant {tenant_id}: "
@@ -119,92 +197,17 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                 )
                 continue
 
-            # Meta Ad referral — present when user clicks a Click-to-Instagram-DM ad
-            # Structure mirrors WhatsApp CTWA: referral.source_type == "ad"
-            referral = event.get("referral") or message.get("referral") or {}
-
             # Step 1: Look up or create the lead by ig_user_id
-            existing = (
-                db.table("leads")
-                .select("id,score,segment,deleted_at,ai_enabled")
-                .eq("ig_user_id", sender_id)
-                .eq("tenant_id", tenant_id)
-                .limit(1)
-                .execute()
-            )
+            lead_id = _get_or_create_instagram_lead(db, tenant_id, sender_id)
+            if not lead_id:
+                continue
 
-            if existing.data:
-                lead_id = existing.data[0]["id"]
-                if existing.data[0].get("deleted_at"):
-                    db.table("leads").update({
-                        "deleted_at": None,
-                        "ai_enabled": True,
-                        "needs_human_intervention": False,
-                    }).eq("id", lead_id).execute()
-                    logger.info(f"Restored soft-deleted Instagram lead {lead_id}")
-            else:
-                name = f"Instagram User {sender_id[:6]}"
-                initial_score, initial_segment = new_lead_score_and_segment(tenant_id)
-                new_lead = db.table("leads").insert({
-                    "name": name,
-                    "ig_user_id": sender_id,
-                    "source": "instagram",
-                    "score": initial_score,
-                    "segment": initial_segment,
-                    "tenant_id": tenant_id,
-                    "opt_in_source": "instagram",
-                }).execute()
-
-                if not new_lead.data:
-                    logger.error(f"Failed to create new Instagram lead for sender {sender_id}")
-                    continue
-
-                lead_id = new_lead.data[0]["id"]
-                record_stage_event(
-                    lead_id,
-                    to_segment=initial_segment,
-                    event_type="created",
-                    metadata={"source": "instagram"},
-                    tenant_id=tenant_id,
-                    db=db
+            # Meta Ad attribution (Click-to-Instagram-Direct)
+            if ad_id:
+                attribute_chat_to_ad(
+                    db, tenant_id=tenant_id, lead_id=lead_id, referral=referral,
+                    channel="instagram", platform="instagram",
                 )
-                try:
-                    from app.services.assignment import maybe_assign_lead
-                    maybe_assign_lead(lead_id, tenant_id, initial_segment, "instagram", reason="created")
-                except Exception as e:
-                    logger.warning(f"Auto-assign failed for Instagram lead {lead_id}: {e}")
-
-            # ── Meta Ad attribution (Click-to-Instagram-DM) ──────────────────
-            # Only runs when referral.source_type == "ad" (i.e. user clicked an ad)
-            # Links the lead to an ad_campaign row so it appears in Meta Ad Leads page
-            if referral.get("source_type") == "ad":
-                try:
-                    ad_id       = referral.get("source_id", "")
-                    ad_title    = referral.get("headline") or referral.get("ad_title") or ad_id
-                    campaign = get_or_create_campaign(
-                        db,
-                        tenant_id=tenant_id,
-                        platform="instagram",
-                        campaign_name=ad_title,
-                        external_campaign_id=ad_id or None,
-                    )
-                    if campaign:
-                        # Only set if not already attributed to an ad
-                        current = (
-                            db.table("leads").select("ad_campaign_id")
-                            .eq("id", lead_id).limit(1).execute()
-                        )
-                        if current.data and not current.data[0].get("ad_campaign_id"):
-                            db.table("leads").update(
-                                {"ad_campaign_id": campaign["id"]}
-                            ).eq("id", lead_id).execute()
-                            logger.info(
-                                f"Instagram Ad referral: lead {lead_id} linked to "
-                                f"campaign {campaign['id']} (ad_id={ad_id})"
-                            )
-                except Exception as ig_ad_err:
-                    logger.warning(f"Instagram ad referral tracking failed for lead {lead_id}: {ig_ad_err}")
-            # ─────────────────────────────────────────────────────────────────
 
             # Step 2: Prevent duplicate message insertion
             already = (
@@ -232,7 +235,7 @@ async def instagram_webhook(tenant_id: str, request: Request, background_tasks: 
                 # contacts, so it can't tell us "this particular message came
                 # from an ad". /analytics/overview reads this column to count
                 # returning leads an ad brought back.
-                "via_ad_referral": referral.get("source_type") == "ad",
+                "via_ad_referral": bool(ad_id),
             }
             db.table("messages").insert(insert_row).execute()
             logger.info(f"Instagram message stored for tenant {tenant_id}: lead={lead_id} mid={message_id}")

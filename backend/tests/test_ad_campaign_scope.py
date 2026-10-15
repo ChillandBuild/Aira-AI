@@ -21,7 +21,7 @@ def _db():
     db.add("ad_campaigns", id="p-chat", tenant_id="t1", campaign_name="Chat with us", platform="whatsapp",
            external_campaign_id="120254794740480747", meta_ad_account_id=None)
     db.add("ad_creatives", id="ad-1", tenant_id="t1", campaign_id="c-wb-aug", meta_ad_id="120254794740480747",
-           meta_ad_account_id=CURRENT)
+           meta_ad_account_id=CURRENT, messaging_channels=["whatsapp"])
     # Another tenant's row with the same ad id must never be pulled in.
     db.add("ad_campaigns", id="other-tenant", tenant_id="t2", campaign_name="Chat with us",
            external_campaign_id="120254794740480747", meta_ad_account_id=None)
@@ -102,7 +102,7 @@ def test_meta_ads_rows_carry_the_campaigns_meta_creation_date():
     db = _db()
     db.tables["ad_campaigns"][0]["meta_created_at"] = "2026-08-14T05:00:00+00:00"
     db.tables["ad_creatives"][0].update(is_click_to_whatsapp=True, tracked_in_anril=True, creative_label="Astro Whatsapp-WB",
-                                        ad_effective_status="PAUSED")
+                                        ad_effective_status="PAUSED", messaging_channels=["whatsapp"])
     rows = ad_performance.build_creative_performance(db, "t1")
     assert [r["campaign_created_at"] for r in rows] == ["2026-08-14T05:00:00+00:00"]
 

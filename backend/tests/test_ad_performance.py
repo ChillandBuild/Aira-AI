@@ -91,7 +91,7 @@ def test_frontend_dropdown_keys_all_exist_server_side():
         assert key in DELIVERY_GROUPS
 
 
-# --- Tracked-in-Anril scope, sync start clip, live Meta columns, all-ads ---
+# --- Tracked-in-Anril scope, sync start clip, all-ads ---
 
 import pytest
 
@@ -109,13 +109,27 @@ def _perf_db():
     db.add("ad_campaigns", id="c1", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_name="Camp A")
     db.add("ad_creatives", id="ad-1", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
            is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m1",
-           creative_label="One", destination_type="WHATSAPP", ad_effective_status="ACTIVE")
+           creative_label="One", destination_type="WHATSAPP", ad_effective_status="ACTIVE",
+           messaging_channels=["whatsapp"])
+    # Website ad: not a messaging ad, so it is in no list and no report.
     db.add("ad_creatives", id="ad-2", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
-           is_click_to_whatsapp=True, tracked_in_anril=False, meta_ad_id="m2",
-           creative_label="Two", destination_type="WEBSITE", ad_effective_status="ACTIVE")
+           is_click_to_whatsapp=False, tracked_in_anril=False, meta_ad_id="m2",
+           creative_label="Two", destination_type="WEBSITE", ad_effective_status="ACTIVE",
+           messaging_channels=[])
     db.add("ad_creatives", id="ad-3", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
            is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m3",
-           creative_label="Three", destination_type="WHATSAPP_MESSENGER", ad_effective_status="PAUSED")
+           creative_label="Three", destination_type="WHATSAPP_MESSENGER", ad_effective_status="PAUSED",
+           messaging_channels=["whatsapp", "messenger"])
+    # Instagram-only messaging ad: no WhatsApp anywhere in its destination.
+    db.add("ad_creatives", id="ad-4", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
+           is_click_to_whatsapp=False, tracked_in_anril=True, meta_ad_id="m4",
+           creative_label="Four", destination_type="INSTAGRAM_DIRECT", ad_effective_status="ACTIVE",
+           messaging_channels=["instagram"])
+    # Messenger-only messaging ad that is not tracked in Anril yet.
+    db.add("ad_creatives", id="ad-5", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
+           is_click_to_whatsapp=False, tracked_in_anril=False, meta_ad_id="m5",
+           creative_label="Five", destination_type="MESSENGER", ad_effective_status="ACTIVE",
+           messaging_channels=["messenger"])
     return db
 
 
@@ -151,17 +165,62 @@ def meta(monkeypatch):
 
 def test_untracked_creative_is_left_out(settings):
     rows = ad_performance.build_creative_performance(_perf_db(), "t1")
-    assert sorted(r["ad_creative_id"] for r in rows) == ["ad-1", "ad-3"]
+    assert sorted(r["ad_creative_id"] for r in rows) == ["ad-1", "ad-3", "ad-4"]
 
 
 def test_rows_carry_destination_type_and_multi_destination_flag(settings):
     rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(_perf_db(), "t1")}
     assert rows["ad-1"]["destination_type"] == "WHATSAPP"
     assert rows["ad-1"]["is_multi_destination"] is False
+    assert rows["ad-1"]["messaging_channels"] == ["whatsapp"]
     assert rows["ad-3"]["destination_type"] == "WHATSAPP_MESSENGER"
     assert rows["ad-3"]["is_multi_destination"] is True
-    assert rows["ad-1"]["meta"] is None
-    assert rows["ad-1"]["breakdown_rows"] is None
+    assert rows["ad-3"]["messaging_channels"] == ["whatsapp", "messenger"]
+
+
+def test_instagram_only_creative_appears_in_the_report(settings):
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(_perf_db(), "t1")}
+    assert rows["ad-4"]["destination_type"] == "INSTAGRAM_DIRECT"
+    assert rows["ad-4"]["messaging_channels"] == ["instagram"]
+    assert rows["ad-4"]["is_multi_destination"] is False
+    assert rows["ad-4"]["messages_by_channel"] == {"whatsapp": 0, "instagram": 0, "messenger": 0}
+
+
+_MISSING = object()
+
+
+def _attribute(db, lead_id, segment, channel=_MISSING, meta_ad_id="m1"):
+    """One lead's first contact with an ad. channel=_MISSING leaves the column out entirely."""
+    db.add("leads", id=lead_id, tenant_id="t1", segment=segment)
+    row = dict(tenant_id="t1", meta_ad_account_id=ACCOUNT, lead_id=lead_id,
+               meta_ad_id=meta_ad_id, first_seen_at="2026-09-05T10:00:00+00:00")
+    if channel is not _MISSING:
+        row["channel"] = channel
+    db.add("lead_meta_ad_attributions", **row)
+
+
+def test_messages_split_by_channel_and_total_stays_the_sum(settings):
+    db = _perf_db()
+    _attribute(db, "L1", "A", "whatsapp")
+    _attribute(db, "L2", "B", "whatsapp")
+    _attribute(db, "L3", "B", "instagram")
+
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(db, "t1")}
+
+    assert rows["ad-1"]["messages"] == 3
+    assert rows["ad-1"]["messages_by_channel"] == {"whatsapp": 2, "instagram": 1, "messenger": 0}
+    assert rows["ad-1"]["hot"] == 1
+
+
+def test_attribution_without_a_channel_counts_as_whatsapp(settings):
+    db = _perf_db()
+    _attribute(db, "L1", "B", None)
+    _attribute(db, "L2", "B")
+
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(db, "t1")}
+
+    assert rows["ad-1"]["messages"] == 2
+    assert rows["ad-1"]["messages_by_channel"] == {"whatsapp": 2, "instagram": 0, "messenger": 0}
 
 
 def test_sync_start_date_bounds_the_insights_query(settings, monkeypatch):
@@ -183,49 +242,6 @@ def test_sync_start_date_bounds_the_insights_query(settings, monkeypatch):
     assert reach_calls[0]["date_from"] == "2026-09-01"
 
 
-def test_meta_fields_fill_row_meta_for_each_ad(settings, meta):
-    meta.results = [{"meta_ad_id": "m1", "ad_name": "x", "adset_name": "y", "campaign_name": "z",
-                     "destination_type": "WHATSAPP", "breakdown": None, "values": {"results": 5}}]
-    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(
-        _perf_db(), "t1", date_from="2026-09-01", date_to="2026-09-30", meta_fields=["results"])}
-
-    assert rows["ad-1"]["meta"] == {"results": 5}
-    assert rows["ad-3"]["meta"] is None
-    assert rows["ad-1"]["breakdown_rows"] is None
-    call = meta.calls[0]
-    assert call["keys"] == ["results"]
-    assert call["breakdown"] is None
-    assert call["ad_ids"] == {"m1", "m3"}
-    assert call["date_from"] == "2026-09-01"
-    assert call["date_to"] == "2026-09-30"
-
-
-def test_breakdown_fills_breakdown_rows_in_meta_order(settings, meta):
-    meta.results = [
-        {"meta_ad_id": "m1", "breakdown": "18-24", "values": {"spend": 3}},
-        {"meta_ad_id": "m1", "breakdown": "25-34", "values": {"spend": 7}},
-    ]
-    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(
-        _perf_db(), "t1", meta_fields=["spend"], breakdown="age")}
-
-    assert rows["ad-1"]["breakdown_rows"] == [
-        {"breakdown": "18-24", "meta": {"spend": 3}},
-        {"breakdown": "25-34", "meta": {"spend": 7}},
-    ]
-    assert rows["ad-1"]["meta"] is None
-    assert rows["ad-3"]["breakdown_rows"] == []
-
-
-def test_failed_meta_fetch_reports_error_and_keeps_rows(settings, meta):
-    meta.error = RuntimeError("boom")
-    errors: list[str] = []
-    rows = ad_performance.build_creative_performance(
-        _perf_db(), "t1", meta_fields=["results"], errors=errors)
-
-    assert len(rows) == 2
-    assert errors == ["Couldn't load Meta columns right now: boom"]
-
-
 @pytest.mark.parametrize("destination, label", [
     ("WHATSAPP", "WhatsApp"),
     ("WHATSAPP_MESSENGER", "Multi-destination"),
@@ -237,7 +253,9 @@ def test_failed_meta_fetch_reports_error_and_keeps_rows(settings, meta):
     ("FACEBOOK", "Facebook page"),
     ("APP", "App"),
     ("PHONE_CALL", "Calls"),
-    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER", "Messaging"),
+    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER", "Multi-destination"),
+    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP", "Multi-destination"),
+    ("MESSAGING_INSTAGRAM_DIRECT", "Messaging"),
     ("INSTAGRAM_STORY", "Messaging"),
     (None, "Other"),
     ("", "Other"),
@@ -247,12 +265,14 @@ def test_ad_type_label(destination, label):
     assert ad_performance.ad_type_label(destination) == label
 
 
-def test_list_ads_for_tracking_includes_untracked_and_sorts(settings):
+def test_list_ads_for_tracking_includes_every_messaging_ad_and_sorts(settings):
     rows = ad_performance.list_ads_for_tracking(_perf_db(), "t1")
-    # Same campaign for all three, so the sort falls through to creative label: One, Three, Two.
-    assert [r["ad_creative_id"] for r in rows] == ["ad-1", "ad-3", "ad-2"]
-    assert [r["tracked"] for r in rows] == [True, True, False]
-    assert rows[1]["is_multi_destination"] is True
+    # Same campaign for all, so the sort falls through to creative label:
+    # Five, Four, One, Three. The website ad (Two) is not a messaging ad, so it is left out.
+    assert [r["ad_creative_id"] for r in rows] == ["ad-5", "ad-4", "ad-1", "ad-3"]
+    assert [r["tracked"] for r in rows] == [False, True, True, True]
+    assert rows[3]["is_multi_destination"] is True
+    assert rows[1]["messaging_channels"] == ["instagram"]
     assert rows[0]["campaign_name"] == "Camp A"
 
 

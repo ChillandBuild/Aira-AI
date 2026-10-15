@@ -91,7 +91,7 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
   if (pathname?.startsWith("/dashboard/meta-ads")) {
     return {
       title: "Meta Ads",
-      description: "Meta ad performance and WhatsApp lead attribution.",
+      description: "Meta messaging ad performance and lead attribution.",
     };
   }
   if (pathname === "/dashboard/knowledge") {

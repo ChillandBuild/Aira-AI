@@ -117,6 +117,9 @@ class _Query:
         return self._add_filter(lambda r: r.get(column) == value)
 
     def neq(self, column, value):
+        if value == "{}":
+            # PostgREST reads neq.{} on an array column as "not empty".
+            return self._add_filter(lambda r: bool(r.get(column)))
         return self._add_filter(lambda r: r.get(column) != value)
 
     def is_(self, column, value):

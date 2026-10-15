@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Ban,
   Check,
@@ -26,18 +26,17 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, AdPerformanceRow, AdTrackingCodeResponse, MetaField, TrackedAd } from "@/lib/api";
+import { api, AdPerformanceRow, AdTrackingCodeResponse, TrackedAd } from "@/lib/api";
 import {
   useAdFilters,
   useAdPerformance,
-  useMetaFieldCatalog,
   useSyncStart,
   useTrackedAds,
 } from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { TickMark } from "@/components/ui/controls";
-import { AdTypeBadge, formatMetaValue, usePersistedColumns } from "./metaFields";
+import { AdTypeBadge, ChannelChips } from "./metaFields";
 
 type MetricKey =
   | "delivery_status"
@@ -69,19 +68,19 @@ const METRICS: { key: MetricKey; label: string; defaultVisible: boolean; help: s
   { key: "impressions", label: "Impressions", defaultVisible: true, help: "Times the ad was shown" },
   { key: "reach", label: "Reach", defaultVisible: true, help: "Unique people reached in Meta for the selected period" },
   { key: "frequency", label: "Frequency", defaultVisible: false, help: "Impressions divided by unique Meta reach" },
-  { key: "inline_link_clicks", label: "WhatsApp clicks", defaultVisible: true, help: "Link clicks on Click-to-WhatsApp ads" },
+  { key: "inline_link_clicks", label: "Chat clicks", defaultVisible: true, help: "Clicks that opened a WhatsApp, Instagram or Messenger chat" },
   { key: "clicks_all", label: "Clicks (all)", defaultVisible: false, help: "All interactions Meta classifies as clicks" },
-  { key: "messages", label: "Messages sent (Anril confirmed)", defaultVisible: true, help: "Unique people confirmed for this ad; repeat messages from the same person and ad count once" },
+  { key: "messages", label: "Messages sent (Anril confirmed)", defaultVisible: true, help: "Unique people who messaged from this ad on WhatsApp, Instagram or Messenger; repeat messages from the same person and ad count once" },
   { key: "meta_conversations", label: "Meta-reported conversations", defaultVisible: false, help: "Meta's advertising-system count; optional and intended only for tracking comparison" },
-  { key: "conversation_rate", label: "Message rate", defaultVisible: true, help: "Anril-confirmed messages divided by WhatsApp clicks" },
-  { key: "meta_conversation_rate", label: "Meta-reported message rate", defaultVisible: false, help: "Meta-reported conversations divided by WhatsApp clicks" },
+  { key: "conversation_rate", label: "Message rate", defaultVisible: true, help: "Anril-confirmed messages divided by chat clicks" },
+  { key: "meta_conversation_rate", label: "Meta-reported message rate", defaultVisible: false, help: "Meta-reported conversations divided by chat clicks" },
   { key: "attribution_gap", label: "Tracking difference", defaultVisible: false, help: "Anril-confirmed messages minus Meta-reported conversations" },
-  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "WhatsApp clicks not matched to a unique Anril lead for this ad" },
-  { key: "no_message_rate", label: "No-message rate", defaultVisible: false, help: "No-message clicks divided by WhatsApp clicks" },
+  { key: "clicked_no_message", label: "No message", defaultVisible: true, help: "Chat clicks not matched to a unique Anril lead for this ad" },
+  { key: "no_message_rate", label: "No-message rate", defaultVisible: false, help: "No-message clicks divided by chat clicks" },
   { key: "spend", label: "Spend", defaultVisible: true, help: "Amount spent in the selected period" },
-  { key: "cpc", label: "CPC", defaultVisible: true, help: "Spend divided by WhatsApp clicks" },
+  { key: "cpc", label: "CPC", defaultVisible: true, help: "Spend divided by chat clicks" },
   { key: "cost_per_message", label: "Cost / sent message", defaultVisible: true, help: "Spend divided by Anril-confirmed messages" },
-  { key: "ctr", label: "CTR", defaultVisible: false, help: "Click-through rate: WhatsApp clicks divided by impressions" },
+  { key: "ctr", label: "CTR", defaultVisible: false, help: "Click-through rate: chat clicks divided by impressions" },
   { key: "cpm", label: "CPM", defaultVisible: false, help: "Cost per mille: spend per 1,000 impressions" },
   { key: "hot", label: "Hot", defaultVisible: false, help: "Anril leads currently in the Hot segment" },
   { key: "hot_rate", label: "Hot lead rate", defaultVisible: false, help: "Hot leads divided by Anril-confirmed messages" },
@@ -117,24 +116,27 @@ function formatDay(iso: string) {
   return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Breakdown buckets arrive as raw Meta values ("male", "ABOVE_AVERAGE"); show them readable. */
-function prettyBreakdown(value: string) {
-  const text = value.replaceAll("_", " ").trim();
-  return text.charAt(0).toUpperCase() + text.slice(1);
+type SyncOption = { value: string; label: string; date?: string };
+
+/**
+ * Data-from presets. A preset may never reach before the earliest tracked ad:
+ * any preset dated on or before it collapses into one "Since your first ad" option
+ * dated to that ad, so no two options share a date.
+ */
+function buildSyncOptions(earliestAd: string): SyncOption[] {
+  const presets = [1, 2, 3].map((months) => ({
+    date: monthsBack(months),
+    label: months === 1 ? "Last 1 month" : `Last ${months} months`,
+  }));
+  const asOption = (preset: { date: string; label: string }): SyncOption => ({ value: preset.date, label: preset.label, date: preset.date });
+  const custom: SyncOption = { value: "custom", label: "Custom date" };
+  if (!earliestAd || presets.every((preset) => preset.date > earliestAd)) return [...presets.map(asOption), custom];
+  return [
+    ...presets.filter((preset) => preset.date > earliestAd).map(asOption),
+    { value: earliestAd, label: "Since your first ad", date: earliestAd },
+    custom,
+  ];
 }
-
-function isNumericFormat(format: MetaField["format"]) {
-  return format === "number" || format === "money" || format === "percent" || format === "decimal";
-}
-
-type SyncChoice = "1" | "2" | "3" | "custom";
-
-const SYNC_OPTIONS: { value: SyncChoice; label: string; months?: number }[] = [
-  { value: "1", label: "Last 1 month", months: 1 },
-  { value: "2", label: "Last 2 months", months: 2 },
-  { value: "3", label: "Last 3 months", months: 3 },
-  { value: "custom", label: "Custom date" },
-];
 
 function money(value: number | null | undefined) {
   if (value == null) return "—";
@@ -167,6 +169,28 @@ function budgetLabel(row: AdPerformanceRow) {
 function signedCount(value: number) {
   if (!value) return "0";
   return `${value > 0 ? "+" : ""}${Math.round(value).toLocaleString("en-IN")}`;
+}
+
+type ChannelCounts = { whatsapp: number; instagram: number; messenger: number };
+
+const CHANNEL_SHORT: { key: keyof ChannelCounts; short: string }[] = [
+  { key: "whatsapp", short: "WA" },
+  { key: "instagram", short: "IG" },
+  { key: "messenger", short: "Messenger" },
+];
+
+/** "240 WA · 20 IG · 8 Messenger". Only for ads/totals that reached two or more apps. */
+function channelSplit(byChannel: ChannelCounts | undefined): string | null {
+  if (!byChannel) return null;
+  const parts = CHANNEL_SHORT.filter((channel) => (byChannel[channel.key] ?? 0) > 0)
+    .map((channel) => `${count(byChannel[channel.key])} ${channel.short}`);
+  return parts.length >= 2 ? parts.join(" · ") : null;
+}
+
+/** Chat-app chips for an ad; the old Multi-destination badge only when no channel list came back. */
+function ChannelMarks({ channels, multiDestination }: { channels?: string[]; multiDestination?: boolean }) {
+  if (channels && channels.length > 0) return <ChannelChips channels={channels} />;
+  return multiDestination ? <AdTypeBadge type="Multi-destination" /> : null;
 }
 
 function PerformanceKpiCard({
@@ -315,6 +339,9 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
     acc.clicked_no_message += row.clicked_no_message;
     acc.hot += row.hot;
     acc.spend += row.spend;
+    acc.byChannel.whatsapp += row.messages_by_channel?.whatsapp ?? 0;
+    acc.byChannel.instagram += row.messages_by_channel?.instagram ?? 0;
+    acc.byChannel.messenger += row.messages_by_channel?.messenger ?? 0;
     return acc;
   }, {
     impressions: 0,
@@ -326,8 +353,10 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
     clicked_no_message: 0,
     hot: 0,
     spend: 0,
+    byChannel: { whatsapp: 0, instagram: 0, messenger: 0 } as ChannelCounts,
   });
 
+  const { byChannel, ...sums } = total;
   return {
     ad_creative_id: "total",
     creative_label: "Total",
@@ -341,7 +370,8 @@ function aggregateRows(rows: AdPerformanceRow[]): AdPerformanceRow {
     daily_budget: null,
     lifetime_budget: null,
     budget_level: null,
-    ...total,
+    ...sums,
+    messages_by_channel: byChannel,
     frequency: total.reach ? total.impressions / total.reach : null,
     conversation_rate: total.inline_link_clicks ? (total.messages / total.inline_link_clicks) * 100 : null,
     meta_conversation_rate: total.inline_link_clicks ? (total.meta_conversations / total.inline_link_clicks) * 100 : null,
@@ -411,13 +441,10 @@ export function AdPerformanceTab() {
   const [showReportingNotice, setShowReportingNotice] = useState(true);
   const [deliveryStatus, setDeliveryStatus] = useState("");
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
-  const [metaColumns, setMetaColumns] = usePersistedColumns("anril.metaAds.whatsapp.metaColumns", []);
-  const [metaQuery, setMetaQuery] = useState("");
-  const [breakdown, setBreakdown] = useState<string | null>(null);
   const [showManage, setShowManage] = useState(false);
   const [manageQuery, setManageQuery] = useState("");
   const [showSyncStart, setShowSyncStart] = useState(false);
-  const [syncChoice, setSyncChoice] = useState<SyncChoice>("1");
+  const [syncChoice, setSyncChoice] = useState("custom");
   const [customSyncDate, setCustomSyncDate] = useState("");
   const [savingSyncStart, setSavingSyncStart] = useState(false);
   const syncRef = useRef<HTMLDivElement>(null);
@@ -453,7 +480,6 @@ export function AdPerformanceTab() {
   }, [showSyncStart]);
 
   const { data: filters, mutate: mutateFilters } = useAdFilters();
-  const { data: catalog } = useMetaFieldCatalog();
   const { data: syncStart, mutate: mutateSyncStart } = useSyncStart();
   const { data: trackedData, mutate: mutateTracked } = useTrackedAds(showManage);
   const params = {
@@ -463,19 +489,7 @@ export function AdPerformanceTab() {
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
   };
-  // Only catalogue keys are requested, so a stale saved key can never fail the whole report.
-  const selectedMetaFields = useMemo(
-    () => (catalog?.fields ?? []).filter((field) => metaColumns.includes(field.key)),
-    [catalog, metaColumns],
-  );
-  const requestedMetaKeys = useMemo(() => selectedMetaFields.map((field) => field.key), [selectedMetaFields]);
-  const breakdownLabel = catalog?.breakdowns.find((item) => item.key === breakdown)?.label ?? breakdown ?? "";
-  const { data, isValidating, mutate } = useAdPerformance({
-    ...params,
-    metaFields: requestedMetaKeys,
-    breakdown: breakdown ?? undefined,
-  });
-  const metaError = data?.meta_error ?? null;
+  const { data, isValidating, mutate } = useAdPerformance(params);
   const allRows = useMemo(() => data?.data ?? [], [data]);
   const rows = useMemo(
     () => (deliveryStatus ? allRows.filter((row) => matchesDelivery(row, deliveryStatus)) : allRows),
@@ -495,6 +509,14 @@ export function AdPerformanceTab() {
     () => (filters?.adsets ?? []).filter((adset) => !campaignId || adset.campaign_id === campaignId),
     [filters, campaignId],
   );
+  // Generate ID writes a code into the ad's pre-filled message, which only WhatsApp
+  // ads have. Older rows without channels are WhatsApp-only creatives.
+  const whatsappCreatives = useMemo(
+    () => (filters?.creatives ?? []).filter(
+      (creative) => !creative.messaging_channels?.length || creative.messaging_channels.includes("whatsapp"),
+    ),
+    [filters],
+  );
   const creativeOptions = useMemo(
     () => (filters?.creatives ?? []).filter(
       (creative) => (!campaignId || creative.campaign_id === campaignId) && (!adsetId || creative.adset_id === adsetId),
@@ -502,7 +524,7 @@ export function AdPerformanceTab() {
     [filters, campaignId, adsetId],
   );
   const activeDimensionFilters =
-    Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId)) + Number(Boolean(deliveryStatus)) + Number(Boolean(breakdown));
+    Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId)) + Number(Boolean(deliveryStatus));
   const dataFromLabel = syncStart?.start_date ? formatDay(syncStart.start_date) : null;
   const showSyncNote = Boolean(syncStart?.start_date) && dateFrom < (syncStart?.start_date ?? "").slice(0, 10);
   const today = localDate();
@@ -510,9 +532,8 @@ export function AdPerformanceTab() {
   const earliestAd = (syncStart?.earliest_ad_start ?? "").slice(0, 10);
   // Custom date may go no earlier than the later of: the earliest ad's start, or the history limit.
   const customMin = earliestAd && earliestAd > historyFloor ? earliestAd : historyFloor;
-  const chosenSyncDate = syncChoice === "custom"
-    ? customSyncDate
-    : monthsBack(SYNC_OPTIONS.find((option) => option.value === syncChoice)?.months ?? 1);
+  const syncOptions = buildSyncOptions(earliestAd);
+  const chosenSyncDate = syncChoice === "custom" ? customSyncDate : syncChoice;
 
   const trackedGroups = useMemo(() => {
     const needle = manageQuery.trim().toLowerCase();
@@ -526,17 +547,6 @@ export function AdPerformanceTab() {
     return Array.from(byCampaign.entries());
   }, [trackedData, manageQuery]);
 
-  const metaGroups = useMemo(() => {
-    const needle = metaQuery.trim().toLowerCase();
-    const byGroup = new Map<string, MetaField[]>();
-    for (const field of catalog?.fields ?? []) {
-      if (needle && !field.label.toLowerCase().includes(needle) && !field.key.toLowerCase().includes(needle)) continue;
-      const list = byGroup.get(field.group) ?? [];
-      list.push(field);
-      byGroup.set(field.group, list);
-    }
-    return Array.from(byGroup.entries());
-  }, [catalog, metaQuery]);
   const campaignNames = useMemo(
     () => new Map((filters?.campaigns ?? []).map((campaign) => [campaign.id, campaign.name])),
     [filters],
@@ -555,16 +565,11 @@ export function AdPerformanceTab() {
     });
   }
 
-  function toggleMetaField(key: string) {
-    setMetaColumns(metaColumns.includes(key) ? metaColumns.filter((item) => item !== key) : [...metaColumns, key]);
-  }
-
   function clearFilters() {
     setCampaignId("");
     setAdsetId("");
     setCreativeId("");
     setDeliveryStatus("");
-    setBreakdown(null);
     setDateFrom(localDate(29));
     setDateTo(localDate());
   }
@@ -593,7 +598,7 @@ export function AdPerformanceTab() {
 
   function openSyncStart() {
     const current = (syncStart?.start_date ?? "").slice(0, 10);
-    const match = SYNC_OPTIONS.find((option) => option.months && monthsBack(option.months) === current);
+    const match = syncOptions.find((option) => option.date === current);
     setSyncChoice(match ? match.value : "custom");
     setCustomSyncDate(current || customMin || today);
     setShowSyncStart((visible) => !visible);
@@ -626,9 +631,9 @@ export function AdPerformanceTab() {
       const [fresh] = await Promise.all([mutate(), mutateFilters()]);
       const tableHasRows = (fresh?.data ?? []).length > 0;
       if (result.written > 0) {
-        toast.success(`Synced ${result.written} Click-to-WhatsApp row${result.written === 1 ? "" : "s"}`);
+        toast.success(`Synced ${result.written} messaging ad row${result.written === 1 ? "" : "s"}`);
       } else if (result.rows_fetched > 0) {
-        toast.info("Meta returned ads for the last 30 days, but none were single-destination Click-to-WhatsApp ads.");
+        toast.info("Meta returned ads for the last 30 days, but none were messaging ads.");
       } else {
         // Sync only asks Meta for the last 30 days; the table shows whatever dates are picked.
         toast.info(
@@ -662,7 +667,8 @@ export function AdPerformanceTab() {
   }
 
   function openTrackingModal() {
-    setTrackingCreativeId(creativeId || creativeOptions[0]?.id || filters?.creatives?.[0]?.id || "");
+    const selected = whatsappCreatives.some((creative) => creative.id === creativeId) ? creativeId : "";
+    setTrackingCreativeId(selected || whatsappCreatives[0]?.id || "");
     setTrackingResult(null);
     setCopiedTrackingMessage(false);
     setShowTrackingModal(true);
@@ -709,9 +715,9 @@ export function AdPerformanceTab() {
       <div className="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <PerformanceKpiCard
-                label="WhatsApp Clicks"
+                label="Chat Clicks"
                 value={count(totals.inline_link_clicks)}
-                description="Clicked the ad and opened WhatsApp"
+                description="Clicked the ad and opened a chat"
                 icon={MousePointerClick}
                 gradient="bg-gradient-to-br from-primary-500 to-primary"
                 tone="border-t-primary-500"
@@ -719,7 +725,7 @@ export function AdPerformanceTab() {
               <PerformanceKpiCard
                 label="Messages Sent"
                 value={count(totals.messages)}
-                description="Clicked and sent the WhatsApp message"
+                description="Clicked and sent a message"
                 icon={MessageCircle}
                 gradient="bg-gradient-to-br from-blue-500 to-cyan-600"
                 tone="border-t-sky-400"
@@ -735,7 +741,7 @@ export function AdPerformanceTab() {
               <PerformanceKpiCard
                 label="Message Rate"
                 value={percent(totals.conversation_rate)}
-                description="Messages sent out of WhatsApp clicks"
+                description="Messages sent out of chat clicks"
                 icon={Percent}
                 gradient="bg-gradient-to-br from-emerald-500 to-teal-600"
                 tone="border-t-emerald-400"
@@ -748,7 +754,7 @@ export function AdPerformanceTab() {
             <RefreshCw size={12} className={isValidating ? "animate-spin" : ""} /> Refresh
           </button>
           <button type="button" onClick={handleSyncNow} disabled={syncing || !canManage}
-            title={canManage ? "Pull the latest Click-to-WhatsApp performance from Meta" : "Needs Meta Ads write access"}
+            title={canManage ? "Pull the latest messaging ad performance from Meta" : "Needs Meta Ads write access"}
             className="flex h-9 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-label text-xs font-bold text-amber-700 shadow-sm transition-all hover:bg-amber-100 disabled:opacity-40">
             <Zap size={12} className={syncing ? "animate-pulse" : ""} /> {syncing ? "Syncing…" : "Sync now"}
           </button>
@@ -774,7 +780,7 @@ export function AdPerformanceTab() {
               aria-expanded={showColumns} aria-haspopup="dialog"
               className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-white px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-50">
               <Columns3 size={13} /> Columns
-              <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length + selectedMetaFields.length}</span>
+              <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
             </button>
             {showColumns && (
               <div role="dialog" aria-label="Customize ad performance columns"
@@ -806,60 +812,12 @@ export function AdPerformanceTab() {
                       </span>
                     </button>
                   ))}
-
-                  <div className="mt-3 border-t border-[#eee9e1] px-1 pt-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <p className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From Meta Ads Manager</p>
-                      {selectedMetaFields.length > 0 && (
-                        <button type="button" onClick={() => setMetaColumns([])}
-                          className="font-label text-[10px] font-bold text-primary-600 hover:text-primary-800">
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <div className="relative mb-2">
-                      <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
-                      <input
-                        type="search"
-                        value={metaQuery}
-                        onChange={(event) => setMetaQuery(event.target.value)}
-                        placeholder="Search Meta fields"
-                        aria-label="Search Meta fields"
-                        className="h-8 w-full rounded-xl border border-surface-mid bg-white pl-8 pr-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
-                      />
-                    </div>
-                    {metaGroups.map(([group, list]) => (
-                      <div key={group}>
-                        <p className="px-2 pb-1 pt-2 font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">
-                          {group.replaceAll("_", " ")}
-                        </p>
-                        {list.map((field) => (
-                          <button
-                            key={field.key}
-                            type="button"
-                            role="checkbox"
-                            aria-checked={metaColumns.includes(field.key)}
-                            onClick={() => toggleMetaField(field.key)}
-                            className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left hover:bg-stone-50"
-                          >
-                            <TickMark checked={metaColumns.includes(field.key)} size="sm" />
-                            <span className="block font-label text-[11px] font-bold text-stone-700">{field.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                    {metaGroups.length === 0 && (
-                      <p className="px-2 py-4 text-center font-body text-[11px] text-stone-400">
-                        {catalog ? `No fields match “${metaQuery.trim()}”.` : "Loading Meta fields…"}
-                      </p>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          <button type="button" onClick={openTrackingModal} disabled={!canManage || (filters?.creatives?.length ?? 0) === 0}
+          <button type="button" onClick={openTrackingModal} disabled={!canManage || whatsappCreatives.length === 0}
             title={canManage ? "Generate a fallback ID for a Meta ad's pre-filled WhatsApp message" : "Needs Meta Ads write access"}
             className="flex h-9 items-center justify-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-100 disabled:opacity-40">
             <KeyRound size={12} /> Generate ID
@@ -889,9 +847,8 @@ export function AdPerformanceTab() {
                 className="absolute right-0 top-11 z-30 w-[300px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-xl">
                 <p className="font-label text-xs font-bold text-[#13284A]">How far back should Anril pull ad data?</p>
                 <div role="radiogroup" aria-label="History range" className="mt-3 space-y-1">
-                  {SYNC_OPTIONS.map((option) => {
-                    const presetDate = option.months ? monthsBack(option.months) : null;
-                    const tooOld = presetDate !== null && Boolean(historyFloor) && presetDate < historyFloor;
+                  {syncOptions.map((option) => {
+                    const tooOld = option.date !== undefined && Boolean(historyFloor) && option.date < historyFloor;
                     return (
                       <label key={option.value}
                         className={cn(
@@ -903,7 +860,7 @@ export function AdPerformanceTab() {
                           onChange={() => setSyncChoice(option.value)}
                           className="h-3.5 w-3.5 accent-primary-600" />
                         <span className="flex-1">{option.label}</span>
-                        {presetDate && <span className="font-body text-[10px] font-medium text-stone-400">from {formatDay(presetDate)}</span>}
+                        {option.date && <span className="font-body text-[10px] font-medium text-stone-400">from {formatDay(option.date)}</span>}
                       </label>
                     );
                   })}
@@ -955,7 +912,7 @@ export function AdPerformanceTab() {
               <X size={11} /> Clear filters
             </button>
           </div>
-          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-7">
+          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-6">
             <div>
               <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
@@ -1015,28 +972,8 @@ export function AdPerformanceTab() {
                 <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
-            <div className="sm:col-span-2 xl:col-span-1">
-              <label htmlFor="ad-performance-breakdown" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Break down by</label>
-              <div className="relative">
-                <select id="ad-performance-breakdown" className={selectClass} value={breakdown ?? ""}
-                  onChange={(event) => setBreakdown(event.target.value || null)}>
-                  <option value="">None</option>
-                  {(catalog?.breakdowns ?? []).map((option) => (
-                    <option key={option.key} value={option.key}>{option.label}</option>
-                  ))}
-                </select>
-                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
-              </div>
-            </div>
           </div>
         </div>
-      )}
-
-      {breakdown && (
-        <p role="status" className="mb-4 font-body text-[11px] text-on-surface-muted">
-          Breakdowns split Meta’s numbers only. Anril’s own numbers (messages, hot leads) stay on the ad row.
-          {selectedMetaFields.length === 0 && " Pick Meta columns to see the split."}
-        </p>
       )}
 
       {showReportingNotice && (
@@ -1046,12 +983,12 @@ export function AdPerformanceTab() {
               <Megaphone size={15} />
             </span>
             <div>
-              <p className="font-label text-xs font-bold text-primary-950">Click-to-WhatsApp reporting</p>
+              <p className="font-label text-xs font-bold text-primary-950">Messaging ads reporting</p>
               <p className="font-body text-[11px] text-primary-700">
-                Current account {filters?.account_id ?? "not connected"} · Website, app, form, Messenger, and Instagram DM ads are excluded.
+                Current account {filters?.account_id ?? "not connected"} · Ads that open WhatsApp, Instagram or Messenger chats. Messages sent counts chats on all three apps.
               </p>
               <p className="font-body text-[10px] text-primary-600">
-                This applies only to Ad Performance; the Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram leads.
+                Website, form and app ads are on the All ads tab. The Leads tab still includes WhatsApp, Instagram, Facebook, and Telegram leads.
               </p>
             </div>
           </div>
@@ -1061,9 +998,6 @@ export function AdPerformanceTab() {
         </div>
       )}
 
-      {metaError && (
-        <p role="status" className="mb-3 font-body text-[11px] text-slate-500">{metaError}</p>
-      )}
       {showSyncNote && syncStart?.start_date && (
         <p role="status" className="mb-3 font-body text-[11px] text-slate-500">
           Showing data from {formatDay(syncStart.start_date)} — the history date set for this account.
@@ -1076,7 +1010,7 @@ export function AdPerformanceTab() {
             <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-50">
               <Megaphone size={24} className="text-primary-400" />
             </div>
-            <h3 className="mb-1 text-base font-bold text-[#1e293b]">No Click-to-WhatsApp data for this account</h3>
+            <h3 className="mb-1 text-base font-bold text-[#1e293b]">No messaging ad data for this account</h3>
             <p className="max-w-md text-sm leading-relaxed text-[#94a3b8]">
               Validate the Meta Ads card in Settings, then run Sync now. Ads from previously connected accounts stay hidden.
             </p>
@@ -1095,15 +1029,6 @@ export function AdPerformanceTab() {
                       {metric.label}
                     </th>
                   ))}
-                  {selectedMetaFields.map((field) => (
-                    <th key={`meta:${field.key}`} title={field.label}
-                      className={cn(
-                        "whitespace-nowrap px-4 py-3 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted",
-                        isNumericFormat(field.format) ? "text-right" : "text-center",
-                      )}>
-                      {field.label}
-                    </th>
-                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-mid/50">
@@ -1113,74 +1038,42 @@ export function AdPerformanceTab() {
                   // Hovering restores full opacity so the numbers stay readable.
                   const removed = isRemoved(row.delivery_status);
                   return (
-                    <Fragment key={row.ad_creative_id}>
-                      <tr
-                        className={cn(
-                          "transition-all hover:bg-surface-low/60",
-                          removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
+                    <tr
+                      key={row.ad_creative_id}
+                      className={cn(
+                        "transition-all hover:bg-surface-low/60",
+                        removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
+                      )}
+                    >
+                      <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
+                        {row.campaign_name}
+                        {row.campaign_created_at && (
+                          <span className="mt-0.5 block whitespace-nowrap text-[10px] font-normal text-on-surface-muted">
+                            Created {createdOn(row.campaign_created_at)}
+                          </span>
                         )}
-                      >
-                        <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
-                          {row.campaign_name}
-                          {row.campaign_created_at && (
-                            <span className="mt-0.5 block whitespace-nowrap text-[10px] font-normal text-on-surface-muted">
-                              Created {createdOn(row.campaign_created_at)}
-                            </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
+                      <td className="min-w-[264px] px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
+                        <span className={cn("block", removed && "line-through decoration-stone-400")}>{row.creative_label}</span>
+                        <div className="mt-1 flex justify-center">
+                          <ChannelMarks channels={row.messaging_channels} multiDestination={row.is_multi_destination} />
+                        </div>
+                      </td>
+                      {selectedMetrics.map((metric) => (
+                        <td key={metric.key} className={cn(
+                          "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
+                          metric.key === "messages" && "font-bold text-on-surface",
+                          metric.key === "inline_link_clicks" && "font-semibold text-primary-700",
+                          metric.key === "hot" && "font-semibold text-rose-600",
+                        )}>
+                          {metricValue(metric.key, row)}
+                          {metric.key === "messages" && channelSplit(row.messages_by_channel) && (
+                            <span className="mt-0.5 block text-[10px] font-normal text-on-surface-muted">{channelSplit(row.messages_by_channel)}</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
-                        <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
-                          <div className="flex flex-wrap items-center justify-center gap-1.5">
-                            <span className={cn(removed && "line-through decoration-stone-400")}>{row.creative_label}</span>
-                            {row.is_multi_destination && <AdTypeBadge type="Multi-destination" />}
-                          </div>
-                        </td>
-                        {selectedMetrics.map((metric) => (
-                          <td key={metric.key} className={cn(
-                            "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
-                            metric.key === "messages" && "font-bold text-on-surface",
-                            metric.key === "inline_link_clicks" && "font-semibold text-primary-700",
-                            metric.key === "hot" && "font-semibold text-rose-600",
-                          )}>
-                            {metricValue(metric.key, row)}
-                          </td>
-                        ))}
-                        {selectedMetaFields.map((field) => (
-                          <td key={`meta:${field.key}`} className={cn(
-                            "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
-                            isNumericFormat(field.format) ? "text-right" : "text-center",
-                          )}>
-                            {formatMetaValue(row.meta?.[field.key], field.format)}
-                          </td>
-                        ))}
-                      </tr>
-                      {breakdown && row.breakdown_rows?.map((sub) => (
-                        <tr key={`${row.ad_creative_id}:${sub.breakdown}`} className="bg-surface-low/30">
-                          <td />
-                          <td />
-                          <td className="px-4 py-2 text-left">
-                            <span className="block pl-6 font-body text-[11px] font-medium text-on-surface-muted">
-                              {prettyBreakdown(sub.breakdown)}
-                            </span>
-                          </td>
-                          {selectedMetrics.map((metric) => (
-                            <td key={metric.key}
-                              title={`Anril can't split this by ${breakdownLabel} — Meta doesn't share who your leads are.`}
-                              className="whitespace-nowrap px-4 py-2 text-center text-xs tabular-nums text-stone-300">
-                              —
-                            </td>
-                          ))}
-                          {selectedMetaFields.map((field) => (
-                            <td key={`meta:${field.key}`} className={cn(
-                              "whitespace-nowrap px-4 py-2 text-xs tabular-nums text-on-surface-muted",
-                              isNumericFormat(field.format) ? "text-right" : "text-center",
-                            )}>
-                              {formatMetaValue(sub.meta[field.key], field.format)}
-                            </td>
-                          ))}
-                        </tr>
                       ))}
-                    </Fragment>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -1192,14 +1085,9 @@ export function AdPerformanceTab() {
                   {selectedMetrics.map((metric) => (
                     <td key={metric.key} className="whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums">
                       {metric.key === "delivery_status" ? "—" : metricValue(metric.key, totals)}
-                    </td>
-                  ))}
-                  {selectedMetaFields.map((field) => (
-                    <td key={`meta:${field.key}`} className={cn(
-                      "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
-                      isNumericFormat(field.format) ? "text-right" : "text-center",
-                    )}>
-                      —
+                      {metric.key === "messages" && channelSplit(totals.messages_by_channel) && (
+                        <span className="mt-0.5 block text-[10px] font-normal text-on-surface-muted">{channelSplit(totals.messages_by_channel)}</span>
+                      )}
                     </td>
                   ))}
                 </tr>
@@ -1257,7 +1145,7 @@ export function AdPerformanceTab() {
                     }}
                   >
                     <option value="">Select a creative</option>
-                    {(filters?.creatives ?? []).map((creative) => {
+                    {whatsappCreatives.map((creative) => {
                       const campaign = creative.campaign_id ? campaignNames.get(creative.campaign_id) : null;
                       const adset = creative.adset_id ? adsetNames.get(creative.adset_id) : null;
                       const context = [campaign, adset].filter(Boolean).join(" · ");
@@ -1371,7 +1259,7 @@ export function AdPerformanceTab() {
                 <p className="py-10 text-center font-body text-xs text-stone-400">Loading ads…</p>
               ) : trackedGroups.length === 0 ? (
                 <p className="py-10 text-center font-body text-xs text-stone-400">
-                  {trackedData.data.length === 0 ? "No Click-to-WhatsApp ads yet. Run Sync now first." : "No ads match that search."}
+                  {trackedData.data.length === 0 ? "No messaging ads yet. Run Sync now first." : "No ads match that search."}
                 </p>
               ) : (
                 trackedGroups.map(([campaign, ads]) => (
@@ -1386,7 +1274,7 @@ export function AdPerformanceTab() {
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-1.5">
                               <span className="font-label text-xs font-semibold text-on-surface">{ad.creative_label}</span>
-                              {ad.is_multi_destination && <AdTypeBadge type="Multi-destination" />}
+                              <ChannelMarks channels={ad.messaging_channels} multiDestination={ad.is_multi_destination} />
                             </div>
                             <p className="mt-0.5 truncate font-body text-[10px] text-on-surface-muted">
                               {ad.adset_name} · {statusLabel(ad.delivery_status)}

@@ -23,7 +23,8 @@ def db(monkeypatch):
     fake = FakeSupabase()
     fake.add("app_settings", tenant_id="t1", key="meta_ads_account_id", value=ACCOUNT)
     fake.add("ad_creatives", id="ad-1", tenant_id="t1", meta_ad_account_id=ACCOUNT,
-             is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m1")
+             is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m1",
+             messaging_channels=["whatsapp", "instagram"], creative_label="One")
     monkeypatch.setattr(inbound_leads, "get_supabase", lambda: fake)
     return fake
 
@@ -134,3 +135,27 @@ def test_all_ads_rejects_a_reversed_date_range(client, db):
 def test_all_ads_rejects_a_malformed_date(client, db):
     res = client.get("/api/v1/inbound-leads/meta-ads/all-ads?date_from=10%2F01%2F2026")
     assert res.status_code == 400
+
+
+def test_ad_performance_csv_splits_messages_per_chat_app(client, db):
+    import csv
+    import io
+
+    for lead_id, channel in [("L1", "whatsapp"), ("L2", "whatsapp"), ("L3", "instagram")]:
+        db.add("leads", id=lead_id, tenant_id="t1", segment="B")
+        db.add("lead_meta_ad_attributions", tenant_id="t1", meta_ad_account_id=ACCOUNT,
+               lead_id=lead_id, meta_ad_id="m1", channel=channel)
+
+    res = client.get("/api/v1/inbound-leads/ad-performance/export")
+
+    assert res.status_code == 200
+    table = list(csv.reader(io.StringIO(res.content.decode("utf-8-sig"))))
+    header, row = table[0], table[1]
+    cell = dict(zip(header, row))
+    assert "WhatsApp clicks" not in header
+    assert cell["Chat clicks"] == "0"
+    assert cell["Messages sent (Anril confirmed)"] == "3"
+    assert cell["WhatsApp messages"] == "2"
+    assert cell["Instagram messages"] == "1"
+    assert cell["Messenger messages"] == "0"
+    assert header.index("WhatsApp messages") == header.index("Messages sent (Anril confirmed)") + 1

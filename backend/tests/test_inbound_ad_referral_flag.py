@@ -107,7 +107,7 @@ async def _post_instagram(db, payload):
          patch("app.routes.instagram.verify_meta_signature", return_value=True), \
          patch("app.routes.instagram.resolve_tenant_for_page", return_value="tenant-1"), \
          patch("app.routes.instagram.record_stage_event"), \
-         patch("app.routes.instagram.get_or_create_campaign", return_value={"id": "camp-1"}):
+         patch("app.routes.instagram.attribute_chat_to_ad"):
         return await instagram.instagram_webhook(
             tenant_id="tenant-1", request=request,
             background_tasks=MagicMock(spec=BackgroundTasks),
@@ -160,7 +160,7 @@ async def _post_facebook(db, payload):
          patch("app.routes.facebook.verify_meta_signature", return_value=True), \
          patch("app.routes.facebook.resolve_tenant_for_page", return_value="tenant-1"), \
          patch("app.routes.facebook.record_stage_event"), \
-         patch("app.routes.facebook.get_or_create_campaign", return_value={"id": "camp-1"}):
+         patch("app.routes.facebook.attribute_chat_to_ad"):
         return await facebook.facebook_webhook(
             tenant_id="tenant-1", request=request,
             background_tasks=MagicMock(spec=BackgroundTasks),

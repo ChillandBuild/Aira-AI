@@ -33,7 +33,7 @@ WEBHOOK_OBJECTS: dict[str, tuple[str, str, str]] = {
     "facebook": (
         "page",
         "/webhook/facebook",
-        "messages,messaging_postbacks,message_deliveries,message_reads",
+        "messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals",
     ),
     "whatsapp": (
         "whatsapp_business_account",

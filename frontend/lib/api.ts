@@ -2774,9 +2774,7 @@ export const api = {
       if (params?.ad_creative_id) qs.set("ad_creative_id", params.ad_creative_id);
       if (params?.date_from) qs.set("date_from", params.date_from);
       if (params?.date_to) qs.set("date_to", params.date_to);
-      if (params?.metaFields?.length) qs.set("meta_fields", params.metaFields.join(","));
-      if (params?.breakdown) qs.set("breakdown", params.breakdown);
-      return apiFetch<{ data: AdPerformanceRow[]; meta_error: string | null }>(`/api/v1/inbound-leads/ad-performance?${qs}`);
+      return apiFetch<{ data: AdPerformanceRow[] }>(`/api/v1/inbound-leads/ad-performance?${qs}`);
     },
     getMetaFieldCatalog: async () =>
       apiFetch<MetaFieldCatalog>(`/api/v1/inbound-leads/meta-ads/field-catalog`),
@@ -3048,12 +3046,12 @@ export interface AdPerformanceRow {
   campaign_created_at?: string | null;
   /** Meta destination type (WHATSAPP, MESSENGER, INSTAGRAM_DIRECT, WEBSITE, ON_AD, ...). */
   destination_type?: string | null;
-  /** True when the ad sends people to more than one destination (e.g. WhatsApp plus Messenger). */
+  /** True when the ad opens more than one chat app (e.g. WhatsApp plus Messenger). */
   is_multi_destination?: boolean;
-  /** Extra Meta fields requested via meta_fields; keyed by field key. Null when none were requested. */
-  meta?: Record<string, unknown> | null;
-  /** One row per breakdown bucket when a breakdown was requested; null otherwise. */
-  breakdown_rows?: { breakdown: string; meta: Record<string, unknown> }[] | null;
+  /** Chat apps this ad opens, in order: "whatsapp", "instagram", "messenger". */
+  messaging_channels?: string[];
+  /** Unique people who messaged from this ad, split by app. `messages` stays the total. */
+  messages_by_channel?: { whatsapp: number; instagram: number; messenger: number };
   daily_budget: number | null;
   lifetime_budget: number | null;
   budget_level: "campaign" | "ad_set" | null;
@@ -3087,6 +3085,7 @@ export interface AdFilterTree {
     name: string;
     meta_ad_id: string | null;
     tracking_code: string | null;
+    messaging_channels?: string[];
     adset_id: string | null;
     campaign_id: string | null;
   }[];
@@ -3110,10 +3109,6 @@ export interface AdPerformanceParams {
   /** One of the DELIVERY_GROUPS keys in ad_performance.py: active, paused,
    * archived, deleted, removed, issues. Omit for all statuses. */
   delivery_status?: string;
-  /** Meta field keys to fetch alongside the Anril metrics (sent as meta_fields). */
-  metaFields?: string[];
-  /** Meta breakdown key (e.g. "age", "gender"); sent as breakdown. */
-  breakdown?: string;
 }
 
 export interface MetaField {
@@ -3167,6 +3162,8 @@ export interface TrackedAd {
   delivery_status: string | null;
   destination_type: string | null;
   is_multi_destination: boolean;
+  /** Chat apps this ad opens: "whatsapp", "instagram", "messenger". */
+  messaging_channels?: string[];
   tracked: boolean;
 }
 

@@ -882,7 +882,7 @@ async def activate_channel(
     sub_fields = (
         "messages,messaging_postbacks,messaging_seen"
         if channel == "instagram"
-        else "messages,messaging_postbacks,message_deliveries,message_reads"
+        else "messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals"
     )
     async with httpx.AsyncClient() as client:
         sub_r = await client.post(
@@ -1443,7 +1443,7 @@ async def complete_meta_business_login(
             response = await client.post(
                 f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
                 params={
-                    "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
+                    "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals",
                     "access_token": page_token,
                 },
                 timeout=10.0,
@@ -1614,7 +1614,7 @@ async def complete_unified_meta_signup(
                 page_response = await client.post(
                     f"https://graph.facebook.com/v25.0/{payload.page_id}/subscribed_apps",
                     params={
-                        "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads",
+                        "subscribed_fields": "messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals",
                         "access_token": page["access_token"],
                     },
                     timeout=10.0,
@@ -1850,7 +1850,7 @@ async def facebook_embedded_signup(
     page_token = page["access_token"]
     ig_account = page.get("instagram_business_account")
 
-    sub_fields = "messages,messaging_postbacks,message_deliveries,message_reads"
+    sub_fields = "messages,messaging_postbacks,message_deliveries,message_reads,messaging_referrals"
     async with httpx.AsyncClient() as client:
         sub_r = await client.post(
             f"https://graph.facebook.com/v21.0/{page_id}/subscribed_apps",

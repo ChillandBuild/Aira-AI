@@ -3,8 +3,9 @@ store daily clicks/spend. Credentials come from app_settings
 (meta_ads_access_token / meta_ads_account_id, plaintext). Read-only against
 Meta (ads_read). Service-role DB writes bypass RLS.
 
-Only WhatsApp ad sets (WhatsApp-only and multi-destination) are kept, and only
-for ads marked eligible in meta_ad_registry (see refresh_ad_registry).
+Only messaging ad sets (any ad set whose destination opens WhatsApp, Instagram
+Direct or Messenger, alone or mixed) are kept, and only for ads marked eligible
+in meta_ad_registry (see refresh_ad_registry).
 """
 import json
 import logging
@@ -134,15 +135,35 @@ def set_ads_setting(db, tenant_id: str, key: str, value: str) -> None:
     }, on_conflict="tenant_id,key").execute()
 
 
+def messaging_channels_for(destination_type: str | None) -> list[str]:
+    """The chat apps an ad set's destination opens, in a fixed order:
+    WhatsApp, Instagram Direct, Messenger. Empty for non-messaging destinations
+    (website, instant form, Instagram profile, ...)."""
+    dt = (destination_type or "").upper()
+    channels: list[str] = []
+    if "WHATSAPP" in dt:
+        channels.append("whatsapp")
+    if "INSTAGRAM_DIRECT" in dt:
+        channels.append("instagram")
+    if "MESSENGER" in dt:
+        channels.append("messenger")
+    return channels
+
+
+def is_messaging_adset(row: dict | None) -> bool:
+    """Ad sets that open at least one chat app (WhatsApp, Instagram Direct or Messenger)."""
+    return bool(messaging_channels_for((row or {}).get("destination_type")))
+
+
 def is_click_to_whatsapp_adset(row: dict | None) -> bool:
     """Ad sets whose destinations include WhatsApp: WhatsApp-only and multi-destination (Messenger/Instagram + WhatsApp)."""
     return "WHATSAPP" in ((row or {}).get("destination_type") or "").upper()
 
 
 def is_multi_destination(destination_type: str | None) -> bool:
-    """WhatsApp plus Messenger and/or Instagram: Meta's numbers cover every destination."""
-    dt = (destination_type or "").upper()
-    return "WHATSAPP" in dt and dt != "WHATSAPP"
+    """Opens more than one chat app (e.g. WhatsApp + Messenger, or Messenger + Instagram).
+    Meta's numbers cover all of them."""
+    return len(messaging_channels_for(destination_type)) > 1
 
 
 def _major_currency_units(value) -> float | None:
@@ -263,6 +284,7 @@ def upsert_creative_from_insight(
     found = (existing.data or [None])[0]
     now_iso = datetime.now(timezone.utc).isoformat()
     is_ctwa = is_click_to_whatsapp_adset(adset_meta)
+    channels = messaging_channels_for((adset_meta or {}).get("destination_type"))
 
     if found:
         updates = {
@@ -276,6 +298,7 @@ def upsert_creative_from_insight(
             "effective_status": (adset_meta or {}).get("effective_status"),
             "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
             "destination_type": (adset_meta or {}).get("destination_type"),
+            "messaging_channels": channels,
             "updated_at": now_iso,
         }
         if not found.get("label_edited"):
@@ -304,6 +327,7 @@ def upsert_creative_from_insight(
         "effective_status": (adset_meta or {}).get("effective_status"),
         "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
         "destination_type": (adset_meta or {}).get("destination_type"),
+        "messaging_channels": channels,
         "prefilled_greeting_text": greeting,
         "created_at": now_iso,
         "updated_at": now_iso,
@@ -498,7 +522,7 @@ def _fetch_paged_all_statuses(
 
 def _fetch_adsets(token: str, account: str) -> list[dict]:
     """Includes deleted/archived ad sets so a deleted ad's insight rows can still
-    be classified as Click-to-WhatsApp by _select_rows."""
+    be classified as a messaging ad set by _select_rows."""
     return _fetch_paged_all_statuses(
         f"{_GRAPH_BASE}/{account}/adsets",
         {"fields": _ADSET_FIELDS, "limit": "200", "access_token": token},
@@ -700,7 +724,7 @@ def _parse_iso_datetime(raw) -> datetime | None:
 def refresh_ad_registry(
     db, tenant_id: str, account: str, ads: list[dict], adsets: list[dict],
 ) -> dict[str, str | None]:
-    """Decide which of this account's ads are WhatsApp-eligible and persist the registry.
+    """Decide which of this account's ads are messaging-eligible and persist the registry.
 
     An ad is eligible when it was already eligible (sticky: pausing or deleting it
     later never removes it), or it was created on/after the moment the account
@@ -777,7 +801,7 @@ def _select_rows(
     eligible: dict[str, str | None],
     since: str | None,
 ) -> tuple[list[dict], dict[str, dict]]:
-    """Keep insight rows for eligible ads on WhatsApp ad sets, dated on or after
+    """Keep insight rows for eligible ads on messaging ad sets, dated on or after
     `since`. No per-ad creation-day check: Meta reports no days before an ad
     existed, and comparing its created_time (any offset) to date_start (account
     time zone) could drop a real first day. Returns (kept rows, adset_by_id)."""
@@ -787,7 +811,7 @@ def _select_rows(
         ad_id = str(row.get("ad_id") or "")
         if ad_id not in eligible:
             continue
-        if not is_click_to_whatsapp_adset(adset_by_id.get(str(row.get("adset_id")))):
+        if not is_messaging_adset(adset_by_id.get(str(row.get("adset_id")))):
             continue
         day = str(row.get("date_start") or "")
         if since is not None and day < since:
@@ -823,7 +847,7 @@ def _record_sync_metadata(db, tenant_id: str, account: str, written: int) -> Non
 
 def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d") -> int:
     """Pull level=ad daily insights, including today's live delivery, and upsert rows.
-    Only WhatsApp and multi-destination ad sets, and only eligible ads (see
+    Only messaging ad sets (any chat app), and only eligible ads (see
     refresh_ad_registry), are written. Returns number of daily rows written.
     Best-effort per row — used by the background scheduler, which must never
     crash on one tenant's bad data.
@@ -894,7 +918,7 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
 def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "last_30d") -> dict:
     """Manual-trigger variant for the 'Sync now' button: same pipeline, including
     today's live delivery, as
-    sync_tenant_ad_insights (WhatsApp and multi-destination ad sets, eligible ads
+    sync_tenant_ad_insights (messaging ad sets, eligible ads
     only), but returns a diagnostic result (credential
     status, fetch errors, per-row write errors) instead of swallowing
     everything into a background-job log line.

@@ -208,13 +208,10 @@ export function useAdFilters(enabled = true, fallbackData?: AdFilterTree) {
 export function useAdPerformance(
   params: AdPerformanceParams,
   enabled = true,
-  fallbackData?: { data: AdPerformanceRow[]; meta_error: string | null },
+  fallbackData?: { data: AdPerformanceRow[] },
 ) {
-  // metaFields and breakdown are part of the key so changing either refetches.
-  const key = enabled
-    ? `ad-performance:${JSON.stringify({ ...params, metaFields: params.metaFields?.join(",") ?? "", breakdown: params.breakdown ?? "" })}`
-    : null;
-  return useSWR<{ data: AdPerformanceRow[]; meta_error: string | null }>(
+  const key = enabled ? `ad-performance:${JSON.stringify(params)}` : null;
+  return useSWR<{ data: AdPerformanceRow[] }>(
     key,
     () => api.inboundLeads.adPerformance(params),
     { ...defaultConfig, fallbackData },
