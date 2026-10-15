@@ -12,6 +12,11 @@ import {
   AdFilterTree,
   AdPerformanceRow,
   AdPerformanceParams,
+  AllAdsParams,
+  AllAdsResponse,
+  MetaFieldCatalog,
+  SyncStartInfo,
+  TrackedAd,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -203,13 +208,52 @@ export function useAdFilters(enabled = true, fallbackData?: AdFilterTree) {
 export function useAdPerformance(
   params: AdPerformanceParams,
   enabled = true,
-  fallbackData?: { data: AdPerformanceRow[] },
+  fallbackData?: { data: AdPerformanceRow[]; meta_error: string | null },
 ) {
-  const key = enabled ? `ad-performance:${JSON.stringify(params)}` : null;
-  return useSWR<{ data: AdPerformanceRow[] }>(
+  // metaFields and breakdown are part of the key so changing either refetches.
+  const key = enabled
+    ? `ad-performance:${JSON.stringify({ ...params, metaFields: params.metaFields?.join(",") ?? "", breakdown: params.breakdown ?? "" })}`
+    : null;
+  return useSWR<{ data: AdPerformanceRow[]; meta_error: string | null }>(
     key,
     () => api.inboundLeads.adPerformance(params),
     { ...defaultConfig, fallbackData },
+  );
+}
+
+/** The Meta field catalogue is static for the life of a deploy, so it is fetched once per session. */
+export function useMetaFieldCatalog() {
+  return useSWR<MetaFieldCatalog>(
+    "inbound-leads/meta-ads/field-catalog",
+    () => api.inboundLeads.getMetaFieldCatalog(),
+    { ...defaultConfig, dedupingInterval: 60 * 60_000, revalidateOnFocus: false, revalidateOnReconnect: false },
+  );
+}
+
+export function useAllMetaAds(params: AllAdsParams | null) {
+  const key = params
+    ? `all-ads:${JSON.stringify({ ...params, fields: params.fields.join(","), breakdown: params.breakdown ?? "" })}`
+    : null;
+  return useSWR<AllAdsResponse>(
+    key,
+    () => api.inboundLeads.getAllMetaAds(params!),
+    defaultConfig,
+  );
+}
+
+export function useTrackedAds(enabled = true) {
+  return useSWR<{ data: TrackedAd[] }>(
+    enabled ? "inbound-leads/meta-ads/tracked-ads" : null,
+    () => api.inboundLeads.getTrackedAds(),
+    defaultConfig,
+  );
+}
+
+export function useSyncStart(enabled = true) {
+  return useSWR<SyncStartInfo>(
+    enabled ? "inbound-leads/meta-ads/sync-start" : null,
+    () => api.inboundLeads.getSyncStart(),
+    defaultConfig,
   );
 }
 

@@ -473,6 +473,9 @@ async def update_settings(
 
     from app.config_dynamic import SECRET_SETTING_KEYS
 
+    if (payload.updates.get("meta_ads_account_id") or "").strip():
+        _stamp_meta_ads_connected(db, tenant_id, payload.updates["meta_ads_account_id"])
+
     updated = []
     for key, value in payload.updates.items():
         if key == DESCRIPTION_SETTING_KEY:
@@ -1198,6 +1201,34 @@ async def disconnect_channel(
     return {"success": True, "results": results, "released_assets": len(released_assets)}
 
 
+def _stamp_meta_ads_connected(db, tenant_id: str, account_id: str) -> None:
+    """Start the Meta Ads join rule for a newly connected ad account.
+
+    Call BEFORE meta_ads_account_id is overwritten. Reconnecting the same account
+    (e.g. a token refresh) keeps the original join time and history choice. A new
+    account gets: connected-at now, history "from today" until the tenant picks a
+    date, and a fresh snapshot of the ads running right now on its next sync
+    (services/meta_ads_insights_sync.refresh_ad_registry).
+    """
+    def _act(value: str | None) -> str:
+        v = (value or "").strip()
+        return v if v.startswith("act_") or not v else f"act_{v}"
+
+    previous = _get_setting_value(db, tenant_id, "meta_ads_account_id")
+    if _act(previous) == _act(account_id) and _get_setting_value(db, tenant_id, "meta_ads_connected_at"):
+        return
+    now = datetime.now(timezone.utc)
+    db.table("app_settings").upsert([
+        {"tenant_id": tenant_id, "key": "meta_ads_connected_at", "value": now.isoformat(),
+         "is_secret": False, "updated_at": now.isoformat()},
+        {"tenant_id": tenant_id, "key": "meta_ads_sync_start_date", "value": now.date().isoformat(),
+         "is_secret": False, "updated_at": now.isoformat()},
+    ], on_conflict="tenant_id,key").execute()
+    _delete_tenant_settings(
+        db, tenant_id, ("meta_ads_join_snapshot_account", "meta_ads_backfilled_from")
+    )
+
+
 def _save_tenant_setting(db, tenant_id: str, key: str, value: str, *, is_secret: bool = False) -> None:
     db.table("app_settings").upsert({
         "tenant_id": tenant_id,
@@ -1432,6 +1463,7 @@ async def complete_meta_business_login(
         _save_tenant_setting(db, tenant_id, "instagram_page_id", ig_account_id)
 
     if ad_account:
+        _stamp_meta_ads_connected(db, tenant_id, ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
         _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
@@ -1632,6 +1664,7 @@ async def complete_unified_meta_signup(
         _save_tenant_setting(db, tenant_id, "instagram_status", "live" if subscribed_page else "configured")
         _stamp_connection_source(db, tenant_id, "instagram", "embedded")
     if ad_account:
+        _stamp_meta_ads_connected(db, tenant_id, ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
         _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
         _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])
@@ -1747,6 +1780,7 @@ async def complete_meta_ads_signup(
 
     _claim_business_assets(db, tenant_id, [{"asset_type": "ad_account", "asset_id": ad_account["id"]}])
 
+    _stamp_meta_ads_connected(db, tenant_id, ad_account["id"])
     _save_tenant_setting(db, tenant_id, "meta_ads_access_token", access_token, is_secret=True)
     _save_tenant_setting(db, tenant_id, "meta_ads_account_id", ad_account["id"])
     _save_tenant_setting(db, tenant_id, "meta_ads_account_name", ad_account.get("name") or ad_account["id"])

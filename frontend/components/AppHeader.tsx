@@ -88,10 +88,10 @@ function getRouteMetadata(pathname: string, searchParams: URLSearchParams) {
       description: "All inbound leads — organic and Meta Ad, across messaging channels.",
     };
   }
-  if (pathname === "/dashboard/meta-ads") {
+  if (pathname?.startsWith("/dashboard/meta-ads")) {
     return {
       title: "Meta Ads",
-      description: "Click-to-WhatsApp campaign performance and lead attribution.",
+      description: "Meta ad performance and WhatsApp lead attribution.",
     };
   }
   if (pathname === "/dashboard/knowledge") {

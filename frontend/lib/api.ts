@@ -2774,8 +2774,34 @@ export const api = {
       if (params?.ad_creative_id) qs.set("ad_creative_id", params.ad_creative_id);
       if (params?.date_from) qs.set("date_from", params.date_from);
       if (params?.date_to) qs.set("date_to", params.date_to);
-      return apiFetch<{ data: AdPerformanceRow[] }>(`/api/v1/inbound-leads/ad-performance?${qs}`);
+      if (params?.metaFields?.length) qs.set("meta_fields", params.metaFields.join(","));
+      if (params?.breakdown) qs.set("breakdown", params.breakdown);
+      return apiFetch<{ data: AdPerformanceRow[]; meta_error: string | null }>(`/api/v1/inbound-leads/ad-performance?${qs}`);
     },
+    getMetaFieldCatalog: async () =>
+      apiFetch<MetaFieldCatalog>(`/api/v1/inbound-leads/meta-ads/field-catalog`),
+    getAllMetaAds: async (params: AllAdsParams) => {
+      const qs = new URLSearchParams();
+      if (params.date_from) qs.set("date_from", params.date_from);
+      if (params.date_to) qs.set("date_to", params.date_to);
+      if (params.fields.length) qs.set("fields", params.fields.join(","));
+      if (params.breakdown) qs.set("breakdown", params.breakdown);
+      return apiFetch<AllAdsResponse>(`/api/v1/inbound-leads/meta-ads/all-ads?${qs}`);
+    },
+    getTrackedAds: async () =>
+      apiFetch<{ data: TrackedAd[] }>(`/api/v1/inbound-leads/meta-ads/tracked-ads`),
+    setCreativeTracking: async (adCreativeId: string, tracked: boolean) =>
+      apiFetch<{ ad_creative_id: string; tracked: boolean }>(
+        `/api/v1/inbound-leads/ad-creatives/${encodeURIComponent(adCreativeId)}/tracking`,
+        { method: "PATCH", body: JSON.stringify({ tracked }) },
+      ),
+    getSyncStart: async () =>
+      apiFetch<SyncStartInfo>(`/api/v1/inbound-leads/meta-ads/sync-start`),
+    setSyncStart: async (startDate: string) =>
+      apiFetch<SyncStartInfo>(
+        `/api/v1/inbound-leads/meta-ads/sync-start`,
+        { method: "PUT", body: JSON.stringify({ start_date: startDate }) },
+      ),
     adPerformanceExportCsv: async (params?: AdPerformanceParams) => {
       const qs = new URLSearchParams();
       if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
@@ -3020,6 +3046,14 @@ export interface AdPerformanceRow {
   last_delivery_date?: string | null;
   /** When the campaign was created in Meta Ads Manager; null until the next sync stores it. */
   campaign_created_at?: string | null;
+  /** Meta destination type (WHATSAPP, MESSENGER, INSTAGRAM_DIRECT, WEBSITE, ON_AD, ...). */
+  destination_type?: string | null;
+  /** True when the ad sends people to more than one destination (e.g. WhatsApp plus Messenger). */
+  is_multi_destination?: boolean;
+  /** Extra Meta fields requested via meta_fields; keyed by field key. Null when none were requested. */
+  meta?: Record<string, unknown> | null;
+  /** One row per breakdown bucket when a breakdown was requested; null otherwise. */
+  breakdown_rows?: { breakdown: string; meta: Record<string, unknown> }[] | null;
   daily_budget: number | null;
   lifetime_budget: number | null;
   budget_level: "campaign" | "ad_set" | null;
@@ -3076,6 +3110,74 @@ export interface AdPerformanceParams {
   /** One of the DELIVERY_GROUPS keys in ad_performance.py: active, paused,
    * archived, deleted, removed, issues. Omit for all statuses. */
   delivery_status?: string;
+  /** Meta field keys to fetch alongside the Anril metrics (sent as meta_fields). */
+  metaFields?: string[];
+  /** Meta breakdown key (e.g. "age", "gender"); sent as breakdown. */
+  breakdown?: string;
+}
+
+export interface MetaField {
+  key: string;
+  label: string;
+  group: string;
+  format: "number" | "money" | "percent" | "decimal" | "text" | "date" | "image";
+  breakdown_ok: boolean;
+}
+
+export interface MetaBreakdown {
+  key: string;
+  label: string;
+}
+
+export interface MetaFieldCatalog {
+  fields: MetaField[];
+  breakdowns: MetaBreakdown[];
+}
+
+export interface AllAdsRow {
+  meta_ad_id: string;
+  ad_name: string;
+  adset_name: string;
+  campaign_name: string;
+  destination_type: string | null;
+  ad_type: string;
+  breakdown: string | null;
+  values: Record<string, unknown>;
+}
+
+export interface AllAdsResponse {
+  data: AllAdsRow[];
+  start_date: string | null;
+  date_from: string;
+  date_to: string;
+}
+
+export interface AllAdsParams {
+  date_from?: string;
+  date_to?: string;
+  fields: string[];
+  breakdown?: string;
+}
+
+export interface TrackedAd {
+  ad_creative_id: string;
+  creative_label: string;
+  campaign_name: string;
+  adset_name: string;
+  delivery_status: string | null;
+  destination_type: string | null;
+  is_multi_destination: boolean;
+  tracked: boolean;
+}
+
+export interface SyncStartInfo {
+  start_date: string | null;
+  connected_at: string | null;
+  backfilled_from: string | null;
+  earliest_ad_start: string | null;
+  max_history_days: number;
+  /** Only present on the response to PUT. */
+  syncing?: boolean;
 }
 
 export { API_URL };

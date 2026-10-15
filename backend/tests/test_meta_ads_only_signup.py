@@ -77,7 +77,8 @@ async def test_ads_signup_completion_connects_only_meta_ads():
         "ad_accounts": [{"id": "act_42", "name": "Astro Tamil Test"}],
         "catalogs": [],
     }
-    staged = ["ads-system-user-token", "session-1", "2999-01-01T00:00:00+00:00"]
+    # Last value: no previously connected ad account, so the join rule starts now.
+    staged = ["ads-system-user-token", "session-1", "2999-01-01T00:00:00+00:00", None]
 
     with patch("app.routes.app_settings.get_supabase", return_value=db), \
          patch("app.routes.app_settings._get_setting_value", side_effect=staged), \
@@ -103,6 +104,12 @@ async def test_ads_signup_completion_connects_only_meta_ads():
     assert stored["meta_ads_access_token"]["is_secret"] is True
     assert stored["meta_ads_account_id"]["value"] == "act_42"
     assert stored["meta_ads_connection_source"]["value"] == "embedded"
+    join_rows = [
+        row["key"]
+        for call in db.table.return_value.upsert.call_args_list if isinstance(call.args[0], list)
+        for row in call.args[0]
+    ]
+    assert join_rows == ["meta_ads_connected_at", "meta_ads_sync_start_date"]
 
     db.rpc.assert_called_once_with("claim_meta_assets", {
         "p_tenant_id": "tenant-1",

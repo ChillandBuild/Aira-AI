@@ -103,6 +103,7 @@ async def test_unified_meta_signup_completion_saves_whatsapp_and_the_selected_as
     staged_values = [
         "business-token", "session-1", "2999-01-01T00:00:00+00:00",
         "waba-1", "phone-1", None, "false",
+        None,  # no ad account connected before: the Meta Ads join rule starts now
     ]
     with patch("app.routes.app_settings.get_supabase", return_value=db), \
          patch("app.routes.app_settings._get_setting_value", side_effect=staged_values), \
@@ -520,7 +521,7 @@ async def test_business_login_complete_saves_only_the_explicitly_selected_assets
         "catalogs": [{"id": "catalog-2", "name": "Chosen Catalog"}],
     }
     with patch("app.routes.app_settings.get_supabase", return_value=db), \
-         patch("app.routes.app_settings._get_setting_value", side_effect=["business-token", "session-2", "2999-01-01T00:00:00+00:00"]), \
+         patch("app.routes.app_settings._get_setting_value", side_effect=["business-token", "session-2", "2999-01-01T00:00:00+00:00", None]), \
          patch("app.services.meta_cloud.discover_business_login_assets", new=AsyncMock(return_value=discovered)), \
          patch("app.routes.app_settings.httpx.AsyncClient", return_value=_MetaClient()), \
          patch("app.routes.app_settings.record_audit_event") as audit:
@@ -538,8 +539,13 @@ async def test_business_login_complete_saves_only_the_explicitly_selected_assets
     assert result["page_id"] == "page-2"
     assert result["ad_account_id"] == "act_2"
     assert result["catalog_id"] == "catalog-2"
-    stored = [call.args[0] for call in db.table.return_value.upsert.call_args_list]
+    stored = [
+        row
+        for call in db.table.return_value.upsert.call_args_list
+        for row in (call.args[0] if isinstance(call.args[0], list) else [call.args[0]])
+    ]
     assert {row["key"] for row in stored} >= {
+        "meta_ads_connected_at",
         "facebook_page_id", "facebook_access_token", "instagram_page_id",
         "meta_ads_account_id", "meta_ads_access_token", "meta_catalog_id",
     }

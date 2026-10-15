@@ -5,6 +5,7 @@ lead_meta_ad_attributions, so repeat messages from the same lead and ad do not
 duplicate the conversion, while the same lead may count once for another ad.
 """
 import logging
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,14 @@ def compute_cost_metrics(row: dict) -> dict:
     return row
 
 
+def _clip_date_from(date_from: str | None, start: str | None) -> str | None:
+    """Never read before the tenant's chosen sync start date (app_settings
+    meta_ads_sync_start_date). Without a start date the range is unchanged."""
+    if start:
+        return max(date_from, start) if date_from else start
+    return date_from
+
+
 def build_creative_performance(
     db,
     tenant_id: str,
@@ -71,6 +80,9 @@ def build_creative_performance(
     date_from: str | None = None,
     date_to: str | None = None,
     delivery_status: str | None = None,
+    meta_fields: list[str] | None = None,
+    breakdown: str | None = None,
+    errors: list[str] | None = None,
 ) -> list[dict]:
     """One row per creative with volume/quality/money metrics.
 
@@ -82,11 +94,16 @@ def build_creative_performance(
       delivery_status -> the computed delivery_status (see DELIVERY_GROUPS);
                          applied after rows are built, since the value is a
                          coalesce across three tables rather than one column
+      meta_fields     -> extra Meta-computed columns, fetched live into row["meta"]
+      breakdown       -> with meta_fields, live per-breakdown rows in row["breakdown_rows"]
+      errors          -> if given, a message is appended when the live Meta fetch fails
     """
     from app.services.meta_ads_insights_sync import (
         _get_ads_credentials,
         fetch_unique_reach_by_ad,
+        get_ads_setting,
         get_current_ads_account_id,
+        is_multi_destination,
         sum_actions,
     )
 
@@ -94,12 +111,16 @@ def build_creative_performance(
     if not account:
         return []
 
+    start = get_ads_setting(db, tenant_id, "meta_ads_sync_start_date")
+    date_from = _clip_date_from(date_from, start)
+
     q = db.table("ad_creatives").select(
         "id,creative_label,meta_ad_id,meta_adset_id,meta_adset_name,"
-        "campaign_id,effective_status,ad_effective_status"
+        "campaign_id,effective_status,ad_effective_status,"
+        "destination_type,tracked_in_anril"
     ).eq("tenant_id", tenant_id).eq(
         "meta_ad_account_id", account
-    ).eq("is_click_to_whatsapp", True)
+    ).eq("is_click_to_whatsapp", True).eq("tracked_in_anril", True)
     if campaign_id:
         q = q.eq("campaign_id", campaign_id)
     if adset_id:
@@ -186,6 +207,32 @@ def build_creative_performance(
             r.get("actions"),
             {"onsite_conversion.total_messaging_connection"},
         )
+
+    # Meta-computed columns (and per-breakdown rows) are fetched live from Meta,
+    # keyed by the Meta ad id of each creative.
+    meta_by_ad: dict[str, list[dict]] = {}
+    if (meta_fields or breakdown) and credentials:
+        ad_ids = {c["meta_ad_id"] for c in creatives if c.get("meta_ad_id")}
+        if ad_ids:
+            from app.services.meta_ads_fields import fetch_meta_insights_live
+
+            try:
+                results = fetch_meta_insights_live(
+                    *credentials,
+                    date_from=date_from or (
+                        datetime.now(timezone.utc).date() - timedelta(days=30)
+                    ).isoformat(),
+                    date_to=date_to or datetime.now(timezone.utc).date().isoformat(),
+                    keys=meta_fields or [],
+                    breakdown=breakdown,
+                    ad_ids=ad_ids,
+                )
+                for r in results:
+                    meta_by_ad.setdefault(r["meta_ad_id"], []).append(r)
+            except Exception as error:
+                logger.warning("Meta live columns fetch failed for tenant %s: %s", tenant_id, error)
+                if errors is not None:
+                    errors.append(f"Couldn't load Meta columns right now: {error}")
 
     # Unique lead/ad relationships. The table primary key prevents the same
     # lead from being counted twice for the same Meta ad.
@@ -322,7 +369,19 @@ def build_creative_performance(
             ),
             "attribution_gap": messages - ins["meta_conversations"],
             "revenue": 0,
+            "destination_type": c.get("destination_type"),
+            "is_multi_destination": is_multi_destination(c.get("destination_type")),
+            "meta": None,
+            "breakdown_rows": None,
         }
+        ad_meta_rows = meta_by_ad.get(c["meta_ad_id"], [])
+        if breakdown:
+            row["breakdown_rows"] = [
+                {"breakdown": r.get("breakdown"), "meta": r.get("values") or {}}
+                for r in ad_meta_rows
+            ]
+        elif ad_meta_rows:
+            row["meta"] = ad_meta_rows[0].get("values") or {}
         compute_cost_metrics(row)
         out.append(row)
 
@@ -420,6 +479,7 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
         ).eq("tenant_id", tenant_id)
         .eq("meta_ad_account_id", account)
         .eq("is_click_to_whatsapp", True)
+        .eq("tracked_in_anril", True)
         .execute().data
     ) or []
 
@@ -452,3 +512,121 @@ def build_ad_filter_tree(db, tenant_id: str) -> dict:
         ],
         "account_id": account,
     }
+
+
+def list_ads_for_tracking(db, tenant_id: str) -> list[dict]:
+    """Every click-to-WhatsApp ad of the connected account, tracked or not, so the
+    user can switch Anril tracking on or off per ad."""
+    from app.services.meta_ads_insights_sync import get_current_ads_account_id, is_multi_destination
+
+    account = get_current_ads_account_id(db, tenant_id)
+    if not account:
+        return []
+    creatives = (
+        db.table("ad_creatives").select(
+            "id,creative_label,meta_ad_id,meta_adset_name,campaign_id,"
+            "effective_status,ad_effective_status,destination_type,tracked_in_anril"
+        ).eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .eq("is_click_to_whatsapp", True)
+        .execute().data
+    ) or []
+
+    campaign_ids = sorted({c["campaign_id"] for c in creatives if c.get("campaign_id")})
+    camp_names: dict[str, str] = {}
+    if campaign_ids:
+        camps = (
+            db.table("ad_campaigns").select("id,campaign_name")
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .in_("id", campaign_ids).execute().data
+        ) or []
+        camp_names = {c["id"]: c["campaign_name"] for c in camps}
+
+    out = [
+        {
+            "ad_creative_id": c["id"],
+            "creative_label": c.get("creative_label") or c.get("meta_ad_id") or "—",
+            "campaign_name": camp_names.get(c.get("campaign_id"), "—"),
+            "adset_name": c.get("meta_adset_name") or "—",
+            "delivery_status": c.get("ad_effective_status") or c.get("effective_status"),
+            "destination_type": c.get("destination_type"),
+            "is_multi_destination": is_multi_destination(c.get("destination_type")),
+            "tracked": c.get("tracked_in_anril") is True,
+        }
+        for c in creatives
+    ]
+    out.sort(key=lambda r: (r["campaign_name"] or "", r["creative_label"] or ""))
+    return out
+
+
+def ad_type_label(destination_type: str | None) -> str:
+    """Human label for a Meta ad's destination_type (where a click goes)."""
+    value = (destination_type or "").strip().upper()
+    if not value:
+        return "Other"
+    exact = {
+        "WHATSAPP": "WhatsApp",
+        "ON_AD": "Instant form",
+        "WEBSITE": "Website",
+        "MESSENGER": "Messenger",
+        "INSTAGRAM_DIRECT": "Instagram Direct",
+        "INSTAGRAM_PROFILE": "Instagram profile",
+        "FACEBOOK": "Facebook page",
+        "APP": "App",
+        "PHONE_CALL": "Calls",
+    }
+    if value in exact:
+        return exact[value]
+    if "WHATSAPP" in value:
+        return "Multi-destination"
+    if any(word in value for word in ("MESSAGING", "MESSENGER", "INSTAGRAM")):
+        return "Messaging"
+    return value.replace("_", " ").title()
+
+
+def build_all_ads(
+    db,
+    tenant_id: str,
+    *,
+    date_from: str,
+    date_to: str,
+    fields: list[str],
+    breakdown: str | None,
+) -> dict:
+    """Live Meta numbers for every eligible ad of the connected account, not only
+    the ones tracked in Anril. Eligible ads come from meta_ad_registry."""
+    from app.services.meta_ads_fields import fetch_meta_insights_live
+    from app.services.meta_ads_insights_sync import _get_ads_credentials, get_ads_setting
+
+    credentials = _get_ads_credentials(db, tenant_id)
+    if not credentials:
+        raise ValueError("Connect a Meta Ads account first")
+    token, account = credentials
+
+    registry = (
+        db.table("meta_ad_registry").select("meta_ad_id")
+        .eq("tenant_id", tenant_id)
+        .eq("meta_ad_account_id", account)
+        .eq("eligible", True)
+        .execute().data
+    ) or []
+    eligible_ids = {r["meta_ad_id"] for r in registry if r.get("meta_ad_id")}
+
+    start = get_ads_setting(db, tenant_id, "meta_ads_sync_start_date")
+    date_from = _clip_date_from(date_from, start)
+    if date_from > date_to or not eligible_ids:
+        return {"data": [], "start_date": start, "date_from": date_from, "date_to": date_to}
+
+    rows = fetch_meta_insights_live(
+        token,
+        account,
+        date_from=date_from,
+        date_to=date_to,
+        keys=fields,
+        breakdown=breakdown,
+        ad_ids=eligible_ids,
+    )
+    for row in rows:
+        row["ad_type"] = ad_type_label(row.get("destination_type"))
+    return {"data": rows, "start_date": start, "date_from": date_from, "date_to": date_to}

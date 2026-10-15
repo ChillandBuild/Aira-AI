@@ -2,10 +2,14 @@
 store daily clicks/spend. Credentials come from app_settings
 (meta_ads_access_token / meta_ads_account_id, plaintext). Read-only against
 Meta (ads_read). Service-role DB writes bypass RLS.
+
+Only WhatsApp ad sets (WhatsApp-only and multi-destination) are kept, and only
+for ads marked eligible in meta_ad_registry (see refresh_ad_registry).
 """
 import json
 import logging
-from datetime import datetime, timezone
+import re
+from datetime import date, datetime, timedelta, timezone
 
 import httpx
 
@@ -25,7 +29,7 @@ _ADSET_FIELDS = (
     "id,name,campaign_id,optimization_goal,effective_status,destination_type,"
     "daily_budget,lifetime_budget"
 )
-_AD_FIELDS = "id,name,adset_id,campaign_id,effective_status"
+_AD_FIELDS = "id,name,adset_id,campaign_id,effective_status,created_time"
 
 # Meta's ads/adsets edges hide DELETED and ARCHIVED objects unless the request
 # asks for them by name. Without this, an ad deleted in Ads Manager simply stops
@@ -109,9 +113,36 @@ def get_current_ads_account_id(db, tenant_id: str) -> str | None:
     return normalize_account_id(value) if value else None
 
 
+def get_ads_setting(db, tenant_id: str, key: str) -> str | None:
+    """Read one app_settings value for this tenant, or None when unset."""
+    rows = (
+        db.table("app_settings").select("value")
+        .eq("tenant_id", tenant_id).eq("key", key)
+        .limit(1).execute()
+    )
+    return ((rows.data or [{}])[0]).get("value") or None
+
+
+def set_ads_setting(db, tenant_id: str, key: str, value: str) -> None:
+    """Upsert one plaintext app_settings value for this tenant."""
+    db.table("app_settings").upsert({
+        "tenant_id": tenant_id,
+        "key": key,
+        "value": value,
+        "is_secret": False,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, on_conflict="tenant_id,key").execute()
+
+
 def is_click_to_whatsapp_adset(row: dict | None) -> bool:
-    """Only single-destination WhatsApp ad sets belong in this report."""
-    return (row or {}).get("destination_type") == "WHATSAPP"
+    """Ad sets whose destinations include WhatsApp: WhatsApp-only and multi-destination (Messenger/Instagram + WhatsApp)."""
+    return "WHATSAPP" in ((row or {}).get("destination_type") or "").upper()
+
+
+def is_multi_destination(destination_type: str | None) -> bool:
+    """WhatsApp plus Messenger and/or Instagram: Meta's numbers cover every destination."""
+    dt = (destination_type or "").upper()
+    return "WHATSAPP" in dt and dt != "WHATSAPP"
 
 
 def _major_currency_units(value) -> float | None:
@@ -244,6 +275,7 @@ def upsert_creative_from_insight(
             "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
             "effective_status": (adset_meta or {}).get("effective_status"),
             "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
+            "destination_type": (adset_meta or {}).get("destination_type"),
             "updated_at": now_iso,
         }
         if not found.get("label_edited"):
@@ -271,6 +303,7 @@ def upsert_creative_from_insight(
         "optimization_goal": (adset_meta or {}).get("optimization_goal") or row.get("optimization_goal"),
         "effective_status": (adset_meta or {}).get("effective_status"),
         "cta_type": "WHATSAPP_MESSAGE" if is_ctwa else None,
+        "destination_type": (adset_meta or {}).get("destination_type"),
         "prefilled_greeting_text": greeting,
         "created_at": now_iso,
         "updated_at": now_iso,
@@ -278,13 +311,42 @@ def upsert_creative_from_insight(
     return (inserted.data or [{}])[0].get("id")
 
 
-def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
-    """One page is enough for typical accounts; follow paging.next if present."""
+_MAX_HISTORY_DAYS = 1125  # Meta keeps ~37 months of insights
+
+
+def compute_sync_since(start_date: str | None, today: date) -> str | None:
+    """max(start_date, today - 37 months) as YYYY-MM-DD, or None when no start date is set."""
+    if not start_date:
+        return None
+    try:
+        start = date.fromisoformat(start_date)
+    except ValueError:
+        logger.warning(f"Ignoring malformed meta_ads_sync_start_date: {start_date!r}")
+        return None
+    floor = today - timedelta(days=_MAX_HISTORY_DAYS)
+    return max(start, floor).isoformat()
+
+
+def _date_chunks(since: str, until: str, days: int = 30) -> list[tuple[str, str]]:
+    """Contiguous inclusive [start, end] windows of at most `days` days covering since..until."""
+    out: list[tuple[str, str]] = []
+    cur = date.fromisoformat(since)
+    end = date.fromisoformat(until)
+    while cur <= end:
+        chunk_end = min(cur + timedelta(days=days - 1), end)
+        out.append((cur.isoformat(), chunk_end.isoformat()))
+        cur = chunk_end + timedelta(days=1)
+    return out
+
+
+def _fetch_insight_pages(token: str, account: str, window: dict) -> list[dict]:
+    """Page through level=ad daily insights for one window (date_preset or time_range).
+    One page is enough for typical accounts; follow paging.next if present."""
     url = f"{_GRAPH_BASE}/{account}/insights"
     params = {
         "level": "ad",
         "fields": _INSIGHT_FIELDS,
-        "date_preset": date_preset,
+        **window,
         "time_increment": "1",   # one row per ad PER DAY
         "limit": "200",
         "access_token": token,
@@ -304,11 +366,35 @@ def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
     return out
 
 
-def _fetch_sync_insights(token: str, account: str, date_preset: str) -> list[dict]:
-    """Fetch the completed reporting window plus today's live delivery once."""
-    rows = _fetch_insights(token, account, date_preset)
-    if date_preset == "last_30d":
-        rows.extend(_fetch_insights(token, account, "today"))
+def _fetch_insights(token: str, account: str, date_preset: str) -> list[dict]:
+    """Insights for a Meta date_preset (e.g. last_30d, today)."""
+    return _fetch_insight_pages(token, account, {"date_preset": date_preset})
+
+
+def _fetch_insights_range(token: str, account: str, since: str, until: str) -> list[dict]:
+    """Insights for an explicit inclusive YYYY-MM-DD range."""
+    return _fetch_insight_pages(
+        token, account, {"time_range": json.dumps({"since": since, "until": until})},
+    )
+
+
+def _fetch_sync_insights(
+    token: str, account: str, date_preset: str, *, backfill_from: str | None = None,
+) -> list[dict]:
+    """Fetch the completed reporting window plus today's live delivery once.
+
+    With backfill_from, fetch every 30-day chunk from backfill_from through today
+    instead; today is included in the chunks, so there is no separate "today" call.
+    """
+    if backfill_from:
+        today = datetime.now(timezone.utc).date().isoformat()
+        rows = []
+        for since, until in _date_chunks(backfill_from, today):
+            rows.extend(_fetch_insights_range(token, account, since, until))
+    else:
+        rows = _fetch_insights(token, account, date_preset)
+        if date_preset == "last_30d":
+            rows.extend(_fetch_insights(token, account, "today"))
     by_ad_day = {
         (str(row.get("ad_id") or ""), str(row.get("date_start") or "")): row
         for row in rows
@@ -412,7 +498,7 @@ def _fetch_paged_all_statuses(
 
 def _fetch_adsets(token: str, account: str) -> list[dict]:
     """Includes deleted/archived ad sets so a deleted ad's insight rows can still
-    be classified as Click-to-WhatsApp by _whatsapp_rows."""
+    be classified as Click-to-WhatsApp by _select_rows."""
     return _fetch_paged_all_statuses(
         f"{_GRAPH_BASE}/{account}/adsets",
         {"fields": _ADSET_FIELDS, "limit": "200", "access_token": token},
@@ -593,52 +679,178 @@ def _write_insight_row(
     }, on_conflict="tenant_id,ad_creative_id,insight_date").execute()
 
 
-def _whatsapp_rows(rows: list[dict], adsets: list[dict]) -> tuple[list[dict], dict[str, dict]]:
+def _parse_iso_datetime(raw) -> datetime | None:
+    """Parse an ISO timestamp, a trailing "Z", or Meta's "+0530" offset form. None on failure."""
+    if not raw:
+        return None
+    s = str(raw).strip()
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    if "T" in s:
+        s = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", s)
+    try:
+        parsed = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def refresh_ad_registry(
+    db, tenant_id: str, account: str, ads: list[dict], adsets: list[dict],
+) -> dict[str, str | None]:
+    """Decide which of this account's ads are WhatsApp-eligible and persist the registry.
+
+    An ad is eligible when it was already eligible (sticky: pausing or deleting it
+    later never removes it), or it was created on/after the moment the account
+    connected, or, during the one-time join snapshot (first sync of this account),
+    it was ACTIVE. Returns {meta_ad_id: created date YYYY-MM-DD or None} for every
+    eligible ad of this account. An empty `ads` list (a failed fetch) writes nothing
+    and returns the map from existing rows.
+    """
+    existing = (
+        db.table("meta_ad_registry")
+        .select("meta_ad_id,meta_ad_account_id,eligible,status_at_join,ad_created_time")
+        .eq("tenant_id", tenant_id).execute().data
+    ) or []
+    existing_by_ad = {str(r.get("meta_ad_id") or ""): r for r in existing}
+    eligible_map: dict[str, str | None] = {}
+
+    if ads:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        connected_at = _parse_iso_datetime(get_ads_setting(db, tenant_id, "meta_ads_connected_at"))
+        if connected_at is None:
+            connected_at = datetime.now(timezone.utc)
+            set_ads_setting(db, tenant_id, "meta_ads_connected_at", connected_at.isoformat())
+        snapshot_mode = get_ads_setting(db, tenant_id, "meta_ads_join_snapshot_account") != account
+        adset_by_id = {str(a.get("id")): a for a in adsets if a.get("id")}
+
+        rows_out: list[dict] = []
+        for ad in ads:
+            ad_id = str(ad.get("id") or "").strip()
+            if not ad_id:
+                continue
+            dest = adset_by_id.get(str(ad.get("adset_id") or ""), {}).get("destination_type")
+            created = _parse_iso_datetime(ad.get("created_time"))
+            status = ad.get("effective_status")
+            prior = existing_by_ad.get(ad_id) or {}
+            eligible = (
+                bool(prior.get("eligible"))
+                or (snapshot_mode and status == "ACTIVE")
+                or (created is not None and created >= connected_at)
+            )
+            rows_out.append({
+                "tenant_id": tenant_id,
+                "meta_ad_account_id": account,
+                "meta_ad_id": ad_id,
+                "meta_adset_id": ad.get("adset_id"),
+                "meta_campaign_id": ad.get("campaign_id"),
+                "destination_type": dest,
+                "ad_created_time": created.isoformat() if created else None,
+                "status_at_join": status if snapshot_mode else prior.get("status_at_join"),
+                "eligible": eligible,
+                "updated_at": now_iso,
+            })
+            if eligible:
+                eligible_map[ad_id] = created.date().isoformat() if created else None
+        for chunk in _chunks(rows_out):
+            db.table("meta_ad_registry").upsert(
+                chunk, on_conflict="tenant_id,meta_ad_id"
+            ).execute()
+        if snapshot_mode:
+            set_ads_setting(db, tenant_id, "meta_ads_join_snapshot_account", account)
+
+    # Eligible rows of this account that this run did not see (e.g. deleted ads).
+    for r in existing:
+        ad_id = str(r.get("meta_ad_id") or "")
+        if r.get("meta_ad_account_id") != account or not r.get("eligible") or ad_id in eligible_map:
+            continue
+        created = _parse_iso_datetime(r.get("ad_created_time"))
+        eligible_map[ad_id] = created.date().isoformat() if created else None
+    return eligible_map
+
+
+def _select_rows(
+    rows: list[dict],
+    adsets: list[dict],
+    eligible: dict[str, str | None],
+    since: str | None,
+) -> tuple[list[dict], dict[str, dict]]:
+    """Keep insight rows for eligible ads on WhatsApp ad sets, dated on or after
+    `since`. No per-ad creation-day check: Meta reports no days before an ad
+    existed, and comparing its created_time (any offset) to date_start (account
+    time zone) could drop a real first day. Returns (kept rows, adset_by_id)."""
     adset_by_id = {str(r.get("id")): r for r in adsets if r.get("id")}
-    filtered = [
-        row for row in rows
-        if is_click_to_whatsapp_adset(adset_by_id.get(str(row.get("adset_id"))))
-    ]
-    return filtered, adset_by_id
+    kept: list[dict] = []
+    for row in rows:
+        ad_id = str(row.get("ad_id") or "")
+        if ad_id not in eligible:
+            continue
+        if not is_click_to_whatsapp_adset(adset_by_id.get(str(row.get("adset_id")))):
+            continue
+        day = str(row.get("date_start") or "")
+        if since is not None and day < since:
+            continue
+        kept.append(row)
+    return kept, adset_by_id
+
+
+def _fetch_ads_best_effort(token: str, account: str, tenant_id: str) -> list[dict]:
+    """The /ads edge, or [] on failure: refresh_ad_registry then keeps the eligible
+    ads it already knows, and delivery-status reconciliation skips this run."""
+    try:
+        return _fetch_ads(token, account)
+    except Exception as e:
+        logger.warning(f"Ads list fetch failed for tenant {tenant_id}: {e}")
+        return []
+
+
+def _sync_window(db, tenant_id: str) -> tuple[str | None, str | None]:
+    """(since, backfill_from): the history floor, and the start of a backfill still owed."""
+    start = get_ads_setting(db, tenant_id, "meta_ads_sync_start_date")
+    since = compute_sync_since(start, datetime.now(timezone.utc).date())
+    backfilled = get_ads_setting(db, tenant_id, "meta_ads_backfilled_from")
+    backfill_from = since if since and (not backfilled or backfilled > since) else None
+    return since, backfill_from
 
 
 def _record_sync_metadata(db, tenant_id: str, account: str, written: int) -> None:
-    now_iso = datetime.now(timezone.utc).isoformat()
-    for key, value in (
-        ("meta_ads_last_sync_at", now_iso),
-        ("meta_ads_last_sync_count", str(written)),
-        ("meta_ads_last_synced_account_id", account),
-    ):
-        db.table("app_settings").upsert({
-            "tenant_id": tenant_id,
-            "key": key,
-            "value": value,
-            "is_secret": False,
-            "updated_at": now_iso,
-        }, on_conflict="tenant_id,key").execute()
+    set_ads_setting(db, tenant_id, "meta_ads_last_sync_at", datetime.now(timezone.utc).isoformat())
+    set_ads_setting(db, tenant_id, "meta_ads_last_sync_count", str(written))
+    set_ads_setting(db, tenant_id, "meta_ads_last_synced_account_id", account)
 
 
 def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d") -> int:
     """Pull level=ad daily insights, including today's live delivery, and upsert rows.
-    Returns number of daily rows written. Best-effort per row — used by the
-    background scheduler, which must never crash on one tenant's bad data.
+    Only WhatsApp and multi-destination ad sets, and only eligible ads (see
+    refresh_ad_registry), are written. Returns number of daily rows written.
+    Best-effort per row — used by the background scheduler, which must never
+    crash on one tenant's bad data.
     """
     creds = _get_ads_credentials(db, tenant_id)
     if not creds:
         return 0
     token, account = creds
+    since, backfill_from = _sync_window(db, tenant_id)
     try:
         # Meta's last_30d preset contains completed days only. Include today's
         # partial delivery so the dashboard agrees with Ads Manager.
-        rows = _fetch_sync_insights(token, account, date_preset)
+        rows = _fetch_sync_insights(token, account, date_preset, backfill_from=backfill_from)
         adsets = _fetch_adsets(token, account)
     except Exception as e:
         logger.warning(f"Ads insights fetch failed for tenant {tenant_id}: {e}")
         return 0
-    whatsapp_rows, adset_by_id = _whatsapp_rows(rows, adsets)
+    ads = _fetch_ads_best_effort(token, account, tenant_id)
+    try:
+        eligible = refresh_ad_registry(db, tenant_id, account, ads, adsets)
+    except Exception as e:
+        logger.warning(f"ad registry update failed (tenant {tenant_id}): {e}")
+        return 0
+    selected, adset_by_id = _select_rows(rows, adsets, eligible, since)
 
     written = 0
-    for row in whatsapp_rows:
+    for row in selected:
         creative_id = upsert_creative_from_insight(
             db,
             tenant_id,
@@ -660,15 +872,20 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
             tenant_id,
             token,
             account,
-            campaign_ids={str(r.get("campaign_id")) for r in whatsapp_rows if r.get("campaign_id")},
+            campaign_ids={str(r.get("campaign_id")) for r in selected if r.get("campaign_id")},
         )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
     # After the creative upserts, so ads imported in this run get a status too.
     try:
-        sync_ad_delivery_status(db, tenant_id, token, account)
+        sync_ad_delivery_status(db, tenant_id, token, account, ads=ads)
     except Exception as e:
         logger.warning(f"ad delivery status sync failed (tenant {tenant_id}): {e}")
+    if backfill_from:
+        try:
+            set_ads_setting(db, tenant_id, "meta_ads_backfilled_from", backfill_from)
+        except Exception as e:
+            logger.warning(f"backfill marker write failed (tenant {tenant_id}): {e}")
     _record_sync_metadata(db, tenant_id, account, written)
     logger.info(f"Ads insights sync: tenant {tenant_id} wrote {written} daily rows")
     return written
@@ -677,7 +894,8 @@ def sync_tenant_ad_insights(db, tenant_id: str, *, date_preset: str = "last_30d"
 def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "last_30d") -> dict:
     """Manual-trigger variant for the 'Sync now' button: same pipeline, including
     today's live delivery, as
-    sync_tenant_ad_insights, but returns a diagnostic result (credential
+    sync_tenant_ad_insights (WhatsApp and multi-destination ad sets, eligible ads
+    only), but returns a diagnostic result (credential
     status, fetch errors, per-row write errors) instead of swallowing
     everything into a background-job log line.
     """
@@ -693,8 +911,9 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
             "written": 0,
         }
     token, account = creds
+    since, backfill_from = _sync_window(db, tenant_id)
     try:
-        rows = _fetch_sync_insights(token, account, date_preset)
+        rows = _fetch_sync_insights(token, account, date_preset, backfill_from=backfill_from)
         adsets = _fetch_adsets(token, account)
     except Exception as e:
         return {
@@ -706,11 +925,25 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
             "account_id": account,
             "written": 0,
         }
-    whatsapp_rows, adset_by_id = _whatsapp_rows(rows, adsets)
+    ads = _fetch_ads_best_effort(token, account, tenant_id)
+    try:
+        eligible = refresh_ad_registry(db, tenant_id, account, ads, adsets)
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": f"Ad registry update failed: {e}",
+            "rows_fetched": len(rows),
+            "whatsapp_rows": 0,
+            "skipped_non_whatsapp": 0,
+            "account_id": account,
+            "written": 0,
+            "backfilled_from": None,
+        }
+    selected, adset_by_id = _select_rows(rows, adsets, eligible, since)
 
     written = 0
     row_errors: list[str] = []
-    for row in whatsapp_rows:
+    for row in selected:
         try:
             creative_id = upsert_creative_from_insight(
                 db,
@@ -728,6 +961,12 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
         except Exception as e:
             row_errors.append(f"ad_id={row.get('ad_id')}: {e}")
 
+    if backfill_from and not row_errors:
+        try:
+            set_ads_setting(db, tenant_id, "meta_ads_backfilled_from", backfill_from)
+        except Exception as e:
+            logger.warning(f"backfill marker write failed (tenant {tenant_id}): {e}")
+
     # Campaign metadata is a best-effort enrichment — a failure here must NOT
     # flip the sync's ok status, since the insight rows (the primary data) may
     # have written fine. Log only, don't append to row_errors.
@@ -737,13 +976,13 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
             tenant_id,
             token,
             account,
-            campaign_ids={str(r.get("campaign_id")) for r in whatsapp_rows if r.get("campaign_id")},
+            campaign_ids={str(r.get("campaign_id")) for r in selected if r.get("campaign_id")},
         )
     except Exception as e:
         logger.warning(f"campaign meta sync failed (tenant {tenant_id}): {e}")
     delivery = {"updated": 0, "marked_deleted": 0, "reconciled": False}
     try:
-        delivery = sync_ad_delivery_status(db, tenant_id, token, account)
+        delivery = sync_ad_delivery_status(db, tenant_id, token, account, ads=ads)
     except Exception as e:
         logger.warning(f"ad delivery status sync failed (tenant {tenant_id}): {e}")
     _record_sync_metadata(db, tenant_id, account, written)
@@ -754,10 +993,11 @@ def sync_tenant_ad_insights_verbose(db, tenant_id: str, *, date_preset: str = "l
         "marked_deleted": delivery["marked_deleted"],
         "error": "; ".join(row_errors[:3]) if row_errors else None,
         "rows_fetched": len(rows),
-        "whatsapp_rows": len(whatsapp_rows),
-        "skipped_non_whatsapp": len(rows) - len(whatsapp_rows),
+        "whatsapp_rows": len(selected),
+        "skipped_non_whatsapp": len(rows) - len(selected),
         "account_id": account,
         "written": written,
+        "backfilled_from": backfill_from,
     }
 
 

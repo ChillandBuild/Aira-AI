@@ -1,6 +1,13 @@
+from datetime import date, timedelta
+
 from app.services.meta_ads_insights_sync import (
+    _date_chunks,
+    _select_rows,
+    compute_sync_since,
     is_click_to_whatsapp_adset,
+    is_multi_destination,
     normalize_account_id,
+    refresh_ad_registry,
     upsert_creative_from_insight,
     sync_tenant_ad_insights_verbose,
 )
@@ -18,12 +25,23 @@ def test_normalize_account_id_strips_whitespace():
     assert normalize_account_id("  act_123 ") == "act_123"
 
 
-def test_only_exact_whatsapp_destination_is_included():
+def test_whatsapp_destinations_are_included():
     assert is_click_to_whatsapp_adset({"destination_type": "WHATSAPP"}) is True
-    assert is_click_to_whatsapp_adset({"destination_type": "MESSENGER"}) is False
     assert is_click_to_whatsapp_adset({
-        "destination_type": "MESSAGING_MESSENGER_WHATSAPP",
-    }) is False
+        "destination_type": "MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP",
+    }) is True
+    assert is_click_to_whatsapp_adset({"destination_type": "ON_AD"}) is False
+    assert is_click_to_whatsapp_adset({"destination_type": "WEBSITE"}) is False
+    assert is_click_to_whatsapp_adset({"destination_type": None}) is False
+    assert is_click_to_whatsapp_adset(None) is False
+
+
+def test_is_multi_destination_means_whatsapp_plus_another_destination():
+    assert is_multi_destination("MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP") is True
+    assert is_multi_destination("MESSAGING_MESSENGER_WHATSAPP") is True
+    assert is_multi_destination("WHATSAPP") is False
+    assert is_multi_destination("WEBSITE") is False
+    assert is_multi_destination(None) is False
 
 
 def test_unique_reach_uses_one_meta_window_per_ad(monkeypatch):
@@ -106,15 +124,17 @@ class FakeTable:
             return R()
         if self._op == "upsert":
             key_cols = (self._on_conflict or "id").split(",")
-            existing = next(
-                (r for r in rows if all(r.get(k) == self._payload.get(k) for k in key_cols)),
-                None,
-            )
-            if existing:
-                existing.update(self._payload)
-            else:
-                rows.append(dict(self._payload))
-            class R: data = [self._payload]
+            payloads = self._payload if isinstance(self._payload, list) else [self._payload]
+            for payload in payloads:
+                existing = next(
+                    (r for r in rows if all(r.get(k) == payload.get(k) for k in key_cols)),
+                    None,
+                )
+                if existing:
+                    existing.update(payload)
+                else:
+                    rows.append(dict(payload))
+            class R: data = payloads
             return R()
         class R: data = []
         return R()
@@ -195,6 +215,10 @@ def test_verbose_sync_writes_and_reports_success(monkeypatch):
         "clicks": "5", "inline_link_clicks": "4", "spend": "10.0", "date_start": "2026-07-20",
     }]
     monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: fake_rows)
+    monkeypatch.setattr(mod, "_fetch_ads", lambda *a, **k: [{
+        "id": "A1", "adset_id": "as1", "campaign_id": "c1",
+        "effective_status": "ACTIVE", "created_time": "2026-07-01T10:00:00+0000",
+    }])
     monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
         "id": "as1",
         "name": "Set",
@@ -242,6 +266,10 @@ def test_verbose_sync_includes_today_live_delivery(monkeypatch):
         }]
 
     monkeypatch.setattr(mod, "_fetch_insights", fetch_insights)
+    monkeypatch.setattr(mod, "_fetch_ads", lambda *a, **k: [{
+        "id": "A1", "adset_id": "as1", "campaign_id": "c1",
+        "effective_status": "ACTIVE", "created_time": "2026-07-01T10:00:00+0000",
+    }])
     monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
         "id": "as1", "destination_type": "WHATSAPP",
     }])
@@ -258,33 +286,165 @@ def test_verbose_sync_includes_today_live_delivery(monkeypatch):
     }
 
 
-def test_verbose_sync_skips_non_whatsapp_ads(monkeypatch):
+def test_verbose_sync_keeps_multi_destination_and_skips_other_ads(monkeypatch):
     import app.services.meta_ads_insights_sync as mod
+    monkeypatch.setattr(mod, "get_or_create_campaign", lambda **k: {"id": "camp-1"})
     db = FakeDB()
     db.store["app_settings"] = [
         {"tenant_id": "t1", "key": "meta_ads_access_token", "value": "tok"},
         {"tenant_id": "t1", "key": "meta_ads_account_id", "value": "act_1"},
     ]
-    monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: [{
-        "ad_id": "A1",
-        "adset_id": "as1",
-        "campaign_id": "c1",
-        "date_start": "2026-07-20",
-    }])
-    monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [{
-        "id": "as1",
-        "destination_type": "WEBSITE",
-    }])
+    monkeypatch.setattr(mod, "_fetch_insights", lambda *a, **k: [
+        {"ad_id": "A1", "adset_id": "as1", "campaign_id": "c1", "date_start": "2026-07-20"},
+        {"ad_id": "A2", "adset_id": "as2", "campaign_id": "c1", "date_start": "2026-07-20"},
+        {"ad_id": "A3", "adset_id": "as3", "campaign_id": "c1", "date_start": "2026-07-20"},
+    ])
+    monkeypatch.setattr(mod, "_fetch_adsets", lambda *a, **k: [
+        {"id": "as1", "destination_type": "WEBSITE"},
+        {"id": "as2", "destination_type": "ON_AD"},
+        {"id": "as3", "destination_type": "MESSAGING_INSTAGRAM_DIRECT_MESSENGER_WHATSAPP"},
+    ])
+    monkeypatch.setattr(mod, "_fetch_ads", lambda *a, **k: [
+        {"id": "A1", "adset_id": "as1", "campaign_id": "c1", "effective_status": "ACTIVE",
+         "created_time": "2026-07-01T10:00:00+0000"},
+        {"id": "A2", "adset_id": "as2", "campaign_id": "c1", "effective_status": "ACTIVE",
+         "created_time": "2026-07-01T10:00:00+0000"},
+        {"id": "A3", "adset_id": "as3", "campaign_id": "c1", "effective_status": "ACTIVE",
+         "created_time": "2026-07-01T10:00:00+0000"},
+    ])
     monkeypatch.setattr(mod, "_fetch_campaigns", lambda *a, **k: [])
 
     result = sync_tenant_ad_insights_verbose(db, "t1")
 
     assert result["ok"] is True
-    assert result["rows_fetched"] == 1
-    assert result["whatsapp_rows"] == 0
-    assert result["skipped_non_whatsapp"] == 1
-    assert result["written"] == 0
-    assert db.store.get("ad_creatives", []) == []
+    assert result["rows_fetched"] == 3
+    assert result["whatsapp_rows"] == 1
+    assert result["skipped_non_whatsapp"] == 2
+    assert result["written"] == 1
+    assert [r["meta_ad_id"] for r in db.store["ad_creatives"]] == ["A3"]
+
+
+# --- Ad registry (eligibility) -------------------------------------------------
+
+def _registry_db(*, connected_at=None, snapshot_account=None, registry_rows=()):
+    db = FakeDB()
+    settings = []
+    if connected_at:
+        settings.append({"tenant_id": "t1", "key": "meta_ads_connected_at", "value": connected_at})
+    if snapshot_account:
+        settings.append({"tenant_id": "t1", "key": "meta_ads_join_snapshot_account", "value": snapshot_account})
+    db.store["app_settings"] = settings
+    db.store["meta_ad_registry"] = [dict(r) for r in registry_rows]
+    return db
+
+
+def _ad(ad_id, status, created, adset_id="as1"):
+    return {
+        "id": ad_id, "adset_id": adset_id, "campaign_id": "c1",
+        "effective_status": status, "created_time": created,
+    }
+
+
+def test_registry_snapshot_mode_takes_active_ads_and_recent_ones():
+    db = _registry_db(connected_at="2026-08-01T00:00:00+00:00")
+    ads = [
+        _ad("OLD_ACTIVE", "ACTIVE", "2026-07-01T10:00:00+0000"),
+        _ad("OLD_PAUSED", "PAUSED", "2026-07-01T10:00:00+0000"),
+        _ad("NEW_PAUSED", "PAUSED", "2026-08-10T10:00:00+0530"),
+    ]
+    adsets = [{"id": "as1", "destination_type": "WHATSAPP"}]
+
+    eligible = refresh_ad_registry(db, "t1", "act_1", ads, adsets)
+
+    assert eligible == {"OLD_ACTIVE": "2026-07-01", "NEW_PAUSED": "2026-08-10"}
+    by_ad = {r["meta_ad_id"]: r for r in db.store["meta_ad_registry"]}
+    assert by_ad["OLD_PAUSED"]["eligible"] is False
+    assert by_ad["OLD_ACTIVE"]["status_at_join"] == "ACTIVE"
+    assert by_ad["NEW_PAUSED"]["destination_type"] == "WHATSAPP"
+    snapshot = [s for s in db.store["app_settings"] if s["key"] == "meta_ads_join_snapshot_account"]
+    assert snapshot and snapshot[0]["value"] == "act_1"
+
+
+def test_registry_later_runs_keep_eligibility_and_skip_old_new_ads():
+    db = _registry_db(
+        connected_at="2026-08-01T00:00:00+00:00",
+        snapshot_account="act_1",
+        registry_rows=[{
+            "tenant_id": "t1", "meta_ad_id": "OLD", "meta_ad_account_id": "act_1",
+            "eligible": True, "status_at_join": "ACTIVE",
+            "ad_created_time": "2026-07-01T00:00:00+00:00",
+        }],
+    )
+    ads = [
+        _ad("OLD", "PAUSED", "2026-07-01T10:00:00+0000"),
+        _ad("FIRST_SEEN", "ACTIVE", "2026-07-15T10:00:00+0000"),
+    ]
+
+    eligible = refresh_ad_registry(db, "t1", "act_1", ads, [{"id": "as1", "destination_type": "WHATSAPP"}])
+
+    assert eligible == {"OLD": "2026-07-01"}
+    by_ad = {r["meta_ad_id"]: r for r in db.store["meta_ad_registry"]}
+    assert by_ad["OLD"]["eligible"] is True
+    assert by_ad["FIRST_SEEN"]["eligible"] is False
+
+
+def test_registry_empty_ads_writes_nothing_and_returns_existing_eligible():
+    registry = [
+        {"tenant_id": "t1", "meta_ad_id": "A_OLD", "meta_ad_account_id": "act_1",
+         "eligible": True, "ad_created_time": "2026-07-01T00:00:00+00:00"},
+        {"tenant_id": "t1", "meta_ad_id": "B_NO", "meta_ad_account_id": "act_1",
+         "eligible": False, "ad_created_time": "2026-07-01T00:00:00+00:00"},
+    ]
+    db = _registry_db(registry_rows=registry)
+
+    eligible = refresh_ad_registry(db, "t1", "act_1", [], [])
+
+    assert eligible == {"A_OLD": "2026-07-01"}
+    assert db.store["meta_ad_registry"] == registry
+    assert db.store.get("app_settings", []) == []
+
+
+def test_compute_sync_since_clamps_to_37_months():
+    today = date(2026, 10, 15)
+    assert compute_sync_since(None, today) is None
+    assert compute_sync_since("2026-08-01", today) == "2026-08-01"
+    floor = today - timedelta(days=1125)
+    assert compute_sync_since("2020-01-01", today) == floor.isoformat()
+
+
+def test_date_chunks_are_contiguous_inclusive_and_at_most_30_days():
+    chunks = _date_chunks("2026-08-24", "2026-10-15")
+    assert chunks[0][0] == "2026-08-24"
+    assert chunks[-1][1] == "2026-10-15"
+    for (_, end), (start, _) in zip(chunks, chunks[1:]):
+        assert date.fromisoformat(start) == date.fromisoformat(end) + timedelta(days=1)
+    for start, end in chunks:
+        assert (date.fromisoformat(end) - date.fromisoformat(start)).days + 1 <= 30
+
+
+def test_select_rows_applies_since_and_eligibility():
+    rows = [
+        {"ad_id": "A1", "adset_id": "as1", "date_start": "2026-06-30"},
+        {"ad_id": "A1", "adset_id": "as1", "date_start": "2026-08-24"},
+        {"ad_id": "A2", "adset_id": "as1", "date_start": "2026-08-25"},
+    ]
+    adsets = [{"id": "as1", "destination_type": "WHATSAPP"}]
+
+    kept, adset_by_id = _select_rows(rows, adsets, {"A1": "2026-08-24"}, "2026-07-01")
+
+    assert [r["date_start"] for r in kept] == ["2026-08-24"]
+    assert adset_by_id["as1"]["destination_type"] == "WHATSAPP"
+
+
+def test_failed_ads_fetch_still_syncs_known_eligible_ads(monkeypatch):
+    """Breaks if a flaky /ads call blanks the whole sync instead of falling back."""
+    import app.services.meta_ads_insights_sync as sync
+
+    def boom(*_a, **_k):
+        raise RuntimeError("ads edge down")
+
+    monkeypatch.setattr(sync, "_fetch_ads", boom)
+    assert sync._fetch_ads_best_effort("tok", "act_1", "t1") == []
 
 
 # --- Ad-level delivery status (fix for stale "Active" on deleted ads) ---------

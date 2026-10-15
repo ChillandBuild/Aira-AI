@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Ban,
   Check,
   ChevronDown,
   Columns3,
+  CalendarDays,
   Copy,
   Download,
   Filter,
@@ -19,16 +20,24 @@ import {
   Percent,
   RefreshCw,
   RotateCcw,
+  Search,
   SlidersHorizontal,
   X,
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { api, AdPerformanceRow, AdTrackingCodeResponse } from "@/lib/api";
-import { useAdFilters, useAdPerformance } from "@/hooks/useApi";
+import { api, AdPerformanceRow, AdTrackingCodeResponse, MetaField, TrackedAd } from "@/lib/api";
+import {
+  useAdFilters,
+  useAdPerformance,
+  useMetaFieldCatalog,
+  useSyncStart,
+  useTrackedAds,
+} from "@/hooks/useApi";
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { TickMark } from "@/components/ui/controls";
+import { AdTypeBadge, formatMetaValue, usePersistedColumns } from "./metaFields";
 
 type MetricKey =
   | "delivery_status"
@@ -81,14 +90,51 @@ const METRICS: { key: MetricKey; label: string; defaultVisible: boolean; help: s
 
 const DEFAULT_METRICS = new Set(METRICS.filter((metric) => metric.defaultVisible).map((metric) => metric.key));
 
-function localDate(daysBack = 0) {
-  const date = new Date();
-  date.setDate(date.getDate() - daysBack);
+function isoLocal(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+function localDate(daysBack = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() - daysBack);
+  return isoLocal(date);
+}
+
+/** Today minus N months, clamped to the end of the target month (31 Mar - 1 month = 28/29 Feb). */
+function monthsBack(months: number) {
+  const today = new Date();
+  const target = new Date(today.getFullYear(), today.getMonth() - months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(today.getDate(), lastDay));
+  return isoLocal(target);
+}
+
+/** "2026-08-24" -> "24 Aug 2026". */
+function formatDay(iso: string) {
+  return new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Breakdown buckets arrive as raw Meta values ("male", "ABOVE_AVERAGE"); show them readable. */
+function prettyBreakdown(value: string) {
+  const text = value.replaceAll("_", " ").trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function isNumericFormat(format: MetaField["format"]) {
+  return format === "number" || format === "money" || format === "percent" || format === "decimal";
+}
+
+type SyncChoice = "1" | "2" | "3" | "custom";
+
+const SYNC_OPTIONS: { value: SyncChoice; label: string; months?: number }[] = [
+  { value: "1", label: "Last 1 month", months: 1 },
+  { value: "2", label: "Last 2 months", months: 2 },
+  { value: "3", label: "Last 3 months", months: 3 },
+  { value: "custom", label: "Custom date" },
+];
 
 function money(value: number | null | undefined) {
   if (value == null) return "—";
@@ -365,13 +411,51 @@ export function AdPerformanceTab() {
   const [showReportingNotice, setShowReportingNotice] = useState(true);
   const [deliveryStatus, setDeliveryStatus] = useState("");
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
+  const [metaColumns, setMetaColumns] = usePersistedColumns("anril.metaAds.whatsapp.metaColumns", []);
+  const [metaQuery, setMetaQuery] = useState("");
+  const [breakdown, setBreakdown] = useState<string | null>(null);
+  const [showManage, setShowManage] = useState(false);
+  const [manageQuery, setManageQuery] = useState("");
+  const [showSyncStart, setShowSyncStart] = useState(false);
+  const [syncChoice, setSyncChoice] = useState<SyncChoice>("1");
+  const [customSyncDate, setCustomSyncDate] = useState("");
+  const [savingSyncStart, setSavingSyncStart] = useState(false);
+  const syncRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => setShowReportingNotice(false), 10_000);
     return () => window.clearTimeout(timeoutId);
   }, []);
 
+  useEffect(() => {
+    if (!showManage) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowManage(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [showManage]);
+
+  useEffect(() => {
+    if (!showSyncStart) return;
+    function handlePointerDown(event: MouseEvent) {
+      if (syncRef.current && !syncRef.current.contains(event.target as Node)) setShowSyncStart(false);
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowSyncStart(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showSyncStart]);
+
   const { data: filters, mutate: mutateFilters } = useAdFilters();
+  const { data: catalog } = useMetaFieldCatalog();
+  const { data: syncStart, mutate: mutateSyncStart } = useSyncStart();
+  const { data: trackedData, mutate: mutateTracked } = useTrackedAds(showManage);
   const params = {
     campaign_id: campaignId || undefined,
     adset_id: adsetId || undefined,
@@ -379,7 +463,19 @@ export function AdPerformanceTab() {
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
   };
-  const { data, isValidating, mutate } = useAdPerformance(params);
+  // Only catalogue keys are requested, so a stale saved key can never fail the whole report.
+  const selectedMetaFields = useMemo(
+    () => (catalog?.fields ?? []).filter((field) => metaColumns.includes(field.key)),
+    [catalog, metaColumns],
+  );
+  const requestedMetaKeys = useMemo(() => selectedMetaFields.map((field) => field.key), [selectedMetaFields]);
+  const breakdownLabel = catalog?.breakdowns.find((item) => item.key === breakdown)?.label ?? breakdown ?? "";
+  const { data, isValidating, mutate } = useAdPerformance({
+    ...params,
+    metaFields: requestedMetaKeys,
+    breakdown: breakdown ?? undefined,
+  });
+  const metaError = data?.meta_error ?? null;
   const allRows = useMemo(() => data?.data ?? [], [data]);
   const rows = useMemo(
     () => (deliveryStatus ? allRows.filter((row) => matchesDelivery(row, deliveryStatus)) : allRows),
@@ -406,7 +502,41 @@ export function AdPerformanceTab() {
     [filters, campaignId, adsetId],
   );
   const activeDimensionFilters =
-    Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId)) + Number(Boolean(deliveryStatus));
+    Number(Boolean(campaignId)) + Number(Boolean(adsetId)) + Number(Boolean(creativeId)) + Number(Boolean(deliveryStatus)) + Number(Boolean(breakdown));
+  const dataFromLabel = syncStart?.start_date ? formatDay(syncStart.start_date) : null;
+  const showSyncNote = Boolean(syncStart?.start_date) && dateFrom < (syncStart?.start_date ?? "").slice(0, 10);
+  const today = localDate();
+  const historyFloor = syncStart ? localDate(syncStart.max_history_days) : "";
+  const earliestAd = (syncStart?.earliest_ad_start ?? "").slice(0, 10);
+  // Custom date may go no earlier than the later of: the earliest ad's start, or the history limit.
+  const customMin = earliestAd && earliestAd > historyFloor ? earliestAd : historyFloor;
+  const chosenSyncDate = syncChoice === "custom"
+    ? customSyncDate
+    : monthsBack(SYNC_OPTIONS.find((option) => option.value === syncChoice)?.months ?? 1);
+
+  const trackedGroups = useMemo(() => {
+    const needle = manageQuery.trim().toLowerCase();
+    const byCampaign = new Map<string, TrackedAd[]>();
+    for (const ad of trackedData?.data ?? []) {
+      if (needle && !ad.creative_label.toLowerCase().includes(needle) && !ad.campaign_name.toLowerCase().includes(needle)) continue;
+      const list = byCampaign.get(ad.campaign_name) ?? [];
+      list.push(ad);
+      byCampaign.set(ad.campaign_name, list);
+    }
+    return Array.from(byCampaign.entries());
+  }, [trackedData, manageQuery]);
+
+  const metaGroups = useMemo(() => {
+    const needle = metaQuery.trim().toLowerCase();
+    const byGroup = new Map<string, MetaField[]>();
+    for (const field of catalog?.fields ?? []) {
+      if (needle && !field.label.toLowerCase().includes(needle) && !field.key.toLowerCase().includes(needle)) continue;
+      const list = byGroup.get(field.group) ?? [];
+      list.push(field);
+      byGroup.set(field.group, list);
+    }
+    return Array.from(byGroup.entries());
+  }, [catalog, metaQuery]);
   const campaignNames = useMemo(
     () => new Map((filters?.campaigns ?? []).map((campaign) => [campaign.id, campaign.name])),
     [filters],
@@ -425,13 +555,63 @@ export function AdPerformanceTab() {
     });
   }
 
+  function toggleMetaField(key: string) {
+    setMetaColumns(metaColumns.includes(key) ? metaColumns.filter((item) => item !== key) : [...metaColumns, key]);
+  }
+
   function clearFilters() {
     setCampaignId("");
     setAdsetId("");
     setCreativeId("");
     setDeliveryStatus("");
+    setBreakdown(null);
     setDateFrom(localDate(29));
     setDateTo(localDate());
+  }
+
+  /** Optimistic on the tracked-ads list; SWR rolls it back if the save fails. */
+  async function toggleTracked(ad: TrackedAd) {
+    const next = !ad.tracked;
+    const apply = (current: { data: TrackedAd[] } | undefined) => ({
+      data: (current?.data ?? []).map((item) =>
+        item.ad_creative_id === ad.ad_creative_id ? { ...item, tracked: next } : item,
+      ),
+    });
+    try {
+      await mutateTracked(
+        async (current) => {
+          await api.inboundLeads.setCreativeTracking(ad.ad_creative_id, next);
+          return apply(current);
+        },
+        { optimisticData: apply, rollbackOnError: true, revalidate: false },
+      );
+      await Promise.all([mutate(), mutateFilters()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update this ad");
+    }
+  }
+
+  function openSyncStart() {
+    const current = (syncStart?.start_date ?? "").slice(0, 10);
+    const match = SYNC_OPTIONS.find((option) => option.months && monthsBack(option.months) === current);
+    setSyncChoice(match ? match.value : "custom");
+    setCustomSyncDate(current || customMin || today);
+    setShowSyncStart((visible) => !visible);
+  }
+
+  async function saveSyncStart() {
+    if (!chosenSyncDate) return;
+    setSavingSyncStart(true);
+    try {
+      await api.inboundLeads.setSyncStart(chosenSyncDate);
+      toast.success(`Pulling ad data from ${formatDay(chosenSyncDate)} — this can take a few minutes.`);
+      setShowSyncStart(false);
+      await Promise.all([mutateSyncStart(), mutate()]);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the history date");
+    } finally {
+      setSavingSyncStart(false);
+    }
   }
 
   async function handleSyncNow() {
@@ -594,11 +774,11 @@ export function AdPerformanceTab() {
               aria-expanded={showColumns} aria-haspopup="dialog"
               className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-primary-200 bg-white px-3 py-2 font-label text-xs font-bold text-primary-700 shadow-sm transition-all hover:bg-primary-50">
               <Columns3 size={13} /> Columns
-              <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length}</span>
+              <span className="rounded-full bg-primary-100 px-1.5 py-0.5 text-[9px]">{selectedMetrics.length + selectedMetaFields.length}</span>
             </button>
             {showColumns && (
               <div role="dialog" aria-label="Customize ad performance columns"
-                className="absolute right-0 top-11 z-30 flex max-h-[22rem] w-[320px] flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-xl">
+                className="absolute right-0 top-11 z-30 flex max-h-[26rem] w-[320px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[#e2e8f0] bg-white p-3 shadow-xl">
                 <div className="mb-2 flex items-center justify-between border-b border-[#eee9e1] px-1 pb-2">
                   <div className="flex items-center gap-2">
                     <SlidersHorizontal size={13} className="text-primary-600" />
@@ -626,6 +806,54 @@ export function AdPerformanceTab() {
                       </span>
                     </button>
                   ))}
+
+                  <div className="mt-3 border-t border-[#eee9e1] px-1 pt-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <p className="font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">From Meta Ads Manager</p>
+                      {selectedMetaFields.length > 0 && (
+                        <button type="button" onClick={() => setMetaColumns([])}
+                          className="font-label text-[10px] font-bold text-primary-600 hover:text-primary-800">
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="relative mb-2">
+                      <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+                      <input
+                        type="search"
+                        value={metaQuery}
+                        onChange={(event) => setMetaQuery(event.target.value)}
+                        placeholder="Search Meta fields"
+                        aria-label="Search Meta fields"
+                        className="h-8 w-full rounded-xl border border-surface-mid bg-white pl-8 pr-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                      />
+                    </div>
+                    {metaGroups.map(([group, list]) => (
+                      <div key={group}>
+                        <p className="px-2 pb-1 pt-2 font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">
+                          {group.replaceAll("_", " ")}
+                        </p>
+                        {list.map((field) => (
+                          <button
+                            key={field.key}
+                            type="button"
+                            role="checkbox"
+                            aria-checked={metaColumns.includes(field.key)}
+                            onClick={() => toggleMetaField(field.key)}
+                            className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left hover:bg-stone-50"
+                          >
+                            <TickMark checked={metaColumns.includes(field.key)} size="sm" />
+                            <span className="block font-label text-[11px] font-bold text-stone-700">{field.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                    {metaGroups.length === 0 && (
+                      <p className="px-2 py-4 text-center font-body text-[11px] text-stone-400">
+                        {catalog ? `No fields match “${metaQuery.trim()}”.` : "Loading Meta fields…"}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -637,8 +865,74 @@ export function AdPerformanceTab() {
             <KeyRound size={12} /> Generate ID
           </button>
 
+          <button type="button" onClick={() => setShowManage(true)} disabled={!canManage}
+            title={canManage ? "Switch individual ads on or off in this report" : "Needs Meta Ads write access"}
+            className="flex h-9 items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-primary-300 hover:text-primary-700 disabled:opacity-40">
+            <SlidersHorizontal size={12} /> Manage ads
+          </button>
+
+          <div ref={syncRef} className="relative col-span-2">
+            {canManage ? (
+              <button type="button" onClick={openSyncStart}
+                aria-expanded={showSyncStart} aria-haspopup="dialog"
+                title="Choose how far back Anril pulls ad data from Meta"
+                className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface shadow-sm transition-all hover:border-primary-300 hover:text-primary-700">
+                <CalendarDays size={12} /> Data from: {dataFromLabel ?? "last 30 days"}
+              </button>
+            ) : (
+              <div className="flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-surface-mid bg-white px-3 py-2 font-label text-xs font-bold text-on-surface-muted shadow-sm">
+                <CalendarDays size={12} /> Data from: {dataFromLabel ?? "last 30 days"}
+              </div>
+            )}
+            {canManage && showSyncStart && (
+              <div role="dialog" aria-label="How far back to pull ad data"
+                className="absolute right-0 top-11 z-30 w-[300px] max-w-[calc(100vw-2rem)] rounded-2xl border border-[#e2e8f0] bg-white p-4 shadow-xl">
+                <p className="font-label text-xs font-bold text-[#13284A]">How far back should Anril pull ad data?</p>
+                <div role="radiogroup" aria-label="History range" className="mt-3 space-y-1">
+                  {SYNC_OPTIONS.map((option) => {
+                    const presetDate = option.months ? monthsBack(option.months) : null;
+                    const tooOld = presetDate !== null && Boolean(historyFloor) && presetDate < historyFloor;
+                    return (
+                      <label key={option.value}
+                        className={cn(
+                          "flex items-center gap-2 rounded-xl px-2 py-2 font-label text-[11px] font-bold text-stone-700 hover:bg-stone-50",
+                          tooOld && "cursor-not-allowed opacity-40",
+                        )}>
+                        <input type="radio" name="sync-start-range" value={option.value}
+                          checked={syncChoice === option.value} disabled={tooOld}
+                          onChange={() => setSyncChoice(option.value)}
+                          className="h-3.5 w-3.5 accent-primary-600" />
+                        <span className="flex-1">{option.label}</span>
+                        {presetDate && <span className="font-body text-[10px] font-medium text-stone-400">from {formatDay(presetDate)}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
+                {syncChoice === "custom" && (
+                  <input type="date" aria-label="Custom start date" value={customSyncDate}
+                    min={customMin || undefined} max={today}
+                    onChange={(event) => setCustomSyncDate(event.target.value)}
+                    className="mt-2 h-9 w-full rounded-xl border border-surface-mid bg-white px-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200" />
+                )}
+                <p className="mt-3 font-body text-[10px] leading-4 text-stone-500">
+                  Applies to ads that were running when you connected, and new ones since. Each ad starts no earlier than the day it began running.
+                </p>
+                {earliestAd && (
+                  <p className="mt-1.5 font-body text-[10px] leading-4 text-stone-500">
+                    Your earliest tracked ad started on {formatDay(earliestAd)}.
+                  </p>
+                )}
+                <button type="button" onClick={saveSyncStart} disabled={savingSyncStart || !chosenSyncDate}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 font-label text-xs font-bold text-white transition hover:bg-primary/90 disabled:opacity-40">
+                  {savingSyncStart && <Loader2 size={13} className="animate-spin" />}
+                  {savingSyncStart ? "Saving…" : "Save"}
+                </button>
+              </div>
+            )}
+          </div>
+
           <button type="button" onClick={handleExport} disabled={exporting || rows.length === 0}
-            className="flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
+            className="col-span-2 flex h-9 items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 font-label text-xs font-bold text-white shadow-sm transition-all hover:bg-primary/90 disabled:opacity-40">
             <Download size={12} /> {exporting ? "Downloading…" : "Download CSV"}
           </button>
         </div>
@@ -661,7 +955,7 @@ export function AdPerformanceTab() {
               <X size={11} /> Clear filters
             </button>
           </div>
-          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-2.5 items-end grid-cols-1 sm:grid-cols-2 xl:grid-cols-7">
             <div>
               <label htmlFor="ad-performance-from" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">From Date</label>
               <input id="ad-performance-from" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)}
@@ -721,8 +1015,28 @@ export function AdPerformanceTab() {
                 <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
               </div>
             </div>
+            <div className="sm:col-span-2 xl:col-span-1">
+              <label htmlFor="ad-performance-breakdown" className="mb-1 block font-label text-[9px] font-bold uppercase tracking-wider text-on-surface-muted">Break down by</label>
+              <div className="relative">
+                <select id="ad-performance-breakdown" className={selectClass} value={breakdown ?? ""}
+                  onChange={(event) => setBreakdown(event.target.value || null)}>
+                  <option value="">None</option>
+                  {(catalog?.breakdowns ?? []).map((option) => (
+                    <option key={option.key} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+              </div>
+            </div>
           </div>
         </div>
+      )}
+
+      {breakdown && (
+        <p role="status" className="mb-4 font-body text-[11px] text-on-surface-muted">
+          Breakdowns split Meta’s numbers only. Anril’s own numbers (messages, hot leads) stay on the ad row.
+          {selectedMetaFields.length === 0 && " Pick Meta columns to see the split."}
+        </p>
       )}
 
       {showReportingNotice && (
@@ -745,6 +1059,15 @@ export function AdPerformanceTab() {
             {dateFrom} — {dateTo}
           </span>
         </div>
+      )}
+
+      {metaError && (
+        <p role="status" className="mb-3 font-body text-[11px] text-slate-500">{metaError}</p>
+      )}
+      {showSyncNote && syncStart?.start_date && (
+        <p role="status" className="mb-3 font-body text-[11px] text-slate-500">
+          Showing data from {formatDay(syncStart.start_date)} — the history date set for this account.
+        </p>
       )}
 
       <div className="card overflow-hidden rounded-2xl">
@@ -772,6 +1095,15 @@ export function AdPerformanceTab() {
                       {metric.label}
                     </th>
                   ))}
+                  {selectedMetaFields.map((field) => (
+                    <th key={`meta:${field.key}`} title={field.label}
+                      className={cn(
+                        "whitespace-nowrap px-4 py-3 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted",
+                        isNumericFormat(field.format) ? "text-right" : "text-center",
+                      )}>
+                      {field.label}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-mid/50">
@@ -781,39 +1113,74 @@ export function AdPerformanceTab() {
                   // Hovering restores full opacity so the numbers stay readable.
                   const removed = isRemoved(row.delivery_status);
                   return (
-                    <tr
-                      key={row.ad_creative_id}
-                      className={cn(
-                        "transition-all hover:bg-surface-low/60",
-                        removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
-                      )}
-                    >
-                      <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
-                        {row.campaign_name}
-                        {row.campaign_created_at && (
-                          <span className="mt-0.5 block whitespace-nowrap text-[10px] font-normal text-on-surface-muted">
-                            Created {createdOn(row.campaign_created_at)}
-                          </span>
+                    <Fragment key={row.ad_creative_id}>
+                      <tr
+                        className={cn(
+                          "transition-all hover:bg-surface-low/60",
+                          removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
                         )}
-                      </td>
-                      <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
-                      <td className={cn(
-                        "px-4 py-3 text-center font-label text-xs font-semibold text-on-surface",
-                        removed && "line-through decoration-stone-400",
-                      )}>
-                        {row.creative_label}
-                      </td>
-                      {selectedMetrics.map((metric) => (
-                        <td key={metric.key} className={cn(
-                          "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
-                          metric.key === "messages" && "font-bold text-on-surface",
-                          metric.key === "inline_link_clicks" && "font-semibold text-primary-700",
-                          metric.key === "hot" && "font-semibold text-rose-600",
-                        )}>
-                          {metricValue(metric.key, row)}
+                      >
+                        <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
+                          {row.campaign_name}
+                          {row.campaign_created_at && (
+                            <span className="mt-0.5 block whitespace-nowrap text-[10px] font-normal text-on-surface-muted">
+                              Created {createdOn(row.campaign_created_at)}
+                            </span>
+                          )}
                         </td>
+                        <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
+                        <td className="px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
+                          <div className="flex flex-wrap items-center justify-center gap-1.5">
+                            <span className={cn(removed && "line-through decoration-stone-400")}>{row.creative_label}</span>
+                            {row.is_multi_destination && <AdTypeBadge type="Multi-destination" />}
+                          </div>
+                        </td>
+                        {selectedMetrics.map((metric) => (
+                          <td key={metric.key} className={cn(
+                            "whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums",
+                            metric.key === "messages" && "font-bold text-on-surface",
+                            metric.key === "inline_link_clicks" && "font-semibold text-primary-700",
+                            metric.key === "hot" && "font-semibold text-rose-600",
+                          )}>
+                            {metricValue(metric.key, row)}
+                          </td>
+                        ))}
+                        {selectedMetaFields.map((field) => (
+                          <td key={`meta:${field.key}`} className={cn(
+                            "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
+                            isNumericFormat(field.format) ? "text-right" : "text-center",
+                          )}>
+                            {formatMetaValue(row.meta?.[field.key], field.format)}
+                          </td>
+                        ))}
+                      </tr>
+                      {breakdown && row.breakdown_rows?.map((sub) => (
+                        <tr key={`${row.ad_creative_id}:${sub.breakdown}`} className="bg-surface-low/30">
+                          <td />
+                          <td />
+                          <td className="px-4 py-2 text-left">
+                            <span className="block pl-6 font-body text-[11px] font-medium text-on-surface-muted">
+                              {prettyBreakdown(sub.breakdown)}
+                            </span>
+                          </td>
+                          {selectedMetrics.map((metric) => (
+                            <td key={metric.key}
+                              title={`Anril can't split this by ${breakdownLabel} — Meta doesn't share who your leads are.`}
+                              className="whitespace-nowrap px-4 py-2 text-center text-xs tabular-nums text-stone-300">
+                              —
+                            </td>
+                          ))}
+                          {selectedMetaFields.map((field) => (
+                            <td key={`meta:${field.key}`} className={cn(
+                              "whitespace-nowrap px-4 py-2 text-xs tabular-nums text-on-surface-muted",
+                              isNumericFormat(field.format) ? "text-right" : "text-center",
+                            )}>
+                              {formatMetaValue(sub.meta[field.key], field.format)}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -825,6 +1192,14 @@ export function AdPerformanceTab() {
                   {selectedMetrics.map((metric) => (
                     <td key={metric.key} className="whitespace-nowrap px-4 py-3 text-center text-xs tabular-nums">
                       {metric.key === "delivery_status" ? "—" : metricValue(metric.key, totals)}
+                    </td>
+                  ))}
+                  {selectedMetaFields.map((field) => (
+                    <td key={`meta:${field.key}`} className={cn(
+                      "whitespace-nowrap px-4 py-3 text-xs tabular-nums",
+                      isNumericFormat(field.format) ? "text-right" : "text-center",
+                    )}>
+                      —
                     </td>
                   ))}
                 </tr>
@@ -947,6 +1322,100 @@ export function AdPerformanceTab() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {showManage && canManage && (
+        <div className="fixed inset-0 z-dialog">
+          <div
+            aria-hidden
+            onClick={() => setShowManage(false)}
+            className="absolute inset-0 bg-stone-950/40 backdrop-blur-[2px]"
+          />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="manage-ads-title"
+            className="fixed inset-y-0 right-0 flex w-full max-w-md flex-col bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-surface-mid/60 p-5">
+              <div>
+                <h2 id="manage-ads-title" className="font-display text-lg font-bold text-on-surface">Ads in your Anril report</h2>
+                <p className="mt-1 font-body text-xs leading-5 text-on-surface-muted">
+                  Switch an ad off to hide it from this report. Lead tracking keeps running, so switching it back on loses nothing.
+                </p>
+              </div>
+              <button type="button" onClick={() => setShowManage(false)}
+                className="rounded-xl p-2 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-700"
+                aria-label="Close ads panel">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="px-5 pt-4">
+              <div className="relative">
+                <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" />
+                <input
+                  type="search"
+                  value={manageQuery}
+                  onChange={(event) => setManageQuery(event.target.value)}
+                  placeholder="Search by ad or campaign"
+                  aria-label="Search ads by ad or campaign name"
+                  className="h-9 w-full rounded-xl border border-surface-mid bg-white pl-8 pr-3 font-body text-xs font-semibold text-on-surface shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] transition-colors hover:border-primary-200 focus:outline-none focus:ring-2 focus:ring-primary-200"
+                />
+              </div>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6 pt-4">
+              {!trackedData ? (
+                <p className="py-10 text-center font-body text-xs text-stone-400">Loading ads…</p>
+              ) : trackedGroups.length === 0 ? (
+                <p className="py-10 text-center font-body text-xs text-stone-400">
+                  {trackedData.data.length === 0 ? "No Click-to-WhatsApp ads yet. Run Sync now first." : "No ads match that search."}
+                </p>
+              ) : (
+                trackedGroups.map(([campaign, ads]) => (
+                  <section key={campaign} className="mb-5">
+                    <p className="mb-2 font-label text-[10px] font-bold uppercase tracking-wider text-on-surface-muted">{campaign}</p>
+                    <ul className="divide-y divide-surface-mid/50 overflow-hidden rounded-2xl border border-surface-mid/70">
+                      {ads.map((ad) => (
+                        <li key={ad.ad_creative_id} className={cn(
+                          "flex items-center justify-between gap-3 px-3 py-3 transition-opacity",
+                          !ad.tracked && "opacity-60",
+                        )}>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="font-label text-xs font-semibold text-on-surface">{ad.creative_label}</span>
+                              {ad.is_multi_destination && <AdTypeBadge type="Multi-destination" />}
+                            </div>
+                            <p className="mt-0.5 truncate font-body text-[10px] text-on-surface-muted">
+                              {ad.adset_name} · {statusLabel(ad.delivery_status)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={ad.tracked}
+                            aria-label={`Show ${ad.creative_label} in the Anril report`}
+                            onClick={() => toggleTracked(ad)}
+                            className={cn(
+                              "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-200",
+                              ad.tracked ? "bg-primary-600" : "bg-stone-300",
+                            )}
+                          >
+                            <span className={cn(
+                              "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform",
+                              ad.tracked ? "translate-x-[18px]" : "translate-x-0.5",
+                            )} />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))
+              )}
+            </div>
+          </aside>
         </div>
       )}
     </div>

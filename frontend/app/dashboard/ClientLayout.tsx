@@ -64,7 +64,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [subStatus, setSubStatus] = useState<"loading" | "none" | "pending_approval" | "active">("loading");
   const pathname = usePathname();
-  const isMetaAds = pathname === "/dashboard/meta-ads";
+  const isMetaAds = pathname?.startsWith("/dashboard/meta-ads") ?? false;
   // Call Review fills the whole pane (its filter bar and KPIs lock to the top); NotesGate pads the telecaller view itself.
   const isCallReviewPage = pathname === "/dashboard/notes";
   // The conversations route renders its own thin inbox rail (Bulkwise-style) and

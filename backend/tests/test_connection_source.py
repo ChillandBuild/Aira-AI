@@ -6,7 +6,10 @@ import pytest
 
 def _upserted(db):
     """Every row app_settings upserted during the call, keyed by setting key."""
-    rows = [call.args[0] for call in db.table.return_value.upsert.call_args_list]
+    rows = []
+    for call in db.table.return_value.upsert.call_args_list:
+        payload = call.args[0]
+        rows.extend(payload if isinstance(payload, list) else [payload])
     return {row["key"]: row for row in rows if "key" in row}
 
 
@@ -123,6 +126,7 @@ async def test_unified_signup_marks_every_provisioned_channel_as_embedded():
     staged_values = [
         "business-token", "session-1", "2999-01-01T00:00:00+00:00",
         "waba-1", "phone-1", None, "false",
+        None,  # no ad account connected before: the Meta Ads join rule starts now
     ]
 
     with patch("app.routes.app_settings.get_supabase", return_value=db), \

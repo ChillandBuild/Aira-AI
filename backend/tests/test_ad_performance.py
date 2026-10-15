@@ -89,3 +89,220 @@ def test_frontend_dropdown_keys_all_exist_server_side():
     missing here would silently return an unfiltered download."""
     for key in ("active", "paused", "archived", "deleted", "issues"):
         assert key in DELIVERY_GROUPS
+
+
+# --- Tracked-in-Anril scope, sync start clip, live Meta columns, all-ads ---
+
+import pytest
+
+from app.services import ad_performance, meta_ads_fields
+from app.services import meta_ads_insights_sync as sync
+from tests.fake_supabase import FakeSupabase
+
+ACCOUNT = "act_111"
+
+
+def _perf_db():
+    db = FakeSupabase()
+    db.add("app_settings", tenant_id="t1", key="meta_ads_account_id", value=ACCOUNT)
+    db.add("app_settings", tenant_id="t1", key="meta_ads_access_token", value="tok")
+    db.add("ad_campaigns", id="c1", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_name="Camp A")
+    db.add("ad_creatives", id="ad-1", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
+           is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m1",
+           creative_label="One", destination_type="WHATSAPP", ad_effective_status="ACTIVE")
+    db.add("ad_creatives", id="ad-2", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
+           is_click_to_whatsapp=True, tracked_in_anril=False, meta_ad_id="m2",
+           creative_label="Two", destination_type="WEBSITE", ad_effective_status="ACTIVE")
+    db.add("ad_creatives", id="ad-3", tenant_id="t1", meta_ad_account_id=ACCOUNT, campaign_id="c1",
+           is_click_to_whatsapp=True, tracked_in_anril=True, meta_ad_id="m3",
+           creative_label="Three", destination_type="WHATSAPP_MESSENGER", ad_effective_status="PAUSED")
+    return db
+
+
+@pytest.fixture
+def settings(monkeypatch):
+    """app_settings values read through get_ads_setting; the reach fetch is stubbed out."""
+    store: dict[str, str] = {}
+    monkeypatch.setattr(sync, "get_ads_setting", lambda db, tenant_id, key: store.get(key))
+    monkeypatch.setattr(sync, "fetch_unique_reach_by_ad", lambda *a, **k: {})
+    return store
+
+
+class _FakeMeta:
+    def __init__(self):
+        self.results: list[dict] = []
+        self.error: Exception | None = None
+        self.calls: list[dict] = []
+
+    def __call__(self, token, account, **kwargs):
+        self.calls.append({"token": token, "account": account, **kwargs})
+        if self.error:
+            raise self.error
+        return self.results
+
+
+@pytest.fixture
+def meta(monkeypatch):
+    """Stands in for meta_ads_fields.fetch_meta_insights_live."""
+    fake = _FakeMeta()
+    monkeypatch.setattr(meta_ads_fields, "fetch_meta_insights_live", fake)
+    return fake
+
+
+def test_untracked_creative_is_left_out(settings):
+    rows = ad_performance.build_creative_performance(_perf_db(), "t1")
+    assert sorted(r["ad_creative_id"] for r in rows) == ["ad-1", "ad-3"]
+
+
+def test_rows_carry_destination_type_and_multi_destination_flag(settings):
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(_perf_db(), "t1")}
+    assert rows["ad-1"]["destination_type"] == "WHATSAPP"
+    assert rows["ad-1"]["is_multi_destination"] is False
+    assert rows["ad-3"]["destination_type"] == "WHATSAPP_MESSENGER"
+    assert rows["ad-3"]["is_multi_destination"] is True
+    assert rows["ad-1"]["meta"] is None
+    assert rows["ad-1"]["breakdown_rows"] is None
+
+
+def test_sync_start_date_bounds_the_insights_query(settings, monkeypatch):
+    settings["meta_ads_sync_start_date"] = "2026-09-01"
+    reach_calls = []
+    monkeypatch.setattr(sync, "fetch_unique_reach_by_ad",
+                        lambda *a, **k: reach_calls.append(k) or {})
+    db = _perf_db()
+    db.add("ad_insights_daily", tenant_id="t1", meta_ad_account_id=ACCOUNT, ad_creative_id="ad-1",
+           insight_date="2026-08-15", spend=10, inline_link_clicks=1)
+    db.add("ad_insights_daily", tenant_id="t1", meta_ad_account_id=ACCOUNT, ad_creative_id="ad-1",
+           insight_date="2026-09-05", spend=20, inline_link_clicks=2)
+
+    rows = ad_performance.build_creative_performance(db, "t1", date_from="2026-08-01")
+
+    row = next(r for r in rows if r["ad_creative_id"] == "ad-1")
+    assert row["spend"] == 20
+    assert row["inline_link_clicks"] == 2
+    assert reach_calls[0]["date_from"] == "2026-09-01"
+
+
+def test_meta_fields_fill_row_meta_for_each_ad(settings, meta):
+    meta.results = [{"meta_ad_id": "m1", "ad_name": "x", "adset_name": "y", "campaign_name": "z",
+                     "destination_type": "WHATSAPP", "breakdown": None, "values": {"results": 5}}]
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(
+        _perf_db(), "t1", date_from="2026-09-01", date_to="2026-09-30", meta_fields=["results"])}
+
+    assert rows["ad-1"]["meta"] == {"results": 5}
+    assert rows["ad-3"]["meta"] is None
+    assert rows["ad-1"]["breakdown_rows"] is None
+    call = meta.calls[0]
+    assert call["keys"] == ["results"]
+    assert call["breakdown"] is None
+    assert call["ad_ids"] == {"m1", "m3"}
+    assert call["date_from"] == "2026-09-01"
+    assert call["date_to"] == "2026-09-30"
+
+
+def test_breakdown_fills_breakdown_rows_in_meta_order(settings, meta):
+    meta.results = [
+        {"meta_ad_id": "m1", "breakdown": "18-24", "values": {"spend": 3}},
+        {"meta_ad_id": "m1", "breakdown": "25-34", "values": {"spend": 7}},
+    ]
+    rows = {r["ad_creative_id"]: r for r in ad_performance.build_creative_performance(
+        _perf_db(), "t1", meta_fields=["spend"], breakdown="age")}
+
+    assert rows["ad-1"]["breakdown_rows"] == [
+        {"breakdown": "18-24", "meta": {"spend": 3}},
+        {"breakdown": "25-34", "meta": {"spend": 7}},
+    ]
+    assert rows["ad-1"]["meta"] is None
+    assert rows["ad-3"]["breakdown_rows"] == []
+
+
+def test_failed_meta_fetch_reports_error_and_keeps_rows(settings, meta):
+    meta.error = RuntimeError("boom")
+    errors: list[str] = []
+    rows = ad_performance.build_creative_performance(
+        _perf_db(), "t1", meta_fields=["results"], errors=errors)
+
+    assert len(rows) == 2
+    assert errors == ["Couldn't load Meta columns right now: boom"]
+
+
+@pytest.mark.parametrize("destination, label", [
+    ("WHATSAPP", "WhatsApp"),
+    ("WHATSAPP_MESSENGER", "Multi-destination"),
+    ("ON_AD", "Instant form"),
+    ("WEBSITE", "Website"),
+    ("MESSENGER", "Messenger"),
+    ("INSTAGRAM_DIRECT", "Instagram Direct"),
+    ("INSTAGRAM_PROFILE", "Instagram profile"),
+    ("FACEBOOK", "Facebook page"),
+    ("APP", "App"),
+    ("PHONE_CALL", "Calls"),
+    ("MESSAGING_INSTAGRAM_DIRECT_MESSENGER", "Messaging"),
+    ("INSTAGRAM_STORY", "Messaging"),
+    (None, "Other"),
+    ("", "Other"),
+    ("SOMETHING_NEW", "Something New"),
+])
+def test_ad_type_label(destination, label):
+    assert ad_performance.ad_type_label(destination) == label
+
+
+def test_list_ads_for_tracking_includes_untracked_and_sorts(settings):
+    rows = ad_performance.list_ads_for_tracking(_perf_db(), "t1")
+    # Same campaign for all three, so the sort falls through to creative label: One, Three, Two.
+    assert [r["ad_creative_id"] for r in rows] == ["ad-1", "ad-3", "ad-2"]
+    assert [r["tracked"] for r in rows] == [True, True, False]
+    assert rows[1]["is_multi_destination"] is True
+    assert rows[0]["campaign_name"] == "Camp A"
+
+
+def _registry(db, *ads):
+    for meta_ad_id, eligible in ads:
+        db.add("meta_ad_registry", tenant_id="t1", meta_ad_account_id=ACCOUNT,
+               meta_ad_id=meta_ad_id, eligible=eligible)
+
+
+def test_build_all_ads_passes_only_eligible_ids(settings, meta):
+    db = _perf_db()
+    _registry(db, ("m1", True), ("m3", True), ("m9", False))
+    meta.results = [{"meta_ad_id": "m1", "destination_type": "WHATSAPP", "values": {"results": 4}}]
+
+    out = ad_performance.build_all_ads(db, "t1", date_from="2026-09-01", date_to="2026-09-30",
+                                       fields=["results"], breakdown=None)
+
+    assert meta.calls[0]["ad_ids"] == {"m1", "m3"}
+    assert meta.calls[0]["keys"] == ["results"]
+    assert out["data"][0]["ad_type"] == "WhatsApp"
+    assert out["date_from"] == "2026-09-01"
+    assert out["date_to"] == "2026-09-30"
+    assert out["start_date"] is None
+
+
+def test_build_all_ads_without_eligible_ads_skips_meta(settings, meta):
+    db = _perf_db()
+    _registry(db, ("m9", False))
+
+    out = ad_performance.build_all_ads(db, "t1", date_from="2026-09-01", date_to="2026-09-30",
+                                       fields=["results"], breakdown=None)
+
+    assert out["data"] == []
+    assert meta.calls == []
+
+
+def test_build_all_ads_clips_to_sync_start_and_skips_empty_range(settings, meta):
+    settings["meta_ads_sync_start_date"] = "2026-09-15"
+    db = _perf_db()
+    _registry(db, ("m1", True))
+
+    out = ad_performance.build_all_ads(db, "t1", date_from="2026-08-01", date_to="2026-09-10",
+                                       fields=["results"], breakdown=None)
+
+    assert out["data"] == []
+    assert out["date_from"] == "2026-09-15"
+    assert meta.calls == []
+
+
+def test_build_all_ads_without_connected_account_raises(settings, meta):
+    with pytest.raises(ValueError, match="Connect a Meta Ads account first"):
+        ad_performance.build_all_ads(FakeSupabase(), "t1", date_from="2026-09-01",
+                                     date_to="2026-09-30", fields=["results"], breakdown=None)

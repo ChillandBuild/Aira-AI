@@ -16,7 +16,7 @@ import csv
 import io
 import logging
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.responses import StreamingResponse
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
@@ -54,6 +54,14 @@ class MetaAdTrackingCodeRequest(BaseModel):
         min_length=1,
         max_length=500,
     )
+
+
+class AdTrackingToggle(BaseModel):
+    tracked: bool
+
+
+class SyncStartUpdate(BaseModel):
+    start_date: str
 
 
 def _fmt_ist(iso: str) -> str:
@@ -439,6 +447,19 @@ async def generate_meta_ad_tracking_code(
     }
 
 
+def _split_fields(raw: str | None) -> list[str]:
+    return [part.strip() for part in (raw or "").split(",") if part.strip()]
+
+
+def _check_breakdown(breakdown: str | None) -> str | None:
+    """Empty means no breakdown; an unknown key is a 400, not a silent fallback."""
+    from app.services.meta_ads_fields import BREAKDOWNS
+    key = (breakdown or "").strip() or None
+    if key and key not in BREAKDOWNS:
+        raise HTTPException(status_code=400, detail=f"Unknown breakdown: {key}")
+    return key
+
+
 @router.get("/ad-performance", dependencies=[Depends(require_meta_ads_view)])
 async def ad_performance(
     campaign_id: str | None = Query(None),
@@ -447,17 +468,174 @@ async def ad_performance(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     delivery_status: str | None = Query(None),
+    meta_fields: str | None = Query(None),
+    breakdown: str | None = Query(None),
     tenant_id: str = Depends(get_tenant_id),
 ):
-    """Per-creative performance rows for the Ad Performance tab."""
+    """Per-creative performance rows for the Ad Performance tab. meta_fields
+    (comma-separated) adds live Meta columns; breakdown adds per-breakdown rows."""
     from app.services.ad_performance import build_creative_performance
+    breakdown = _check_breakdown(breakdown)
     db = get_supabase()
+    errors: list[str] = []
     rows = build_creative_performance(
         db, tenant_id,
         campaign_id=campaign_id, adset_id=adset_id, ad_creative_id=ad_creative_id,
         date_from=date_from, date_to=date_to, delivery_status=delivery_status,
+        meta_fields=_split_fields(meta_fields), breakdown=breakdown, errors=errors,
     )
-    return {"data": rows}
+    return {"data": rows, "meta_error": errors[0] if errors else None}
+
+
+@router.get("/meta-ads/field-catalog", dependencies=[Depends(require_meta_ads_view)])
+async def meta_ads_field_catalog():
+    """Meta-computed columns and breakdowns the Ad Performance tab can ask for."""
+    from app.services.meta_ads_fields import breakdowns_for_api, catalog_for_api
+    return {"fields": catalog_for_api(), "breakdowns": breakdowns_for_api()}
+
+
+_ALL_ADS_DEFAULT_FIELDS = (
+    "results,result_type,cost_per_result,reach,impressions,spend,cpm,"
+    "inline_link_clicks,ctr,delivery"
+)
+
+
+def _parse_day(value: str, name: str) -> str:
+    try:
+        return datetime.strptime(value.strip(), "%Y-%m-%d").date().isoformat()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"{name} must be a date like 2026-10-01")
+
+
+@router.get("/meta-ads/all-ads", dependencies=[Depends(require_meta_ads_view)])
+async def meta_ads_all_ads(
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    fields: str | None = Query(None),
+    breakdown: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Live Meta numbers for every eligible ad, not only the ones tracked in Anril."""
+    import httpx
+    from app.services.ad_performance import build_all_ads
+
+    today = datetime.now(timezone.utc).date()
+    d_to = _parse_day(date_to, "date_to") if date_to else today.isoformat()
+    d_from = (
+        _parse_day(date_from, "date_from") if date_from
+        else (today - timedelta(days=30)).isoformat()
+    )
+    if d_from > d_to:
+        raise HTTPException(status_code=400, detail="date_from must be on or before date_to")
+    breakdown = _check_breakdown(breakdown)
+    field_keys = _split_fields(fields or _ALL_ADS_DEFAULT_FIELDS)
+
+    db = get_supabase()
+    try:
+        return build_all_ads(
+            db, tenant_id,
+            date_from=d_from, date_to=d_to, fields=field_keys, breakdown=breakdown,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=502,
+            detail="Meta didn't respond, try again in a minute",
+        )
+
+
+@router.get("/meta-ads/tracked-ads", dependencies=[Depends(require_meta_ads_view)])
+async def meta_ads_tracked_ads(tenant_id: str = Depends(get_tenant_id)):
+    """Every click-to-WhatsApp ad of the connected account with its Anril tracking switch."""
+    from app.services.ad_performance import list_ads_for_tracking
+    db = get_supabase()
+    return {"data": list_ads_for_tracking(db, tenant_id)}
+
+
+@router.patch("/ad-creatives/{ad_creative_id}/tracking", dependencies=[Depends(require_meta_ads_manage)])
+async def set_ad_tracking(
+    ad_creative_id: str,
+    payload: AdTrackingToggle,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Turn Anril tracking on or off for one ad. Untracked ads drop out of the
+    Ad Performance table and the filter dropdowns."""
+    db = get_supabase()
+    res = (
+        db.table("ad_creatives")
+        .update({"tracked_in_anril": payload.tracked})
+        .eq("id", ad_creative_id)
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    if not (res.data or []):
+        raise HTTPException(status_code=404, detail="Ad not found")
+    return {"ad_creative_id": ad_creative_id, "tracked": payload.tracked}
+
+
+def _sync_start_payload(db, tenant_id: str) -> dict:
+    from app.services.meta_ads_insights_sync import (
+        _MAX_HISTORY_DAYS,
+        get_ads_setting,
+        get_current_ads_account_id,
+    )
+
+    account = get_current_ads_account_id(db, tenant_id)
+    earliest = None
+    if account:
+        registry = (
+            db.table("meta_ad_registry").select("ad_created_time")
+            .eq("tenant_id", tenant_id)
+            .eq("meta_ad_account_id", account)
+            .eq("eligible", True)
+            .execute().data
+        ) or []
+        times = [str(r["ad_created_time"]) for r in registry if r.get("ad_created_time")]
+        if times:
+            earliest = min(times)[:10]
+    return {
+        "start_date": get_ads_setting(db, tenant_id, "meta_ads_sync_start_date"),
+        "connected_at": get_ads_setting(db, tenant_id, "meta_ads_connected_at"),
+        "backfilled_from": get_ads_setting(db, tenant_id, "meta_ads_backfilled_from"),
+        "earliest_ad_start": earliest,
+        "max_history_days": _MAX_HISTORY_DAYS,
+    }
+
+
+@router.get("/meta-ads/sync-start", dependencies=[Depends(require_meta_ads_view)])
+async def get_sync_start(tenant_id: str = Depends(get_tenant_id)):
+    """The date the Meta Ads sync reads from, plus what Meta can still give us."""
+    return _sync_start_payload(get_supabase(), tenant_id)
+
+
+@router.put("/meta-ads/sync-start", dependencies=[Depends(require_meta_ads_manage)])
+async def set_sync_start(
+    payload: SyncStartUpdate,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Pick the earliest day to sync from, then re-sync in the background."""
+    from app.services.meta_ads_insights_sync import (
+        _MAX_HISTORY_DAYS,
+        set_ads_setting,
+        sync_tenant_ad_insights,
+    )
+
+    chosen = _parse_day(payload.start_date, "start_date")
+    today = datetime.now(timezone.utc).date()
+    if datetime.strptime(chosen, "%Y-%m-%d").date() > today:
+        raise HTTPException(status_code=400, detail="Pick a date that isn't in the future")
+    if datetime.strptime(chosen, "%Y-%m-%d").date() < today - timedelta(days=_MAX_HISTORY_DAYS):
+        raise HTTPException(
+            status_code=400,
+            detail="Meta keeps about 37 months of history — pick a later date",
+        )
+
+    db = get_supabase()
+    set_ads_setting(db, tenant_id, "meta_ads_sync_start_date", chosen)
+    background_tasks.add_task(sync_tenant_ad_insights, db, tenant_id)
+    return {**_sync_start_payload(db, tenant_id), "syncing": True}
 
 
 # (row key, header) in on-screen order. Headers mirror the table's column labels
@@ -539,7 +717,7 @@ async def ad_performance_export(
 @router.post("/ad-sync-now", dependencies=[Depends(require_meta_ads_manage)])
 async def ad_sync_now(tenant_id: str = Depends(get_tenant_id)):
     """Manually trigger the Meta Ads Insights sync for this tenant, returning
-    a diagnostic result instead of waiting on the 6h scheduled job."""
+    a diagnostic result instead of waiting on the hourly scheduled job."""
     from app.services.meta_ads_insights_sync import sync_tenant_ad_insights_verbose
     db = get_supabase()
     return sync_tenant_ad_insights_verbose(db, tenant_id)
