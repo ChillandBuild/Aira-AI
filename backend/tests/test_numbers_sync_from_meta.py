@@ -69,8 +69,10 @@ def _mock_numbers_db(initial_rows):
     incidents_tbl = MagicMock()
     incidents_tbl.insert.return_value.execute.return_value = MagicMock(data=[])
 
+    history_tbl = MagicMock()
+
     def table(name):
-        return {"phone_numbers": numbers_tbl, "incidents": incidents_tbl}[name]
+        return {"phone_numbers": numbers_tbl, "incidents": incidents_tbl, "phone_number_quality_history": history_tbl}[name]
     db.table.side_effect = table
     db._state = state
     return db
@@ -78,6 +80,19 @@ def _mock_numbers_db(initial_rows):
 
 class SyncFromMetaTests(unittest.TestCase):
     def setUp(self):
+        # Failover is covered in test_number_failover.py; here it's stubbed so
+        # these tests stay about what the sync writes.
+        import app.routes.numbers as numbers_routes
+        self._patchers = [
+            patch("app.services.number_sync.ensure_healthy_primary", new=AsyncMock(return_value=None)),
+            patch("app.services.number_sync.handle_quality_red", new=AsyncMock()),
+            # Same lock state the route's own (per-test) mock reports.
+            patch("app.services.number_sync.get_unlocked_number_ids",
+                  side_effect=lambda db, t: numbers_routes.get_unlocked_number_ids(db, t)),
+        ]
+        for p in self._patchers:
+            p.start()
+            self.addCleanup(p.stop)
         self.client = TestClient(app)
         app.dependency_overrides[get_current_user] = lambda: {"user_id": "user-1"}
         app.dependency_overrides[get_tenant_id] = lambda: "tenant-1"
@@ -88,8 +103,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_missing_waba_id_returns_400(self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked):
         mock_get_db.return_value = _mock_numbers_db([])
@@ -101,8 +116,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_fresh_tenant_imports_all_as_standby_and_locked(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -112,11 +127,11 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+91 98765-00001", "verified_name": "Number 1",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
             {"id": "meta-2", "display_phone_number": "+91 98765-00002", "verified_name": "Number 2",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
             {"id": "meta-3", "display_phone_number": "+91 98765-00003", "verified_name": "Number 3",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = set()  # no primary yet -- everything locked
@@ -136,8 +151,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_matches_existing_row_by_meta_id_and_refreshes_quality(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -145,7 +160,7 @@ class SyncFromMetaTests(unittest.TestCase):
         existing = [{
             "id": "row-1", "number": "+919876500001", "display_name": "Number 1",
             "role": "primary", "status": "active", "quality_rating": "green",
-            "messaging_tier": 1000, "warm_up_day": 14, "meta_phone_number_id": "meta-1",
+            "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
             "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
@@ -153,7 +168,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+919876500001", "verified_name": "Number 1",
-             "quality_rating": "YELLOW", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "YELLOW", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = {"row-1"}
@@ -167,8 +182,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_records_meta_portfolio_limit_not_the_1000_default(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -176,7 +191,7 @@ class SyncFromMetaTests(unittest.TestCase):
         existing = [{
             "id": "row-1", "number": "+919876500001", "display_name": "Number 1",
             "role": "primary", "status": "active", "quality_rating": "green",
-            "messaging_tier": 1000, "warm_up_day": 14, "meta_phone_number_id": "meta-1",
+            "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
             "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
@@ -184,7 +199,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+919876500001", "verified_name": "Number 1",
-             "quality_rating": "RED", "messaging_limit_tier": "TIER_250",
+             "status": "CONNECTED", "quality_rating": "RED", "messaging_limit_tier": "TIER_250",
              "whatsapp_business_manager_messaging_limit": "TIER_2K"},
         ]
         mock_limit.return_value = 1
@@ -198,8 +213,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_matches_existing_row_by_normalized_number_and_backfills_meta_id(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -215,7 +230,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+91 98765 00001", "verified_name": "Number 1",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = set()
@@ -227,26 +242,26 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_locked_existing_row_never_promoted_to_active_by_warmup(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
     ):
         from datetime import datetime, timedelta, timezone
-        old_reset = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()
+        old_reset = (datetime.now(timezone.utc) - timedelta(days=20)).isoformat()  # warm-up began 20 days ago
         existing = [{
             "id": "row-2", "number": "+919876500002", "display_name": "Second Number",
             "role": "standby", "status": "warming", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 1, "meta_phone_number_id": "meta-2",
-            "created_at": "2026-01-02T00:00:00Z", "last_reset_at": old_reset,
+            "created_at": "2026-01-02T00:00:00Z", "warm_up_started_at": old_reset,
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-2", "display_phone_number": "+919876500002", "verified_name": "Second Number",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = set()  # row-2 is locked (not primary, over quota)
@@ -259,8 +274,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_one_bad_number_does_not_abort_the_whole_sync(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -271,7 +286,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_list.return_value = [
             {"id": None, "display_phone_number": "bad"},  # no usable id -- should be skipped/counted as failed
             {"id": "meta-9", "display_phone_number": "+919876509999", "verified_name": "Good Number",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = set()
@@ -285,8 +300,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_existing_row_display_name_is_overwritten_from_meta(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -296,7 +311,7 @@ class SyncFromMetaTests(unittest.TestCase):
         existing = [{
             "id": "row-1", "number": "+919876500001", "display_name": "Old Local Label",
             "role": "primary", "status": "active", "quality_rating": "green",
-            "messaging_tier": 1000, "warm_up_day": 14, "meta_phone_number_id": "meta-1",
+            "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
             "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
@@ -304,7 +319,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+919876500001", "verified_name": "Astro",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = {"row-1"}
@@ -316,8 +331,8 @@ class SyncFromMetaTests(unittest.TestCase):
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.numbers_pool_limit")
-    @patch("app.routes.numbers.list_waba_phone_numbers", new_callable=AsyncMock)
-    @patch("app.routes.numbers.get_setting")
+    @patch("app.services.number_sync.list_waba_phone_numbers", new_callable=AsyncMock)
+    @patch("app.services.number_sync.get_setting")
     @patch("app.routes.numbers.get_supabase")
     def test_missing_verified_name_leaves_display_name_alone(
         self, mock_get_db, mock_get_setting, mock_list, mock_limit, mock_unlocked
@@ -327,7 +342,7 @@ class SyncFromMetaTests(unittest.TestCase):
         existing = [{
             "id": "row-1", "number": "+919876500001", "display_name": "Existing Name",
             "role": "primary", "status": "active", "quality_rating": "green",
-            "messaging_tier": 1000, "warm_up_day": 14, "meta_phone_number_id": "meta-1",
+            "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
             "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
@@ -335,7 +350,7 @@ class SyncFromMetaTests(unittest.TestCase):
         mock_get_setting.return_value = "waba-1"
         mock_list.return_value = [
             {"id": "meta-1", "display_phone_number": "+919876500001",
-             "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
+             "status": "CONNECTED", "quality_rating": "GREEN", "messaging_limit_tier": "TIER_1000"},
         ]
         mock_limit.return_value = 1
         mock_unlocked.return_value = {"row-1"}

@@ -125,7 +125,7 @@ async def partner_send_event(payload: dict, tenant_id: str, db) -> tuple[int, di
     try:
         data = await send_template_message(
             to_number=phone, template_name=template["name"], lang_code=template.get("language") or "en",
-            components=components or None, tenant_id=tenant_id, phone_number_id=_astro_phone_number_id(tenant_id, db),
+            components=components or None, tenant_id=tenant_id, phone_number_id=_astro_phone_number_id(tenant_id, db, phone),
         )
     except HTTPException as e:
         logger.error(f"Partner event {event} ({reference}) for tenant {tenant_id} rejected by Meta: {e.detail}")

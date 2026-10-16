@@ -3,20 +3,12 @@ from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.config_dynamic import get_setting
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
-from app.services.meta_cloud import (
-    get_number_health,
-    get_number_quality,
-    list_waba_phone_numbers,
-    parse_messaging_tier,
-)
-from app.services.numbers_pool import (
-    get_unlocked_number_ids,
-    normalize_phone_number,
-    numbers_pool_limit,
-)
+from app.services.meta_cloud import get_number_health
+from app.services.number_health import health, is_meta_connected
+from app.services.number_sync import sync_one_number, sync_tenant_numbers
+from app.services.numbers_pool import get_unlocked_number_ids, numbers_pool_limit
 
 logger = logging.getLogger(__name__)
 require_numbers_read = require_permission("numbers.view")
@@ -59,17 +51,24 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
         .order("quality_rating")
         .execute()
     )
-    rows = result.data or []
-    numbers_limit = numbers_pool_limit(db, tenant_id)
+    return _pool_response(db, tenant_id, result.data or [])
+
+
+def _pool_response(db, tenant_id: str, rows: list[dict]) -> dict:
+    now = datetime.now(timezone.utc)
     unlocked_ids = get_unlocked_number_ids(db, tenant_id)
     data = [
-        {**row, "locked": row.get("status") != "archived" and row["id"] not in unlocked_ids}
+        {
+            **row,
+            "locked": row.get("status") != "archived" and row["id"] not in unlocked_ids,
+            "health": health(row, now),
+        }
         for row in rows
     ]
     active_rows = [r for r in rows if r.get("status") != "archived"]
     return {
         "data": data,
-        "numbers_pool": {"limit": numbers_limit, "used": len(active_rows)},
+        "numbers_pool": {"limit": numbers_pool_limit(db, tenant_id), "used": len(active_rows)},
     }
 
 
@@ -116,150 +115,22 @@ async def sync_all_numbers_from_meta(
     phone_numbers -- regardless of numbers_pool quota. Numbers beyond quota
     land locked (role=standby, never auto-primary), not rejected."""
     db = get_supabase()
-    waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
-    if not waba_id:
+    try:
+        synced, failed = await sync_tenant_numbers(db, tenant_id, source="manual_sync")
+    except ValueError:
         raise HTTPException(status_code=400, detail="Connect Meta WhatsApp (meta_waba_id) in Settings first")
 
-    meta_numbers = await list_waba_phone_numbers(waba_id=waba_id, tenant_id=tenant_id)
-
-    existing_rows = (
-        db.table("phone_numbers")
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .execute()
-        .data
-        or []
-    )
-    by_meta_id = {r["meta_phone_number_id"]: r for r in existing_rows if r.get("meta_phone_number_id")}
-    by_number = {r["number"]: r for r in existing_rows if r.get("number")}
-
-    # Snapshot lock state *before* this sync's inserts/updates -- used only to
-    # decide whether an existing row's warm-up may promote it to "active".
-    # Newly-inserted rows never attempt promotion (they start at day 0), so
-    # this snapshot doesn't need to account for numbers this same sync adds.
-    unlocked_before = get_unlocked_number_ids(db, tenant_id)
-
-    now = datetime.now(timezone.utc)
-    synced = 0
-    failed = 0
-
-    for meta_num in meta_numbers:
-        try:
-            meta_pid = meta_num.get("id")
-            if not meta_pid:
-                failed += 1
-                continue
-
-            # Meta returns GREEN/YELLOW/RED (UNKNOWN for new numbers -> omitted).
-            quality = _QUALITY_MAP.get((meta_num.get("quality_rating") or "").upper())
-            tier = parse_messaging_tier(meta_num)
-            display_number = normalize_phone_number(meta_num.get("display_phone_number") or "")
-
-            row = by_meta_id.get(meta_pid) or (by_number.get(display_number) if display_number else None)
-
-            if row is None:
-                insert_data: dict = {
-                    "provider": "meta_cloud",
-                    "number": display_number or meta_pid,
-                    "display_name": meta_num.get("verified_name") or display_number or meta_pid,
-                    "role": "standby",
-                    "status": "warming",
-                    "warm_up_day": 0,
-                    "paused_outbound": False,
-                    "meta_phone_number_id": meta_pid,
-                    "tenant_id": tenant_id,
-                }
-                if quality:
-                    insert_data["quality_rating"] = quality
-                if tier:
-                    insert_data["messaging_tier"] = tier
-                inserted = db.table("phone_numbers").insert(insert_data).execute()
-                new_row = inserted.data[0]
-                existing_rows.append(new_row)
-                by_meta_id[meta_pid] = new_row
-                if display_number:
-                    by_number[display_number] = new_row
-                synced += 1
-                continue
-
-            updates: dict = {"daily_send_count": 0, "last_reset_at": now.isoformat()}
-            # Meta owns the display name -- it's the Meta-approved `verified_name`
-            # customers actually see in WhatsApp, and it can only be changed in
-            # WhatsApp Manager (a rename there goes through Meta's review). The
-            # dashboard has no rename affordance, so sync mirrors Meta verbatim
-            # rather than preserving whatever the row happens to hold.
-            verified_name = (meta_num.get("verified_name") or "").strip()
-            if verified_name and verified_name != row.get("display_name"):
-                updates["display_name"] = verified_name
-            if quality:
-                updates["quality_rating"] = quality
-            if tier:
-                updates["messaging_tier"] = tier
-            if not row.get("meta_phone_number_id"):
-                updates["meta_phone_number_id"] = meta_pid
-            if row.get("status") == "archived":
-                updates["status"] = "active"
-                updates["paused_outbound"] = False
-
-            last_reset_raw = row.get("last_reset_at")
-            days_elapsed = 0
-            if last_reset_raw:
-                last_reset = datetime.fromisoformat(last_reset_raw.replace("Z", "+00:00"))
-                days_elapsed = max(0, (now - last_reset).days)
-
-            locked = row["id"] not in unlocked_before
-            if row["status"] == "warming" and days_elapsed > 0:
-                new_day = min(row["warm_up_day"] + days_elapsed, _WARM_UP_MAX)
-                updates["warm_up_day"] = new_day
-                if new_day >= _WARM_UP_MAX and not locked:
-                    updates["status"] = "active"
-
-            db.table("phone_numbers").update(updates).eq("id", row["id"]).eq("tenant_id", tenant_id).execute()
-
-            old_quality = row.get("quality_rating", "green")
-            new_quality = updates.get("quality_rating", old_quality)
-            if new_quality != old_quality:
-                incident_type = "quality_yellow" if new_quality == "yellow" else "quality_red" if new_quality == "red" else None
-                if incident_type:
-                    db.table("incidents").insert({
-                        "type": incident_type,
-                        "phone_number_id": row["id"],
-                        "tenant_id": tenant_id,
-                        "detail": {
-                            "number": row.get("number"),
-                            "display_name": row.get("display_name"),
-                            "old_quality": old_quality,
-                            "new_quality": new_quality,
-                            "source": "bulk_meta_sync",
-                        },
-                    }).execute()
-            synced += 1
-        except Exception:
-            logger.exception("sync-from-meta: failed to process one Meta number for tenant %s", tenant_id)
-            failed += 1
-
-    result = (
+    rows = (
         db.table("phone_numbers")
         .select("*")
         .eq("tenant_id", tenant_id)
         .order("role")
         .order("quality_rating")
         .execute()
+        .data
+        or []
     )
-    rows = result.data or []
-    numbers_limit = numbers_pool_limit(db, tenant_id)
-    unlocked_after = get_unlocked_number_ids(db, tenant_id)
-    data = [
-        {**r, "locked": r.get("status") != "archived" and r["id"] not in unlocked_after}
-        for r in rows
-    ]
-    active_rows = [r for r in rows if r.get("status") != "archived"]
-    return {
-        "data": data,
-        "numbers_pool": {"limit": numbers_limit, "used": len(active_rows)},
-        "synced": synced,
-        "failed": failed,
-    }
+    return {**_pool_response(db, tenant_id, rows), "synced": synced, "failed": failed}
 
 
 @router.patch("/{number_id}")
@@ -302,6 +173,12 @@ async def update_phone_number(
             )
 
     if payload.role == "primary":
+        target = db.table("phone_numbers").select("meta_status").eq("id", str(number_id)).eq("tenant_id", tenant_id).limit(1).execute().data
+        if target and not is_meta_connected(target[0]):
+            raise HTTPException(
+                status_code=400,
+                detail="Meta hasn't verified this number yet. Finish verification in WhatsApp Manager, then Sync.",
+            )
         # Ensure exclusive primary logic: demote all other primary numbers to standby
         db.table("phone_numbers").update({"role": "standby"}).eq("tenant_id", tenant_id).eq("role", "primary").execute()
         
@@ -309,15 +186,6 @@ async def update_phone_number(
     if not result.data:
         raise HTTPException(status_code=404, detail="Phone number not found")
     return result.data[0]
-
-
-# Meta's Graph API sends GREEN/YELLOW/RED; HIGH/MEDIUM/LOW is the WhatsApp
-# Manager wording, kept so either spelling maps.
-_QUALITY_MAP = {
-    "GREEN": "green", "YELLOW": "yellow", "RED": "red",
-    "HIGH": "green", "MEDIUM": "yellow", "LOW": "red",
-}
-_WARM_UP_MAX = 14
 
 
 @router.post("/{number_id}/sync-meta")
@@ -342,72 +210,8 @@ async def sync_number_from_meta(
     if not meta_pid:
         raise HTTPException(status_code=400, detail="No Meta phone number ID set for this number")
 
-    meta_data = await get_number_quality(phone_number_id=meta_pid, tenant_id=tenant_id)
-
-    raw_quality = meta_data.get("quality_rating", "")
-    quality = _QUALITY_MAP.get(raw_quality.upper(), row["quality_rating"])
-    tier = meta_data.get("messaging_tier") or row["messaging_tier"]
-
-    now = datetime.now(timezone.utc)
-    last_reset_raw = row.get("last_reset_at")
-    days_elapsed = 0
-    if last_reset_raw:
-        last_reset = datetime.fromisoformat(last_reset_raw.replace("Z", "+00:00"))
-        days_elapsed = max(0, (now - last_reset).days)
-
-    updates: dict = {
-        "quality_rating": quality,
-        "messaging_tier": tier,
-        "daily_send_count": 0,
-        "last_reset_at": now.isoformat(),
-    }
-
-    # Mirror Meta's approved display name -- see the same note in sync-from-meta.
-    verified_name = (meta_data.get("verified_name") or "").strip()
-    if verified_name and verified_name != row.get("display_name"):
-        updates["display_name"] = verified_name
-
-    if row["status"] == "warming" and days_elapsed > 0:
-        new_day = min(row["warm_up_day"] + days_elapsed, _WARM_UP_MAX)
-        updates["warm_up_day"] = new_day
-        if new_day >= _WARM_UP_MAX:
-            updates["status"] = "active"
-
-    result = (
-        db.table("phone_numbers")
-        .update(updates)
-        .eq("id", str(number_id))
-        .eq("tenant_id", tenant_id)
-        .execute()
-    )
-
-    # Always record a quality snapshot so Activity Log has something to show
-    db.table("phone_number_quality_history").insert({
-        "phone_number_id": str(number_id),
-        "tenant_id": tenant_id,
-        "quality_rating": quality,
-        "messaging_tier": tier,
-    }).execute()
-
-    # Also write an incident if quality degraded
-    old_quality = row.get("quality_rating", "green")
-    if quality != old_quality:
-        incident_type = "quality_yellow" if quality == "yellow" else "quality_red" if quality == "red" else None
-        if incident_type:
-            db.table("incidents").insert({
-                "type": incident_type,
-                "phone_number_id": str(number_id),
-                "tenant_id": tenant_id,
-                "detail": {
-                    "number": row["number"],
-                    "display_name": row["display_name"],
-                    "old_quality": old_quality,
-                    "new_quality": quality,
-                    "source": "manual_sync",
-                },
-            }).execute()
-
-    return result.data[0]
+    merged = await sync_one_number(db, row, source="manual_sync")
+    return {**merged, "health": health(merged, datetime.now(timezone.utc))}
 
 
 @router.get("/{number_id}/meta-health")

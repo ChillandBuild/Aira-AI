@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.routes.numbers import _QUALITY_MAP
+from app.services.number_health import map_quality
 from app.services.meta_cloud import UNLIMITED_MESSAGING_TIER, parse_messaging_tier, tier_from_meta
 
 
@@ -41,10 +41,11 @@ class TierFromMetaTests(unittest.TestCase):
 
 class QualityMapTests(unittest.TestCase):
     def test_graph_api_colours_map(self):
-        self.assertEqual(_QUALITY_MAP["RED"], "red")
-        self.assertEqual(_QUALITY_MAP["YELLOW"], "yellow")
-        self.assertEqual(_QUALITY_MAP["GREEN"], "green")
-        self.assertNotIn("UNKNOWN", _QUALITY_MAP)
+        self.assertEqual(map_quality("RED"), "red")
+        self.assertEqual(map_quality("YELLOW"), "yellow")
+        self.assertEqual(map_quality("GREEN"), "green")
+        # No rating yet is stored as None, never guessed.
+        self.assertIsNone(map_quality("UNKNOWN"))
 
 
 if __name__ == "__main__":

@@ -2286,8 +2286,25 @@ async def reconcile_pending_astro_pushes(db=None) -> int:
     return pushed
 
 
-def _astro_phone_number_id(tenant_id: str, db) -> str | None:
-    """The tenant's inbound WhatsApp number, so the astrologer's reply lands in the lead's existing thread."""
+def _astro_phone_number_id(tenant_id: str, db, phone: str | None = None) -> str | None:
+    """The number the lead last messaged, so the astrologer's reply lands in the
+    lead's existing thread -- even after a failover moved the primary. Falls back
+    to the tenant's primary for a lead who has never messaged in."""
+    if phone:
+        try:
+            rows = (
+                db.table("leads")
+                .select("last_inbound_phone_number_id")
+                .eq("tenant_id", tenant_id)
+                .eq("phone", phone)
+                .limit(1)
+                .execute()
+            )
+            pid = ((rows.data or [{}])[0] or {}).get("last_inbound_phone_number_id")
+            if pid:
+                return pid
+        except Exception as e:
+            logger.warning(f"Could not resolve lead's inbound number for tenant {tenant_id}: {e}")
     try:
         rows = (
             db.table("phone_numbers")
@@ -2478,7 +2495,7 @@ async def deliver_astro_reply(payload: dict, tenant_id: str, db=None) -> dict:
         except Exception as e:
             logger.warning(f"Astro reply {reply_id} text archive failed for session {external_ref}: {e}")
 
-    phone_number_id = _astro_phone_number_id(tenant_id, db)
+    phone_number_id = _astro_phone_number_id(tenant_id, db, phone)
     mid, via, content = None, "", _REPLY_READY_TEMPLATE_LOG
     if _within_whatsapp_window(lead.get("last_inbound_at")):
         content = await _compose_reply_nudge(lead_id, tenant_id, phone, db)
@@ -2687,7 +2704,7 @@ async def partner_send_template(payload: dict, tenant_id: str, db=None) -> tuple
             lang_code=lang,
             components=components,
             tenant_id=tenant_id,
-            phone_number_id=_astro_phone_number_id(tenant_id, db),
+            phone_number_id=_astro_phone_number_id(tenant_id, db, phone),
         )
     except HTTPException as e:
         logger.error(f"Partner template {code} ({reference}) for tenant {tenant_id} rejected by Meta: {e.detail}")
@@ -2731,7 +2748,7 @@ async def partner_send_text(payload: dict, tenant_id: str, db=None) -> tuple[int
 
     reference = _partner_reference(payload)
     try:
-        mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=_astro_phone_number_id(tenant_id, db))
+        mid = await send_whatsapp(phone, text, tenant_id=tenant_id, phone_number_id=_astro_phone_number_id(tenant_id, db, phone))
     except Exception as e:
         logger.error(f"Partner text ({reference}) for tenant {tenant_id} failed: {e}")
         return _partner_error(502, "meta_error", str(e))

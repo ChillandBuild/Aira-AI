@@ -307,7 +307,12 @@ def _upsert_onboarded_phone_number(
             db.table("phone_numbers").update({"role": "standby"}).eq(
                 "tenant_id", tenant_id
             ).eq("role", "primary").execute()
-        fields.update({"role": "primary", "status": "active", "warm_up_day": 14, "paused_outbound": False})
+        # The tenant's own number is already in use, so it skips warm-up.
+        warmed_since = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+        fields.update({
+            "role": "primary", "status": "active", "warm_up_day": 14,
+            "warm_up_started_at": warmed_since, "paused_outbound": False,
+        })
     elif row is None:
         # New arrival that isn't claiming the slot starts cold, like any other
         # number the tenant has not warmed up yet.

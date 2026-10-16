@@ -1,12 +1,30 @@
+"""Primary-number failover. Rules live in number_health; this module writes.
+
+When a number turns Red it starts resting: status=restricted, rested_since=now.
+It keeps answering chats (replies go out from the number the customer
+messaged) but sends no broadcasts. If it was primary, the best standby that
+Meta reports CONNECTED takes over -- even mid warm-up, with its broadcasts
+capped. With no such standby, broadcasts pause until one is added or the Red
+number recovers (7 days rested + Green, see number_health.recovered).
+"""
 import logging
+from datetime import datetime, timezone
+
 from app.db.supabase import get_supabase
+from app.services.number_health import is_resting, map_quality, standby_candidates
+from app.services.numbers_pool import get_unlocked_number_ids
 
 logger = logging.getLogger(__name__)
 
-QUALITY_MAP = {"GREEN": "green", "YELLOW": "yellow", "RED": "red"}
+
+def _insert_incident(db, payload: dict) -> None:
+    try:
+        db.table("incidents").insert(payload).execute()
+    except Exception as e:
+        logger.warning(f"failover: incident insert failed ({payload.get('type')}): {e}")
 
 
-async def handle_quality_red(phone_number_id: str) -> None:
+async def handle_quality_red(phone_number_id: str, source: str = "meta_webhook") -> None:
     db = get_supabase()
 
     old_row = db.table("phone_numbers").select("*").eq("id", phone_number_id).limit(1).execute()
@@ -14,77 +32,80 @@ async def handle_quality_red(phone_number_id: str) -> None:
         logger.warning(f"handle_quality_red: no phone_number row found for id={phone_number_id}")
         return
 
-    old_number = old_row.data[0]
-    tenant_id = old_number.get("tenant_id")
+    row = old_row.data[0]
+    tenant_id = row.get("tenant_id")
     if not tenant_id:
         logger.warning(f"handle_quality_red: missing tenant_id for phone_number id={phone_number_id}")
-        db.table("incidents").insert({
-            "type": "quality_red",
-            "phone_number_id": phone_number_id,
-            "detail": {"phone_number_id": phone_number_id, "message": "missing_tenant_id"},
-        }).execute()
         return
 
-    standby = (
-        db.table("phone_numbers")
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .eq("status", "active")
-        .eq("role", "standby")
-        .neq("id", phone_number_id)
-        .gte("warm_up_day", 14)
-        .order("warm_up_day", desc=True)
-        .limit(1)
-        .execute()
-    )
-
-    if not standby.data:
-        logger.warning(f"handle_quality_red: no standby available for number={phone_number_id}")
-        db.table("incidents").insert({
+    if not is_resting(row):
+        db.table("phone_numbers").update({
+            "status": "restricted",
+            "rested_since": datetime.now(timezone.utc).isoformat(),
+            "quality_rating": "red",
+        }).eq("id", phone_number_id).eq("tenant_id", tenant_id).execute()
+        logger.info(f"handle_quality_red: number id={phone_number_id} is resting")
+        _insert_incident(db, {
             "type": "quality_red",
             "tenant_id": tenant_id,
             "phone_number_id": phone_number_id,
-            "detail": {"phone_number_id": phone_number_id, "message": "no_standby_available"},
-        }).execute()
-        return
+            "detail": {"number": row.get("number"), "source": source},
+        })
 
-    new_number = standby.data[0]
-    new_number_id = new_number["id"]
+    if row.get("role") == "primary":
+        promoted = await ensure_healthy_primary(tenant_id)
+        if promoted is None:
+            _insert_incident(db, {
+                "type": "quality_red",
+                "tenant_id": tenant_id,
+                "phone_number_id": phone_number_id,
+                "detail": {"message": "no_standby_available", "source": source},
+            })
 
-    db.table("phone_numbers").update({"role": "primary"}).eq("id", new_number_id).execute()
-    logger.info(f"handle_quality_red: promoted standby id={new_number_id} to primary")
 
-    db.table("phone_numbers").update({"role": "standby", "status": "restricted"}).eq("id", phone_number_id).execute()
-    logger.info(f"handle_quality_red: demoted old primary id={phone_number_id} to standby/restricted")
+async def ensure_healthy_primary(tenant_id: str) -> dict | None:
+    """If the primary is resting (Red), hand primary to the best standby.
+    Returns the promoted row, or None when no switch happened. Safe to call
+    repeatedly -- the syncs call it so a standby that becomes ready later
+    still takes over."""
+    db = get_supabase()
+    rows = (
+        db.table("phone_numbers")
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .neq("status", "archived")
+        .execute()
+        .data
+        or []
+    )
+    primary = next((r for r in rows if r.get("role") == "primary"), None)
+    if primary is None or not is_resting(primary):
+        return None
 
-    # ── Update the "sticky note" so the AI sends from the new number ──
+    candidates = standby_candidates(rows, primary["id"], get_unlocked_number_ids(db, tenant_id))
+    if not candidates:
+        logger.warning(f"ensure_healthy_primary: no standby ready for tenant {tenant_id}")
+        return None
+
+    new_number = candidates[0]
+    db.table("phone_numbers").update({"role": "standby"}).eq("id", primary["id"]).eq("tenant_id", tenant_id).execute()
+    db.table("phone_numbers").update({"role": "primary"}).eq("id", new_number["id"]).eq("tenant_id", tenant_id).execute()
+    logger.info(f"ensure_healthy_primary: {new_number['id']} took over from {primary['id']} (tenant {tenant_id})")
+
+    # The tenant-wide default sender (used when a send names no number).
     new_meta_id = new_number.get("meta_phone_number_id")
     if new_meta_id:
         db.table("app_settings").upsert(
             {"key": "meta_phone_number_id", "value": new_meta_id, "tenant_id": tenant_id, "is_secret": False},
             on_conflict="tenant_id,key",
         ).execute()
-        logger.info(f"handle_quality_red: updated app_settings meta_phone_number_id to {new_meta_id}")
-
-        # Clear the in-memory cache so the new value is used immediately
         from app.config_dynamic import invalidate_cache
         invalidate_cache("meta_phone_number_id")
 
-    db.table("incidents").insert({
-        "type": "failover",
-        "tenant_id": tenant_id,
-        "phone_number_id": phone_number_id,
-        "detail": {"old_number_id": phone_number_id, "new_number_id": new_number_id},
-    }).execute()
-
-    db.table("incidents").insert({
-        "type": "standby_promoted",
-        "tenant_id": tenant_id,
-        "phone_number_id": new_number_id,
-        "detail": {"old_number_id": phone_number_id, "new_number_id": new_number_id},
-    }).execute()
-
-    await send_migration_notice(new_number, tenant_id)
+    detail = {"old_number_id": primary["id"], "new_number_id": new_number["id"]}
+    _insert_incident(db, {"type": "failover", "tenant_id": tenant_id, "phone_number_id": primary["id"], "detail": detail})
+    _insert_incident(db, {"type": "standby_promoted", "tenant_id": tenant_id, "phone_number_id": new_number["id"], "detail": detail})
+    return {**new_number, "role": "primary"}
 
 
 async def handle_quality_yellow(phone_number_id: str) -> None:
@@ -103,74 +124,7 @@ async def handle_quality_yellow(phone_number_id: str) -> None:
     }
     if tenant_id:
         incident_payload["tenant_id"] = tenant_id
-    db.table("incidents").insert(incident_payload).execute()
-
-
-async def send_migration_notice(new_number_row: dict, tenant_id: str) -> int:
-    from datetime import datetime, timedelta, timezone
-    from app.services.meta_cloud import send_text_message
-    from app.config import settings
-
-    db = get_supabase()
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-
-    if not tenant_id:
-        logger.warning("Cannot send migration notice: missing tenant_id")
-        return 0
-
-    recent_lead_ids = list({
-        r["lead_id"] for r in
-        (
-            db.table("messages")
-            .select("lead_id")
-            .eq("tenant_id", tenant_id)
-            .gte("created_at", cutoff)
-            .execute()
-            .data
-            or []
-        )
-        if r.get("lead_id")
-    })
-    if not recent_lead_ids:
-        return 0
-
-    leads = (
-        db.table("leads")
-        .select("phone")
-        .eq("tenant_id", tenant_id)
-        .in_("id", recent_lead_ids)
-        .execute()
-        .data
-        or []
-    )
-
-    phone_number_id = new_number_row.get("meta_phone_number_id")
-    access_token = settings.meta_access_token
-    if not phone_number_id or not access_token:
-        logger.warning("Cannot send migration notice: missing meta credentials")
-        return 0
-
-    sent = 0
-    for lead in leads:
-        try:
-            await send_text_message(
-                to_number=lead["phone"],
-                text="Hi! We've moved to a new WhatsApp number. Please save this contact and reply here to continue our conversation.",
-                phone_number_id=phone_number_id,
-                access_token=access_token,
-            )
-            sent += 1
-        except Exception as e:
-            logger.error(f"Migration notice failed for {lead['phone']}: {e}")
-
-    db.table("incidents").insert({
-        "type": "migration_sent",
-        "tenant_id": tenant_id,
-        "phone_number_id": new_number_row["id"],
-        "detail": {"leads_notified": sent},
-    }).execute()
-
-    return sent
+    _insert_incident(db, incident_payload)
 
 
 async def update_number_quality(
@@ -192,10 +146,12 @@ async def update_number_quality(
         return None
 
     row_id = existing.data[0]["id"]
-    updates: dict = {"quality_rating": QUALITY_MAP.get(quality_rating, quality_rating.lower())}
+    # UNKNOWN (no rating yet) is stored as NULL, never guessed.
+    updates: dict = {"quality_rating": map_quality(quality_rating)}
     if messaging_tier is not None:
         updates["messaging_tier"] = messaging_tier
 
     db.table("phone_numbers").update(updates).eq("id", row_id).execute()
     logger.info(f"update_number_quality: id={row_id} quality={quality_rating} tier={messaging_tier}")
     return row_id
+

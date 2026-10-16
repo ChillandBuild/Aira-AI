@@ -107,6 +107,8 @@ _TIER_MAP = {
 }
 
 _LIMIT_FIELDS = "whatsapp_business_manager_messaging_limit,messaging_limit_tier"
+# Connection (CONNECTED, PENDING, ...) and OTP verification (VERIFIED, NOT_VERIFIED, EXPIRED).
+_STATUS_FIELDS = "status,code_verification_status"
 
 
 def tier_from_meta(value: Optional[str]) -> Optional[int]:
@@ -1114,7 +1116,7 @@ async def get_number_quality(
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(
             url,
-            params={"fields": f"quality_rating,{_LIMIT_FIELDS},verified_name"},
+            params={"fields": f"quality_rating,{_LIMIT_FIELDS},verified_name,{_STATUS_FIELDS}"},
             headers={"Authorization": f"Bearer {tok}"},
         )
     if not resp.is_success:
@@ -1130,6 +1132,10 @@ async def get_number_quality(
         # (the daily scheduler job) ignore it; the single-number sync route
         # mirrors it onto phone_numbers.display_name.
         "verified_name": data.get("verified_name"),
+        # Meta's own connection/verification state -- the number may only
+        # send once status is CONNECTED.
+        "status": data.get("status"),
+        "code_verification_status": data.get("code_verification_status"),
     }
 
 
@@ -1250,12 +1256,13 @@ async def list_waba_phone_numbers(
     """
     Fetch every phone number registered on a WABA, handling pagination.
     Returns Meta's raw phone-number dicts (id, display_phone_number,
-    verified_name, quality_rating, and both messaging-limit fields).
+    verified_name, quality_rating, both messaging-limit fields, status and
+    code_verification_status).
     """
     _, tok = _creds("placeholder", access_token, tenant_id)
     url = f"{_GRAPH_BASE}/{waba_id}/phone_numbers"
     params = {
-        "fields": f"id,display_phone_number,verified_name,quality_rating,{_LIMIT_FIELDS}",
+        "fields": f"id,display_phone_number,verified_name,quality_rating,{_LIMIT_FIELDS},{_STATUS_FIELDS}",
         "limit": 100,
     }
     numbers: list[dict] = []

@@ -28,7 +28,9 @@ class LogicContractChecks(unittest.TestCase):
 
         self.assertRegex(router, r"async def get_best_number\(tenant_id: str\)")
         self.assertIn('.eq("tenant_id", tenant_id)', router)
-        self.assertIn('< (r.get("messaging_tier") or 1000)', router)
+        # Meta's reported limit is the cap -- no invented default when it's missing.
+        self.assertIn("cap = broadcast_cap(r, now)", router)
+        self.assertNotIn("or 1000", router)
         self.assertIn("get_best_number(tenant_id)", upload)
 
     def test_tenant_uniqueness_migration_uses_composite_keys(self):

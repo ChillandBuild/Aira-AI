@@ -7,7 +7,7 @@ import {
   X, Check, Trash2, PauseCircle, PlayCircle, Star, RefreshCw,
   Info, ChevronDown, ChevronUp, ChevronRight, Lock, Copy, Phone,
   ShieldCheck, Activity, Smartphone, CheckCircle2,
-  Search, ArrowRightLeft, ExternalLink, ShieldAlert
+  Search, ArrowRightLeft, ExternalLink, ShieldAlert, Hourglass, Sunrise
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { usePolling } from "@/hooks/usePolling";
@@ -17,6 +17,19 @@ import { Loader2 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
+type QualityRating = "green" | "yellow" | "red";
+
+type NumberHealth = {
+  state: "archived" | "meta_pending" | "resting" | "warming" | "active";
+  meta_status: string | null;
+  meta_code_verification: string | null;
+  warm_up_day: number;
+  warm_up_days: number;
+  rest_day: number;
+  rest_days: number;
+  broadcast_cap: number | null;
+};
+
 type PhoneNumber = {
   id: string;
   provider: "meta_cloud";
@@ -24,29 +37,34 @@ type PhoneNumber = {
   display_name: string;
   role: "primary" | "standby" | "archived";
   status: "active" | "warming" | "restricted" | "archived";
-  quality_rating: "green" | "yellow" | "red";
-  messaging_tier: number;
+  quality_rating: QualityRating | null;
+  messaging_tier: number | null;
   daily_send_count: number;
   warm_up_day: number;
   paused_outbound: boolean;
   meta_phone_number_id?: string | null;
   created_at: string;
   locked: boolean;
+  meta_status?: string | null;
+  meta_code_verification?: string | null;
+  warm_up_started_at?: string | null;
+  rested_since?: string | null;
+  health?: NumberHealth;
 };
 
-const QUALITY_COLOR: Record<PhoneNumber["quality_rating"], string> = {
+const QUALITY_COLOR: Record<QualityRating, string> = {
   green: "bg-emerald-500",
   yellow: "bg-amber-500",
   red: "bg-red-500",
 };
 
-const QUALITY_LABEL: Record<PhoneNumber["quality_rating"], string> = {
+const QUALITY_LABEL: Record<QualityRating, string> = {
   green: "High",
   yellow: "Medium",
   red: "Low",
 };
 
-const QUALITY_BG: Record<PhoneNumber["quality_rating"], string> = {
+const QUALITY_BG: Record<QualityRating, string> = {
   green: "bg-emerald-50 text-emerald-700 border-emerald-200",
   yellow: "bg-amber-50 text-amber-700 border-amber-200",
   red: "bg-red-50 text-red-700 border-red-200",
@@ -71,6 +89,12 @@ function getTierLabel(tier: number): string {
 
 function formatLimit(tier: number): string {
   return tier >= UNLIMITED_TIER ? "Unlimited" : tier.toLocaleString();
+}
+
+// "RATE_LIMITED" -> "Rate limited"
+function formatMetaStatus(status: string): string {
+  const words = status.toLowerCase().replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
@@ -269,7 +293,7 @@ function QualityNextSteps({ num, hasStandby }: { num: PhoneNumber; hasStandby: b
     "Pause cold or bulk Marketing broadcasts. Message only people who opted in or chatted with you recently.",
     "Keep templates relevant and add a “Stop” quick reply, so people opt out instead of blocking.",
     ...(isLow && !hasStandby
-      ? ["Add a warmed-up standby number. When Meta flags a number Low, Anril moves sending to the standby."]
+      ? ["Add a standby number. When Meta flags a number Low, Anril moves sending to the standby."]
       : []),
     isLow
       ? "Quality recovers as blocks stop. If it stays Low, Meta can lower your messaging limit."
@@ -377,6 +401,7 @@ const TYPE_LABELS: Record<string, string> = {
   appeal_filed: "Meta policy appeal filed",
   standby_promoted: "Standby number promoted to primary line",
   warm_up_complete: "Number warm-up completed — now fully active",
+  number_recovered: "Number recovered — rested 7 days and Meta shows it Green",
   quality_snapshot: "Quality rating & tier synced from Meta",
   whatsapp_alert_failed: "Admin WhatsApp alert failed to send",
 };
@@ -389,6 +414,7 @@ const TYPE_BADGE: Record<string, string> = {
   appeal_filed: "bg-orange-50 text-orange-700 border-orange-200",
   standby_promoted: "bg-blue-50 text-blue-700 border-blue-200",
   warm_up_complete: "bg-green-50 text-green-700 border-green-200",
+  number_recovered: "bg-green-50 text-green-700 border-green-200",
   quality_snapshot: "bg-emerald-50 text-emerald-700 border-emerald-200",
   whatsapp_alert_failed: "bg-red-50 text-red-700 border-red-200",
 };
@@ -626,10 +652,17 @@ function NumbersPageContent() {
   const totalPoolUsed = visible.length;
   const primaryNumber = visible.find((n) => n.role === "primary");
   const standbyCount = visible.filter((n) => n.role === "standby").length;
-  // handle_quality_red's pick (active standby past warm-up), minus red ones.
+  // A standby that can take over sending: already live or warming, not Red, not paused or locked.
   const hasReadyStandby = visible.some(
-    (n) => n.role === "standby" && n.status === "active" && n.warm_up_day >= 14 && n.quality_rating !== "red"
+    (n) =>
+      n.role === "standby" &&
+      (n.health?.state === "active" || n.health?.state === "warming") &&
+      n.quality_rating !== "red" &&
+      !n.paused_outbound &&
+      !n.locked
   );
+  const broadcastsPaused = primaryNumber?.health?.state === "resting" && !hasReadyStandby;
+  const activeLineCount = visible.filter((n) => n.health?.state === "active").length;
   const pausedCount = visible.filter((n) => n.paused_outbound).length;
   const totalDailySends = visible.reduce((acc, n) => acc + (n.daily_send_count || 0), 0);
   // Meta's limit is per business portfolio and shared by every number, so
@@ -638,7 +671,7 @@ function NumbersPageContent() {
   const totalSendPct = totalDailyCapacity > 0 ? Math.min((totalDailySends / totalDailyCapacity) * 100, 100) : 0;
 
   // Portfolio overall quality
-  const overallQuality: PhoneNumber["quality_rating"] = visible.some((n) => n.quality_rating === "red")
+  const overallQuality: QualityRating = visible.some((n) => n.quality_rating === "red")
     ? "red"
     : visible.some((n) => n.quality_rating === "yellow")
     ? "yellow"
@@ -856,7 +889,13 @@ function NumbersPageContent() {
                 <p className="font-label text-xs text-on-surface-muted mt-0.5">Portfolio Health Status</p>
               </div>
               <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between text-[11px] font-body text-on-surface-muted">
-                <span>{pausedCount > 0 ? `${pausedCount} paused line${pausedCount > 1 ? "s" : ""}` : "All lines active"}</span>
+                <span>
+                  {pausedCount > 0
+                    ? `${pausedCount} paused line${pausedCount > 1 ? "s" : ""}`
+                    : activeLineCount === visible.length
+                    ? "All lines active"
+                    : `${activeLineCount} of ${visible.length} lines active`}
+                </span>
                 <span className="text-emerald-700 font-semibold">Meta synced</span>
               </div>
             </div>
@@ -881,7 +920,11 @@ function NumbersPageContent() {
               </div>
               <div className="mt-3 pt-3 border-t border-border/60 flex items-center justify-between text-[11px] font-body text-on-surface-muted">
                 <span>{standbyCount} standby failover{standbyCount === 1 ? "" : "s"}</span>
-                <span className="text-primary font-semibold">Broadcasting</span>
+                {broadcastsPaused ? (
+                  <span className="text-amber-700 font-semibold">Broadcasts paused</span>
+                ) : (
+                  <span className="text-primary font-semibold">Broadcasting</span>
+                )}
               </div>
             </div>
           </div>
@@ -1020,13 +1063,30 @@ function NumbersPageContent() {
                 </button>
               </div>
             ) : (
+              <>
+              {broadcastsPaused && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-5 py-4 flex items-start gap-3 mb-4">
+                  <PauseCircle size={18} className="text-amber-700 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="font-display text-sm font-bold text-amber-900">Broadcasts paused</p>
+                    <p className="font-body text-xs text-amber-900/80 leading-relaxed mt-0.5">
+                      Your primary number is Red and resting. It still replies to chats. Add a standby number so broadcasts can continue from it.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
                 {filteredNumbers.map((num) => {
                   const isSyncing = syncingId === num.id;
                   const isPausing = pausingId === num.id;
-                  const sendPct = num.messaging_tier > 0
-                    ? Math.min((num.daily_send_count / num.messaging_tier) * 100, 100)
+                  // Today's broadcast cap from the backend (lower than the tier during warm-up); null = Meta hasn't reported one.
+                  const limit = num.health?.broadcast_cap ?? null;
+                  // Resting or not yet verified by Meta: this number sends no broadcasts at all today.
+                  const noBroadcasts = num.health?.state === "resting" || num.health?.state === "meta_pending";
+                  const sendPct = limit !== null && limit > 0
+                    ? Math.min((num.daily_send_count / limit) * 100, 100)
                     : 0;
+                  const showsQualitySteps = num.quality_rating !== null && num.quality_rating !== "green";
 
                   return (
                     <div
@@ -1072,21 +1132,58 @@ function NumbersPageContent() {
                               )}
 
                               {/* Quality Rating */}
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold border ${QUALITY_BG[num.quality_rating]}`}>
-                                <span className={`w-2 h-2 rounded-full ${QUALITY_COLOR[num.quality_rating]}`} />
-                                {QUALITY_LABEL[num.quality_rating]} Quality
-                              </span>
-
-                              {/* Paused Badge */}
-                              {num.paused_outbound ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                  <PauseCircle size={11} />
-                                  Paused Outbound
+                              {num.quality_rating ? (
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold border ${QUALITY_BG[num.quality_rating]}`}>
+                                  <span className={`w-2 h-2 rounded-full ${QUALITY_COLOR[num.quality_rating]}`} />
+                                  {QUALITY_LABEL[num.quality_rating]} Quality
                                 </span>
                               ) : (
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold border bg-surface-low text-on-surface-muted border-border"
+                                  title="Meta hasn't rated this number yet. It gets a rating once it starts sending."
+                                >
+                                  <span className="w-2 h-2 rounded-full bg-on-surface-muted/40" />
+                                  No rating yet
+                                </span>
+                              )}
+
+                              {/* Status Badge (from health state) */}
+                              {num.health?.state === "meta_pending" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  <ShieldAlert size={11} />
+                                  {num.health.meta_code_verification === "NOT_VERIFIED" ||
+                                  num.health.meta_status === "PENDING" ||
+                                  num.health.meta_status === "UNVERIFIED"
+                                    ? "Unverified"
+                                    : num.health.meta_status === null
+                                    ? "Not synced yet"
+                                    : `Meta: ${formatMetaStatus(num.health.meta_status)}`}
+                                </span>
+                              )}
+                              {num.health?.state === "resting" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Hourglass size={11} />
+                                  Resting · day {Math.min(num.health.rest_day, num.health.rest_days)} of {num.health.rest_days}
+                                </span>
+                              )}
+                              {num.health?.state === "warming" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                  <Sunrise size={11} />
+                                  Warming · day {num.health.warm_up_day} of {num.health.warm_up_days}
+                                </span>
+                              )}
+                              {num.health?.state === "active" && (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
                                   <CheckCircle2 size={11} />
                                   Active
+                                </span>
+                              )}
+
+                              {/* Paused Badge */}
+                              {num.paused_outbound && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-label text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <PauseCircle size={11} />
+                                  Paused Outbound
                                 </span>
                               )}
                             </div>
@@ -1107,7 +1204,7 @@ function NumbersPageContent() {
                               <span className="text-border">•</span>
 
                               <span className="font-label text-[11px] text-on-surface-muted">
-                                {getTierLabel(num.messaging_tier)}
+                                {num.messaging_tier !== null ? getTierLabel(num.messaging_tier) : "Limit not reported yet"}
                               </span>
 
                               {num.meta_phone_number_id && (
@@ -1127,9 +1224,11 @@ function NumbersPageContent() {
                           {/* Send Meter */}
                           <div className="min-w-[170px] space-y-1.5">
                             <div className="flex items-center justify-between text-xs">
-                              <span className="font-label text-[11px] font-bold text-on-surface-muted">Daily Limit</span>
+                              <span className="font-label text-[11px] font-bold text-on-surface-muted">
+                                {num.health?.state === "warming" ? "Warm-up limit" : "Daily Limit"}
+                              </span>
                               <span className="font-mono font-bold text-on-surface text-[11px]">
-                                {num.daily_send_count.toLocaleString()} / {formatLimit(num.messaging_tier)}
+                                {limit === null || noBroadcasts ? "—" : `${num.daily_send_count.toLocaleString()} / ${formatLimit(limit)}`}
                               </span>
                             </div>
                             <div className="w-full h-2 rounded-full bg-surface-mid overflow-hidden">
@@ -1138,16 +1237,22 @@ function NumbersPageContent() {
                                   "h-full rounded-full transition-all duration-500",
                                   sendPct > 80 ? "bg-red-500" : sendPct > 50 ? "bg-amber-500" : "bg-emerald-500"
                                 )}
-                                style={{ width: `${Math.max(sendPct, 2)}%` }}
+                                style={{ width: `${limit === null || noBroadcasts ? 0 : Math.max(sendPct, 2)}%` }}
                               />
                             </div>
                             <div className="flex items-center justify-between text-[10px] text-on-surface-muted font-label">
-                              <span>{Math.round(sendPct)}% sent</span>
+                              <span>{limit === null || noBroadcasts ? "" : `${Math.round(sendPct)}% sent`}</span>
                               <span>
-                                {num.messaging_tier >= UNLIMITED_TIER
+                                {num.health?.state === "resting"
+                                  ? "No broadcasts while resting"
+                                  : num.health?.state === "meta_pending"
+                                  ? "Can't send until verified"
+                                  : limit === null
+                                  ? "No limit from Meta yet"
+                                  : limit >= UNLIMITED_TIER
                                   ? "No cap"
-                                  : num.messaging_tier - num.daily_send_count > 0
-                                  ? `${(num.messaging_tier - num.daily_send_count).toLocaleString()} left`
+                                  : limit - num.daily_send_count > 0
+                                  ? `${(limit - num.daily_send_count).toLocaleString()} left`
                                   : "Limit reached"}
                               </span>
                             </div>
@@ -1159,8 +1264,13 @@ function NumbersPageContent() {
                             {canManageNumbers && num.role !== "primary" && num.role !== "archived" && (
                               <button
                                 onClick={() => handleSetPrimary(num.id)}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary-200 bg-primary-50/70 hover:bg-primary-100 text-[var(--primary-800)] font-label text-xs font-bold transition-all shadow-2xs"
-                                title="Set this line as the active primary sender"
+                                disabled={num.health?.state === "meta_pending"}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary-200 bg-primary-50/70 hover:bg-primary-100 text-[var(--primary-800)] font-label text-xs font-bold transition-all shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                                title={
+                                  num.health?.state === "meta_pending"
+                                    ? "Meta hasn't verified this number yet"
+                                    : "Set this line as the active primary sender"
+                                }
                               >
                                 <Star size={12} className="fill-primary-600/30" />
                                 <span>Set Primary</span>
@@ -1204,7 +1314,7 @@ function NumbersPageContent() {
                                 onClick={() => handleSyncMeta(num.id)}
                                 disabled={isSyncing}
                                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-white hover:bg-surface-low text-on-surface font-label text-xs font-semibold transition-all shadow-2xs disabled:opacity-50"
-                                title="Pull latest quality rating and tier from Meta"
+                                title="Pull the latest status, quality and limit from Meta"
                               >
                                 <RefreshCw size={12} className={isSyncing ? "animate-spin text-primary" : "text-on-surface-muted"} />
                                 <span className="hidden sm:inline">Sync</span>
@@ -1227,8 +1337,48 @@ function NumbersPageContent() {
                       </div>
 
                       {/* Medium/Low quality: Meta's reasons + what to do next */}
-                      {num.quality_rating !== "green" && (
+                      {showsQualitySteps && (
                         <QualityNextSteps num={num} hasStandby={hasReadyStandby} />
+                      )}
+
+                      {/* Meta verification: this number can't send until Meta verifies it */}
+                      {num.health?.state === "meta_pending" && (
+                        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/60 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-start gap-2 font-body text-xs text-rose-900 min-w-0">
+                            <ShieldAlert size={13} className="text-rose-700 shrink-0 mt-0.5" />
+                            <span>Meta hasn&apos;t verified this number yet, so it can&apos;t send or take over as primary. Finish verification in WhatsApp Manager, then press Sync.</span>
+                          </div>
+                          <a
+                            href={WHATSAPP_MANAGER_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 font-label text-[11px] font-bold text-primary hover:underline shrink-0"
+                          >
+                            Open WhatsApp Manager <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Resting after a Red rating: replies only, no broadcasts */}
+                      {num.health?.state === "resting" && (
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 flex items-start gap-2 font-body text-xs text-amber-900">
+                          <Hourglass size={13} className="text-amber-700 shrink-0 mt-0.5" />
+                          <span>
+                            Resting after a Red rating: still replying to chats, but no broadcasts. After {num.health.rest_days} days, once Meta shows it Green, it becomes a standby again.
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Warm-up: today's broadcast cap (skipped when the quality steps box is already showing) */}
+                      {num.health?.state === "warming" && !showsQualitySteps && (
+                        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 flex items-start gap-2 font-body text-xs text-sky-900">
+                          <Sunrise size={13} className="text-sky-700 shrink-0 mt-0.5" />
+                          <span>
+                            {num.health.broadcast_cap !== null
+                              ? `Warming up: broadcasts from this number are limited to ${num.health.broadcast_cap.toLocaleString()} today and reach the full limit on day ${num.health.warm_up_days}. Replies aren't limited.`
+                              : `Warming up: broadcasts reach the full limit on day ${num.health.warm_up_days}. Replies aren't limited.`}
+                          </span>
+                        </div>
                       )}
 
                       {/* Locked Over-Quota Notice */}
@@ -1250,6 +1400,7 @@ function NumbersPageContent() {
                   );
                 })}
               </div>
+              </>
             )}
           </div>
         </>

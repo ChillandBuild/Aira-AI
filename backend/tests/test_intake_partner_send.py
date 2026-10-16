@@ -42,7 +42,7 @@ def _signed(body: dict, secret: str = SECRET) -> tuple[bytes, dict]:
     return raw, {"x-astro-signature": f"sha256={sig}", "content-type": "application/json"}
 
 
-def _db(template=None, lead=None):
+def _db(template=None, lead=None, inbound_pnid=None):
     db = MagicMock()
     templates = MagicMock()
     templates.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = (
@@ -55,6 +55,10 @@ def _db(template=None, lead=None):
     leads = MagicMock()
     leads.select.return_value.eq.return_value.eq.return_value.maybe_single.return_value.execute.return_value = (
         MagicMock(data=lead) if lead else None
+    )
+    # The lead's last inbound number (none stored -> the primary is used).
+    leads.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = (
+        MagicMock(data=[{"last_inbound_phone_number_id": inbound_pnid}] if inbound_pnid else [])
     )
     messages = MagicMock()
     settings = MagicMock()  # no partner_send_mode saved: the account sends by template ID
@@ -174,6 +178,15 @@ def test_template_happy_path():
         tenant_id=TENANT,
         phone_number_id=PNID,
     )
+
+
+def test_send_goes_from_the_number_the_lead_messaged_not_the_primary():
+    """After a failover the primary changes, but the lead's chat is with the
+    number they messaged -- the reply must come from that one."""
+    db = _db(APPROVED, inbound_pnid="pnid-old-red")
+    res, send, _ = _post(TEMPLATE_URL, _template_body(), db)
+    assert res.status_code == 200
+    assert send.await_args.kwargs["phone_number_id"] == "pnid-old-red"
 
 
 def test_the_canonical_header_name_is_accepted():
@@ -319,8 +332,8 @@ def test_existing_lead_gets_the_send_in_its_chat():
     db = _db(APPROVED, lead={"id": "lead-1"})
     res, _, _ = _post(TEMPLATE_URL, _template_body(), db)
     assert res.status_code == 200
-    db.table("leads").select.return_value.eq.assert_called_once_with("tenant_id", TENANT)
-    db.table("leads").select.return_value.eq.return_value.eq.assert_called_once_with("phone", "+919876543210")
+    db.table("leads").select.return_value.eq.assert_any_call("tenant_id", TENANT)
+    db.table("leads").select.return_value.eq.return_value.eq.assert_any_call("phone", "+919876543210")
     db.messages.insert.assert_called_once_with({
         "lead_id": "lead-1",
         "tenant_id": TENANT,

@@ -115,6 +115,9 @@ class NumbersLockingPatchTests(unittest.TestCase):
         db.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(
             data=[{"id": "num-1", "role": "primary"}]
         )
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = (
+            MagicMock(data=[{"meta_status": "CONNECTED"}])
+        )
         mock_get_db.return_value = db
         mock_unlocked.return_value = set()  # currently locked -- Set Primary is the unlock action
 
@@ -124,6 +127,25 @@ class NumbersLockingPatchTests(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 200)
         mock_unlocked.assert_not_called()
+
+    @patch("app.routes.numbers.get_unlocked_number_ids")
+    @patch("app.routes.numbers.get_supabase")
+    def test_blocks_setting_primary_on_a_number_meta_has_not_connected(self, mock_get_db, mock_unlocked):
+        """An Unverified number (Meta status PENDING) must never become the sender."""
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value = (
+            MagicMock(data=[{"meta_status": "PENDING"}])
+        )
+        mock_get_db.return_value = db
+        mock_unlocked.return_value = set()
+
+        res = self.client.patch(
+            "/api/v1/numbers/00000000-0000-0000-0000-000000000001",
+            json={"role": "primary"},
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("verified", res.json()["detail"].lower())
+        db.table.return_value.update.assert_not_called()
 
     @patch("app.routes.numbers.get_unlocked_number_ids")
     @patch("app.routes.numbers.get_supabase")

@@ -56,6 +56,8 @@ _heartbeats = {
     "scheduled-broadcasts": None,
     "callback-notifications": None,
     "number-quality-sync": None,
+    "numbers-pool-sync": None,
+    "daily-send-reset": None,
     "call-ai-sweep": None,
     "ad-insights-sync": None,
     "astro-push-reconcile": None,
@@ -223,38 +225,35 @@ async def _process_callback_notifications() -> None:
 
 
 async def _sync_all_number_quality() -> None:
-    """APScheduler daily job: sync phone number quality ratings from Meta API."""
+    """APScheduler 4-hourly job: refresh every number from Meta so a Red primary
+    fails over within hours. See number_sync.sync_all_number_quality."""
     _heartbeats["number-quality-sync"] = datetime.now(timezone.utc)
     try:
-        from app.db.supabase import get_supabase
-        from app.services.meta_cloud import get_number_quality
-        from app.services.failover import update_number_quality
-
-        db = get_supabase()
-        rows = (
-            db.table("phone_numbers")
-            .select("id,meta_phone_number_id,tenant_id")
-            .not_.is_("meta_phone_number_id", "null")
-            .execute()
-        )
-        synced = 0
-        for row in (rows.data or []):
-            try:
-                meta_data = await get_number_quality(
-                    phone_number_id=row["meta_phone_number_id"],
-                    tenant_id=row["tenant_id"],
-                )
-                await update_number_quality(
-                    meta_phone_number_id=row["meta_phone_number_id"],
-                    quality_rating=meta_data.get("quality_rating", "UNKNOWN"),
-                    messaging_tier=meta_data.get("messaging_tier"),
-                )
-                synced += 1
-            except Exception as e:
-                logger.warning(f"Quality sync failed for number {row['id']}: {e}")
-        logger.info(f"Number quality sync complete: {synced}/{len(rows.data or [])} number(s)")
+        from app.services.number_sync import sync_all_number_quality
+        await sync_all_number_quality()
     except Exception as e:
         logger.error(f"Number quality sync error: {e}")
+
+
+async def _sync_numbers_pool() -> None:
+    """APScheduler 12-hourly job: full numbers-pool sync from Meta for every
+    tenant -- new numbers, verification, limits, warm-up, recovery."""
+    _heartbeats["numbers-pool-sync"] = datetime.now(timezone.utc)
+    try:
+        from app.services.number_sync import sync_all_tenants_pool
+        await sync_all_tenants_pool()
+    except Exception as e:
+        logger.error(f"Numbers pool sync error: {e}")
+
+
+async def _reset_daily_send_counts() -> None:
+    """APScheduler job at 00:00 IST: each number's broadcast count starts over."""
+    _heartbeats["daily-send-reset"] = datetime.now(timezone.utc)
+    try:
+        from app.services.outbound_router import reset_daily_counts
+        await reset_daily_counts()
+    except Exception as e:
+        logger.error(f"Daily send-count reset error: {e}")
 
 
 async def _sync_ad_insights() -> None:
@@ -502,6 +501,10 @@ async def lifespan(app: FastAPI):
     )
     _scheduler.add_job(_process_auto_messages, trigger="interval", minutes=1, id="auto-messages",
                        replace_existing=True)
+    _scheduler.add_job(_sync_numbers_pool, trigger="interval", hours=12, id="numbers-pool-sync",
+                       replace_existing=True)
+    _scheduler.add_job(_reset_daily_send_counts, trigger="cron", hour=0, minute=0,
+                       timezone="Asia/Kolkata", id="daily-send-reset", replace_existing=True)
     _scheduler.add_job(_reconcile_private_send_meta, trigger="cron", hour=3, minute=30,
                        timezone="Asia/Kolkata", id="private-send-meta-reconcile", replace_existing=True)
     _scheduler.add_job(_sweep_crm_cutoff, trigger="interval", minutes=10, id="crm-cutoff-sweep",
@@ -518,9 +521,9 @@ async def lifespan(app: FastAPI):
     _scheduler_started_at = datetime.now(timezone.utc)
     _scheduler.start(paused=not settings.scheduler_enabled)
     if settings.scheduler_enabled:
-        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(24h) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + auto-messages(1m) + private-send-meta-reconcile(03:30 IST) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
+        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(4h) + numbers-pool-sync(12h) + daily-send-reset(00:00 IST) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + auto-messages(1m) + private-send-meta-reconcile(03:30 IST) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
     else:
-        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 18 jobs registered but PAUSED; nothing will run")
+        logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 20 jobs registered but PAUSED; nothing will run")
 
     yield
 

@@ -12,7 +12,7 @@ import httpx
 from app.db.supabase import get_supabase
 from app.services.entitlements import meter
 from app.services.meta_cloud import send_template_message
-from app.services.outbound_router import get_best_number, increment_send_count
+from app.services.outbound_router import SenderPicker
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -70,19 +70,14 @@ async def execute_broadcast(row: dict) -> dict:
             _finish(db, row_id, "done", {"sent": 0, "failed": 0, "note": "empty_leads"})
             return {"sent": 0, "failed": 0}
 
-        # Get best number
-        number_rows = (
-            db.table("phone_numbers")
-            .select("*")
-            .eq("tenant_id", tenant_id)
-            .eq("role", "primary")
-            .eq("paused_outbound", False)
-            .execute()
-            .data
-        )
-        best_number = number_rows[0] if number_rows else await get_best_number(tenant_id)
-        if not best_number:
-            raise RuntimeError("No primary number available for scheduled broadcast")
+        # The sender is re-picked as the run goes (see SenderPicker): a
+        # failover mid-broadcast moves the rest to the new primary, and once
+        # every number is at today's cap -- or none may broadcast (Red with no
+        # standby) -- the remainder waits for tomorrow instead of failing.
+        picker = SenderPicker(tenant_id)
+        if picker.next() is None:
+            _defer_to_tomorrow(db, row_id, "no_sender_available")
+            return {"sent": 0, "failed": 0, "deferred": True}
 
         # Fetch template metadata (including variations for rotation)
         tpl_lang = "en"
@@ -153,6 +148,7 @@ async def execute_broadcast(row: dict) -> dict:
         broadcast_id = row_id  # reuse scheduled_broadcast id as broadcast_id
         recipient_rows = []
         aborted = False
+        deferred = False
 
         # AUDIT-2026-09.md finding C4: recipient rows used to be written ONLY
         # after the whole loop finished, so a crash/restart mid-send (e.g. a
@@ -219,6 +215,11 @@ async def execute_broadcast(row: dict) -> dict:
             lead_name = _clean_text(lead.get("name"))
             extra_cols: dict = lead.get("extra_cols") or {}
 
+            sender = picker.next()
+            if sender is None:
+                deferred = True
+                break
+
             # Pick a random template from pool for this lead
             chosen_name, chosen_lang, chosen_body = _random.choice(template_pool)
             has_vars_this = bool(_re.search(r"\{\{\d+\}\}", chosen_body))
@@ -239,9 +240,10 @@ async def execute_broadcast(row: dict) -> dict:
                     template_name=chosen_name,
                     lang_code=chosen_lang,
                     components=components,
-                    phone_number_id=best_number.get("meta_phone_number_id"),
+                    phone_number_id=sender.get("meta_phone_number_id"),
                     tenant_id=tenant_id,
                 )
+                await picker.record_sent(sender)
                 _meta_msg_id: str | None = None
                 try:
                     _meta_msg_id = ((_send_resp or {}).get("messages") or [{}])[0].get("id")
@@ -393,15 +395,18 @@ async def execute_broadcast(row: dict) -> dict:
             except Exception as lti_err:
                 logger.warning(f"lead_tag_interest broadcast_count update failed: {lti_err}")
 
-        if sent > 0:
-            await increment_send_count(best_number["id"], delta=sent)
-
         result = {"sent": sent, "failed": failed, "broadcast_id": broadcast_id}
+        if deferred:
+            # Unsent leads have no recipient row yet, so tomorrow's run sends
+            # exactly those (already-recorded phones are skipped on resume).
+            _defer_to_tomorrow(db, row_id, "daily_limit_reached", result)
+            logger.info(f"Scheduled broadcast {row_id}: sent={sent} so far, rest deferred to tomorrow")
+            return {**result, "deferred": True}
         final_status = "aborted" if aborted else "done"
         _finish(db, row_id, final_status, result)
         _write_broadcast_history(
             db, tenant_id, broadcast_id, template_name, opt_in_source,
-            sent, failed, len(leads_raw), best_number.get("number"),
+            sent, failed, len(leads_raw), picker.numbers_used_label(),
             row.get("csv_file_url"), row.get("csv_file_path"), row.get("csv_file_name"), tag_id,
         )
         logger.info(f"Scheduled broadcast {row_id}: sent={sent} failed={failed} aborted={aborted}")
@@ -501,6 +506,23 @@ def _write_broadcast_history(
         }, on_conflict="tenant_id,key").execute()
     except Exception as hist_err:
         logger.exception(f"broadcast_history save failed for {broadcast_id}: {hist_err}")
+
+
+_IST = timedelta(hours=5, minutes=30)
+
+
+def next_ist_morning(now: datetime | None = None) -> datetime:
+    """00:05 IST tomorrow -- just after the midnight daily-count reset."""
+    now_ist = (now or datetime.now(timezone.utc)) + _IST
+    tomorrow = (now_ist + timedelta(days=1)).date()
+    return datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 5, tzinfo=timezone.utc) - _IST
+
+
+def _defer_to_tomorrow(db, row_id: str, reason: str, result: dict | None = None) -> None:
+    update: dict = {"status": "pending", "fire_at": next_ist_morning().isoformat()}
+    if result is not None:
+        update["result"] = json.dumps({**result, "note": reason})
+    db.table("scheduled_broadcasts").update(update).eq("id", row_id).execute()
 
 
 def _finish(db, row_id: str, status: str, result: dict | None, error: str | None = None) -> None:

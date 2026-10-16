@@ -17,7 +17,8 @@ from app.services.delivery_status import nearest_record, nearest_status, parse_t
 from app.services.gemini_client import gemini_extract_contacts_csv
 from app.services.growth import get_or_create_campaign, record_stage_event, sync_follow_up_jobs
 from app.services.meta_cloud import send_template_message
-from app.services.outbound_router import get_best_number, increment_send_count
+from app.services.broadcast_executor import next_ist_morning
+from app.services.outbound_router import SenderPicker, get_best_number
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -658,7 +659,6 @@ async def _execute_immediate_send(
     negative_reply_phones: set,
     has_vars: bool,
     tpl_lang: str,
-    best_number: dict,
     _has_fail_reason: bool,
 ) -> None:
     """Background worker for an immediate 'Send Now' broadcast. bulk_send() has already
@@ -670,6 +670,8 @@ async def _execute_immediate_send(
     opted_out_skipped = 0
     recipient_rows = []
     aborted = False
+    deferred_leads: list = []
+    picker = SenderPicker(tenant_id)
     idx = 0
 
     try:
@@ -744,6 +746,13 @@ async def _execute_immediate_send(
                 logger.info(f"Bulk-send skipped negative-reply lead {phone}")
                 continue
 
+            sender = picker.next()
+            if sender is None:
+                # Every number is at today's cap, or none may broadcast (Red
+                # with no standby): the rest goes out tomorrow morning.
+                deferred_leads = eligible[idx:]
+                break
+
             try:
                 components: list[dict] = []
                 if has_vars:
@@ -761,9 +770,10 @@ async def _execute_immediate_send(
                     template_name=body.template_name,
                     lang_code=tpl_lang,
                     components=components,
-                    phone_number_id=best_number.get("meta_phone_number_id"),
+                    phone_number_id=sender.get("meta_phone_number_id"),
                     tenant_id=tenant_id,
                 )
+                await picker.record_sent(sender)
                 sent += 1
 
                 meta_msg_id: str | None = None
@@ -905,8 +915,23 @@ async def _execute_immediate_send(
                         except Exception as bls_err:
                             logger.error(f"broadcast_lead_scores seed failed: {bls_err}")
 
-        if sent > 0:
-            await increment_send_count(best_number["id"], delta=sent)
+        if deferred_leads:
+            try:
+                _insert_scheduled_broadcast(db, {
+                    "tenant_id": tenant_id,
+                    "template_name": body.template_name,
+                    "schedule_type": "scheduled",
+                    "fire_at": next_ist_morning().isoformat(),
+                    "leads_json": [l.model_dump() for l in deferred_leads],
+                    "variable_mapping": body.variable_mapping,
+                    "opt_in_source": _clean_text(deferred_leads[0].opt_in_source) or "unknown",
+                    "csv_file_url": body.csv_file_url,
+                    "csv_file_path": body.csv_file_path,
+                    "csv_file_name": body.csv_file_name,
+                })
+                logger.info(f"Immediate broadcast {broadcast_id}: {len(deferred_leads)} lead(s) deferred to tomorrow")
+            except Exception:
+                logger.exception(f"Immediate broadcast {broadcast_id}: deferring the rest failed")
 
         lead_ids = [phone_to_lead_id.get(p) for p in all_phones if phone_to_lead_id.get(p)]
         delivered_count = 0
@@ -970,7 +995,7 @@ async def _execute_immediate_send(
                 "opened": opened_count,
                 "failed": total_failed,
                 "total_leads": len(eligible),
-                "number_used": best_number.get("number"),
+                "number_used": picker.numbers_used_label(),
                 "csv_file_url": body.csv_file_url,
                 "csv_file_path": body.csv_file_path,
                 "csv_file_name": body.csv_file_name,
@@ -994,8 +1019,9 @@ async def _execute_immediate_send(
                 "sent": sent,
                 "failed": total_failed,
                 "opted_out_skipped": opted_out_skipped,
-                "number_used": best_number.get("number"),
+                "number_used": picker.numbers_used_label(),
                 "total": len(eligible),
+                "deferred_to_tomorrow": len(deferred_leads),
             }),
         }).eq("id", broadcast_id).execute()
         logger.info(f"Immediate broadcast {broadcast_id}: sent={sent} failed={total_failed} aborted={aborted}")
@@ -1126,19 +1152,11 @@ async def bulk_send(
         raise HTTPException(status_code=400, detail="schedule_at required for scheduled type, drip_days required for drip")
     # ─────────────────────────────────────────────────────────────────────────
 
-    number_rows = (
-        db.table("phone_numbers")
-        .select("*")
-        .eq("tenant_id", tenant_id)
-        .eq("role", "primary")
-        .eq("paused_outbound", False)
-        .execute()
-        .data
-    )
-    best_number = number_rows[0] if number_rows else await get_best_number(tenant_id)
-
-    if best_number is None:
-        raise HTTPException(status_code=503, detail="No primary or healthy number available. Please set a Primary Number.")
+    if await get_best_number(tenant_id) is None:
+        raise HTTPException(
+            status_code=503,
+            detail="No number can send broadcasts right now: today's limit is used up, or your primary is Red. Add a standby number, or schedule this for tomorrow.",
+        )
 
     # Download original CSV, add broadcast_id column, re-upload
     csv_download_url = body.csv_file_url
@@ -1355,7 +1373,6 @@ async def bulk_send(
         negative_reply_phones=negative_reply_phones,
         has_vars=has_vars,
         tpl_lang=tpl_lang,
-        best_number=best_number,
         _has_fail_reason=_has_fail_reason,
     ))
 

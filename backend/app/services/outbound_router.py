@@ -1,74 +1,97 @@
 import logging
+from datetime import datetime, timezone
 
 from app.db.supabase import get_supabase
+from app.services.number_health import broadcast_cap, can_broadcast
 from app.services.numbers_pool import get_unlocked_number_ids
 
 logger = logging.getLogger(__name__)
 
-_WARMUP_DAILY_CAPS: list[tuple[int, int]] = [
-    # (max_warm_up_day_inclusive, daily_cap)
-    (2, 50), (4, 75), (7, 100), (10, 150), (14, 250),
-]
+# Re-read the pool every N sends so a mid-broadcast failover (or a pause) is
+# picked up without a DB round-trip per message.
+_REFRESH_EVERY = 5
 
 
-def _warmup_daily_cap(warm_up_day: int) -> int:
-    for max_day, cap in _WARMUP_DAILY_CAPS:
-        if warm_up_day <= max_day:
-            return cap
-    return 250
+def _eligible(rows: list[dict], sent_now: dict[str, int], unlocked_ids: set[str]) -> list[dict]:
+    """Numbers that may broadcast now and are under today's cap, primary first,
+    then green before unrated/yellow, then least used."""
+    now = datetime.now(timezone.utc)
+    out = []
+    for r in rows:
+        if not can_broadcast(r, now, unlocked_ids):
+            continue
+        used = (r.get("daily_send_count") or 0) + sent_now.get(r["id"], 0)
+        cap = broadcast_cap(r, now)
+        if used >= cap:
+            continue
+        out.append((r, used / cap))
+
+    def _key(item: tuple[dict, float]) -> tuple:
+        r, ratio = item
+        return (0 if r.get("role") == "primary" else 1, 0 if r.get("quality_rating") == "green" else 1, ratio)
+
+    return [r for r, _ in sorted(out, key=_key)]
 
 
-async def get_best_number(tenant_id: str) -> dict | None:
-    db = get_supabase()
-    rows = (
+def _load_rows(db, tenant_id: str) -> list[dict]:
+    return (
         db.table("phone_numbers")
         .select("*")
         .eq("tenant_id", tenant_id)
-        .eq("status", "active")
-        .neq("quality_rating", "red")
-        .gte("warm_up_day", 14)
-        .eq("paused_outbound", False)
+        .neq("status", "archived")
         .execute()
         .data
         or []
     )
+
+
+async def get_best_number(tenant_id: str) -> dict | None:
+    db = get_supabase()
+    rows = _eligible(_load_rows(db, tenant_id), {}, get_unlocked_number_ids(db, tenant_id))
     if not rows:
-        logger.warning("No healthy outbound numbers available")
+        logger.warning(f"No number can broadcast right now for tenant {tenant_id}")
         return None
-
-    unlocked_ids = get_unlocked_number_ids(db, tenant_id)
-    rows = [r for r in rows if r["id"] in unlocked_ids]
-    if not rows:
-        logger.warning("All outbound numbers are locked by the numbers pool quota")
-        return None
-
-    def _sort_key(row: dict) -> tuple:
-        # green before yellow (alphabetically, "green" < "yellow")
-        quality_rank = 0 if row.get("quality_rating", "").lower() == "green" else 1
-        tier = row.get("messaging_tier") or 1000
-        ratio = (row.get("daily_send_count") or 0) / tier
-        return (quality_rank, ratio)
-
-    rows = [
-        r for r in rows
-        # messaging_tier is Meta's daily limit itself (250, 2000, ... ;
-        # 1_000_000 stands in for Unlimited), so it is the cap directly.
-        if (r.get("daily_send_count") or 0) < (r.get("messaging_tier") or 1000)
-    ]
-    if not rows:
-        logger.warning("All outbound numbers have hit their daily tier limit")
-        return None
-
-    rows = [
-        r for r in rows
-        if r.get("status") != "warming" or (r.get("daily_send_count") or 0) < _warmup_daily_cap(r.get("warm_up_day") or 0)
-    ]
-    if not rows:
-        logger.warning("All outbound numbers have hit their daily warm-up cap")
-        return None
-
-    rows.sort(key=_sort_key)
     return rows[0]
+
+
+class SenderPicker:
+    """Chooses the sender for each broadcast message. Counts each send
+    against the number's daily cap as it goes, and re-reads the pool every
+    few sends so a failover mid-broadcast moves the rest to the new primary."""
+
+    def __init__(self, tenant_id: str):
+        self.tenant_id = tenant_id
+        self._db = get_supabase()
+        self._rows: list[dict] = []
+        self._unlocked: set[str] = set()
+        self._sent_since_refresh: dict[str, int] = {}
+        self._calls = 0
+        self.used_numbers: list[str] = []
+
+    def _refresh(self) -> None:
+        self._rows = _load_rows(self._db, self.tenant_id)
+        self._unlocked = get_unlocked_number_ids(self._db, self.tenant_id)
+        self._sent_since_refresh = {}
+
+    def next(self) -> dict | None:
+        if self._calls % _REFRESH_EVERY == 0:
+            self._refresh()
+        self._calls += 1
+        rows = _eligible(self._rows, self._sent_since_refresh, self._unlocked)
+        if not rows:
+            # Counts may be stale-high or a standby may just have been promoted.
+            self._refresh()
+            rows = _eligible(self._rows, {}, self._unlocked)
+        return rows[0] if rows else None
+
+    async def record_sent(self, number: dict) -> None:
+        self._sent_since_refresh[number["id"]] = self._sent_since_refresh.get(number["id"], 0) + 1
+        if number.get("number") and number["number"] not in self.used_numbers:
+            self.used_numbers.append(number["number"])
+        await increment_send_count(number["id"], delta=1)
+
+    def numbers_used_label(self) -> str | None:
+        return ", ".join(self.used_numbers) or None
 
 
 async def increment_send_count(number_id: str, delta: int = 1) -> None:
@@ -81,7 +104,9 @@ async def increment_send_count(number_id: str, delta: int = 1) -> None:
 
 
 async def reset_daily_counts() -> None:
+    """Midnight IST: today's broadcast counts start over."""
     db = get_supabase()
-    db.table("phone_numbers").update({"daily_send_count": 0}).neq(
-        "id", ""
-    ).execute()
+    db.table("phone_numbers").update({
+        "daily_send_count": 0,
+        "last_reset_at": datetime.now(timezone.utc).isoformat(),
+    }).gt("daily_send_count", 0).execute()

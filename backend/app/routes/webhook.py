@@ -711,6 +711,14 @@ async def whatsapp_webhook(
                     existing = db.table("leads").select("id,score,segment,deleted_at,ai_enabled,whatsapp_undeliverable").eq("phone", phone).eq("tenant_id", tenant_id).limit(1).execute()
                     if existing.data:
                         lead_id = existing.data[0]["id"]
+                        if meta_phone_number_id:
+                            # Which of the tenant's numbers this lead talks to, so
+                            # out-of-band replies (astrologer) stay in this thread
+                            # even after a failover moves the primary.
+                            try:
+                                db.table("leads").update({"last_inbound_phone_number_id": meta_phone_number_id})                                     .eq("id", lead_id).eq("tenant_id", tenant_id).execute()
+                            except Exception as e:
+                                logger.warning(f"Failed to record inbound number for lead {lead_id}: {e}")
                         if existing.data[0].get("deleted_at"):
                             db.table("leads").update({
                                 "deleted_at": None,
@@ -734,6 +742,7 @@ async def whatsapp_webhook(
                             "segment": initial_segment,
                             "tenant_id": tenant_id,
                             "opt_in_source": "whatsapp",
+                            "last_inbound_phone_number_id": meta_phone_number_id or None,
                         }).execute()
                         lead_id = new_lead.data[0]["id"]
                         record_stage_event(lead_id, to_segment=initial_segment, event_type="created", metadata={"source": "whatsapp"}, tenant_id=tenant_id, db=db)

@@ -168,6 +168,23 @@ ROW = {
 }
 
 
+class _FixedPicker:
+    """Always picks the one test number (sender choice is covered in
+    test_number_failover.py)."""
+
+    def __init__(self, _tenant_id):
+        pass
+
+    def next(self):
+        return {"id": "phone-num-1", "meta_phone_number_id": "num-1", "number": "+910000000000"}
+
+    async def record_sent(self, _number):
+        return None
+
+    def numbers_used_label(self):
+        return "+910000000000"
+
+
 def _templates():
     return {"promo": [{"language": "en", "body_text": "Hello", "variations": []}]}
 
@@ -179,7 +196,7 @@ async def test_recipient_rows_are_written_as_they_happen_not_batched_at_the_end(
     with patch("app.services.broadcast_executor.get_supabase", return_value=db), \
          patch("app.services.broadcast_executor.send_template_message", new=AsyncMock(return_value={"messages": [{"id": "wamid.1"}]})), \
          patch("app.services.broadcast_executor.meter"), \
-         patch("app.services.broadcast_executor.increment_send_count", new=AsyncMock()), \
+         patch("app.services.broadcast_executor.SenderPicker", _FixedPicker), \
          patch("app.services.broadcast_executor.new_lead_score_and_segment", return_value=(3, "C")):
         result = await broadcast_executor.execute_broadcast(dict(ROW))
 
@@ -205,7 +222,7 @@ async def test_resuming_a_broadcast_skips_already_recorded_phones_and_never_rese
     with patch("app.services.broadcast_executor.get_supabase", return_value=db), \
          patch("app.services.broadcast_executor.send_template_message", new=AsyncMock(return_value={"messages": [{"id": "wamid.2"}]})) as mock_send, \
          patch("app.services.broadcast_executor.meter"), \
-         patch("app.services.broadcast_executor.increment_send_count", new=AsyncMock()), \
+         patch("app.services.broadcast_executor.SenderPicker", _FixedPicker), \
          patch("app.services.broadcast_executor.new_lead_score_and_segment", return_value=(3, "C")):
         result = await broadcast_executor.execute_broadcast(dict(ROW))
 
