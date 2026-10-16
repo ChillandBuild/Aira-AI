@@ -14,6 +14,7 @@ from app.services.entitlements import meter
 from app.services.meta_cloud import send_template_message
 from app.services.outbound_router import SenderPicker
 from app.services.segmentation import new_lead_score_and_segment
+from app.services.template_params import body_parameters
 
 logger = logging.getLogger(__name__)
 
@@ -222,17 +223,11 @@ async def execute_broadcast(row: dict) -> dict:
 
             # Pick a random template from pool for this lead
             chosen_name, chosen_lang, chosen_body = _random.choice(template_pool)
-            has_vars_this = bool(_re.search(r"\{\{\d+\}\}", chosen_body))
 
             try:
                 components: list[dict] = []
-                if has_vars_this:
-                    params = []
-                    for col in (variable_mapping or []):
-                        val = extra_cols.get(col, "") or ""
-                        params.append({"type": "text", "text": val or "Customer"})
-                    if not params:
-                        params = [{"type": "text", "text": lead_name or "Customer"}]
+                params = body_parameters(chosen_body, variable_mapping, extra_cols, lead_name)
+                if params:
                     components = [{"type": "body", "parameters": params}]
 
                 _send_resp = await send_template_message(

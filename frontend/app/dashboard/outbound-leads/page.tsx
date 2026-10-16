@@ -160,6 +160,93 @@ function getTagStyle(hex: string): { background: string; colorClass: string } {
   };
 }
 
+// A sender line as returned by GET /api/v1/numbers.
+type SenderRow = {
+  id: string;
+  number: string;
+  display_name: string;
+  role: "primary" | "standby" | "archived";
+  status: string;
+  quality_rating: "green" | "yellow" | "red" | null;
+  messaging_tier: number | null;
+  daily_send_count: number;
+  paused_outbound: boolean;
+  locked: boolean;
+  health?: {
+    state: "archived" | "meta_pending" | "resting" | "warming" | "active";
+    meta_status?: string | null;
+    meta_code_verification?: string | null;
+    warm_up_day?: number | null;
+    warm_up_days?: number | null;
+    rest_day?: number | null;
+    rest_days?: number | null;
+    broadcast_cap: number | null;
+  };
+};
+
+function canBroadcast(r: SenderRow): boolean {
+  const cap = r.health?.broadcast_cap;
+  return (
+    (r.health?.state === "active" || r.health?.state === "warming") &&
+    !r.paused_outbound &&
+    r.quality_rating !== "red" &&
+    !r.locked &&
+    cap != null &&
+    r.daily_send_count < cap
+  );
+}
+
+// Mirrors the backend's sender choice: primary first, then green quality,
+// then the least-used line relative to its cap. Also enforces the shared
+// portfolio limit across all non-archived lines.
+function pickSender(rows: SenderRow[]): {
+  sender: SenderRow | null;
+  primary: SenderRow | null;
+  leftToday: number;
+} {
+  const live = rows.filter(r => r.role !== "archived");
+  const tiers = live.map(r => r.messaging_tier).filter((t): t is number => t != null);
+  const portfolioLimit = tiers.length > 0 ? Math.max(...tiers) : null;
+  const poolUsed = live.reduce((sum, r) => sum + r.daily_send_count, 0);
+  const primary = rows.find(r => r.role === "primary") ?? null;
+
+  const poolOpen = portfolioLimit !== null && poolUsed < portfolioLimit;
+  const candidates = poolOpen
+    ? rows.filter(canBroadcast).sort((a, b) => {
+        const byPrimary = (a.role === "primary" ? 0 : 1) - (b.role === "primary" ? 0 : 1);
+        if (byPrimary !== 0) return byPrimary;
+        const byQuality = (a.quality_rating === "green" ? 0 : 1) - (b.quality_rating === "green" ? 0 : 1);
+        if (byQuality !== 0) return byQuality;
+        const loadA = a.daily_send_count / (a.health?.broadcast_cap ?? 1);
+        const loadB = b.daily_send_count / (b.health?.broadcast_cap ?? 1);
+        return loadA - loadB;
+      })
+    : [];
+
+  const sender = candidates[0] ?? null;
+  const cap = sender?.health?.broadcast_cap;
+  const leftToday =
+    sender && cap != null && portfolioLimit !== null
+      ? Math.min(cap - sender.daily_send_count, portfolioLimit - poolUsed)
+      : 0;
+
+  return { sender, primary, leftToday };
+}
+
+const UNLIMITED_DAILY = 1000000;
+
+function formatDaily(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n >= UNLIMITED_DAILY) return "Unlimited";
+  return `${n.toLocaleString()} / day`;
+}
+
+// Highest {{n}} index used in a template body; 0 when it has no variables.
+function templateVarCount(body?: string | null): number {
+  const found = (body ?? "").match(/\{\{(\d+)\}\}/g) ?? [];
+  return found.reduce((max, tok) => Math.max(max, Number(tok.slice(2, -2))), 0);
+}
+
 type ScheduleType = "now" | "scheduled" | "drip";
 
 type Button = {
@@ -650,12 +737,39 @@ export default function OutboundLeadsPage() {
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState(false);
 
+  const activeTemplateForVars = templates.find(t => t.name === templateName);
+  const varCount = templateVarCount(activeTemplateForVars?.body_text);
+
+  // One mapping slot per {{n}} the selected template uses. Positions are kept
+  // as-is; only a template change clears them.
+  const prevTemplateNameRef = useRef(templateName);
+  useEffect(() => {
+    const count = templateVarCount(templates.find(t => t.name === templateName)?.body_text);
+    const nameChanged = prevTemplateNameRef.current !== templateName;
+    prevTemplateNameRef.current = templateName;
+    setVariableMapping(prev => {
+      if (nameChanged) return Array(count).fill("");
+      if (prev.length === count) return prev;
+      return Array.from({ length: count }, (_, i) => prev[i] ?? "");
+    });
+  }, [templateName, templates]);
+
   const [tags, setTags] = useState<{ id: string; name: string; color: string }[]>([]);
   const [tagsLoading, setTagsLoading] = useState(false);
   const [selectedTag, setSelectedTag] = useState("");
 
-  const [primaryNumber, setPrimaryNumber] = useState<{ number: string; display_name: string } | null>(null);
+  const [poolNumbers, setPoolNumbers] = useState<SenderRow[] | null>(null);
   const [primaryNumberLoading, setPrimaryNumberLoading] = useState(false);
+  const senderInfo = poolNumbers ? pickSender(poolNumbers) : null;
+  const sender = senderInfo?.sender ?? null;
+  const primaryRow = senderInfo?.primary ?? null;
+  const noRows = poolNumbers !== null && poolNumbers.length === 0;
+  const noSenderText =
+    primaryRow?.health?.state === "resting"
+      ? "Your primary number is Red and resting, so it isn't sending broadcasts. It still replies to chats. Add a standby number to keep broadcasting."
+      : primaryRow?.health?.state === "meta_pending"
+        ? "Meta hasn't verified your primary number yet, so it can't send."
+        : "Today's sending limit is used up. Schedule this for tomorrow, or it will wait until tomorrow morning.";
 
   const [riskSummary, setRiskSummary] = useState<{
     total: number;
@@ -1053,22 +1167,22 @@ export default function OutboundLeadsPage() {
         });
       }
 
-      if (!primaryNumber && !primaryNumberLoading) {
+      if (poolNumbers === null && !primaryNumberLoading) {
         setPrimaryNumberLoading(true);
         getAuthHeaders().then(auth => {
           fetch(`${API_URL}/api/v1/numbers`, { headers: auth })
             .then(r => r.json())
-            .then((data: { data: { role: string; number: string; display_name: string }[] }) => {
-              const primary = (data.data || []).find(n => n.role === "primary");
-              setPrimaryNumber(primary || null);
+            .then((data: { data: SenderRow[] }) => {
+              setPoolNumbers(data.data || []);
             })
-            .catch(() => {})
+            // Settle on empty so a failing request doesn't refetch on every render.
+            .catch(() => setPoolNumbers([]))
             .finally(() => setPrimaryNumberLoading(false));
         });
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, activeTab, templates.length, templatesLoading, tags.length, tagsLoading, primaryNumber, primaryNumberLoading]);
+  }, [currentStep, activeTab, templates.length, templatesLoading, tags.length, tagsLoading, poolNumbers, primaryNumberLoading]);
 
   if (roleLoading) {
     return (
@@ -1106,7 +1220,7 @@ export default function OutboundLeadsPage() {
     setSendResult(null);
     setTemplatesLoading(false);
     setTemplatesError(false);
-    setPrimaryNumber(null);
+    setPoolNumbers(null);
     setRiskSummary(null);
     setRiskLoading(false);
     setExcludeNegativeReplies(false);
@@ -1369,7 +1483,7 @@ export default function OutboundLeadsPage() {
         csv_file_url: csvFileUrl,
         csv_file_path: csvFilePath,
         csv_file_name: csvFileName,
-        variable_mapping: variableMapping.filter(Boolean),
+        variable_mapping: variableMapping,
         tag_id: selectedTag || undefined,
         exclude_negative_replies: excludeNegativeReplies,
         include_opted_out: includeOptedOut,
@@ -1750,10 +1864,19 @@ export default function OutboundLeadsPage() {
                     <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider mb-1 font-bold">Sender Number</p>
                     {primaryNumberLoading ? (
                       <p className="font-body text-xs text-on-surface-muted">Loading primary number...</p>
-                    ) : primaryNumber ? (
-                      <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name} ({primaryNumber.number})</p>
-                    ) : (
+                    ) : sender ? (
+                      <>
+                        <p className="font-body text-sm font-semibold text-on-surface">{sender.display_name} ({sender.number})</p>
+                        {primaryRow && primaryRow.id !== sender.id && (
+                          <p className="font-body text-xs text-on-surface-muted mt-1">
+                            Your primary {primaryRow.number} can&apos;t broadcast right now, so this goes out from the standby.
+                          </p>
+                        )}
+                      </>
+                    ) : noRows || poolNumbers === null ? (
                       <p className="font-body text-xs text-red-600 font-semibold">No primary number found! Broadcast may fail.</p>
+                    ) : (
+                      <p className="font-body text-xs text-amber-700 font-semibold">No number can send broadcasts right now.</p>
                     )}
                   </div>
                   <Link href="/dashboard/numbers" className="px-3 py-1.5 bg-white border border-surface-mid rounded-lg font-label text-xs font-semibold text-on-surface hover:bg-surface-low transition-colors shadow-sm">
@@ -1822,24 +1945,24 @@ export default function OutboundLeadsPage() {
                 </div>
 
                 {/* ── Template Variable Mapping ─────────────────────────── */}
-                {templateName && parsedData && parsedData.columns.length > 0 && (
+                {templateName && varCount > 0 && parsedData && parsedData.columns.length > 0 && (
                   <div className="bg-surface-low border border-surface-mid rounded-xl p-4 space-y-4">
                     <div>
                       <p className="font-label text-xs font-bold text-on-surface uppercase tracking-wider">
                         Template Variables <span className="normal-case font-normal text-on-surface-muted font-body text-xs">(optional)</span>
                       </p>
                       <p className="font-body text-xs text-on-surface-muted mt-0.5">
-                        If your template uses <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{1}}"}</code>, <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{2}}"}</code> placeholders, map them to your CSV columns.
+                        This template has {varCount} variable{varCount === 1 ? "" : "s"}. Pick a CSV column for each, or leave it — <code className="bg-surface-mid px-1.5 py-0.5 rounded font-mono text-[10px]">{"{{1}}"}</code> then uses the lead&apos;s name, others say &quot;Customer&quot;.
                       </p>
                     </div>
                     <div className="space-y-2">
-                      {variableMapping.map((col, idx) => (
+                      {Array.from({ length: varCount }, (_, idx) => (
                         <div key={idx} className="flex items-center gap-2 bg-white p-2 rounded-lg border border-surface-mid/60">
                           <span className="font-mono text-xs text-on-surface-muted w-10 shrink-0 font-bold">{`{{${idx + 1}}}`}</span>
                           <select
-                            value={col}
+                            value={variableMapping[idx] ?? ""}
                             onChange={(e) => {
-                              const next = [...variableMapping];
+                              const next = Array.from({ length: varCount }, (_, i) => variableMapping[i] ?? "");
                               next[idx] = e.target.value;
                               setVariableMapping(next);
                             }}
@@ -1850,22 +1973,8 @@ export default function OutboundLeadsPage() {
                               <option key={c} value={c}>{c}</option>
                             ))}
                           </select>
-                          <button
-                            type="button"
-                            onClick={() => setVariableMapping(variableMapping.filter((_, i) => i !== idx))}
-                            className="text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded hover:bg-red-50 transition-colors font-semibold"
-                          >
-                            Remove
-                          </button>
                         </div>
                       ))}
-                      <button
-                        type="button"
-                        onClick={() => setVariableMapping([...variableMapping, ""])}
-                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 mt-1 pl-1"
-                      >
-                        + Add variable mapping
-                      </button>
                     </div>
                   </div>
                 )}
@@ -1968,10 +2077,17 @@ export default function OutboundLeadsPage() {
                       </div>
                       <h3 className="font-display font-bold text-on-surface text-base">Sender Line</h3>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Active
-                    </div>
+                    {sender && sender.health?.state === "warming" ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-50 text-sky-700 text-[10px] font-bold border border-sky-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                        Warming · day {sender.health.warm_up_day} of {sender.health.warm_up_days}
+                      </div>
+                    ) : sender ? (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Active
+                      </div>
+                    ) : null}
                   </div>
 
                   {primaryNumberLoading ? (
@@ -1979,31 +2095,52 @@ export default function OutboundLeadsPage() {
                       <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-1" />
                       <p className="font-body text-xs text-on-surface-muted">Fetching line details...</p>
                     </div>
-                  ) : primaryNumber ? (
+                  ) : sender ? (
                     <div className="space-y-3 text-xs">
                       <div>
                         <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">Display Name</p>
-                        <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.display_name}</p>
+                        <p className="font-body text-sm font-semibold text-on-surface">{sender.display_name}</p>
                       </div>
                       <div>
                         <p className="font-label text-[10px] text-on-surface-muted uppercase tracking-wider font-bold">WhatsApp Number</p>
-                        <p className="font-body text-sm font-semibold text-on-surface">{primaryNumber.number}</p>
+                        <p className="font-body text-sm font-semibold text-on-surface">{sender.number}</p>
                       </div>
                       <div className="pt-2.5 border-t border-surface-mid grid grid-cols-2 gap-2 text-center">
                         <div className="p-2 bg-surface-low rounded-xl">
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Daily Limit</p>
-                          <p className="font-display text-xs font-bold text-on-surface mt-0.5">1k / day</p>
+                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">
+                            {sender.health?.state === "warming" ? "WARM-UP LIMIT" : "DAILY LIMIT"}
+                          </p>
+                          <p className="font-display text-xs font-bold text-on-surface mt-0.5">{formatDaily(sender.health?.broadcast_cap)}</p>
+                          {sender.health?.broadcast_cap != null && sender.health.broadcast_cap < UNLIMITED_DAILY && (
+                            <p className="font-body text-[10px] text-on-surface-muted mt-0.5">{senderInfo?.leftToday.toLocaleString()} left today</p>
+                          )}
                         </div>
                         <div className="p-2 bg-surface-low rounded-xl">
-                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Quality Score</p>
-                          <p className="font-display text-xs font-bold text-emerald-600 mt-0.5">High</p>
+                          <p className="font-label text-[9px] text-on-surface-muted uppercase font-bold">Quality</p>
+                          {sender.quality_rating === "green" ? (
+                            <p className="font-display text-xs font-bold text-emerald-600 mt-0.5">High</p>
+                          ) : sender.quality_rating === "yellow" ? (
+                            <p className="font-display text-xs font-bold text-amber-600 mt-0.5">Medium</p>
+                          ) : sender.quality_rating === "red" ? (
+                            <p className="font-display text-xs font-bold text-red-600 mt-0.5">Low</p>
+                          ) : (
+                            <p className="font-body text-xs text-on-surface-muted mt-0.5">No rating yet</p>
+                          )}
                         </div>
                       </div>
+                    </div>
+                  ) : noRows || poolNumbers === null ? (
+                    <div className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-body flex items-start gap-2 border border-amber-100">
+                      <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                      <span>No primary sender configured. Broadcasts will fail until you map a primary sender.</span>
                     </div>
                   ) : (
                     <div className="p-3 bg-amber-50 text-amber-700 rounded-xl text-xs font-body flex items-start gap-2 border border-amber-100">
                       <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                      <span>No primary sender configured. Broadcasts will fail until you map a primary sender.</span>
+                      <span>
+                        {noSenderText}{" "}
+                        <Link href="/dashboard/numbers" className="font-bold underline">Go to Sender Numbers</Link>
+                      </span>
                     </div>
                   )}
                 </div>

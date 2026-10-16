@@ -19,6 +19,7 @@ from app.services.growth import get_or_create_campaign, record_stage_event, sync
 from app.services.meta_cloud import send_template_message
 from app.services.broadcast_executor import next_ist_morning
 from app.services.outbound_router import SenderPicker, get_best_number
+from app.services.template_params import body_parameters
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -657,7 +658,7 @@ async def _execute_immediate_send(
     tag_opted_out_phones: set,
     globally_opted_out_phones: set,
     negative_reply_phones: set,
-    has_vars: bool,
+    tpl_body: str,
     tpl_lang: str,
     _has_fail_reason: bool,
 ) -> None:
@@ -755,14 +756,8 @@ async def _execute_immediate_send(
 
             try:
                 components: list[dict] = []
-                if has_vars:
-                    params = []
-                    for col in (body.variable_mapping or []):
-                        val = (lead.extra_cols.get(col) or "").strip()
-                        params.append({"type": "text", "text": val or "Customer"})
-                    if not params:
-                        # fallback: just substitute {{1}} with name
-                        params = [{"type": "text", "text": _clean_text(lead.name) or "Customer"}]
+                params = body_parameters(tpl_body, body.variable_mapping, lead.extra_cols, _clean_text(lead.name))
+                if params:
                     components = [{"type": "body", "parameters": params}]
 
                 send_result = await send_template_message(
@@ -1322,9 +1317,6 @@ async def bulk_send(
         tpl_lang = tpl_row.data[0].get("language") or "en"
         tpl_body = tpl_row.data[0].get("body_text") or ""
 
-    import re as _re
-    has_vars = bool(_re.search(r"\{\{\d+\}\}", tpl_body))
-
     # Check if fail_reason column exists (migration 058 may not be applied yet)
     _has_fail_reason = False
     try:
@@ -1371,7 +1363,7 @@ async def bulk_send(
         tag_opted_out_phones=tag_opted_out_phones,
         globally_opted_out_phones=globally_opted_out_phones,
         negative_reply_phones=negative_reply_phones,
-        has_vars=has_vars,
+        tpl_body=tpl_body,
         tpl_lang=tpl_lang,
         _has_fail_reason=_has_fail_reason,
     ))
