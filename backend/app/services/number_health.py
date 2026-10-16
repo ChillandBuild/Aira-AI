@@ -95,6 +95,13 @@ def broadcast_cap(row: dict, now: datetime) -> Optional[int]:
     return tier
 
 
+def portfolio_limit(rows: list[dict]) -> Optional[int]:
+    """The business's one daily limit, shared by all its numbers, or None when
+    Meta hasn't reported it on any of them."""
+    tiers = [r["messaging_tier"] for r in rows if r.get("messaging_tier")]
+    return max(tiers) if tiers else None
+
+
 def can_broadcast(row: dict, now: datetime, unlocked_ids: set[str]) -> bool:
     """May this number send broadcasts right now (before today's count)?"""
     return (

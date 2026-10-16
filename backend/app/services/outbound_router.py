@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.db.supabase import get_supabase
-from app.services.number_health import broadcast_cap, can_broadcast
+from app.services.number_health import broadcast_cap, can_broadcast, portfolio_limit
 from app.services.numbers_pool import get_unlocked_number_ids
 
 logger = logging.getLogger(__name__)
@@ -16,6 +16,14 @@ def _eligible(rows: list[dict], sent_now: dict[str, int], unlocked_ids: set[str]
     """Numbers that may broadcast now and are under today's cap, primary first,
     then green before unrated/yellow, then least used."""
     now = datetime.now(timezone.utc)
+    # Meta's limit belongs to the business portfolio and every number shares
+    # it (Meta reports the same value on each), so today's sends are summed
+    # across the pool -- per-number caps alone would let a second number
+    # broadcast past it once the first is full.
+    limit = portfolio_limit(rows)
+    pool_used = sum((r.get("daily_send_count") or 0) + sent_now.get(r["id"], 0) for r in rows)
+    if limit is None or pool_used >= limit:
+        return []
     out = []
     for r in rows:
         if not can_broadcast(r, now, unlocked_ids):

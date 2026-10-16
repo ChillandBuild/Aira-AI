@@ -388,3 +388,31 @@ async def test_scheduled_broadcast_with_no_sender_waits_for_tomorrow_instead_of_
     saved = db.tables["scheduled_broadcasts"][0]
     assert saved["status"] == "pending"
     assert datetime.fromisoformat(saved["fire_at"]) > datetime.now(timezone.utc)
+
+
+@pytest.mark.asyncio
+async def test_two_numbers_share_metas_one_daily_limit():
+    """Meta's 2,000 is per business, not per number: a 3,000-person broadcast
+    sends 2,000 and stops, instead of overflowing 1,000 onto the standby that
+    Meta would refuse."""
+    picker, db, ps = _picker([_num("p", role="primary"), _num("s")], {"p", "s"})
+    try:
+        sent = 0
+        for _ in range(3000):
+            sender = picker.next()
+            if sender is None:
+                break
+            await picker.record_sent(sender)
+            sent += 1
+        assert sent == 2000
+        assert db.row("p")["daily_send_count"] + db.row("s")["daily_send_count"] == 2000
+    finally:
+        _stop(ps)
+
+
+def test_no_broadcasts_when_meta_has_reported_no_limit_on_any_number():
+    picker, _, ps = _picker([_num("p", role="primary", messaging_tier=None)], {"p"})
+    try:
+        assert picker.next() is None
+    finally:
+        _stop(ps)
