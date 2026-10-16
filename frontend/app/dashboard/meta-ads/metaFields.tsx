@@ -338,3 +338,9 @@ export function ChannelChips({ channels }: { channels: string[] }) {
     </span>
   );
 }
+
+/** Chat-app chips for an ad; the old Multi-destination badge only when no channel list came back. */
+export function ChannelMarks({ channels, multiDestination }: { channels?: string[]; multiDestination?: boolean }) {
+  if (channels && channels.length > 0) return <ChannelChips channels={channels} />;
+  return multiDestination ? <AdTypeBadge type="Multi-destination" /> : null;
+}

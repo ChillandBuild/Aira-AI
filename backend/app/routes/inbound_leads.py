@@ -568,6 +568,48 @@ async def set_ad_tracking(
     return {"ad_creative_id": ad_creative_id, "tracked": payload.tracked}
 
 
+@router.get("/ad-creatives/{ad_creative_id}/breakdown", dependencies=[Depends(require_meta_ads_view)])
+async def ad_creative_breakdown(
+    ad_creative_id: str,
+    breakdown: str = Query(...),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    tenant_id: str = Depends(get_tenant_id),
+):
+    """Meta's numbers for one messaging ad split by placement, age, gender, region or device."""
+    import httpx
+    from app.services.ad_performance import PANEL_BREAKDOWNS, build_ad_breakdown
+
+    key = (breakdown or "").strip()
+    if key not in PANEL_BREAKDOWNS:
+        raise HTTPException(status_code=400, detail=f"Unknown breakdown: {key}")
+
+    today = datetime.now(timezone.utc).date()
+    d_to = _parse_day(date_to, "date_to") if date_to else today.isoformat()
+    d_from = (
+        _parse_day(date_from, "date_from") if date_from
+        else (today - timedelta(days=30)).isoformat()
+    )
+    if d_from > d_to:
+        raise HTTPException(status_code=400, detail="date_from must be on or before date_to")
+
+    try:
+        result = build_ad_breakdown(
+            get_supabase(), tenant_id, ad_creative_id,
+            breakdown=key, date_from=d_from, date_to=d_to,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=502,
+            detail="Meta didn't respond, try again in a minute",
+        )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Ad not found")
+    return result
+
+
 def _sync_start_payload(db, tenant_id: str) -> dict:
     from app.services.meta_ads_insights_sync import (
         _MAX_HISTORY_DAYS,

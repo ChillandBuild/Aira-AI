@@ -17,6 +17,8 @@ import {
   MetaFieldCatalog,
   SyncStartInfo,
   TrackedAd,
+  AdBreakdownKey,
+  AdBreakdownResponse,
 } from "@/lib/api";
 
 import { fetchNotes } from "@/app/dashboard/telecalling/lib/notes-api";
@@ -242,6 +244,19 @@ export function useTrackedAds(enabled = true) {
   return useSWR<{ data: TrackedAd[] }>(
     enabled ? "inbound-leads/meta-ads/tracked-ads" : null,
     () => api.inboundLeads.getTrackedAds(),
+    defaultConfig,
+  );
+}
+
+export function useAdBreakdown(
+  adCreativeId: string | null,
+  params: { breakdown: AdBreakdownKey; date_from?: string; date_to?: string },
+) {
+  return useSWR<AdBreakdownResponse>(
+    adCreativeId
+      ? `ad-breakdown:${adCreativeId}:${params.breakdown}:${params.date_from ?? ""}:${params.date_to ?? ""}`
+      : null,
+    () => api.inboundLeads.getAdBreakdown(adCreativeId!, params),
     defaultConfig,
   );
 }

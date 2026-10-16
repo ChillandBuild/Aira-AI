@@ -36,7 +36,8 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthRole } from "@/app/dashboard/contexts/AuthRoleContext";
 import { TickMark } from "@/components/ui/controls";
-import { AdTypeBadge, ChannelChips } from "./metaFields";
+import { ChannelMarks } from "./metaFields";
+import { AdDetailPanel } from "./AdDetailPanel";
 
 type MetricKey =
   | "delivery_status"
@@ -185,12 +186,6 @@ function channelSplit(byChannel: ChannelCounts | undefined): string | null {
   const parts = CHANNEL_SHORT.filter((channel) => (byChannel[channel.key] ?? 0) > 0)
     .map((channel) => `${count(byChannel[channel.key])} ${channel.short}`);
   return parts.length >= 2 ? parts.join(" · ") : null;
-}
-
-/** Chat-app chips for an ad; the old Multi-destination badge only when no channel list came back. */
-function ChannelMarks({ channels, multiDestination }: { channels?: string[]; multiDestination?: boolean }) {
-  if (channels && channels.length > 0) return <ChannelChips channels={channels} />;
-  return multiDestination ? <AdTypeBadge type="Multi-destination" /> : null;
 }
 
 function PerformanceKpiCard({
@@ -442,6 +437,7 @@ export function AdPerformanceTab() {
   const [deliveryStatus, setDeliveryStatus] = useState("");
   const [visibleMetrics, setVisibleMetrics] = useState<Set<MetricKey>>(() => new Set(DEFAULT_METRICS));
   const [showManage, setShowManage] = useState(false);
+  const [detailRow, setDetailRow] = useState<AdPerformanceRow | null>(null);
   const [manageQuery, setManageQuery] = useState("");
   const [showSyncStart, setShowSyncStart] = useState(false);
   const [syncChoice, setSyncChoice] = useState("custom");
@@ -1040,8 +1036,9 @@ export function AdPerformanceTab() {
                   return (
                     <tr
                       key={row.ad_creative_id}
+                      onClick={() => setDetailRow(row)}
                       className={cn(
-                        "transition-all hover:bg-surface-low/60",
+                        "cursor-pointer transition-all hover:bg-surface-low/60",
                         removed && "bg-surface-low/25 opacity-55 hover:opacity-100",
                       )}
                     >
@@ -1055,7 +1052,17 @@ export function AdPerformanceTab() {
                       </td>
                       <td className="px-4 py-3 text-center text-xs text-on-surface-muted">{row.adset_name ?? "—"}</td>
                       <td className="min-w-[264px] px-4 py-3 text-center font-label text-xs font-semibold text-on-surface">
-                        <span className={cn("block", removed && "line-through decoration-stone-400")}>{row.creative_label}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDetailRow(row); }}
+                          title="See where this ad works best"
+                          className={cn(
+                            "block rounded text-center hover:text-primary-700 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-200",
+                            removed && "line-through decoration-stone-400",
+                          )}
+                        >
+                          {row.creative_label}
+                        </button>
                         <div className="mt-1 flex justify-center">
                           <ChannelMarks channels={row.messaging_channels} multiDestination={row.is_multi_destination} />
                         </div>
@@ -1211,6 +1218,21 @@ export function AdPerformanceTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailRow && (
+        <AdDetailPanel
+          row={detailRow}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onClose={() => setDetailRow(null)}
+          stats={[
+            { label: "Messages sent", value: count(detailRow.messages), sub: channelSplit(detailRow.messages_by_channel) },
+            { label: "Hot leads", value: count(detailRow.hot), tone: "text-rose-600" },
+            { label: "Cost / sent message", value: money(detailRow.cost_per_message) },
+            { label: "Cost / hot lead", value: money(detailRow.cost_per_hot) },
+          ]}
+        />
       )}
 
       {showManage && canManage && (

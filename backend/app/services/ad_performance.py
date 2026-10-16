@@ -612,3 +612,76 @@ def build_all_ads(
     for row in rows:
         row["ad_type"] = ad_type_label(row.get("destination_type"))
     return {"data": rows, "start_date": start, "date_from": date_from, "date_to": date_to}
+
+
+PANEL_BREAKDOWNS = ("placement", "age", "gender", "region", "device")
+PANEL_KEYS = [
+    "inline_link_clicks", "spend", "cost_per_inline_link_click",
+    "impressions", "inline_link_click_ctr",
+]
+
+
+def build_ad_breakdown(
+    db,
+    tenant_id: str,
+    ad_creative_id: str,
+    *,
+    breakdown: str,
+    date_from: str,
+    date_to: str,
+) -> dict | None:
+    """Meta's numbers for one messaging ad, split by one breakdown, plus the whole-ad
+    row for comparison. None when the ad isn't this tenant's messaging ad on the
+    connected account."""
+    from app.services.meta_ads_fields import fetch_meta_insights_live
+    from app.services.meta_ads_insights_sync import _get_ads_credentials, get_ads_setting
+
+    creative = (
+        db.table("ad_creatives").select("id,meta_ad_id,meta_ad_account_id,messaging_channels")
+        .eq("id", ad_creative_id)
+        .eq("tenant_id", tenant_id)
+        .execute().data
+    ) or []
+    if not creative:
+        return None
+    creative = creative[0]
+    if not creative.get("messaging_channels") or not creative.get("meta_ad_id"):
+        return None
+
+    credentials = _get_ads_credentials(db, tenant_id)
+    if not credentials:
+        raise ValueError("Connect a Meta Ads account first")
+    token, account = credentials
+    if creative.get("meta_ad_account_id") != account:
+        return None
+
+    start = get_ads_setting(db, tenant_id, "meta_ads_sync_start_date")
+    date_from = _clip_date_from(date_from, start)
+    result = {
+        "ad_creative_id": ad_creative_id,
+        "breakdown": breakdown,
+        "date_from": date_from,
+        "date_to": date_to,
+        "start_date": start,
+        "overall": None,
+        "rows": [],
+    }
+    if date_from > date_to:
+        return result
+
+    ad_ids = {str(creative["meta_ad_id"])}
+    split = fetch_meta_insights_live(
+        token, account,
+        date_from=date_from, date_to=date_to, keys=PANEL_KEYS,
+        breakdown=breakdown, ad_ids=ad_ids,
+    )
+    whole = fetch_meta_insights_live(
+        token, account,
+        date_from=date_from, date_to=date_to, keys=PANEL_KEYS,
+        breakdown=None, ad_ids=ad_ids,
+    )
+    result["overall"] = whole[0]["values"] if whole else None
+    rows = [{"label": r.get("breakdown") or "Unknown", "values": r["values"]} for r in split]
+    rows.sort(key=lambda r: r["values"].get("inline_link_clicks") or 0, reverse=True)
+    result["rows"] = rows
+    return result

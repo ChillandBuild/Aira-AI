@@ -409,6 +409,11 @@ def fetch_meta_insights_live(
     }
     if breakdown is not None:
         insight_params["breakdowns"] = BREAKDOWNS[breakdown]["breakdowns"]
+    if wanted is not None and 0 < len(wanted) <= 50:
+        # Ask Meta for just these ads instead of the whole account.
+        insight_params["filtering"] = json.dumps(
+            [{"field": "ad.id", "operator": "IN", "value": sorted(wanted)}]
+        )
     insight_rows = _fetch_paged(f"{_GRAPH_BASE}/{account}/insights", insight_params)
 
     ad_rows = _fetch_paged_all_statuses(

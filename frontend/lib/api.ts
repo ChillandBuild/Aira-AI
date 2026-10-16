@@ -2793,6 +2793,18 @@ export const api = {
         `/api/v1/inbound-leads/ad-creatives/${encodeURIComponent(adCreativeId)}/tracking`,
         { method: "PATCH", body: JSON.stringify({ tracked }) },
       ),
+    getAdBreakdown: async (
+      adCreativeId: string,
+      params: { breakdown: AdBreakdownKey; date_from?: string; date_to?: string },
+    ) => {
+      const qs = new URLSearchParams();
+      qs.set("breakdown", params.breakdown);
+      if (params.date_from) qs.set("date_from", params.date_from);
+      if (params.date_to) qs.set("date_to", params.date_to);
+      return apiFetch<AdBreakdownResponse>(
+        `/api/v1/inbound-leads/ad-creatives/${encodeURIComponent(adCreativeId)}/breakdown?${qs}`,
+      );
+    },
     getSyncStart: async () =>
       apiFetch<SyncStartInfo>(`/api/v1/inbound-leads/meta-ads/sync-start`),
     setSyncStart: async (startDate: string) =>
@@ -3165,6 +3177,24 @@ export interface TrackedAd {
   /** Chat apps this ad opens: "whatsapp", "instagram", "messenger". */
   messaging_channels?: string[];
   tracked: boolean;
+}
+
+export type AdBreakdownKey = "placement" | "age" | "gender" | "region" | "device";
+export interface AdBreakdownValues {
+  inline_link_clicks: number | null;
+  spend: number | null;
+  cost_per_inline_link_click: number | null;
+  impressions: number | null;
+  inline_link_click_ctr: number | null;
+}
+export interface AdBreakdownResponse {
+  ad_creative_id: string;
+  breakdown: AdBreakdownKey;
+  date_from: string;
+  date_to: string;
+  start_date: string | null;
+  overall: AdBreakdownValues | null;
+  rows: { label: string; values: AdBreakdownValues }[];
 }
 
 export interface SyncStartInfo {
