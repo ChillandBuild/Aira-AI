@@ -1,7 +1,7 @@
 """Pull the numbers pool's health from Meta and act on it.
 
 Used by POST /numbers/sync-from-meta, POST /numbers/{id}/sync-meta, the
-12-hourly full pool sync and the 4-hourly quality check. Every field written
+twice-daily full pool sync (06:00 and 18:00 IST) and the 4-hourly quality check. Every field written
 comes from Meta (see number_health.meta_snapshot); Anril only adds its own
 clocks (warm-up, rest) on top.
 """
@@ -146,7 +146,7 @@ async def sync_tenant_numbers(db, tenant_id: str, source: str) -> tuple[int, int
 
 
 async def sync_all_tenants_pool() -> None:
-    """12-hourly: full pool sync for every tenant with a connected WABA."""
+    """06:00 and 18:00 IST: full pool sync for every tenant with a connected WABA."""
     db = get_supabase()
     tenant_ids = {
         r["tenant_id"] for r in (

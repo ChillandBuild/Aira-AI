@@ -236,7 +236,7 @@ async def _sync_all_number_quality() -> None:
 
 
 async def _sync_numbers_pool() -> None:
-    """APScheduler 12-hourly job: full numbers-pool sync from Meta for every
+    """APScheduler job at 06:00 and 18:00 IST: full numbers-pool sync from Meta for every
     tenant -- new numbers, verification, limits, warm-up, recovery."""
     _heartbeats["numbers-pool-sync"] = datetime.now(timezone.utc)
     try:
@@ -501,8 +501,10 @@ async def lifespan(app: FastAPI):
     )
     _scheduler.add_job(_process_auto_messages, trigger="interval", minutes=1, id="auto-messages",
                        replace_existing=True)
-    _scheduler.add_job(_sync_numbers_pool, trigger="interval", hours=12, id="numbers-pool-sync",
-                       replace_existing=True)
+    # Fixed clock times, not interval=12h: Render recycles the process every ~5h,
+    # so an interval of 5h+ never fires (subsystem-notes.md, 2026-09-19).
+    _scheduler.add_job(_sync_numbers_pool, trigger="cron", hour="6,18", minute=0,
+                       timezone="Asia/Kolkata", id="numbers-pool-sync", replace_existing=True)
     _scheduler.add_job(_prune_send_log, trigger="cron", hour=3, minute=0,
                        timezone="Asia/Kolkata", id="send-log-prune", replace_existing=True)
     _scheduler.add_job(_reconcile_private_send_meta, trigger="cron", hour=3, minute=30,
@@ -521,7 +523,7 @@ async def lifespan(app: FastAPI):
     _scheduler_started_at = datetime.now(timezone.utc)
     _scheduler.start(paused=not settings.scheduler_enabled)
     if settings.scheduler_enabled:
-        logger.info("Schedulers started: broadcasts(1m) + token-health(24h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(4h) + numbers-pool-sync(12h) + send-log-prune(03:00 IST) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + auto-messages(1m) + private-send-meta-reconcile(03:30 IST) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
+        logger.info("Schedulers started: broadcasts(1m) + token-health(4h) + reengagement(1m) + assignment-sweep(2m) + recycle-contacts(30m) + callback-notify(1m) + quality-sync(4h) + numbers-pool-sync(06:00+18:00 IST) + send-log-prune(03:00 IST) + call-ai-sweep(3m) + pending-whatsapp-alerts(1m) + astro-push-reconcile(5m) + intake-staleness-sweep(5m) + silence-nudge(1m) + crm-cutoff-sweep(10m) + auto-messages(1m) + private-send-meta-reconcile(03:30 IST) + call-alert-summary(09:00 IST) + brain-weekly-digest(Mon 09:00 IST)")
     else:
         logger.warning("LOCAL MODE: SCHEDULER_ENABLED=false — 20 jobs registered but PAUSED; nothing will run")
 
