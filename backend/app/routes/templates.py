@@ -24,6 +24,13 @@ from app.services import template_fields, template_rules
 from app.config import settings as env_settings
 from app.config_dynamic import get_setting
 from app.services.meta_webhook_verify import verify_meta_signature
+from app.services.template_edit_limits import (
+    blocked_message,
+    edit_allowance,
+    is_echo_of_anril_edit,
+    load_edits,
+    record_edit,
+)
 
 logger = logging.getLogger(__name__)
 require_templates_read = require_permission("templates.view")
@@ -199,7 +206,19 @@ async def list_templates(tenant_id: str = Depends(get_tenant_id)):
     db = get_supabase()
     result = db.table("message_templates").select("*").eq("tenant_id", tenant_id).order("submitted_at", desc=True).execute()
     waba_id = get_setting("meta_waba_id", tenant_id=tenant_id)
-    return {"data": _filter_templates_for_waba(result.data or [], waba_id)}
+    rows = _filter_templates_for_waba(result.data or [], waba_id)
+    # Meta's edit limit for approved templates (1 per 24h, 10 per 30 days), so
+    # the page can block Edit before Meta refuses it.
+    approved_ids = [r["id"] for r in rows if (r.get("status") or "").upper() == "APPROVED"]
+    try:
+        edits = load_edits(db, tenant_id, approved_ids)
+    except Exception as e:
+        logger.warning(f"template edit log unavailable for tenant {tenant_id}: {e}")
+        edits = {}
+    for r in rows:
+        if r["id"] in approved_ids:
+            r["edit_allowance"] = edit_allowance(edits.get(r["id"], []))
+    return {"data": rows}
 
 
 @router.post("/")
@@ -280,6 +299,9 @@ async def create_template(
 
     meta_template_id = None
     status = "PENDING"
+    # Sent to Meta first. If it doesn't get there -- Meta refuses it or can't be
+    # reached -- nothing is saved: a template Meta never saw used to be stored as
+    # REJECTED (no reason, no Meta id) and an edit could never send it.
     try:
         meta_response = await submit_template(
             waba_id=waba_id,
@@ -300,9 +322,14 @@ async def create_template(
         meta_template_id = str(meta_response.get("id", ""))
     except TemplateContentExistsError:
         raise
+    except HTTPException as e:
+        logger.warning(f"Meta refused template {name}: {e.detail}")
+        raise HTTPException(status_code=400, detail=f"Meta didn't accept the template: {_meta_error_text(e.detail)}")
     except Exception as e:
-        status = "REJECTED"
-        logger.warning(f"Meta template submission failed for {name}: {e}, saved as REJECTED")
+        logger.warning(f"Couldn't reach Meta to submit template {name}: {e}")
+        raise HTTPException(status_code=502, detail="Couldn't reach Meta, so the template wasn't sent. Please try again.")
+    if not meta_template_id:
+        raise HTTPException(status_code=502, detail="Meta didn't confirm the template, so it wasn't saved. Please try again.")
 
     db_insert = {
         "name": name,
@@ -624,10 +651,17 @@ def apply_template_change(db, field: str, value: dict, tenant_id: str | None = N
         # Someone edited the template (e.g. in WhatsApp Manager). Keep Anril's
         # copy identical to Meta's: the broadcast screen counts {{n}} variables
         # from body_text, and a stale count makes Meta reject every send.
-        existing = _rows(db.table("message_templates").select("id,header_media_type,buttons")).limit(1).execute().data or []
+        existing = _rows(db.table("message_templates").select("id,tenant_id,header_media_type,buttons,approved_at")).limit(1).execute().data or []
         if not existing:
             return
         row = existing[0]
+        # An edit made in WhatsApp Manager counts toward Meta's limit too; Meta
+        # also reports Anril's own edits here, which are logged already.
+        if row.get("approved_at") and not is_echo_of_anril_edit(db, row["id"]):
+            try:
+                record_edit(db, row["tenant_id"], row["id"], "meta_webhook")
+            except Exception as e:
+                logger.warning(f"template edit log write failed for {row['id']}: {e}")
         updates = {"body_text": value.get("message_template_element") or ""}
         # Meta only sends a title for a text header and a footer when there is one.
         if not row.get("header_media_type"):
@@ -777,11 +811,20 @@ async def update_template(
         raise HTTPException(status_code=404, detail="Template not found")
 
     template = row.data[0]
-    if template.get("status") not in ("APPROVED", "REJECTED", "PAUSED"):
+    # A template Meta never received (no meta_template_id) isn't bound by Meta's
+    # edit rules: saving submits it to Meta for the first time.
+    never_reached_meta = not template.get("meta_template_id")
+    if not never_reached_meta and template.get("status") not in ("APPROVED", "REJECTED", "PAUSED"):
         raise HTTPException(
             status_code=400,
             detail=f"Meta only allows editing Approved, Rejected or Paused templates. This one is {template.get('status')}.",
         )
+
+    was_approved = (template.get("status") or "").upper() == "APPROVED" and not never_reached_meta
+    if was_approved:
+        allowance = edit_allowance(load_edits(db, tenant_id, [template_id]).get(template_id, []))
+        if not allowance["allowed"]:
+            raise HTTPException(status_code=400, detail=blocked_message(allowance))
 
     if payload.header_text is not None and _strip_emojis(payload.header_text) != payload.header_text:
         raise HTTPException(status_code=400, detail="Emojis are not allowed in the header text.")
@@ -811,6 +854,38 @@ async def update_template(
         updates["footer_text"] = payload.footer_text
     if payload.buttons is not None:
         updates["buttons"] = [b.model_dump() for b in payload.buttons]
+
+    if never_reached_meta:
+        waba_id = template.get("meta_waba_id") or get_setting("meta_waba_id", tenant_id=tenant_id)
+        if not waba_id:
+            raise HTTPException(status_code=400, detail="Connect Meta WhatsApp (meta_waba_id) in Settings first")
+        try:
+            meta_response = await submit_template(
+                waba_id=waba_id,
+                name=template["name"],
+                category=template.get("category") or "MARKETING",
+                language=template.get("language") or "en",
+                body_text=updates.get("body_text", template.get("body_text", "")),
+                header_text=updates.get("header_text", template.get("header_text")),
+                header_media_type=updates.get("header_media_type", template.get("header_media_type")),
+                header_media_url=updates.get("header_media_url", template.get("header_media_url")),
+                footer_text=updates.get("footer_text", template.get("footer_text")),
+                buttons=updates.get("buttons", template.get("buttons")),
+                tenant_id=tenant_id,
+                body_examples=payload.body_examples,
+                header_example=payload.header_example,
+            )
+        except TemplateContentExistsError:
+            raise
+        except HTTPException as e:
+            raise HTTPException(status_code=400, detail=f"Meta didn't accept the template: {_meta_error_text(e.detail)}")
+        except Exception as e:
+            logger.warning(f"Couldn't reach Meta to submit template {template['name']}: {e}")
+            raise HTTPException(status_code=502, detail="Couldn't reach Meta, so the template wasn't sent. Please try again.")
+        if not meta_response.get("id"):
+            raise HTTPException(status_code=502, detail="Meta didn't confirm the template, so nothing changed. Please try again.")
+        updates["meta_template_id"] = str(meta_response["id"])
+        updates["meta_waba_id"] = waba_id
 
     # If the template has a meta_template_id, push update to Meta
     meta_template_id = template.get("meta_template_id")
@@ -853,6 +928,8 @@ async def update_template(
             raise HTTPException(status_code=400, detail=f"Meta didn't accept the edit: {_meta_error_text(e.detail)}")
 
     db.table("message_templates").update(updates).eq("id", template_id).eq("tenant_id", tenant_id).execute()
+    if was_approved:
+        record_edit(db, tenant_id, template_id, "anril")
     updated = db.table("message_templates").select("*").eq("id", template_id).limit(1).execute()
     return updated.data[0] if updated.data else None
 

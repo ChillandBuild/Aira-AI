@@ -682,7 +682,8 @@ export default function TemplatesPage() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-border-subtle bg-white flex items-center justify-end gap-2.5">
               <button onClick={() => setSelectedTemplate(null)} className="btn-ghost text-xs">Close</button>
-              {canManageTemplates && ["APPROVED", "REJECTED", "PAUSED"].includes(selectedTemplate.status) && (
+              {canManageTemplates && (["APPROVED", "REJECTED", "PAUSED"].includes(selectedTemplate.status) || !selectedTemplate.meta_template_id)
+                && !(selectedTemplate.status === "APPROVED" && selectedTemplate.edit_allowance && !selectedTemplate.edit_allowance.allowed) && (
                 <button
                   onClick={() => {
                     setSelectedTemplate(null);

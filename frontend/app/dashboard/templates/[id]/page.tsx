@@ -17,7 +17,7 @@ import {
   Info,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
-import { LANGUAGES, STATUS_COLORS, detectVariables } from "../types";
+import { LANGUAGES, STATUS_COLORS, detectVariables, formatNextEdit } from "../types";
 import type { Button, Template } from "../types";
 import WhatsAppPreview from "../components/whatsapp-preview";
 import ButtonBuilder from "../components/button-builder";
@@ -303,7 +303,12 @@ export default function TemplateDetailsPage() {
   }
 
   // The statuses Meta lets you edit. Approved ones: once per 24 hours, 10 times in 30 days.
-  const isEditable = canManageTemplates && ["APPROVED", "REJECTED", "PAUSED"].includes(template.status);
+  // A template Meta never received (no meta_template_id) can always be edited:
+  // saving sends it to Meta for the first time.
+  const isEditable = canManageTemplates && (["APPROVED", "REJECTED", "PAUSED"].includes(template.status) || !template.meta_template_id);
+  // Meta's limit for approved templates: 1 edit per 24 hours, 10 per 30 days.
+  const allowance = template.status === "APPROVED" ? template.edit_allowance : undefined;
+  const editBlocked = !!allowance && !allowance.allowed;
   const sc = STATUS_COLORS[template.status] || { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" };
 
   return (
@@ -357,7 +362,9 @@ export default function TemplateDetailsPage() {
           {isEditable && !editMode && (
             <button
               onClick={() => setEditMode(true)}
-              className="btn-ghost flex items-center gap-1 text-xs text-emerald-600 hover:bg-emerald-50"
+              disabled={editBlocked}
+              title={editBlocked ? "Meta's edit limit for this template is reached" : undefined}
+              className="btn-ghost flex items-center gap-1 text-xs text-emerald-600 hover:bg-emerald-50 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
             >
               <Edit3 size={13} />
               Edit Template
@@ -389,12 +396,25 @@ export default function TemplateDetailsPage() {
         </div>
       </div>
 
+      {canManageTemplates && editBlocked && allowance && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm flex items-start gap-2.5">
+          <Lock size={16} className="mt-0.5 shrink-0 text-amber-700" />
+          <p className="font-body">
+            {allowance.reason === "daily"
+              ? "Meta allows one edit of an approved template every 24 hours, and this one was edited in the last 24 hours."
+              : `Meta's limit of ${allowance.limit_30_days} edits in 30 days is used up for this template.`}{" "}
+            You can edit it again from <strong>{formatNextEdit(allowance.next_allowed_at)}</strong> (India time). Until then it keeps working as it is.
+          </p>
+        </div>
+      )}
+
       {editMode && template.status === "APPROVED" && (
         <div className="mb-6 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-sm flex items-start gap-2.5">
           <Info size={16} className="mt-0.5 shrink-0 text-sky-700" />
           <p className="font-body">
-            Meta lets you edit an approved template once every 24 hours, up to 10 times in 30 days, and the category can&apos;t change.
-            The edit goes back to Meta for review. Until Meta approves it again, it won&apos;t show up for broadcasts in Anril.
+            This template is approved. When you save, your edit is sent to Meta for review, and until Meta approves it
+            again it won&apos;t be used anywhere in Anril. Meta allows one edit every 24 hours and {allowance?.limit_30_days ?? 10} in
+            30 days{allowance ? ` (used ${allowance.edits_30_days} of ${allowance.limit_30_days} so far)` : ""}. The category can&apos;t change.
           </p>
         </div>
       )}

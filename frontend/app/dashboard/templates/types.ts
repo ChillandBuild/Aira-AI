@@ -42,7 +42,25 @@ export type Template = {
   submitted_at?: string;
   approved_at?: string;
   variations?: string[];
+  // Approved templates only: Meta's edit limit (1 per 24 hours, 10 per 30 days).
+  edit_allowance?: EditAllowance;
 };
+
+export type EditAllowance = {
+  allowed: boolean;
+  reason: 'daily' | 'monthly' | null;
+  next_allowed_at: string | null;
+  edits_30_days: number;
+  limit_30_days: number;
+};
+
+/** When Meta lets this approved template be edited again, in India time. */
+export function formatNextEdit(iso: string | null): string {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata',
+  });
+}
 
 export function detectVariables(text: string): number[] {
   const regex = /\{\{(\d+)\}\}/g;

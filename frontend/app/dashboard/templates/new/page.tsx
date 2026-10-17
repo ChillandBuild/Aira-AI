@@ -202,8 +202,11 @@ export default function NewTemplatePage() {
       });
 
       if (!res.ok) {
+        // Nothing was saved: the form stays filled in so it can be fixed and resent.
         const text = await res.text();
-        throw new Error(text || "Failed to submit template to WhatsApp");
+        let detail = text;
+        try { detail = JSON.parse(text).detail ?? text; } catch { /* plain text */ }
+        throw new Error(detail || "Failed to submit template to WhatsApp");
       }
 
       router.push("/dashboard/templates");
