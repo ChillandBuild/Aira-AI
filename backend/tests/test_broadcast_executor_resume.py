@@ -186,7 +186,7 @@ class _FixedPicker:
 
 
 def _templates():
-    return {"promo": [{"language": "en", "body_text": "Hello", "variations": []}]}
+    return {"promo": [{"language": "en", "body_text": "Hello", "variations": [], "status": "APPROVED"}]}
 
 
 @pytest.mark.asyncio

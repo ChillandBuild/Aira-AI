@@ -4,8 +4,23 @@ from app.db.supabase import get_supabase
 from app.services.ai_reply import send_whatsapp
 from app.services.automation_guards import lead_blocks_automated_outbound, master_switch_on
 from app.services.meta_cloud import send_template_message
+from app.services.outbound_router import SenderPicker
+from app.services.template_params import template_status
 
 logger = logging.getLogger(__name__)
+
+
+class NoSenderAvailable(Exception):
+    """The template can't go out right now: no number may send (all
+    Red/resting/unverified or the limit is used up), or the template isn't
+    APPROVED on Meta (e.g. under review after an edit). The step is retried
+    later, so no log row."""
+
+
+# Tenants with no sender left: skip their re-engagement templates until this
+# time instead of re-checking every due lead every minute.
+_NO_SENDER_UNTIL: dict[str, datetime] = {}
+_NO_SENDER_RECHECK = timedelta(minutes=10)
 
 
 def utcnow() -> datetime:
@@ -57,7 +72,7 @@ def _fetch_leads_by_id(db, tenant_id: str, lead_ids: list[str]) -> dict[str, dic
         batch = lead_ids[i:i + _IN_CLAUSE_BATCH_SIZE]
         res = (
             db.table("leads")
-            .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
+            .select("id, name, phone, last_inbound_phone_number_id, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
             .eq("tenant_id", tenant_id)
             .in_("id", batch)
             .execute()
@@ -146,7 +161,7 @@ async def process_due_reengagements() -> int:
             # Find leads with last_inbound_at
             leads_res = (
                 db.table("leads")
-                .select("id, name, phone, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
+                .select("id, name, phone, last_inbound_phone_number_id, segment, last_inbound_at, source, ad_campaign_id, whatsapp_undeliverable, opted_out")
                 .eq("tenant_id", tenant_id)
                 .not_.is_("last_inbound_at", "null")
                 .execute()
@@ -200,6 +215,9 @@ async def _send_step_template(
     step_id = step["id"]
     if not template_name:
         raise ValueError("Template name not configured")
+    if template_status(db, tenant_id, template_name) != "APPROVED":
+        logger.info(f"Re-engagement step {step_id}: template {template_name} isn't approved right now; retrying later")
+        raise NoSenderAvailable()
 
     parameters = []
     for var_name in (template_variables or []):
@@ -213,11 +231,25 @@ async def _send_step_template(
 
     components = [{"type": "body", "parameters": parameters}] if parameters else []
 
+    # A re-engagement template is marketing Anril starts, so it follows the
+    # broadcast rules: never from a Red/resting/unverified number, within the
+    # warm-up and daily limits. The lead's own number is preferred so it lands
+    # in their existing chat.
+    until = _NO_SENDER_UNTIL.get(tenant_id)
+    if until and utcnow() < until:
+        raise NoSenderAvailable()
+    sender = SenderPicker(tenant_id).next(prefer_meta_id=lead.get("last_inbound_phone_number_id"))
+    if sender is None:
+        _NO_SENDER_UNTIL[tenant_id] = utcnow() + _NO_SENDER_RECHECK
+        logger.info(f"Re-engagement: no number can send for tenant {tenant_id}; retrying later")
+        raise NoSenderAvailable()
+
     res = await send_template_message(
         to_number=phone,
         template_name=template_name,
         components=components,
         tenant_id=tenant_id,
+        phone_number_id=sender.get("meta_phone_number_id"),
     )
     sid = res.get("messages", [{}])[0].get("id") if res else None
 
@@ -298,6 +330,8 @@ async def _send_reengagement(db, tenant_id: str, lead: dict, step: dict) -> bool
                         template_variables=step.get("fallback_template_variables"),
                         log_status="sent_fallback",
                     )
+                except NoSenderAvailable:
+                    return False
                 except Exception as e:
                     logger.error(f"Re-engagement fallback template {step_id} failed for lead {lead_id}: {e}")
                     db.table("reengagement_logs").insert({
@@ -360,6 +394,8 @@ async def _send_reengagement(db, tenant_id: str, lead: dict, step: dict) -> bool
                 template_variables=step.get("template_variables"),
                 log_status="sent",
             )
+        except NoSenderAvailable:
+            return False
         except Exception as e:
             logger.error(f"Failed to send re-engagement template step {step_id} to lead {lead_id}: {e}")
             db.table("reengagement_logs").insert({

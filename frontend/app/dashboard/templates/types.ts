@@ -32,7 +32,8 @@ export type Template = {
   footer_text?: string;
   buttons?: Button[];
   carousel_cards?: CarouselCard[];
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED';
+  // Only APPROVED is sent anywhere. DISABLED/ARCHIVED/DELETED come from Meta's status webhook.
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED' | 'ARCHIVED' | 'DELETED';
   meta_template_id?: string;
   short_code?: string;
   // {{n}} -> field for the WhatsApp alerts, e.g. {"1": "lead_phone"}; null = fixed order.
@@ -75,6 +76,9 @@ export const STATUS_COLORS: Record<string, { bg: string; text: string; dot: stri
   PENDING: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
   REJECTED: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
   PAUSED: { bg: 'bg-[#f1f5f9]', text: 'text-[#334155]', dot: 'bg-[#94a3b8]' },
+  DISABLED: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
+  ARCHIVED: { bg: 'bg-[#f1f5f9]', text: 'text-[#334155]', dot: 'bg-[#94a3b8]' },
+  DELETED: { bg: 'bg-[#f1f5f9]', text: 'text-[#64748b]', dot: 'bg-[#cbd5e1]' },
 };
 
 export const CATEGORY_COLORS: Record<string, { bg: string; text: string }> = {

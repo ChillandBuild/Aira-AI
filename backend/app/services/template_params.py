@@ -24,3 +24,24 @@ def body_parameters(body: str | None, mapping: list[str] | None, values: dict | 
             val = (lead_name or "Customer") if i == 0 else "Customer"
         params.append({"type": "text", "text": val})
     return params
+
+
+def approved_template(db, tenant_id: str, name: str) -> dict | None:
+    """The tenant's template by name, only if Meta has it APPROVED right now.
+    A template under review (e.g. after an edit), rejected or paused is not
+    used anywhere -- Meta would refuse the send, or send wording not yet approved."""
+    rows = (
+        db.table("message_templates").select("name,language,body_text,status,variations")
+        .eq("tenant_id", tenant_id).eq("name", name).limit(1).execute().data or []
+    )
+    if rows and (rows[0].get("status") or "").upper() == "APPROVED":
+        return rows[0]
+    return None
+
+
+def template_status(db, tenant_id: str, name: str) -> str | None:
+    rows = (
+        db.table("message_templates").select("status")
+        .eq("tenant_id", tenant_id).eq("name", name).limit(1).execute().data or []
+    )
+    return (rows[0].get("status") or "").upper() if rows else None

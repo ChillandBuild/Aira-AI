@@ -16,7 +16,7 @@ from app.services.outbound_router import get_best_number
 def _candidate(id_, **overrides):
     row = {
         "id": id_, "quality_rating": "green", "messaging_tier": 1000,
-        "daily_send_count": 0, "warm_up_day": 14, "status": "active",
+        "warm_up_day": 14, "status": "active",
         "meta_status": "CONNECTED", "warm_up_started_at": "2026-01-01T00:00:00+00:00",
     }
     row.update(overrides)

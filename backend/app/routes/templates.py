@@ -69,6 +69,27 @@ def _belongs_to_current_waba(template: dict, current_waba_id: str | None) -> boo
     return not row_waba_id and not template.get("meta_template_id") and status not in {"APPROVED", "PAUSED"}
 
 
+def _meta_error_text(detail) -> str:
+    """Meta's own words from a Graph error body (error_user_msg, else message)."""
+    try:
+        err = json.loads(detail).get("error", {}) if isinstance(detail, str) else {}
+    except (ValueError, AttributeError):
+        err = {}
+    return err.get("error_user_msg") or err.get("message") or str(detail)[:300]
+
+
+def stored_template_status(meta_status) -> str:
+    """Meta's template status (sync or webhook) -> what Anril stores. Anything
+    Meta reports that isn't a known state counts as not approved (PENDING), so
+    it's never sent; logged so a new Meta value gets noticed."""
+    raw = str(meta_status or "PENDING").upper()
+    mapped = _META_TEMPLATE_EVENT_STATUS.get(raw)
+    if mapped is None:
+        logger.warning(f"Unrecognised Meta template status {raw!r}; treating it as not approved")
+        return "PENDING"
+    return mapped
+
+
 def _clean_rejection_reason(reason) -> str | None:
     """Meta sends the literal string 'NONE' when a template was never rejected."""
     if not reason:
@@ -391,7 +412,7 @@ async def sync_template_status(
     if not meta_info:
         raise HTTPException(status_code=502, detail="Template not found on Meta — check WABA ID and access token in Settings")
 
-    new_status = meta_info.get("status", "PENDING").upper()
+    new_status = stored_template_status(meta_info.get("status"))
     updates: dict = {"status": new_status, "meta_waba_id": waba_id}
     if meta_info.get("id"):
         updates["meta_template_id"] = str(meta_info["id"])
@@ -431,7 +452,7 @@ async def sync_templates_from_meta(
 
     for t in meta_templates:
         name = t.get("name", "")
-        status = (t.get("status") or "PENDING").upper()
+        status = stored_template_status(t.get("status"))
         category = (t.get("category") or "MARKETING").upper()
         language = t.get("language", "en")
         rejection_reason = _clean_rejection_reason(t.get("rejected_reason"))
@@ -522,9 +543,104 @@ async def sync_templates_from_meta(
     return {"added": added, "updated": updated, "total": len(meta_templates)}
 
 
+TEMPLATE_WEBHOOK_FIELDS = ("message_template_status_update", "message_template_components_update")
+
+# Meta's message_template_status_update events -> the status Anril stores.
+# Only APPROVED is sent anywhere.
+_META_TEMPLATE_EVENT_STATUS = {
+    "APPROVED": "APPROVED",
+    "REINSTATED": "APPROVED",
+    "PENDING": "PENDING",
+    "IN_APPEAL": "PENDING",
+    "REJECTED": "REJECTED",
+    "PAUSED": "PAUSED",
+    "DISABLED": "DISABLED",
+    "ARCHIVED": "ARCHIVED",
+    "DELETED": "DELETED",
+    "PENDING_DELETION": "DELETED",
+}
+
+# The button types message_template_components_update reports; any other
+# buttons (quick replies, copy code, ...) aren't in it and are kept as they are.
+_REPORTED_BUTTON_TYPES = {"URL": "url", "PHONE_NUMBER": "phone_number"}
+
+
+def tenant_for_template_payload(db, payload: dict) -> str | None:
+    """The tenant owning the first template a template webhook mentions."""
+    for e in payload.get("entry", []):
+        for change in e.get("changes", []):
+            if change.get("field") not in TEMPLATE_WEBHOOK_FIELDS:
+                continue
+            meta_id = str((change.get("value") or {}).get("message_template_id") or "")
+            if meta_id:
+                row = db.table("message_templates").select("tenant_id").eq("meta_template_id", meta_id).limit(1).execute()
+                if row.data:
+                    return row.data[0]["tenant_id"]
+    return None
+
+
+def _merge_reported_buttons(existing: list | None, reported: list | None) -> list:
+    kept = [b for b in (existing or []) if (b or {}).get("type") not in _REPORTED_BUTTON_TYPES]
+    fresh = []
+    for b in reported or []:
+        kind = str(b.get("message_template_button_type") or "").upper()
+        if kind not in _REPORTED_BUTTON_TYPES:
+            continue
+        btn = {"type": kind, "text": b.get("message_template_button_text") or ""}
+        if kind == "URL":
+            btn["url"] = b.get("message_template_button_url")
+        else:
+            btn["phone"] = b.get("message_template_button_phone_number")
+        fresh.append(btn)
+    return kept + fresh
+
+
+def apply_template_change(db, field: str, value: dict, tenant_id: str | None = None) -> None:
+    """One template webhook change -> message_templates. tenant_id scopes the
+    write to that tenant's rows (the WhatsApp webhook); None updates every row
+    mirroring that Meta template (the legacy /templates/webhook-status door)."""
+    meta_id = str(value.get("message_template_id") or "")
+    if not meta_id:
+        return
+
+    def _rows(q):
+        q = q.eq("meta_template_id", meta_id)
+        return q.eq("tenant_id", tenant_id) if tenant_id else q
+
+    if field == "message_template_status_update":
+        new_status = _META_TEMPLATE_EVENT_STATUS.get(str(value.get("event") or "").upper())
+        if not new_status:
+            # FLAGGED / LOCKED / LIMIT_EXCEEDED don't change whether it can be
+            # sent; UNARCHIVED restores an earlier status Meta doesn't name here
+            # (the next template sync picks it up).
+            return
+        updates: dict = {"status": new_status, "rejection_reason": _clean_rejection_reason(value.get("reason"))}
+        if new_status == "APPROVED":
+            updates["approved_at"] = datetime.now(timezone.utc).isoformat()
+        _rows(db.table("message_templates").update(updates)).execute()
+        logger.info(f"Template {meta_id} status -> {new_status}")
+
+    elif field == "message_template_components_update":
+        # Someone edited the template (e.g. in WhatsApp Manager). Keep Anril's
+        # copy identical to Meta's: the broadcast screen counts {{n}} variables
+        # from body_text, and a stale count makes Meta reject every send.
+        existing = _rows(db.table("message_templates").select("id,header_media_type,buttons")).limit(1).execute().data or []
+        if not existing:
+            return
+        row = existing[0]
+        updates = {"body_text": value.get("message_template_element") or ""}
+        # Meta only sends a title for a text header and a footer when there is one.
+        if not row.get("header_media_type"):
+            updates["header_text"] = value.get("message_template_title")
+        updates["footer_text"] = value.get("message_template_footer")
+        updates["buttons"] = _merge_reported_buttons(row.get("buttons"), value.get("message_template_buttons"))
+        _rows(db.table("message_templates").update(updates)).execute()
+        logger.info(f"Template {meta_id} components updated from Meta")
+
+
 @public_router.post("/webhook-status")
 async def template_status_webhook(request: Request):
-    """Meta calls this when template status changes (APPROVED/REJECTED). No auth."""
+    """Meta template webhooks (status changes and edits). No auth -- signed."""
     raw_body = await request.body()
     try:
         payload = json.loads(raw_body)
@@ -534,29 +650,20 @@ async def template_status_webhook(request: Request):
 
     signature = request.headers.get("X-Hub-Signature-256")
 
-    meta_id = None
-    entry = payload.get("entry", [])
-    for e in entry:
-        for change in e.get("changes", []):
-            if change.get("field") == "message_template_status_update":
-                value = change.get("value", {})
-                if value.get("message_template_id"):
-                    meta_id = str(value["message_template_id"])
-                    break
-        if meta_id:
-            break
-
-    if not meta_id:
+    has_template_id = any(
+        (c.get("value") or {}).get("message_template_id")
+        for e in payload.get("entry", []) for c in e.get("changes", [])
+        if c.get("field") in TEMPLATE_WEBHOOK_FIELDS
+    )
+    if not has_template_id:
         logger.warning("Template status webhook: message_template_id not found in payload")
         return {"status": "ok"}
 
     db = get_supabase()
-    row = db.table("message_templates").select("tenant_id").eq("meta_template_id", meta_id).limit(1).execute()
-    if not row.data:
-        logger.warning(f"Template status webhook: tenant not found for meta_template_id: {meta_id}")
+    tenant_id = tenant_for_template_payload(db, payload)
+    if not tenant_id:
+        logger.warning("Template status webhook: tenant not found for the payload's template")
         raise HTTPException(status_code=404, detail="Template not found")
-    
-    tenant_id = row.data[0]["tenant_id"]
 
     if not signature:
         logger.warning("Template status webhook: missing signature header")
@@ -566,22 +673,10 @@ async def template_status_webhook(request: Request):
         logger.warning(f"Template status webhook: invalid signature for tenant {tenant_id}")
         raise HTTPException(status_code=403, detail="Invalid signature")
 
-    for e in entry:
+    for e in payload.get("entry", []):
         for change in e.get("changes", []):
-            value = change.get("value", {})
-            if change.get("field") != "message_template_status_update":
-                continue
-            meta_id = str(value.get("message_template_id", ""))
-            new_status = value.get("event", "").upper()
-            reason = _clean_rejection_reason(value.get("reason"))
-            if not meta_id or new_status not in ("APPROVED", "REJECTED", "PAUSED"):
-                continue
-
-            updates: dict = {"status": new_status, "rejection_reason": reason}
-            if new_status == "APPROVED":
-                updates["approved_at"] = datetime.now(timezone.utc).isoformat()
-            db.table("message_templates").update(updates).eq("meta_template_id", meta_id).execute()
-            logger.info(f"Template {meta_id} status → {new_status}")
+            if change.get("field") in TEMPLATE_WEBHOOK_FIELDS:
+                apply_template_change(db, change["field"], change.get("value") or {})
     return {"status": "ok"}
 
 
@@ -671,17 +766,21 @@ async def update_template(
     tenant_id: str = Depends(get_tenant_id),
     _ctx: dict = Depends(require_templates_manage),
 ):
-    """Edit a REJECTED or PAUSED template. Updates local DB and pushes changes to Meta if linked."""
+    """Edit an APPROVED, REJECTED or PAUSED template -- the statuses Meta allows.
+    Meta caps approved-template edits (1 per 24 hours, 10 per 30 days) and
+    re-reviews them; rejected/paused ones can be edited any number of times.
+    Pushed to Meta first: if Meta refuses, nothing changes locally, so Anril's
+    copy never drifts from Meta's."""
     db = get_supabase()
     row = db.table("message_templates").select("*").eq("id", template_id).eq("tenant_id", tenant_id).limit(1).execute()
     if not row.data:
         raise HTTPException(status_code=404, detail="Template not found")
 
     template = row.data[0]
-    if template.get("status") not in ("REJECTED", "PAUSED"):
+    if template.get("status") not in ("APPROVED", "REJECTED", "PAUSED"):
         raise HTTPException(
             status_code=400,
-            detail=f"Only REJECTED or PAUSED templates can be edited. Current status: {template.get('status')}",
+            detail=f"Meta only allows editing Approved, Rejected or Paused templates. This one is {template.get('status')}.",
         )
 
     if payload.header_text is not None and _strip_emojis(payload.header_text) != payload.header_text:
@@ -749,9 +848,9 @@ async def update_template(
                 components=components,
                 tenant_id=tenant_id,
             )
-        except Exception as e:
-            logger.warning(f"Meta template update failed for {meta_template_id}: {e}")
-            # Still update locally even if Meta push fails
+        except HTTPException as e:
+            logger.warning(f"Meta template update failed for {meta_template_id}: {e.detail}")
+            raise HTTPException(status_code=400, detail=f"Meta didn't accept the edit: {_meta_error_text(e.detail)}")
 
     db.table("message_templates").update(updates).eq("id", template_id).eq("tenant_id", tenant_id).execute()
     updated = db.table("message_templates").select("*").eq("id", template_id).limit(1).execute()

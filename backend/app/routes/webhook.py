@@ -6,8 +6,8 @@ from app.db.supabase import get_supabase
 from app.config import settings
 from app.services.growth import record_stage_event
 from app.services.google_ads_attribution import parse_google_ref
-from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow
-from app.services.meta_cloud import tier_from_meta
+from app.services.failover import update_number_quality, handle_quality_red, handle_quality_yellow, set_portfolio_limit
+from app.services.meta_cloud import tier_from_capability_update
 from app.services.meta_webhook_verify import verify_meta_signature
 from app.services.entitlements import meter
 from app.services.segmentation import new_lead_score_and_segment
@@ -84,6 +84,17 @@ def _get_tenant_id_for_meta_number(phone_number_id: str, db) -> str | None:
     try:
         result = db.table("phone_numbers").select("tenant_id").eq("meta_phone_number_id", phone_number_id).maybe_single().execute()
         return (result.data or {}).get("tenant_id") if result else None
+    except Exception:
+        return None
+
+
+def _get_tenant_id_for_waba(waba_id: str, db) -> str | None:
+    """The one tenant whose connected WABA this is. A WABA shared by several
+    tenants is ambiguous, so None -- never guess whose payload it is."""
+    try:
+        rows = db.table("app_settings").select("tenant_id").eq("key", "meta_waba_id").eq("value", waba_id).execute().data or []
+        tenants = {r["tenant_id"] for r in rows if r.get("tenant_id")}
+        return tenants.pop() if len(tenants) == 1 else None
     except Exception:
         return None
 
@@ -281,7 +292,17 @@ def _resolve_tenant_from_payload(payload: dict, db) -> str | None:
                 tenant = _get_tenant_id_for_meta_number(phone_id, db)
                 if tenant:
                     return tenant
-    return None
+    # Account-level events (business_capability_update) carry no phone number,
+    # only the WABA id as entry.id. The signature is still verified against
+    # the tenant found here.
+    for entry in payload.get("entry", []):
+        if entry.get("id") and any(c.get("field") == "business_capability_update" for c in entry.get("changes", [])):
+            tenant = _get_tenant_id_for_waba(str(entry["id"]), db)
+            if tenant:
+                return tenant
+    # Template events (status, edits) carry the template id, not a phone number.
+    from app.routes.templates import tenant_for_template_payload
+    return tenant_for_template_payload(db, payload)
 
 
 async def _transcribe_whatsapp_audio(media_id: str, tenant_id: str) -> tuple[str, str]:
@@ -489,15 +510,36 @@ async def whatsapp_webhook(
                     )
                     continue
                 quality_rating = value.get("quality_rating", "")
-                current_limit = value.get("current_limit")
-                messaging_tier = tier_from_meta(current_limit)
-                logger.info(f"phone_number_quality_update: meta_id={meta_phone_number_id} quality={quality_rating} limit={current_limit}")
-                row_id = await update_number_quality(meta_phone_number_id, quality_rating, messaging_tier)
+                # The business-wide limit (shared by every number), not the
+                # deprecated per-number current_limit.
+                portfolio_tier = tier_from_capability_update(value)
+                logger.info(f"phone_number_quality_update: meta_id={meta_phone_number_id} quality={quality_rating} limit={portfolio_tier}")
+                row_id = await update_number_quality(meta_phone_number_id, quality_rating)
+                if portfolio_tier:
+                    set_portfolio_limit(owner_tenant, portfolio_tier)
                 if row_id:
                     if quality_rating == "RED":
                         await handle_quality_red(row_id)
                     elif quality_rating == "YELLOW":
                         await handle_quality_yellow(row_id)
+
+            elif field in ("message_template_status_update", "message_template_components_update"):
+                # Status changes and edits for a template. Only the signed
+                # tenant's own copy is written.
+                from app.routes.templates import apply_template_change
+                apply_template_change(get_supabase(), field, value, tenant_id=tenant_for_sig)
+
+            elif field == "business_capability_update":
+                # Meta raised (or set) the business's messaging limit. entry.id is
+                # the WABA; it must be the signed tenant's own WABA.
+                waba_id = str(entry.get("id") or "")
+                if not waba_id or _get_tenant_id_for_waba(waba_id, get_supabase()) != tenant_for_sig:
+                    logger.warning(f"business_capability_update: WABA {waba_id} is not tenant {tenant_for_sig}'s -- skipping")
+                    continue
+                portfolio_tier = tier_from_capability_update(value)
+                logger.info(f"business_capability_update: tenant={tenant_for_sig} limit={portfolio_tier}")
+                if portfolio_tier:
+                    set_portfolio_limit(tenant_for_sig, portfolio_tier)
 
             elif field == "history":
                 meta_phone_number_id = value.get("metadata", {}).get("phone_number_id", "")
@@ -1007,6 +1049,14 @@ async def whatsapp_webhook(
                 for status_update in value.get("statuses", []):
                     message_id = status_update.get("id")
                     status = status_update.get("status")
+
+                    if message_id and status == "failed":
+                        # Meta's limit counts delivered messages only, so a template
+                        # that failed no longer counts against it.
+                        try:
+                            db.table("template_send_log").delete()                                 .eq("meta_message_id", message_id).eq("tenant_id", tenant_id).execute()
+                        except Exception as e:
+                            logger.warning(f"Un-counting failed template {message_id} failed: {e}")
 
                     if message_id and status in ("delivered", "read", "failed"):
                         try:

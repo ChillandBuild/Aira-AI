@@ -225,3 +225,119 @@ async def test_quality_update_for_another_tenants_number_is_dropped():
         await webhook.whatsapp_webhook(request, background_tasks)
 
     update_quality.assert_not_called()
+
+
+def _capability_payload(waba_id, limit="TIER_10K"):
+    return {"object": "whatsapp_business_account", "entry": [{
+        "id": waba_id, "time": 1739321024,
+        "changes": [{"field": "business_capability_update",
+                     "value": {"max_daily_conversations_per_business": limit, "max_phone_numbers_per_waba": 25}}],
+    }]}
+
+
+def _waba_db(owner_by_waba):
+    """app_settings lookup: meta_waba_id -> owning tenant(s)."""
+    db = MagicMock()
+
+    def table(name):
+        t = MagicMock()
+        if name == "app_settings":
+            def by_value(_col, waba):
+                q = MagicMock()
+                q.execute.return_value = MagicMock(data=[{"tenant_id": tid} for tid in owner_by_waba.get(waba, [])])
+                return q
+            t.select.return_value.eq.return_value.eq.side_effect = by_value
+        return t
+    db.table.side_effect = table
+    return db
+
+
+async def _post(payload, db):
+    request = MagicMock(spec=Request)
+    request.body = AsyncMock(return_value=json.dumps(payload).encode("utf-8"))
+    request.headers = {"x-hub-signature-256": "sha256=doesnt-matter-here"}
+    with patch("app.routes.webhook.get_supabase", return_value=db), \
+         patch("app.routes.webhook.verify_meta_signature", return_value=True) as verify, \
+         patch("app.routes.webhook.set_portfolio_limit") as set_limit:
+        await webhook.whatsapp_webhook(request, MagicMock(spec=BackgroundTasks))
+    return verify, set_limit
+
+
+@pytest.mark.asyncio
+async def test_limit_raise_applies_to_the_wabas_own_tenant():
+    """business_capability_update has no phone number -- the tenant comes from
+    the WABA id, and the signature is still checked against that tenant."""
+    verify, set_limit = await _post(_capability_payload("waba-a"), _waba_db({"waba-a": ["tenant-a"]}))
+    assert verify.call_args.args[2] == "tenant-a"
+    set_limit.assert_called_once_with("tenant-a", 10000)
+
+
+@pytest.mark.asyncio
+async def test_limit_raise_for_a_shared_or_unknown_waba_is_dropped():
+    """Never guess whose WABA it is: shared or unknown -> nothing changes."""
+    _, set_limit = await _post(_capability_payload("waba-shared"), _waba_db({"waba-shared": ["tenant-a", "tenant-b"]}))
+    set_limit.assert_not_called()
+    _, set_limit = await _post(_capability_payload("waba-nobody"), _waba_db({}))
+    set_limit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_failed_delivery_is_removed_from_the_limit_count():
+    """Meta counts delivered messages only: a template reported failed stops counting."""
+    deletes = []
+
+    class _Del:
+        def __init__(self):
+            self.filters = {}
+
+        def eq(self, col, val):
+            self.filters[col] = val
+            return self
+
+        def execute(self):
+            deletes.append(dict(self.filters))
+            return MagicMock(data=[])
+
+    db = MagicMock()
+    base_table = db.table
+
+    def table(name):
+        t = base_table(name)
+        if name == "template_send_log":
+            t.delete.side_effect = lambda: _Del()
+        return t
+    db.table = MagicMock(side_effect=table)
+
+    payload = {"entry": [{"changes": [{"field": "messages", "value": {
+        "metadata": {"phone_number_id": "phone-number-a"},
+        "statuses": [{"id": "wamid.FAILED1", "status": "failed", "errors": [{"code": 131026, "title": "Message undeliverable"}]}],
+    }}]}]}
+    request = MagicMock(spec=Request)
+    request.body = AsyncMock(return_value=json.dumps(payload).encode("utf-8"))
+    request.headers = {"x-hub-signature-256": "sha256=doesnt-matter-here"}
+    with patch("app.routes.webhook.get_supabase", return_value=db), \
+         patch("app.routes.webhook._get_tenant_id_for_meta_number", return_value="tenant-a"), \
+         patch("app.routes.webhook.verify_meta_signature", return_value=True):
+        await webhook.whatsapp_webhook(request, MagicMock(spec=BackgroundTasks))
+    assert {"meta_message_id": "wamid.FAILED1", "tenant_id": "tenant-a"} in deletes
+
+
+@pytest.mark.asyncio
+async def test_template_events_on_the_whatsapp_webhook_are_applied():
+    """Meta sends every WABA field to the app's one callback URL, so template
+    status changes and edits must be handled here too -- for the signed tenant only."""
+    payload = {"entry": [{"id": "waba-a", "changes": [{"field": "message_template_components_update",
+               "value": {"message_template_id": "meta-t-1", "message_template_element": "Hi {{1}}"}}]}]}
+    request = MagicMock(spec=Request)
+    request.body = AsyncMock(return_value=json.dumps(payload).encode("utf-8"))
+    request.headers = {"x-hub-signature-256": "sha256=doesnt-matter-here"}
+    with patch("app.routes.webhook.get_supabase", return_value=MagicMock()), \
+         patch("app.routes.webhook._get_tenant_id_for_waba", return_value=None), \
+         patch("app.routes.templates.tenant_for_template_payload", return_value="tenant-a"), \
+         patch("app.routes.templates.apply_template_change") as apply, \
+         patch("app.routes.webhook.verify_meta_signature", return_value=True) as verify:
+        await webhook.whatsapp_webhook(request, MagicMock(spec=BackgroundTasks))
+    assert verify.call_args.args[2] == "tenant-a"
+    apply.assert_called_once()
+    assert apply.call_args.args[1] == "message_template_components_update"
+    assert apply.call_args.kwargs["tenant_id"] == "tenant-a"

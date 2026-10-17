@@ -6,7 +6,8 @@ from pydantic import BaseModel
 from app.db.supabase import get_supabase
 from app.dependencies.tenant import get_tenant_id, require_permission
 from app.services.meta_cloud import get_number_health
-from app.services.number_health import health, is_meta_connected
+from app.services.number_health import health, is_meta_connected, portfolio_limit
+from app.services.outbound_router import Usage, load_usage
 from app.services.number_sync import sync_one_number, sync_tenant_numbers
 from app.services.numbers_pool import get_unlocked_number_ids, numbers_pool_limit
 
@@ -54,21 +55,41 @@ async def list_phone_numbers(tenant_id: str = Depends(get_tenant_id)):
     return _pool_response(db, tenant_id, result.data or [])
 
 
+def _usage_or_empty(db, tenant_id: str) -> Usage:
+    try:
+        return load_usage(db, tenant_id)
+    except Exception as e:
+        logger.warning(f"messaging limit usage unavailable for tenant {tenant_id}: {e}")
+        return Usage()
+
+
+def _health(row: dict, now: datetime, usage: Usage) -> dict:
+    # sent_24h: Meta's measure -- people sent to outside their 24h window, last 24 hours.
+    return {**health(row, now), "sent_24h": usage.per_number.get(row["id"], 0)}
+
+
 def _pool_response(db, tenant_id: str, rows: list[dict]) -> dict:
     now = datetime.now(timezone.utc)
     unlocked_ids = get_unlocked_number_ids(db, tenant_id)
+    usage = _usage_or_empty(db, tenant_id)
     data = [
         {
             **row,
             "locked": row.get("status") != "archived" and row["id"] not in unlocked_ids,
-            "health": health(row, now),
+            "health": _health(row, now, usage),
         }
         for row in rows
     ]
     active_rows = [r for r in rows if r.get("status") != "archived"]
     return {
         "data": data,
-        "numbers_pool": {"limit": numbers_pool_limit(db, tenant_id), "used": len(active_rows)},
+        "numbers_pool": {
+            "limit": numbers_pool_limit(db, tenant_id),
+            "used": len(active_rows),
+            # Meta's one limit for the whole business, and how much of it the last 24h used.
+            "meta_limit": portfolio_limit(active_rows),
+            "meta_sent_24h": usage.total,
+        },
     }
 
 
@@ -211,7 +232,7 @@ async def sync_number_from_meta(
         raise HTTPException(status_code=400, detail="No Meta phone number ID set for this number")
 
     merged = await sync_one_number(db, row, source="manual_sync")
-    return {**merged, "health": health(merged, datetime.now(timezone.utc))}
+    return {**merged, "health": _health(merged, datetime.now(timezone.utc), _usage_or_empty(db, tenant_id))}
 
 
 @router.get("/{number_id}/meta-health")

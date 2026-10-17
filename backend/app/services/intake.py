@@ -2368,6 +2368,13 @@ async def _send_reply_ready_template(phone: str, tenant_id: str, phone_number_id
     from app.services.meta_cloud import send_template_message
 
     name = get_setting("astro_reply_template_name", fallback=_REPLY_READY_TEMPLATE_DEFAULT, tenant_id=tenant_id)
+    from app.db.supabase import get_supabase
+    from app.services.template_params import template_status
+    status = template_status(get_supabase(), tenant_id, name)
+    if status != "APPROVED":
+        # Under review after an edit, rejected or paused: Meta would refuse it.
+        logger.warning(f"Astro reply-ready template {name} is {status or 'missing'} for tenant {tenant_id}; not sent")
+        return None
     data = await send_template_message(
         to_number=phone,
         template_name=name,

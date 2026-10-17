@@ -127,6 +127,14 @@ async def handle_quality_yellow(phone_number_id: str) -> None:
     _insert_incident(db, incident_payload)
 
 
+def set_portfolio_limit(tenant_id: str, tier: int) -> None:
+    """Meta's limit belongs to the business portfolio, so a new one applies to
+    every number the tenant has."""
+    db = get_supabase()
+    db.table("phone_numbers").update({"messaging_tier": tier}).eq("tenant_id", tenant_id).neq("status", "archived").execute()
+    logger.info(f"set_portfolio_limit: tenant {tenant_id} -> {tier}")
+
+
 async def update_number_quality(
     meta_phone_number_id: str,
     quality_rating: str,
@@ -146,12 +154,16 @@ async def update_number_quality(
         return None
 
     row_id = existing.data[0]["id"]
-    # UNKNOWN (no rating yet) is stored as NULL, never guessed.
-    updates: dict = {"quality_rating": map_quality(quality_rating)}
+    updates: dict = {}
+    # A webhook without a rating (a limit-only change) leaves the stored rating
+    # alone; UNKNOWN (no rating yet) is stored as NULL, never guessed.
+    if quality_rating:
+        updates["quality_rating"] = map_quality(quality_rating)
     if messaging_tier is not None:
         updates["messaging_tier"] = messaging_tier
 
-    db.table("phone_numbers").update(updates).eq("id", row_id).execute()
+    if updates:
+        db.table("phone_numbers").update(updates).eq("id", row_id).execute()
     logger.info(f"update_number_quality: id={row_id} quality={quality_rating} tier={messaging_tier}")
     return row_id
 

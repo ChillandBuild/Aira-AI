@@ -3,6 +3,27 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, AsyncMock, patch
 
 
+class _FakePicker:
+    """A number is always free to send here -- sender choice is covered in
+    test_number_failover.py. Keeps these tests off the live numbers table."""
+
+    def __init__(self, _tenant_id):
+        pass
+
+    def next(self, prefer_meta_id=None):
+        return {"id": "num-1", "meta_phone_number_id": "pnid-1"}
+
+
+@pytest.fixture(autouse=True)
+def _sender_always_available():
+    from app.services import reengagement_service as rs
+    rs._NO_SENDER_UNTIL.clear()
+    # Templates here are approved; the not-approved case is in test_template_edits.py.
+    with patch.object(rs, "SenderPicker", _FakePicker),          patch.object(rs, "template_status", return_value="APPROVED"):
+        yield
+    rs._NO_SENDER_UNTIL.clear()
+
+
 def _make_db(captured_logs):
     """Supabase mock that records every reengagement_logs insert into captured_logs."""
     db = MagicMock()

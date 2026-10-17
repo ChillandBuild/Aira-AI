@@ -161,7 +161,7 @@ class SyncFromMetaTests(unittest.TestCase):
             "id": "row-1", "number": "+919876500001", "display_name": "Number 1",
             "role": "primary", "status": "active", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
-            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db
@@ -192,7 +192,7 @@ class SyncFromMetaTests(unittest.TestCase):
             "id": "row-1", "number": "+919876500001", "display_name": "Number 1",
             "role": "primary", "status": "active", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
-            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db
@@ -223,7 +223,7 @@ class SyncFromMetaTests(unittest.TestCase):
             "id": "row-1", "number": "+919876500001", "display_name": "Manually Added",
             "role": "standby", "status": "warming", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 0, "meta_phone_number_id": None,
-            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": None,
+            "created_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db
@@ -312,7 +312,7 @@ class SyncFromMetaTests(unittest.TestCase):
             "id": "row-1", "number": "+919876500001", "display_name": "Old Local Label",
             "role": "primary", "status": "active", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
-            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db
@@ -343,7 +343,7 @@ class SyncFromMetaTests(unittest.TestCase):
             "id": "row-1", "number": "+919876500001", "display_name": "Existing Name",
             "role": "primary", "status": "active", "quality_rating": "green",
             "messaging_tier": 1000, "warm_up_day": 14, "warm_up_started_at": "2026-01-01T00:00:00Z", "meta_phone_number_id": "meta-1",
-            "created_at": "2026-01-01T00:00:00Z", "last_reset_at": "2026-01-01T00:00:00Z",
+            "created_at": "2026-01-01T00:00:00Z",
         }]
         db = _mock_numbers_db(existing)
         mock_get_db.return_value = db

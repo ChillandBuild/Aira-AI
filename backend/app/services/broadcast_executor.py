@@ -77,7 +77,7 @@ async def execute_broadcast(row: dict) -> dict:
         # standby) -- the remainder waits for tomorrow instead of failing.
         picker = SenderPicker(tenant_id)
         if picker.next() is None:
-            _defer_to_tomorrow(db, row_id, "no_sender_available")
+            _defer_send(db, row_id, tenant_id, "no_sender_available")
             return {"sent": 0, "failed": 0, "deferred": True}
 
         # Fetch template metadata (including variations for rotation)
@@ -86,12 +86,27 @@ async def execute_broadcast(row: dict) -> dict:
         tpl_variations: list[str] = []
         tpl_row = (
             db.table("message_templates")
-            .select("language,body_text,variations")
+            .select("language,body_text,variations,status")
             .eq("name", template_name)
             .eq("tenant_id", tenant_id)
             .limit(1)
             .execute()
         )
+        # Only a template Meta has APPROVED right now is sent. Under review
+        # (e.g. after an edit): wait and retry. Rejected/paused/gone: stop.
+        tpl_status = ((tpl_row.data or [{}])[0].get("status") or "").upper()
+        if tpl_status == "PENDING":
+            db.table("scheduled_broadcasts").update({
+                "status": "pending",
+                "fire_at": in_daytime(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+                "result": json.dumps({"note": "template_in_review"}),
+            }).eq("id", row_id).execute()
+            logger.info(f"Broadcast {row_id}: template {template_name} is in Meta review; retrying in an hour")
+            return {"sent": 0, "failed": 0, "deferred": True}
+        if tpl_status != "APPROVED":
+            _finish(db, row_id, "failed", None,
+                    error=f"Template {template_name} is {tpl_status or 'missing'} on Meta, so it can't be sent")
+            return {"sent": 0, "failed": 0, "error": "template_not_approved"}
         if tpl_row.data:
             tpl_lang = tpl_row.data[0].get("language") or "en"
             tpl_body = tpl_row.data[0].get("body_text") or ""
@@ -104,13 +119,13 @@ async def execute_broadcast(row: dict) -> dict:
         for sibling_name in tpl_variations:
             sib_row = (
                 db.table("message_templates")
-                .select("language,body_text")
+                .select("language,body_text,status")
                 .eq("name", sibling_name)
                 .eq("tenant_id", tenant_id)
                 .limit(1)
                 .execute()
             )
-            if sib_row.data:
+            if sib_row.data and (sib_row.data[0].get("status") or "").upper() == "APPROVED":
                 sib_lang = sib_row.data[0].get("language") or "en"
                 sib_body = sib_row.data[0].get("body_text") or ""
                 template_pool.append((sibling_name, sib_lang, sib_body))
@@ -394,7 +409,7 @@ async def execute_broadcast(row: dict) -> dict:
         if deferred:
             # Unsent leads have no recipient row yet, so tomorrow's run sends
             # exactly those (already-recorded phones are skipped on resume).
-            _defer_to_tomorrow(db, row_id, "daily_limit_reached", result)
+            _defer_send(db, row_id, tenant_id, "daily_limit_reached", result)
             logger.info(f"Scheduled broadcast {row_id}: sent={sent} so far, rest deferred to tomorrow")
             return {**result, "deferred": True}
         final_status = "aborted" if aborted else "done"
@@ -506,15 +521,47 @@ def _write_broadcast_history(
 _IST = timedelta(hours=5, minutes=30)
 
 
-def next_ist_morning(now: datetime | None = None) -> datetime:
-    """00:05 IST tomorrow -- just after the midnight daily-count reset."""
-    now_ist = (now or datetime.now(timezone.utc)) + _IST
-    tomorrow = (now_ist + timedelta(days=1)).date()
-    return datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 5, tzinfo=timezone.utc) - _IST
+# The carried-over rest of a capped broadcast only goes out in the daytime --
+# marketing at night gets blocked.
+SEND_FROM_HOUR_IST = 10
+SEND_UNTIL_HOUR_IST = 21
 
 
-def _defer_to_tomorrow(db, row_id: str, reason: str, result: dict | None = None) -> None:
-    update: dict = {"status": "pending", "fire_at": next_ist_morning().isoformat()}
+def _ist_at(day, hour: int) -> datetime:
+    return datetime(day.year, day.month, day.day, hour, 0, tzinfo=timezone.utc) - _IST
+
+
+def in_daytime(t: datetime) -> datetime:
+    """t, or the next 10:00 IST if t falls outside 10:00-21:00 IST."""
+    t_ist = t + _IST
+    if t_ist.hour < SEND_FROM_HOUR_IST:
+        return _ist_at(t_ist.date(), SEND_FROM_HOUR_IST)
+    if t_ist.hour >= SEND_UNTIL_HOUR_IST:
+        return _ist_at(t_ist.date() + timedelta(days=1), SEND_FROM_HOUR_IST)
+    return t
+
+
+def carry_over_time(first_sent_at: datetime | None, now: datetime | None = None) -> datetime:
+    """When the rest of a capped broadcast should try again. Meta's limit is a
+    moving 24 hours, so a slot frees 24h after the oldest counted send; with no
+    counted send (the block is Red/unverified, not the limit) try again in an hour.
+    Always in the daytime."""
+    now = now or datetime.now(timezone.utc)
+    t = first_sent_at + timedelta(hours=24, minutes=1) if first_sent_at else now + timedelta(hours=1)
+    return in_daytime(max(t, now + timedelta(minutes=5)))
+
+
+def next_send_time(tenant_id: str) -> datetime:
+    from app.services.outbound_router import load_usage
+    try:
+        first = load_usage(get_supabase(), tenant_id).first_sent_at
+    except Exception:
+        first = None
+    return carry_over_time(first)
+
+
+def _defer_send(db, row_id: str, tenant_id: str, reason: str, result: dict | None = None) -> None:
+    update: dict = {"status": "pending", "fire_at": next_send_time(tenant_id).isoformat()}
     if result is not None:
         update["result"] = json.dumps({**result, "note": reason})
     db.table("scheduled_broadcasts").update(update).eq("id", row_id).execute()

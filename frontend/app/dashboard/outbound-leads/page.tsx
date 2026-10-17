@@ -169,7 +169,6 @@ type SenderRow = {
   status: string;
   quality_rating: "green" | "yellow" | "red" | null;
   messaging_tier: number | null;
-  daily_send_count: number;
   paused_outbound: boolean;
   locked: boolean;
   health?: {
@@ -181,6 +180,8 @@ type SenderRow = {
     rest_day?: number | null;
     rest_days?: number | null;
     broadcast_cap: number | null;
+    // Meta's measure: people sent a template outside their 24h window, last 24 hours.
+    sent_24h?: number;
   };
 };
 
@@ -192,9 +193,11 @@ function canBroadcast(r: SenderRow): boolean {
     r.quality_rating !== "red" &&
     !r.locked &&
     cap != null &&
-    r.daily_send_count < cap
+    (r.health?.sent_24h ?? 0) < cap
   );
 }
+
+const BROADCAST_SHARE_OF_LIMIT = 0.9;
 
 // Mirrors the backend's sender choice: primary first, then green quality,
 // then the least-used line relative to its cap. Also enforces the shared
@@ -206,8 +209,10 @@ function pickSender(rows: SenderRow[]): {
 } {
   const live = rows.filter(r => r.role !== "archived");
   const tiers = live.map(r => r.messaging_tier).filter((t): t is number => t != null);
-  const portfolioLimit = tiers.length > 0 ? Math.max(...tiers) : null;
-  const poolUsed = live.reduce((sum, r) => sum + r.daily_send_count, 0);
+  // Broadcasts stop at 90% of Meta's limit, leaving room for templates sent
+  // outside Anril (backend: outbound_router.BROADCAST_SHARE_OF_LIMIT).
+  const portfolioLimit = tiers.length > 0 ? Math.floor(Math.max(...tiers) * BROADCAST_SHARE_OF_LIMIT) : null;
+  const poolUsed = live.reduce((sum, r) => sum + (r.health?.sent_24h ?? 0), 0);
   const primary = rows.find(r => r.role === "primary") ?? null;
 
   const poolOpen = portfolioLimit !== null && poolUsed < portfolioLimit;
@@ -217,8 +222,8 @@ function pickSender(rows: SenderRow[]): {
         if (byPrimary !== 0) return byPrimary;
         const byQuality = (a.quality_rating === "green" ? 0 : 1) - (b.quality_rating === "green" ? 0 : 1);
         if (byQuality !== 0) return byQuality;
-        const loadA = a.daily_send_count / (a.health?.broadcast_cap ?? 1);
-        const loadB = b.daily_send_count / (b.health?.broadcast_cap ?? 1);
+        const loadA = (a.health?.sent_24h ?? 0) / (a.health?.broadcast_cap ?? 1);
+        const loadB = (b.health?.sent_24h ?? 0) / (b.health?.broadcast_cap ?? 1);
         return loadA - loadB;
       })
     : [];
@@ -227,7 +232,7 @@ function pickSender(rows: SenderRow[]): {
   const cap = sender?.health?.broadcast_cap;
   const leftToday =
     sender && cap != null && portfolioLimit !== null
-      ? Math.min(cap - sender.daily_send_count, portfolioLimit - poolUsed)
+      ? Math.min(cap - (sender.health?.sent_24h ?? 0), portfolioLimit - poolUsed)
       : 0;
 
   return { sender, primary, leftToday };
@@ -736,6 +741,10 @@ export default function OutboundLeadsPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templatesError, setTemplatesError] = useState(false);
+  // Fetch once per visit: an empty list is a valid answer, so "length === 0"
+  // alone re-fetched forever and the hint under the field flickered.
+  const [templatesFetched, setTemplatesFetched] = useState(false);
+  const [stepTagsFetched, setStepTagsFetched] = useState(false);
 
   const activeTemplateForVars = templates.find(t => t.name === templateName);
   const varCount = templateVarCount(activeTemplateForVars?.body_text);
@@ -1140,7 +1149,8 @@ export default function OutboundLeadsPage() {
 
   useEffect(() => {
     if (currentStep === 4 || activeTab === "history") {
-      if (templates.length === 0 && !templatesLoading) {
+      if (!templatesFetched && !templatesLoading) {
+        setTemplatesFetched(true);
         setTemplatesLoading(true);
         setTemplatesError(false);
         getAuthHeaders().then(auth => {
@@ -1154,7 +1164,8 @@ export default function OutboundLeadsPage() {
         });
       }
 
-      if (tags.length === 0 && !tagsLoading) {
+      if (!stepTagsFetched && !tagsLoading) {
+        setStepTagsFetched(true);
         setTagsLoading(true);
         getAuthHeaders().then(auth => {
           fetch(`${API_URL}/api/v1/broadcast-tags`, { headers: auth })
@@ -1182,7 +1193,7 @@ export default function OutboundLeadsPage() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, activeTab, templates.length, templatesLoading, tags.length, tagsLoading, poolNumbers, primaryNumberLoading]);
+  }, [currentStep, activeTab, templatesFetched, templatesLoading, stepTagsFetched, tagsLoading, poolNumbers, primaryNumberLoading]);
 
   if (roleLoading) {
     return (
@@ -1239,6 +1250,8 @@ export default function OutboundLeadsPage() {
       const tagsData = tagsRes.ok ? ((await tagsRes.json()).data ?? []) : [];
       const statsData = statsRes.ok ? ((await statsRes.json()).data ?? []) : [];
       setTagsList(tagsData);
+      // Keep the broadcast step's tag dropdown in step with tags made here.
+      setTags(tagsData);
       const sm: Record<string, TagStats> = {};
       for (const s of statsData) sm[s.tag_id] = s;
       setTagStats(sm);
@@ -1906,7 +1919,7 @@ export default function OutboundLeadsPage() {
                   )}
                   {!templatesLoading && templatesError && (
                     <p className="font-label text-xs text-red-600 mt-2 font-semibold">
-                      Failed to load templates. <button onClick={() => { setTemplatesError(false); setTemplatesLoading(false); }} className="underline">Retry</button>
+                      Failed to load templates. <button onClick={() => { setTemplatesError(false); setTemplatesFetched(false); }} className="underline">Retry</button>
                     </p>
                   )}
                   {!templatesLoading && !templatesError && templates.length === 0 && (
@@ -2058,7 +2071,8 @@ export default function OutboundLeadsPage() {
                   </button>
                   <button
                     onClick={async () => { setCurrentStep(5); await fetchRiskAudit(); }}
-                    disabled={!templateName.trim()}
+                    disabled={!templateName.trim() || !sender}
+                    title={!sender ? "No number can send broadcasts right now" : undefined}
                     className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-xl font-label text-sm font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
                   >
                     Next <ChevronRight size={16} />
@@ -2296,6 +2310,25 @@ export default function OutboundLeadsPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* The rest carries over to when Meta's moving 24h limit frees up, in the daytime (broadcast_executor.carry_over_time) */}
+                {scheduleType === "now" && sender && senderInfo && parsedData.total_rows > senderInfo.leftToday && (() => {
+                  const today = Math.max(senderInfo.leftToday, 0);
+                  const rest = parsedData.total_rows - today;
+                  const cap = sender.health?.broadcast_cap ?? 0;
+                  return (
+                    <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 flex items-start gap-2.5 font-body text-xs text-sky-900">
+                      <Clock size={14} className="text-sky-700 shrink-0 mt-0.5" />
+                      <span>
+                        {sender.number} can send <strong>{today.toLocaleString()}</strong> more right now. The first {today.toLocaleString()} go out now and the remaining <strong>{rest.toLocaleString()}</strong>{" "}
+                        {rest > cap
+                          ? "go out over the next days as Meta's 24-hour limit frees up, between 10:00 AM and 9:00 PM (India time)."
+                          : "go out automatically once Meta's 24-hour limit frees up, between 10:00 AM and 9:00 PM (India time)."}
+                        {" "}They&apos;ll show under Broadcast History → Upcoming.
+                      </span>
+                    </div>
+                  );
+                })()}
 
                 {/* Risk Audit Card */}
                 {riskLoading && (

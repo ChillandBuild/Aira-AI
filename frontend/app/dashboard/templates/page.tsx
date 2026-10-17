@@ -355,6 +355,9 @@ export default function TemplatesPage() {
               <option value="PENDING">Pending</option>
               <option value="REJECTED">Rejected</option>
               <option value="PAUSED">Paused</option>
+              <option value="DISABLED">Disabled</option>
+              <option value="ARCHIVED">Archived</option>
+              <option value="DELETED">Deleted</option>
             </select>
             <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#94a3b8] pointer-events-none" />
           </div>
@@ -679,7 +682,7 @@ export default function TemplatesPage() {
             {/* Modal Footer */}
             <div className="p-4 border-t border-border-subtle bg-white flex items-center justify-end gap-2.5">
               <button onClick={() => setSelectedTemplate(null)} className="btn-ghost text-xs">Close</button>
-              {canManageTemplates && (selectedTemplate.status === "REJECTED" || selectedTemplate.status === "PAUSED") && (
+              {canManageTemplates && ["APPROVED", "REJECTED", "PAUSED"].includes(selectedTemplate.status) && (
                 <button
                   onClick={() => {
                     setSelectedTemplate(null);
@@ -687,7 +690,7 @@ export default function TemplatesPage() {
                   }}
                   className="btn-primary text-xs bg-emerald-600 hover:bg-emerald-700"
                 >
-                  Edit and Resubmit
+                  {selectedTemplate.status === "APPROVED" ? "Edit" : "Edit and Resubmit"}
                 </button>
               )}
             </div>

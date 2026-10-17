@@ -56,13 +56,14 @@ def _db(last_inbound_at):
     return db
 
 
-async def _deliver(db, *, text_mid="wamid.text", template=None):
+async def _deliver(db, *, text_mid="wamid.text", template=None, template_status="APPROVED"):
     send = AsyncMock(return_value=text_mid)
     template = template or AsyncMock(return_value={"messages": [{"id": "wamid.tpl"}]})
     with patch("app.services.ai_reply.send_whatsapp", new=send), \
          patch("app.services.meta_cloud.send_template_message", new=template), \
          patch("app.config_dynamic.get_setting", side_effect=lambda key, fallback=None, tenant_id=None: fallback), \
          patch.object(ik, "_astro_phone_number_id", return_value="pn1"), \
+         patch("app.services.template_params.template_status", return_value=template_status), \
          patch.object(ik, "_log_astro_message") as logged, \
          patch.object(ik, "notify_pool") as alerted, \
          patch.object(ik, "resolve_intake_session"), \
@@ -159,3 +160,11 @@ async def test_the_nudge_is_the_ai_line_followed_by_the_app_link():
         text = await ik._compose_reply_nudge("L1", TENANT, PHONE, MagicMock())
     assert text == "Unga kelvikku astrologer pathil sollitaanga.\nhttps://astrotamil.co.in/app/questions"
     assert compose.await_args.kwargs["field_label"] == "reading"
+
+
+@pytest.mark.asyncio
+async def test_reply_ready_template_is_not_sent_while_meta_is_reviewing_it():
+    """After an edit the template is PENDING on Meta: it isn't used anywhere."""
+    out, send, template, _, _ = await _deliver(_db(_ago(29)), template_status="PENDING")
+    template.assert_not_awaited()
+    assert out.get("via") != "template"

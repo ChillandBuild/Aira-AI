@@ -17,9 +17,9 @@ from app.services.delivery_status import nearest_record, nearest_status, parse_t
 from app.services.gemini_client import gemini_extract_contacts_csv
 from app.services.growth import get_or_create_campaign, record_stage_event, sync_follow_up_jobs
 from app.services.meta_cloud import send_template_message
-from app.services.broadcast_executor import next_ist_morning
+from app.services.broadcast_executor import next_send_time
 from app.services.outbound_router import SenderPicker, get_best_number
-from app.services.template_params import body_parameters
+from app.services.template_params import body_parameters, template_status
 from app.services.segmentation import new_lead_score_and_segment
 
 logger = logging.getLogger(__name__)
@@ -916,7 +916,7 @@ async def _execute_immediate_send(
                     "tenant_id": tenant_id,
                     "template_name": body.template_name,
                     "schedule_type": "scheduled",
-                    "fire_at": next_ist_morning().isoformat(),
+                    "fire_at": next_send_time(tenant_id).isoformat(),
                     "leads_json": [l.model_dump() for l in deferred_leads],
                     "variable_mapping": body.variable_mapping,
                     "opt_in_source": _clean_text(deferred_leads[0].opt_in_source) or "unknown",
@@ -1041,6 +1041,17 @@ async def bulk_send(
 ):
     broadcast_id = str(uuid.uuid4())
     broadcast_timestamp = datetime.now(timezone.utc)
+
+    # Only a template Meta has approved right now -- not one under review after
+    # an edit, rejected or paused -- for sending now or scheduling.
+    tpl_status = template_status(get_supabase(), tenant_id, body.template_name)
+    if tpl_status != "APPROVED":
+        raise HTTPException(
+            status_code=400,
+            detail=(f"{body.template_name} is waiting for Meta's review, so it can't be sent yet."
+                    if tpl_status == "PENDING" else
+                    f"{body.template_name} isn't approved by Meta ({(tpl_status or 'not found').title()}), so it can't be sent."),
+        )
 
     eligible = []
     rejected = []

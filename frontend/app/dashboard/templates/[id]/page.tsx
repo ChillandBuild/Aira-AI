@@ -14,6 +14,7 @@ import {
   X,
   Upload,
   FileCode,
+  Info,
 } from "lucide-react";
 import { API_URL, getAuthHeaders } from "@/lib/api";
 import { LANGUAGES, STATUS_COLORS, detectVariables } from "../types";
@@ -265,7 +266,9 @@ export default function TemplateDetailsPage() {
 
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Failed to save template edits");
+        let detail = text;
+        try { detail = JSON.parse(text).detail ?? text; } catch { /* plain text */ }
+        throw new Error(detail || "Failed to save template edits");
       }
 
       setEditMode(false);
@@ -299,7 +302,8 @@ export default function TemplateDetailsPage() {
     );
   }
 
-  const isEditable = canManageTemplates && (template.status === "REJECTED" || template.status === "PAUSED");
+  // The statuses Meta lets you edit. Approved ones: once per 24 hours, 10 times in 30 days.
+  const isEditable = canManageTemplates && ["APPROVED", "REJECTED", "PAUSED"].includes(template.status);
   const sc = STATUS_COLORS[template.status] || { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" };
 
   return (
@@ -349,7 +353,7 @@ export default function TemplateDetailsPage() {
             {syncing ? "Syncing..." : "Sync Status"}
           </button>
 
-          {/* Edit toggle (if rejected or paused) */}
+          {/* Edit toggle (approved, rejected or paused -- what Meta allows) */}
           {isEditable && !editMode && (
             <button
               onClick={() => setEditMode(true)}
@@ -385,6 +389,16 @@ export default function TemplateDetailsPage() {
         </div>
       </div>
 
+      {editMode && template.status === "APPROVED" && (
+        <div className="mb-6 p-4 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 text-sm flex items-start gap-2.5">
+          <Info size={16} className="mt-0.5 shrink-0 text-sky-700" />
+          <p className="font-body">
+            Meta lets you edit an approved template once every 24 hours, up to 10 times in 30 days, and the category can&apos;t change.
+            The edit goes back to Meta for review. Until Meta approves it again, it won&apos;t show up for broadcasts in Anril.
+          </p>
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-start gap-2.5">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -416,7 +430,7 @@ export default function TemplateDetailsPage() {
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-border-subtle pb-3">
                 <h2 className="font-display text-base font-bold text-ink">
-                  Edit Rejected Template
+                  {template.status === "APPROVED" ? "Edit Template" : template.status === "PAUSED" ? "Edit Paused Template" : "Edit Rejected Template"}
                 </h2>
                 <button
                   onClick={() => setEditMode(false)}
@@ -601,7 +615,7 @@ export default function TemplateDetailsPage() {
                   disabled={saving || editBlockers.length > 0}
                   className="btn-primary px-7 text-sm disabled:opacity-50 disabled:blur-[0.5px] disabled:cursor-not-allowed"
                 >
-                  {saving ? "Saving Changes..." : "Resubmit to WhatsApp"}
+                  {saving ? "Saving Changes..." : "Send edit to Meta for review"}
                 </button>
               </div>
             </div>

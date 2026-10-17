@@ -94,7 +94,7 @@ _BUSINESS_LOGIN_GRAPH_BASE = "https://graph.facebook.com/v25.0"
 # Meta's messaging-limit enums -> unique users per rolling 24h. Covers the
 # portfolio-level `whatsapp_business_manager_messaging_limit` (TIER_250/2K/
 # 10K/100K/UNLIMITED, the real limit since Oct 2025) and the deprecated
-# per-number `messaging_limit_tier` (TIER_50/250/1K/10K/100K/UNLIMITED).
+# per-number `messaging_limit_tier` (deprecated, no longer read).
 UNLIMITED_MESSAGING_TIER = 1_000_000
 _TIER_MAP = {
     "TIER_50": 50,
@@ -106,7 +106,9 @@ _TIER_MAP = {
     "TIER_UNLIMITED": UNLIMITED_MESSAGING_TIER,
 }
 
-_LIMIT_FIELDS = "whatsapp_business_manager_messaging_limit,messaging_limit_tier"
+# Meta's one limit for the whole business portfolio. The per-number
+# `messaging_limit_tier` is deprecated by Meta and deliberately not read.
+_LIMIT_FIELDS = "whatsapp_business_manager_messaging_limit"
 # Connection (CONNECTED, PENDING, ...) and OTP verification (VERIFIED, NOT_VERIFIED, EXPIRED).
 _STATUS_FIELDS = "status,code_verification_status"
 
@@ -117,10 +119,26 @@ def tier_from_meta(value: Optional[str]) -> Optional[int]:
 
 
 def parse_messaging_tier(meta_num: dict) -> Optional[int]:
-    """Prefer the portfolio limit; fall back to the deprecated per-number field."""
-    return tier_from_meta(meta_num.get("whatsapp_business_manager_messaging_limit")) or tier_from_meta(
-        meta_num.get("messaging_limit_tier")
-    )
+    """The business portfolio's limit, or None when Meta didn't send it (the
+    deprecated per-number field is not a fallback -- it can be stale)."""
+    return tier_from_meta(meta_num.get("whatsapp_business_manager_messaging_limit"))
+
+
+def tier_from_capability_update(value: dict) -> Optional[int]:
+    """The business portfolio's new limit from a webhook's
+    max_daily_conversations_per_business (business_capability_update and
+    phone_number_quality_update). Meta's docs show it both as TIER_* and as a
+    plain number, so both are accepted. The deprecated current_limit /
+    max_daily_conversation_per_phone keys are not read."""
+    raw = value.get("max_daily_conversations_per_business")
+    if raw is None:
+        return None
+    if isinstance(raw, str) and not raw.lstrip("-").isdigit():
+        return tier_from_meta(raw)
+    n = int(raw)
+    if n < 0:
+        return UNLIMITED_MESSAGING_TIER
+    return n if n in _TIER_MAP.values() else None
 
 # Allowed MIME types and their WhatsApp message type
 _MIME_TO_WA_TYPE: dict[str, str] = {
@@ -918,6 +936,10 @@ async def send_template_message(
         raise HTTPException(status_code=resp.status_code, detail=resp.text)
     data = resp.json()
     logger.info("Meta template '%s' sent to %s", template_name, to_number)
+    # Meta counts every template send against the business's daily limit, so
+    # Anril counts every one too -- broadcasts, app triggers, alerts alike.
+    from app.services.outbound_router import count_template_send
+    count_template_send(pid, tenant_id, to_number, ((data.get("messages") or [{}])[0] or {}).get("id"))
     return data
 
 

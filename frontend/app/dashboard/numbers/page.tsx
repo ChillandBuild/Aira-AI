@@ -28,7 +28,11 @@ type NumberHealth = {
   rest_day: number;
   rest_days: number;
   broadcast_cap: number | null;
+  // Meta's measure: people sent a template outside their 24h window, last 24 hours.
+  sent_24h?: number;
 };
+
+type NumbersPool = { limit: number; used: number; meta_limit?: number | null; meta_sent_24h?: number };
 
 type PhoneNumber = {
   id: string;
@@ -39,7 +43,6 @@ type PhoneNumber = {
   status: "active" | "warming" | "restricted" | "archived";
   quality_rating: QualityRating | null;
   messaging_tier: number | null;
-  daily_send_count: number;
   warm_up_day: number;
   paused_outbound: boolean;
   meta_phone_number_id?: string | null;
@@ -514,7 +517,7 @@ function IncidentRow({ incident }: { incident: Incident }) {
 
 const numbersApi = {
   list: () =>
-    apiFetch<{ data: PhoneNumber[]; numbers_pool?: { limit: number; used: number } }>("/api/v1/numbers"),
+    apiFetch<{ data: PhoneNumber[]; numbers_pool?: NumbersPool }>("/api/v1/numbers"),
   create: (payload: {
     provider: string;
     number: string;
@@ -538,7 +541,7 @@ const numbersApi = {
   syncMeta: (id: string) =>
     apiFetch<PhoneNumber>(`/api/v1/numbers/${id}/sync-meta`, { method: "POST" }),
   syncFromMeta: () =>
-    apiFetch<{ data: PhoneNumber[]; numbers_pool?: { limit: number; used: number }; synced: number; failed: number }>(
+    apiFetch<{ data: PhoneNumber[]; numbers_pool?: NumbersPool; synced: number; failed: number }>(
       "/api/v1/numbers/sync-from-meta",
       { method: "POST" }
     ),
@@ -556,7 +559,7 @@ function NumbersPageContent() {
   const activeTab = (rawTab === "activity" ? "activity" : "pool") as "pool" | "activity";
 
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
-  const [numbersPool, setNumbersPool] = useState<{ limit: number; used: number } | null>(null);
+  const [numbersPool, setNumbersPool] = useState<NumbersPool | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Search and filter state
@@ -664,10 +667,10 @@ function NumbersPageContent() {
   const broadcastsPaused = primaryNumber?.health?.state === "resting" && !hasReadyStandby;
   const activeLineCount = visible.filter((n) => n.health?.state === "active").length;
   const pausedCount = visible.filter((n) => n.paused_outbound).length;
-  const totalDailySends = visible.reduce((acc, n) => acc + (n.daily_send_count || 0), 0);
-  // Meta's limit is per business portfolio and shared by every number, so
-  // capacity is that one limit -- not the sum across numbers.
-  const totalDailyCapacity = visible.reduce((acc, n) => Math.max(acc, n.messaging_tier || 0), 0);
+  // Meta's one limit for the whole business (shared by every number) and what
+  // the last 24 hours used of it, counted the way Meta counts.
+  const totalDailySends = numbersPool?.meta_sent_24h ?? 0;
+  const totalDailyCapacity = numbersPool?.meta_limit ?? 0;
   const totalSendPct = totalDailyCapacity > 0 ? Math.min((totalDailySends / totalDailyCapacity) * 100, 100) : 0;
 
   // Portfolio overall quality
@@ -842,7 +845,7 @@ function NumbersPageContent() {
               </div>
             </div>
 
-            {/* KPI 2: Today's Dispatches */}
+            {/* KPI 2: Meta limit used, moving 24 hours */}
             <div className="p-5 rounded-2xl bg-white border border-border/80 border-t-4 border-t-sky-400 shadow-xs hover:shadow-card transition-all flex flex-col justify-between">
               <div className="flex items-start justify-between mb-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -856,7 +859,7 @@ function NumbersPageContent() {
                 <p className="font-display text-2xl font-bold text-on-surface">
                   {totalDailySends.toLocaleString()} <span className="text-sm font-semibold text-on-surface-muted">/ {formatLimit(totalDailyCapacity)}</span>
                 </p>
-                <p className="font-label text-xs text-on-surface-muted mt-0.5">Today&apos;s Dispatches</p>
+                <p className="font-label text-xs text-on-surface-muted mt-0.5" title="People sent a template outside their 24-hour chat window, over the last 24 hours. This is what Meta counts toward your limit. Broadcasts stop at 90% of it, leaving room for messages sent outside Anril; app messages never stop.">Used of Meta&apos;s limit (Anril&apos;s count)</p>
               </div>
               <div className="mt-3 pt-3 border-t border-border/60">
                 <div className="w-full h-1.5 rounded-full bg-surface-mid overflow-hidden">
@@ -1084,7 +1087,7 @@ function NumbersPageContent() {
                   // Resting or not yet verified by Meta: this number sends no broadcasts at all today.
                   const noBroadcasts = num.health?.state === "resting" || num.health?.state === "meta_pending";
                   const sendPct = limit !== null && limit > 0
-                    ? Math.min((num.daily_send_count / limit) * 100, 100)
+                    ? Math.min(((num.health?.sent_24h ?? 0) / limit) * 100, 100)
                     : 0;
                   const showsQualitySteps = num.quality_rating !== null && num.quality_rating !== "green";
 
@@ -1228,7 +1231,7 @@ function NumbersPageContent() {
                                 {num.health?.state === "warming" ? "Warm-up limit" : "Daily Limit"}
                               </span>
                               <span className="font-mono font-bold text-on-surface text-[11px]">
-                                {limit === null || noBroadcasts ? "—" : `${num.daily_send_count.toLocaleString()} / ${formatLimit(limit)}`}
+                                {limit === null || noBroadcasts ? "—" : `${(num.health?.sent_24h ?? 0).toLocaleString()} / ${formatLimit(limit)}`}
                               </span>
                             </div>
                             <div className="w-full h-2 rounded-full bg-surface-mid overflow-hidden">
@@ -1251,8 +1254,8 @@ function NumbersPageContent() {
                                   ? "No limit from Meta yet"
                                   : limit >= UNLIMITED_TIER
                                   ? "No cap"
-                                  : limit - num.daily_send_count > 0
-                                  ? `${(limit - num.daily_send_count).toLocaleString()} left`
+                                  : limit - (num.health?.sent_24h ?? 0) > 0
+                                  ? `${(limit - (num.health?.sent_24h ?? 0)).toLocaleString()} left`
                                   : "Limit reached"}
                               </span>
                             </div>

@@ -34,9 +34,29 @@ class TierFromMetaTests(unittest.TestCase):
         meta = {"whatsapp_business_manager_messaging_limit": "TIER_2K", "messaging_limit_tier": "TIER_250"}
         self.assertEqual(parse_messaging_tier(meta), 2000)
 
-    def test_falls_back_to_deprecated_field(self):
-        self.assertEqual(parse_messaging_tier({"messaging_limit_tier": "TIER_10K"}), 10000)
+    def test_never_falls_back_to_the_deprecated_field(self):
+        """Meta deprecated messaging_limit_tier; it can be stale (90427 81088
+        reported TIER_250 beside a TIER_2K portfolio), so it's not read."""
+        self.assertIsNone(parse_messaging_tier({"messaging_limit_tier": "TIER_10K"}))
         self.assertIsNone(parse_messaging_tier({}))
+
+
+class CapabilityUpdateTests(unittest.TestCase):
+    """Meta's webhook docs show max_daily_conversations_per_business both as
+    TIER_* and as a plain number."""
+
+    def test_tier_string_and_plain_number_both_parse(self):
+        from app.services.meta_cloud import tier_from_capability_update as t
+        self.assertEqual(t({"max_daily_conversations_per_business": "TIER_10K"}), 10000)
+        self.assertEqual(t({"max_daily_conversations_per_business": 2000}), 2000)
+        self.assertEqual(t({"max_daily_conversations_per_business": "TIER_UNLIMITED"}), UNLIMITED_MESSAGING_TIER)
+        self.assertEqual(t({"max_daily_conversations_per_business": -1}), UNLIMITED_MESSAGING_TIER)
+
+    def test_deprecated_keys_are_ignored(self):
+        from app.services.meta_cloud import tier_from_capability_update as t
+        self.assertIsNone(t({"max_daily_conversation_per_phone": 2000}))
+        self.assertIsNone(t({"current_limit": "TIER_10K"}))
+        self.assertIsNone(t({"max_daily_conversations_per_business": 1234}))
 
 
 class QualityMapTests(unittest.TestCase):
