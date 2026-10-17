@@ -1,0 +1,38 @@
+import type { Metadata } from "next";
+import localFont from "next/font/local";
+import { SiteFooter } from "@/components/site/SiteFooter";
+import { SiteHeader } from "@/components/site/SiteHeader";
+import ui from "@/components/site/site.module.css";
+
+// Serif for the marketing site's headings only, so the app's other pages never load it.
+// Two static weights (about 23 KB each) instead of the 132 KB variable file with the
+// optical-size axis; the mockup only uses 300 and 400.
+const newsreader = localFont({
+  src: [
+    { path: "../fonts/newsreader-latin-300.woff2", weight: "300", style: "normal" },
+    { path: "../fonts/newsreader-latin-400.woff2", weight: "400", style: "normal" },
+  ],
+  variable: "--font-newsreader",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: { default: "Anril AI", template: "%s | Anril AI" },
+  // Kept out of search until the owner decides to swap /new in for the current homepage.
+  robots: { index: false, follow: false },
+};
+
+export default function NewSiteLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <div className={`${newsreader.variable} ${ui.site}`}>
+      <a href="#main" className={ui.skip}>
+        Skip to content
+      </a>
+      <SiteHeader />
+      <main id="main" tabIndex={-1}>
+        {children}
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}

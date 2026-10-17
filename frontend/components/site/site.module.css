@@ -1,0 +1,73 @@
+/* Shared tokens and primitives for the marketing site under /new.
+   Values come from design/anril-homepage-mockup (its :root). Square corners
+   everywhere except the hero and header pills, which follow the mockup. */
+.site {
+  --navy: #0A1528; --teal: #038285; --teal-l: #3FBCBF; --teal-d: #04585B;
+  --copper: #9A5A3C; --copper-l: #D9966B;
+  --wash-1: #ADE9EA; --wash-2: #EFFBFB; --blue: #D8EAF6; --beige: #F1EFE8; --grey: #F1F3F6;
+  --white: #FFFFFF; --body: #475569; --muted: #566579; --line: #E1E6EC; --soft: #D5DCE6;
+  --serif: var(--font-newsreader), "Iowan Old Style", Georgia, serif;
+  --sans: var(--font-manrope), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: var(--font-mono), ui-monospace, Consolas, monospace;
+  --hdr-x: max(20px, 8.55vw);
+  --focus: var(--navy);
+  background: var(--white);
+  color: var(--navy);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.site :where(h1, h2, h3) {
+  margin: 0;
+  text-wrap: balance;
+  font-family: var(--serif);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+.site p { margin: 0; }
+/* Tailwind's preflight already gives links color: inherit (no rule here: a `.site a` selector
+   would outrank single-class button colours). It also strips underlines; links inside
+   running text need them back. */
+.site p a { text-decoration: underline; text-underline-offset: 3px; }
+.site :is(a, button, input, select):focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+/* Anchored sections clear the fixed header. */
+.site [id] { scroll-margin-top: 96px; }
+
+.skip {
+  position: fixed; left: 12px; top: 12px; z-index: 100;
+  padding: 12px 18px; background: var(--navy); color: var(--white);
+  font-weight: 700; text-decoration: none;
+  transform: translateY(-200%);
+}
+.skip:focus { transform: none; --focus: var(--copper-l); }
+
+.page { max-width: 1240px; margin: 0 auto; padding-inline: 20px; }
+.frame { border-inline: 1px solid var(--line); }
+@media (max-width: 700px) { .frame { border-inline: 0; } }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 24px;
+  font: 700 0.95rem var(--sans); text-decoration: none;
+  border: 0; border-radius: 0; cursor: pointer;
+  background: var(--navy); color: var(--white);
+}
+.btn:disabled { cursor: progress; opacity: 0.75; }
+
+.kicker { font: 700 0.72rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; }
+.num { color: var(--copper); display: flex; align-items: center; gap: 12px; }
+.num::after { content: ""; flex: 0 0 40px; height: 2px; background: var(--copper); }
+.eg { font: 500 0.68rem var(--mono); color: var(--muted); }
+
+.band {
+  padding: clamp(32px, 6vw, 80px) clamp(20px, 4vw, 56px);
+  border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 22px;
+}
+.secH { font-size: clamp(1.9rem, 3.8vw, 3.1rem); line-height: 1.08; max-width: 20em; }
+.lede { color: var(--body); max-width: 54ch; font-size: 1.05rem; }
+.tlink {
+  font-weight: 700; color: var(--teal-d);
+  text-decoration: underline; text-underline-offset: 4px;
+  align-self: flex-start; padding-block: 12px;
+}

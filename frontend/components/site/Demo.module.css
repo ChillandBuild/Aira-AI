@@ -1,0 +1,26 @@
+.close {
+  background: var(--beige);
+  padding: clamp(32px, 6vw, 80px) clamp(20px, 4vw, 56px);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(24px, 4vw, 56px); align-items: center;
+}
+@media (max-width: 900px) { .close { grid-template-columns: minmax(0, 1fr); } }
+.t { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.t h2 { font-size: clamp(2.1rem, 4.4vw, 3.6rem); line-height: 1.05; }
+.t p { color: var(--body); max-width: 40ch; }
+.rule { width: 56px; height: 2px; background: var(--copper); }
+
+.form { background: var(--white); padding: 24px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-weight: 700; font-size: 0.84rem; }
+.field :is(input, select) {
+  font: 500 1rem var(--sans); color: var(--navy); background: var(--white);
+  border: 1px solid #94A3B8; border-radius: 0; min-height: 48px; padding: 0 12px; width: 100%;
+}
+.field [aria-invalid="true"] { border-color: #B42318; border-width: 2px; }
+.fieldError { color: #B42318; font-size: 0.84rem; font-weight: 600; }
+.note { font-size: 0.84rem; color: #B42318; font-weight: 700; }
+.note:empty { display: none; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.doneTitle { font-size: 1.8rem; line-height: 1.1; outline: none; }
+.doneText { color: var(--body); }

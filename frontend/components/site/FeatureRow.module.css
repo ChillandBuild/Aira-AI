@@ -1,0 +1,65 @@
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid var(--line); }
+.row > div { min-width: 0; }
+.txt { padding: clamp(28px, 5vw, 72px) clamp(20px, 4vw, 56px); display: flex; flex-direction: column; gap: 16px; justify-content: center; }
+.vis { padding: clamp(24px, 4vw, 56px); display: flex; align-items: center; justify-content: center; }
+.flip .txt { order: 2; }
+@media (max-width: 860px) {
+  .row { grid-template-columns: minmax(0, 1fr); }
+  .flip .txt { order: 0; }
+}
+.row h2 { font-size: clamp(1.8rem, 3.3vw, 2.7rem); line-height: 1.1; }
+.b { color: var(--body); max-width: 44ch; }
+.points { display: flex; flex-direction: column; gap: 8px; color: var(--body); max-width: 44ch; }
+.points li { display: flex; gap: 12px; }
+.points li::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 0.6em; background: var(--copper); }
+
+.teal { background: linear-gradient(135deg, var(--wash-1), var(--wash-2)); }
+.blue { background: var(--blue); }
+.beige { background: var(--beige); }
+
+.card {
+  background: var(--white); padding: 18px; width: 100%; max-width: 430px;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 16px 34px -18px rgba(10, 21, 40, 0.3);
+}
+.card h3 { font: 700 0.82rem var(--sans); letter-spacing: 0; color: var(--muted); }
+
+.msg { max-width: 84%; padding: 10px 13px; font-size: 0.9rem; }
+.msg small { display: block; font: 500 0.64rem var(--mono); opacity: 0.75; margin-top: 4px; }
+.in { background: var(--grey); align-self: flex-start; }
+.in small { opacity: 1; color: var(--muted); }
+.out { background: var(--navy); color: var(--white); align-self: flex-end; }
+/* Chat bubbles arrive in turn. */
+.chatloop .msg { animation: arrive 9s ease-out infinite; }
+.chatloop .msg:nth-of-type(2) { animation-delay: 1.4s; }
+.chatloop .msg:nth-of-type(3) { animation-delay: 2.8s; }
+@keyframes arrive { 0% { opacity: 0; transform: translateY(8px); } 8%, 100% { opacity: 1; transform: none; } }
+
+/* The score builds from signals. */
+.sig { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; animation: sig 8s ease-out infinite; }
+.sig::before { content: ""; width: 8px; height: 8px; background: var(--teal); flex: none; }
+.sig:nth-of-type(2) { animation-delay: 1.2s; }
+.sig:nth-of-type(3) { animation-delay: 2.4s; }
+@keyframes sig { 0% { opacity: 0.25; } 10%, 100% { opacity: 1; } }
+.scoreline { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 6px; }
+.marked { font: 700 0.72rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--navy); }
+
+.chip { font: 700 0.64rem var(--mono); letter-spacing: 0.06em; padding: 4px 9px; background: var(--copper); color: var(--white); }
+.li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 0.9rem; }
+.li b { font-weight: 700; }
+.first { border-top: 0; }
+.who { display: flex; align-items: center; gap: 10px; }
+.av { width: 34px; height: 34px; background: var(--navy); color: var(--white); font: 700 0.72rem var(--mono); display: flex; align-items: center; justify-content: center; flex: none; }
+.sc { font-family: var(--mono); font-weight: 700; font-variant-numeric: tabular-nums; }
+.leadKey { color: var(--teal-d); font-weight: 700; }
+.tcKey { color: var(--copper); font-weight: 700; }
+
+/* A call waveform. */
+.wave { display: flex; align-items: center; gap: 3px; height: 64px; }
+.wave i { flex: 1 1 0; background: var(--teal); height: var(--h); transform-origin: center; animation: wave 1.6s ease-in-out infinite; animation-delay: var(--d); }
+.wave i.me { background: var(--copper); }
+@keyframes wave { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .chatloop .msg, .sig, .wave i { animation: none; }
+}

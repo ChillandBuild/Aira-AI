@@ -1,0 +1,21 @@
+/* Customer reviews on the homepage: a hairline grid of quote cards under a normal band heading. */
+.reviews { border-bottom: 1px solid var(--line); }
+.reviews > :first-child { border-bottom: 0; padding-bottom: 8px; }
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line);
+}
+.grid > li { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 0; }
+.card {
+  margin: 0; height: 100%;
+  padding: clamp(24px, 3.4vw, 44px) clamp(20px, 3.4vw, 44px);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.stars { display: inline-flex; gap: 3px; color: var(--copper); }
+.stars svg { display: block; }
+.topic { font: 700 0.68rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--teal-d); }
+.title { font-size: clamp(1.35rem, 1.9vw, 1.65rem); line-height: 1.2; }
+.quote { margin: 0; flex: 1; color: var(--body); font-size: 0.95rem; }
+.who { display: flex; flex-direction: column; gap: 2px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 0.88rem; color: var(--muted); }
+.who b { color: var(--navy); font-weight: 700; font-size: 0.95rem; }
+.note { padding: 18px clamp(20px, 4vw, 56px); font: 500 0.72rem var(--mono); color: var(--muted); }

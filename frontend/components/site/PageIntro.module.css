@@ -1,0 +1,2 @@
+.intro { padding-top: clamp(128px, 14vw, 176px); }
+.title { font-size: clamp(2.4rem, 5.4vw, 4.4rem); line-height: 1.04; max-width: 16em; }

@@ -1,0 +1,15 @@
+/* The four modules (Plans page) and the pricing questions below them. */
+/* Two by two, so four modules never leave one alone on a row. */
+.grid.grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); }
+.num { font: 700 0.72rem var(--mono); letter-spacing: 0.1em; color: var(--copper); }
+.feats { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 0; padding: 0; list-style: none; }
+.feats li { display: flex; flex-direction: column; padding-left: 14px; border-left: 2px solid var(--wash-1); }
+.feats b { color: var(--navy); font-weight: 700; }
+.flow { font: 500 0.78rem var(--mono); color: var(--teal-d); }
+.price { font: 700 0.78rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+
+.faq { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 0 clamp(24px, 4vw, 56px); margin: 0; }
+.faq > div { padding-block: 20px; border-top: 1px solid var(--line); min-width: 0; }
+.faq dt { font: 400 1.3rem var(--serif); line-height: 1.25; color: var(--navy); margin-bottom: 8px; }
+.faq dd { margin: 0; color: var(--body); }
+.faq dd a { text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; padding-block: 11px; }

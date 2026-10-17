@@ -1,0 +1,89 @@
+/* Header, as in the mockup: clear over the hero photo, then a frosted pill-cornered bar. */
+.hdr {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 50;
+  color: var(--white);
+  --focus: var(--copper-l);
+  transition: padding 0.4s ease, color 0.4s ease;
+}
+.live { position: fixed; top: env(safe-area-inset-top, 0px); }
+.inner {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 20px var(--hdr-x);
+  border: 1px solid transparent;
+  transition: background-color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, padding 0.4s ease, border-radius 0.4s ease;
+}
+.solid { color: var(--navy); --focus: var(--navy); padding: 10px max(0px, calc(var(--hdr-x) - 24px)) 0; }
+.solid .inner {
+  padding: 12px 24px; border-radius: 16px;
+  background: rgba(240, 240, 240, 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-color: rgba(10, 21, 40, 0.1);
+  box-shadow: 0 12px 30px -18px rgba(10, 21, 40, 0.45);
+}
+.home { display: inline-flex; align-items: center; min-height: 44px; flex: none; }
+.home svg { display: block; height: 26px; width: auto; }
+
+.right { display: flex; align-items: center; gap: clamp(20px, 3.6vw, 62px); }
+.links {
+  display: flex; align-items: center; gap: clamp(14px, 1.9vw, 32px);
+  font-weight: 500; font-size: clamp(0.95rem, 1.08vw, 1.14rem);
+}
+.item { position: relative; display: flex; align-items: center; }
+.link { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
+.link[aria-current="page"] { text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px; }
+.chev {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; min-height: 44px; margin-left: -4px;
+  color: inherit; background: none; border: 0; cursor: pointer;
+}
+.chev[aria-expanded="true"] svg { transform: rotate(180deg); }
+.chev svg { transition: transform 0.2s ease; }
+
+/* Square corners: the dropdown belongs to the page, not the hero. */
+.panel {
+  position: absolute; top: 100%; left: -16px; z-index: 2;
+  min-width: 230px; padding: 8px 0;
+  background: var(--white); color: var(--navy);
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 36px -18px rgba(10, 21, 40, 0.45);
+  font-size: 0.95rem; --focus: var(--navy);
+}
+.panel[hidden] { display: none; }
+.panelLink { display: flex; align-items: center; min-height: 44px; padding: 0 18px; text-decoration: none; }
+.panelLink:hover { background: var(--grey); }
+
+.actions { display: flex; align-items: center; gap: 16px; }
+.login, .cta {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 20px; border-radius: 99px;
+  font-weight: 500; font-size: clamp(0.95rem, 1.08vw, 1.14rem);
+  text-decoration: none; white-space: nowrap;
+  border: 1px solid transparent;
+  transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
+.login { background: rgba(38, 42, 46, 0.78); color: var(--white); }
+.cta { background: var(--white); color: var(--navy); }
+.solid .login { background: transparent; color: var(--navy); border-color: rgba(10, 21, 40, 0.25); }
+.solid .cta { background: var(--navy); color: var(--white); }
+
+.menuBtn {
+  display: none; align-items: center; justify-content: center;
+  min-height: 48px; min-width: 48px; padding: 0 16px; border-radius: 99px;
+  font: 600 0.95rem var(--sans); cursor: pointer;
+  background: rgba(38, 42, 46, 0.78); color: var(--white); border: 1px solid transparent;
+}
+.solid .menuBtn { background: transparent; color: var(--navy); border-color: rgba(10, 21, 40, 0.25); }
+
+@media (max-width: 1180px) { .login { display: none; } }
+@media (max-width: 960px) {
+  .nav { display: none; }
+  .login { display: inline-flex; }
+  .menuBtn { display: inline-flex; }
+}
+@media (max-width: 640px) { .login { display: none; } }
+@media (max-width: 480px) { .cta { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hdr, .hdr * { transition: none !important; }
+}

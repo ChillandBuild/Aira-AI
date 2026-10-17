@@ -1,0 +1,23 @@
+.wrap { background: var(--beige); padding: clamp(20px, 3vw, 36px); display: flex; flex-direction: column; gap: 14px; }
+.ruler {
+  position: relative; height: 120px; overflow: hidden;
+  border-bottom: 1px solid var(--navy);
+  background: repeating-linear-gradient(90deg, rgba(10, 21, 40, 0.45) 0 1px, transparent 1px calc(100% / 24)) bottom / 100% 18px no-repeat;
+}
+.office { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, 0.7); }
+.office span { position: absolute; top: 8px; left: 8px; font: 500 0.66rem var(--mono); color: var(--muted); white-space: nowrap; }
+.mark { position: absolute; bottom: 26px; width: 10px; height: 10px; margin-left: -5px; background: var(--teal); }
+.late { background: var(--copper); }
+
+/* The sweep line rides the right edge of a full-width track that slides in from the left,
+   so it moves by transform alone and rests at the end of the day when motion is off. */
+.sweep { position: absolute; inset: 0; animation: sweep 16s linear infinite; }
+.sweep::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 2px; background: var(--navy); }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+.hours { display: flex; justify-content: space-between; font: 500 0.7rem var(--mono); color: var(--muted); }
+.legend { display: flex; gap: 8px 20px; flex-wrap: wrap; align-items: center; font-size: 0.86rem; color: var(--body); }
+.legend i { display: inline-block; width: 10px; height: 10px; margin-right: 8px; background: var(--teal); }
+.legend i.lateKey { background: var(--copper); }
+
+@media (prefers-reduced-motion: reduce) { .sweep { animation: none; } }

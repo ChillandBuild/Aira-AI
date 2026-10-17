@@ -1,0 +1,11 @@
+.footer {
+  padding: 28px 24px 44px;
+  display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; align-items: center;
+  color: var(--muted); font-size: 0.88rem;
+}
+.brand { display: flex; align-items: center; gap: 4px 18px; flex-wrap: wrap; }
+.brand a:not(.logo) { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 3px; }
+.logo { display: inline-flex; align-items: center; min-height: 44px; color: var(--navy); }
+.logo svg { display: block; height: 22px; width: auto; }
+.nav { display: flex; gap: 0 22px; flex-wrap: wrap; }
+.nav a { display: inline-flex; align-items: center; min-height: 44px; }

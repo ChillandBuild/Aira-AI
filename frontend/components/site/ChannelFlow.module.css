@@ -1,0 +1,17 @@
+.flow { background: linear-gradient(135deg, var(--wash-2), var(--wash-1)); padding: clamp(16px, 3vw, 36px); }
+.wide { width: 100%; height: auto; display: block; }
+.text { font-family: var(--sans); }
+
+/* Below 600px the diagram's labels would shrink past reading size, so the same story is told as a stacked list. */
+.narrow { display: none; flex-direction: column; gap: 14px; }
+.col { display: grid; gap: 8px; }
+.box { background: var(--white); color: var(--navy); font-weight: 700; padding: 12px 14px; }
+.hot { background: var(--copper); color: var(--white); }
+.cold { color: var(--muted); }
+.hub { display: flex; align-items: center; gap: 12px; font-weight: 700; padding-block: 4px; }
+.hub svg { flex: none; }
+@media (max-width: 600px) {
+  .wide { display: none; }
+  .narrow { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) { .dots { display: none; } }
